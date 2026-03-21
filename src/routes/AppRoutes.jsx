@@ -40,6 +40,8 @@ function AppRoutes() {
         <Route path="/login" element={<Login />} />
         <Route path="/loading" element={<Loading />} />
         <Route path="/dashboard" element={<Navigate to="/app/dashboard" replace />} />
+        <Route path="/history" element={<Navigate to="/app/history" replace />} />
+        <Route path="/profile" element={<Navigate to="/app/profile" replace />} />
         <Route path="/app" element={<ProtectedAppRoutes />}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />

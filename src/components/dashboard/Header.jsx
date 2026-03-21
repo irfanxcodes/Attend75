@@ -1,9 +1,13 @@
 function Header({ userName }) {
   return (
-    <header>
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600 dark:text-sky-400">Attend75</p>
-      <h1 className="mt-2 text-3xl font-bold text-slate-900 dark:text-slate-100">Hi, {userName}</h1>
-      <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Here is your attendance snapshot for today.</p>
+    <header className="space-y-1.5 pt-1">
+      <h1
+        className="text-2xl font-semibold text-[#E7DEDE]"
+        style={{ fontFamily: 'Francois One, sans-serif' }}
+      >
+        Hi, {userName}
+      </h1>
+      <p className="text-[13px] text-[#D1D1D1]">Here&apos;s your attendance overview</p>
     </header>
   )
 }

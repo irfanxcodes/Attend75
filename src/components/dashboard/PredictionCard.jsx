@@ -3,21 +3,21 @@ const targets = [60, 65, 75, 80]
 function PredictionCard({ selectedTarget, prediction, onChangeTarget }) {
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+    <section className="rounded-2xl border border-white/20 bg-[#312051] p-5">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Prediction</h2>
-        <p className="text-xs text-slate-500 dark:text-slate-400">Target: {selectedTarget}%</p>
+        <h2 className="text-base font-semibold text-[#E7DEDE]">Prediction</h2>
+        <p className="text-xs text-[#D1D1D1]">Target: {selectedTarget}%</p>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
-        <div className="rounded-xl bg-emerald-50 p-3 dark:bg-emerald-950/40">
-          <p className="text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-300">To Attend</p>
-          <p className="mt-1 text-2xl font-bold text-emerald-800 dark:text-emerald-200">{prediction.toAttend}</p>
+        <div className="rounded-xl bg-[#22C55E]/15 p-3">
+          <p className="text-xs uppercase tracking-wide text-[#D1D1D1]">To Attend</p>
+          <p className="mt-1 text-2xl font-bold text-[#22C55E]">{prediction.toAttend}</p>
         </div>
 
-        <div className="rounded-xl bg-amber-50 p-3 dark:bg-amber-950/40">
-          <p className="text-xs uppercase tracking-wide text-amber-700 dark:text-amber-300">Can Miss</p>
-          <p className="mt-1 text-2xl font-bold text-amber-800 dark:text-amber-200">{prediction.canMiss}</p>
+        <div className="rounded-xl bg-[#F59E0B]/15 p-3">
+          <p className="text-xs uppercase tracking-wide text-[#D1D1D1]">Can Miss</p>
+          <p className="mt-1 text-2xl font-bold text-[#F59E0B]">{prediction.canMiss}</p>
         </div>
       </div>
 
@@ -30,8 +30,8 @@ function PredictionCard({ selectedTarget, prediction, onChangeTarget }) {
             className={[
               'rounded-full px-4 py-1.5 text-sm font-medium transition-colors',
               selectedTarget === target
-                ? 'bg-sky-600 text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700',
+                ? 'bg-[#E8A08C] text-[#312051]'
+                : 'bg-white/10 text-[#D1D1D1] hover:bg-white/20',
             ].join(' ')}
           >
             {target}%
