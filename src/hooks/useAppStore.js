@@ -13,7 +13,6 @@ function useAppStore() {
       setSelectedTarget: (target) => dispatch({ type: 'SET_SELECTED_TARGET', payload: target }),
       setLoading: (isLoading) => dispatch({ type: 'SET_LOADING', payload: isLoading }),
       setError: (errorMessage) => dispatch({ type: 'SET_ERROR', payload: errorMessage }),
-      setTheme: (theme) => dispatch({ type: 'SET_THEME', payload: theme }),
     }),
     [dispatch],
   )

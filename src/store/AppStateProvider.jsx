@@ -1,23 +1,12 @@
-import { createContext, useContext, useEffect, useMemo, useReducer } from 'react'
+import { createContext, useContext, useMemo, useReducer } from 'react'
 import { attendanceSeedData, userSeedData } from '../constants/dummyData'
 import {
   calculateOverallAttendance,
   enrichSubjectsWithPercentage,
-  mapHistoryTrend,
 } from '../utils/calculations'
 
 const AppStateContext = createContext(null)
 const AppDispatchContext = createContext(null)
-
-function getInitialTheme() {
-  const savedTheme = localStorage.getItem('attend75-theme')
-
-  if (savedTheme === 'dark' || savedTheme === 'light') {
-    return savedTheme
-  }
-
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-}
 
 function buildAttendanceState(rawAttendance = attendanceSeedData) {
   const subjects = enrichSubjectsWithPercentage(rawAttendance.subjects || [])
@@ -25,7 +14,6 @@ function buildAttendanceState(rawAttendance = attendanceSeedData) {
 
   return {
     subjects,
-    history: mapHistoryTrend(rawAttendance.history || []),
     overallPercentage: overall.percentage,
   }
 }
@@ -42,7 +30,6 @@ const initialState = {
   attendance: buildAttendanceState(attendanceSeedData),
   selectedTarget: 75,
   ui: {
-    theme: getInitialTheme(),
     isLoading: false,
     error: '',
   },
@@ -106,15 +93,6 @@ function appStateReducer(state, action) {
         },
       }
 
-    case 'SET_THEME':
-      return {
-        ...state,
-        ui: {
-          ...state.ui,
-          theme: action.payload,
-        },
-      }
-
     default:
       return state
   }
@@ -122,11 +100,6 @@ function appStateReducer(state, action) {
 
 function AppStateProvider({ children }) {
   const [state, dispatch] = useReducer(appStateReducer, initialState)
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', state.ui.theme === 'dark')
-    localStorage.setItem('attend75-theme', state.ui.theme)
-  }, [state.ui.theme])
 
   const value = useMemo(() => state, [state])
 
