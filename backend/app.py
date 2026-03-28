@@ -11,6 +11,15 @@ app = FastAPI(title="Attend75 Backend", version="0.1.0")
 async def validation_exception_handler(_, exc: RequestValidationError):
     first_error = exc.errors()[0] if exc.errors() else {}
     message = first_error.get("msg", "Invalid input")
+    location = first_error.get("loc", [])
+    field_name = location[-1] if location else None
+
+    if field_name and message.lower() == "field required":
+        if field_name == "roll_number":
+            message = "roll_number (or username) is required"
+        else:
+            message = f"{field_name} is required"
+
     return JSONResponse(
         status_code=422,
         content={"status": "error", "message": message},
