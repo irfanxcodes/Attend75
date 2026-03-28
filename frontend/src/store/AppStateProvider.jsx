@@ -26,6 +26,8 @@ const initialState = {
   },
   session: {
     token: null,
+    semesters: [],
+    selectedSemester: null,
   },
   attendance: buildAttendanceState(attendanceSeedData),
   selectedTarget: 75,
@@ -48,6 +50,8 @@ function appStateReducer(state, action) {
         },
         session: {
           token: action.payload.token,
+          semesters: action.payload.semesters || [],
+          selectedSemester: action.payload.selectedSemester || null,
         },
       }
 
@@ -60,6 +64,27 @@ function appStateReducer(state, action) {
         },
         session: {
           token: null,
+          semesters: [],
+          selectedSemester: null,
+        },
+      }
+
+    case 'SET_SESSION_SEMESTERS':
+      return {
+        ...state,
+        session: {
+          ...state.session,
+          semesters: action.payload.semesters || [],
+          selectedSemester: action.payload.selectedSemester || null,
+        },
+      }
+
+    case 'SET_SELECTED_SEMESTER':
+      return {
+        ...state,
+        session: {
+          ...state.session,
+          selectedSemester: action.payload,
         },
       }
 

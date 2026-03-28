@@ -63,6 +63,7 @@ function Login() {
       setIsSubmitting(true)
       const session = await login(form)
       actions.setAuthSession(session)
+      actions.setAttendanceData(session.attendanceData)
       navigate('/loading')
     } catch (requestError) {
       setError(requestError.message)

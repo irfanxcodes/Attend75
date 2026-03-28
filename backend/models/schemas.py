@@ -48,3 +48,16 @@ class ApiResponse(BaseModel):
     status: str
     message: str
     data: dict[str, Any] | None = None
+
+
+class AttendanceRequest(BaseModel):
+    token: str = Field(..., description="Session token from /login")
+    semester_id: str | None = Field(default=None, description="Semester id from attendance dropdown")
+
+    @field_validator("token")
+    @classmethod
+    def validate_token(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("token must not be empty")
+        return cleaned

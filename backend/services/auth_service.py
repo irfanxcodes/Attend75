@@ -1,6 +1,22 @@
-from scrapers.portal_scraper import PortalScraper
+from scrapers.portal_scraper import PortalAuthenticationError, PortalScraper
+from services.session_store import session_store
 
 
 def login_user(roll_number: str, password: str) -> dict:
     scraper = PortalScraper()
-    return scraper.login(roll_number=roll_number, password=password)
+    data = scraper.login(roll_number=roll_number, password=password)
+    record = session_store.create(roll_number=roll_number, scraper=scraper)
+
+    return {
+        "token": record.token,
+        "roll_number": roll_number.strip().upper(),
+        **data,
+    }
+
+
+def fetch_attendance_for_semester(token: str, semester_id: str | None) -> dict:
+    record = session_store.get(token)
+    if record is None:
+        raise PortalAuthenticationError("Session expired. Please login again.")
+
+    return record.scraper.fetch_attendance_for_semester(semester_id=semester_id)

@@ -8,6 +8,12 @@ function useAppStore() {
   const actions = useMemo(
     () => ({
       setAuthSession: (session) => dispatch({ type: 'SET_AUTH_SESSION', payload: session }),
+      setSessionSemesters: (semesters, selectedSemester) =>
+        dispatch({
+          type: 'SET_SESSION_SEMESTERS',
+          payload: { semesters, selectedSemester },
+        }),
+      setSelectedSemester: (semesterId) => dispatch({ type: 'SET_SELECTED_SEMESTER', payload: semesterId }),
       logout: () => dispatch({ type: 'LOGOUT' }),
       setAttendanceData: (attendanceData) => dispatch({ type: 'SET_ATTENDANCE_DATA', payload: attendanceData }),
       setSelectedTarget: (target) => dispatch({ type: 'SET_SELECTED_TARGET', payload: target }),

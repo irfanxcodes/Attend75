@@ -1,48 +1,94 @@
-import { attendanceSeedData, userSeedData } from '../constants/dummyData'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
 
-function withDelay(callback, duration = 1300) {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      try {
-        resolve(callback())
-      } catch (error) {
-        reject(error)
+function normalizeAttendancePayload(data) {
+  const rows = Array.isArray(data?.attendance) ? data.attendance : []
+
+  const subjects = rows
+    .map((item, index) => {
+      const totalClasses = Number(item.sessions) || 0
+      const attendedClasses = Number(item.attended) || 0
+      const displayName = (item.subject || '').trim() || (item.code || '').trim()
+
+      if (!displayName) {
+        return null
       }
-    }, duration)
-  })
+
+      return {
+        id: (item.code || `subject-${index}`).toLowerCase(),
+        name: displayName,
+        totalClasses,
+        attendedClasses,
+      }
+    })
+    .filter(Boolean)
+
+  return {
+    subjects,
+    history: [],
+    semesters: Array.isArray(data?.semesters) ? data.semesters : [],
+    selectedSemester: data?.selected_semester || null,
+  }
 }
 
-export function login(credentials) {
-  return withDelay(() => {
-    const username = credentials?.username?.trim()
-    const password = credentials?.password?.trim()
-
-    if (!username || !password) {
-      throw new Error('Enter both username and password to continue.')
-    }
-
-    if (username.toLowerCase() === 'fail') {
-      throw new Error('Login failed. Please check your credentials and try again.')
-    }
-
-    return {
-      name: username,
-      id: userSeedData.id,
-      token: 'mock-session-token',
-    }
-  })
+async function parseApiResponse(response) {
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok || payload.status === 'error') {
+    throw new Error(payload.message || 'Request failed. Please try again.')
+  }
+  return payload.data || {}
 }
 
-export function fetchAttendance() {
-  return withDelay(() => {
-    if (Math.random() < 0.15) {
-      throw new Error('Unable to load attendance right now. Please retry.')
-    }
+export async function login(credentials) {
+  const username = credentials?.username?.trim()
+  const password = credentials?.password?.trim()
 
-    return {
-      ...attendanceSeedData,
-      subjects: attendanceSeedData.subjects.map((subject) => ({ ...subject })),
-      history: attendanceSeedData.history.map((entry) => ({ ...entry })),
-    }
-  }, 1500)
+  if (!username || !password) {
+    throw new Error('Enter both username and password to continue.')
+  }
+
+  const response = await fetch(`${API_BASE_URL}/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ roll_number: username, password }),
+  })
+
+  const data = await parseApiResponse(response)
+  const normalized = normalizeAttendancePayload(data)
+
+  return {
+    id: data.roll_number || username,
+    name: data.roll_number || username,
+    portalName: data.roll_number || username,
+    token: data.token,
+    semesters: normalized.semesters,
+    selectedSemester: normalized.selectedSemester,
+    attendanceData: {
+      subjects: normalized.subjects,
+      history: normalized.history,
+    },
+  }
+}
+
+export async function fetchAttendance({ token, semesterId }) {
+  if (!token) {
+    throw new Error('Session expired. Please login again.')
+  }
+
+  const response = await fetch(`${API_BASE_URL}/attendance`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, semester_id: semesterId || null }),
+  })
+
+  const data = await parseApiResponse(response)
+  const normalized = normalizeAttendancePayload(data)
+
+  return {
+    attendanceData: {
+      subjects: normalized.subjects,
+      history: normalized.history,
+    },
+    semesters: normalized.semesters,
+    selectedSemester: normalized.selectedSemester,
+  }
 }
