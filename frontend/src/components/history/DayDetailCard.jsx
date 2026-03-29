@@ -1,4 +1,4 @@
-function DayDetailCard({ displayDate, attendanceItems }) {
+function DayDetailCard({ displayDate, attendanceItems, emptyMessage = 'No classes on this day' }) {
   const totalClasses = attendanceItems.length
   const attendedClasses = attendanceItems.filter((entry) => entry.status === 'Present').length
   const percentage = totalClasses ? Math.round((attendedClasses / totalClasses) * 100) : 0
@@ -6,7 +6,7 @@ function DayDetailCard({ displayDate, attendanceItems }) {
   if (!totalClasses) {
     return (
       <div className="rounded-2xl bg-[#5B5485] p-5 text-center text-sm font-medium text-[#D8D3E8] shadow-sm">
-        No classes on this day 🎉
+        {emptyMessage}
       </div>
     )
   }

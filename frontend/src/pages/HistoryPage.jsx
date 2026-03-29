@@ -22,6 +22,12 @@ function getDaysInMonth(year, monthIndex) {
   return new Date(year, monthIndex + 1, 0).getDate()
 }
 
+function isFutureDateKey(dateKey) {
+  const today = new Date()
+  const todayKey = formatDateKey(today.getFullYear(), today.getMonth(), today.getDate())
+  return dateKey > todayKey
+}
+
 function normalizeCode(value) {
   return String(value || '')
     .toUpperCase()
@@ -35,9 +41,10 @@ function HistoryPage() {
 
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(null)
-  const [historyByDate, setHistoryByDate] = useState({})
+  const [historyBySemesterDate, setHistoryBySemesterDate] = useState({})
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const [historyError, setHistoryError] = useState('')
+  const semesterCacheKey = String(session.selectedSemester || 'default')
 
   const subjectAbbreviationByCode = useMemo(() => {
     const map = {}
@@ -62,15 +69,26 @@ function HistoryPage() {
     setCurrentDate((previous) => new Date(previous.getFullYear(), previous.getMonth() + 1, 1))
   }
 
-  const handleSelectDate = async (day) => {
+  const handleResetToToday = async () => {
+    const today = new Date()
+    const todayDay = today.getDate()
+
+    setCurrentDate(new Date(today.getFullYear(), today.getMonth(), 1))
+    setSelectedDate(todayDay)
+    await handleSelectDate(todayDay, today)
+  }
+
+  const handleSelectDate = async (day, overrideDate = null) => {
     setSelectedDate(day)
     setHistoryError('')
 
-    const year = currentDate.getFullYear()
-    const month = currentDate.getMonth()
+    const sourceDate = overrideDate || currentDate
+    const year = sourceDate.getFullYear()
+    const month = sourceDate.getMonth()
     const dateKey = formatDateKey(year, month, day)
+    const semesterHistory = historyBySemesterDate[semesterCacheKey] || {}
 
-    if (historyByDate[dateKey]) {
+    if (semesterHistory[dateKey]) {
       return
     }
 
@@ -97,10 +115,16 @@ function HistoryPage() {
         }
       })
 
-      setHistoryByDate((current) => ({
-        ...current,
-        [dateKey]: normalizedEntries,
-      }))
+      setHistoryBySemesterDate((current) => {
+        const currentSemesterHistory = current[semesterCacheKey] || {}
+        return {
+          ...current,
+          [semesterCacheKey]: {
+            ...currentSemesterHistory,
+            [dateKey]: normalizedEntries,
+          },
+        }
+      })
     } catch (error) {
       setHistoryError(error.message)
     } finally {
@@ -108,12 +132,13 @@ function HistoryPage() {
     }
   }
 
-  const { selectedDateKey, selectedItems, selectedDisplayDate } = useMemo(() => {
+  const { selectedDateKey, selectedItems, selectedDisplayDate, isFutureSelectedDate } = useMemo(() => {
     if (!selectedDate) {
       return {
         selectedDateKey: null,
         selectedItems: [],
         selectedDisplayDate: '',
+        isFutureSelectedDate: false,
       }
     }
 
@@ -127,17 +152,21 @@ function HistoryPage() {
         selectedDateKey: null,
         selectedItems: [],
         selectedDisplayDate: '',
+        isFutureSelectedDate: false,
       }
     }
 
     const dateKey = formatDateKey(year, month, selectedDate)
 
+    const semesterHistory = historyBySemesterDate[semesterCacheKey] || {}
+
     return {
       selectedDateKey: dateKey,
-      selectedItems: historyByDate[dateKey] || [],
+      selectedItems: semesterHistory[dateKey] || [],
       selectedDisplayDate: formatDisplayDate(year, month, selectedDate),
+      isFutureSelectedDate: isFutureDateKey(dateKey),
     }
-  }, [currentDate, historyByDate, selectedDate])
+  }, [currentDate, historyBySemesterDate, selectedDate, semesterCacheKey])
 
   return (
     <section className="space-y-4 pb-2">
@@ -151,6 +180,7 @@ function HistoryPage() {
           currentDate={currentDate}
           onPreviousMonth={handlePreviousMonth}
           onNextMonth={handleNextMonth}
+          onResetToToday={handleResetToToday}
         />
 
         <CalendarGrid
@@ -170,7 +200,11 @@ function HistoryPage() {
         ) : null}
 
         {selectedDateKey && !isLoadingHistory ? (
-          <DayDetailCard displayDate={selectedDisplayDate} attendanceItems={selectedItems} />
+          <DayDetailCard
+            displayDate={selectedDisplayDate}
+            attendanceItems={selectedItems}
+            emptyMessage={isFutureSelectedDate ? 'Yet to attend' : 'No classes on this day 🎉'}
+          />
         ) : null}
       </div>
     </section>

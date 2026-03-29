@@ -1,4 +1,4 @@
-function CalendarHeader({ currentDate, onPreviousMonth, onNextMonth }) {
+function CalendarHeader({ currentDate, onPreviousMonth, onNextMonth, onResetToToday }) {
   const monthLabel = currentDate.toLocaleString('default', {
     month: 'long',
     year: 'numeric',
@@ -17,14 +17,26 @@ function CalendarHeader({ currentDate, onPreviousMonth, onNextMonth }) {
 
       <h2 className="text-2xl font-bold tracking-tight">{monthLabel}</h2>
 
-      <button
-        type="button"
-        onClick={onNextMonth}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#D7AC77] text-xl leading-none transition hover:bg-[#CB9D66] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5C5687]"
-        aria-label="Go to next month"
-      >
-        {'>'}
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onResetToToday}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full  transition hover:focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5C5687]"
+          aria-label="Reset to today"
+          title="Today"
+        >
+          <img src="/calendar.svg" alt="" aria-hidden="true" className="h-4 w-4" />
+        </button>
+
+        <button
+          type="button"
+          onClick={onNextMonth}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#D7AC77] text-xl leading-none transition hover:bg-[#CB9D66] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5C5687]"
+          aria-label="Go to next month"
+        >
+          {'>'}
+        </button>
+      </div>
     </div>
   )
 }
