@@ -61,3 +61,17 @@ class AttendanceRequest(BaseModel):
         if not cleaned:
             raise ValueError("token must not be empty")
         return cleaned
+
+
+class AttendanceHistoryRequest(BaseModel):
+    token: str = Field(..., description="Session token from /login")
+    semester_id: str | None = Field(default=None, description="Semester id from attendance dropdown")
+    date: str | None = Field(default=None, description="Date in YYYY-MM-DD format")
+
+    @field_validator("token")
+    @classmethod
+    def validate_history_token(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("token must not be empty")
+        return cleaned

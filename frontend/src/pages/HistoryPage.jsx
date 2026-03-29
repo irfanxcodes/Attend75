@@ -2,18 +2,8 @@ import { useMemo, useState } from 'react'
 import CalendarGrid from '../components/history/CalendarGrid'
 import CalendarHeader from '../components/history/CalendarHeader'
 import DayDetailCard from '../components/history/DayDetailCard'
-
-const SAMPLE_ATTENDANCE_DATA = {
-  '2026-03-12': [
-    { subject: 'eng', status: 'Present' },
-    { subject: 'sci', status: 'Present' },
-    { subject: 'math', status: 'Present' },
-    { subject: 'soc', status: 'Present' },
-    { subject: 'hindi', status: 'Present' },
-    { subject: 'yoga', status: 'Absent' },
-  ],
-  '2026-03-10': [{ subject: 'math', status: 'Absent' }],
-}
+import useAppStore from '../hooks/useAppStore'
+import { fetchAttendanceHistory } from '../services/attendanceApi'
 
 function formatDateKey(year, monthIndex, day) {
   const paddedMonth = String(monthIndex + 1).padStart(2, '0')
@@ -32,10 +22,37 @@ function getDaysInMonth(year, monthIndex) {
   return new Date(year, monthIndex + 1, 0).getDate()
 }
 
+function normalizeCode(value) {
+  return String(value || '')
+    .toUpperCase()
+    .replace(/\s+/g, '')
+}
+
 function HistoryPage() {
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 2, 1))
+  const {
+    state: { session, attendance },
+  } = useAppStore()
+
+  const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(null)
-  const [attendanceData] = useState(SAMPLE_ATTENDANCE_DATA)
+  const [historyByDate, setHistoryByDate] = useState({})
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+  const [historyError, setHistoryError] = useState('')
+
+  const subjectAbbreviationByCode = useMemo(() => {
+    const map = {}
+    const subjects = Array.isArray(attendance?.subjects) ? attendance.subjects : []
+
+    subjects.forEach((subject) => {
+      const codeKey = normalizeCode(subject?.id)
+      const shortName = String(subject?.shortName || '').trim()
+      if (codeKey && shortName) {
+        map[codeKey] = shortName
+      }
+    })
+
+    return map
+  }, [attendance?.subjects])
 
   const handlePreviousMonth = () => {
     setCurrentDate((previous) => new Date(previous.getFullYear(), previous.getMonth() - 1, 1))
@@ -43,6 +60,52 @@ function HistoryPage() {
 
   const handleNextMonth = () => {
     setCurrentDate((previous) => new Date(previous.getFullYear(), previous.getMonth() + 1, 1))
+  }
+
+  const handleSelectDate = async (day) => {
+    setSelectedDate(day)
+    setHistoryError('')
+
+    const year = currentDate.getFullYear()
+    const month = currentDate.getMonth()
+    const dateKey = formatDateKey(year, month, day)
+
+    if (historyByDate[dateKey]) {
+      return
+    }
+
+    if (!session.token) {
+      setHistoryError('Session expired. Please login again.')
+      return
+    }
+
+    try {
+      setIsLoadingHistory(true)
+      const result = await fetchAttendanceHistory({
+        token: session.token,
+        semesterId: session.selectedSemester,
+        date: dateKey,
+      })
+
+      const normalizedEntries = (result.entries || []).map((entry) => {
+        const codeKey = normalizeCode(entry?.code)
+        const abbreviation = subjectAbbreviationByCode[codeKey]
+
+        return {
+          ...entry,
+          subject: abbreviation || entry.subject,
+        }
+      })
+
+      setHistoryByDate((current) => ({
+        ...current,
+        [dateKey]: normalizedEntries,
+      }))
+    } catch (error) {
+      setHistoryError(error.message)
+    } finally {
+      setIsLoadingHistory(false)
+    }
   }
 
   const { selectedDateKey, selectedItems, selectedDisplayDate } = useMemo(() => {
@@ -71,10 +134,10 @@ function HistoryPage() {
 
     return {
       selectedDateKey: dateKey,
-      selectedItems: attendanceData[dateKey] || [],
+      selectedItems: historyByDate[dateKey] || [],
       selectedDisplayDate: formatDisplayDate(year, month, selectedDate),
     }
-  }, [attendanceData, currentDate, selectedDate])
+  }, [currentDate, historyByDate, selectedDate])
 
   return (
     <section className="space-y-4 pb-2">
@@ -93,10 +156,22 @@ function HistoryPage() {
         <CalendarGrid
           currentDate={currentDate}
           selectedDate={selectedDate}
-          onSelectDate={setSelectedDate}
+          onSelectDate={handleSelectDate}
         />
 
-        {selectedDateKey ? <DayDetailCard displayDate={selectedDisplayDate} attendanceItems={selectedItems} /> : null}
+        {historyError ? (
+          <div className="rounded-lg border border-[#F87171]/40 bg-[#7F1D1D]/20 px-3 py-2 text-sm text-[#FECACA]">
+            {historyError}
+          </div>
+        ) : null}
+
+        {isLoadingHistory && selectedDateKey ? (
+          <div className="rounded-lg bg-[#5B5485] px-3 py-2 text-sm text-[#D8D3E8]">Loading attendance history...</div>
+        ) : null}
+
+        {selectedDateKey && !isLoadingHistory ? (
+          <DayDetailCard displayDate={selectedDisplayDate} attendanceItems={selectedItems} />
+        ) : null}
       </div>
     </section>
   )

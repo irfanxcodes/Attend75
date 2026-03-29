@@ -1,5 +1,6 @@
 import os
 import re
+from datetime import datetime
 from urllib.parse import urljoin
 
 import requests
@@ -21,6 +22,7 @@ class PortalScraper:
         self.session = session or requests.Session()
         self.base_url = os.getenv("PORTAL_BASE_URL", "http://111.93.16.209/sz")
         self.login_path = os.getenv("PORTAL_LOGIN_PATH", "login.aspx")
+        self._history_cache: dict[str, dict[str, list[dict[str, str | bool]]]] = {}
         self.session.headers.update(
             {
                 "User-Agent": (
@@ -140,6 +142,32 @@ class PortalScraper:
             "overall": self._build_overall_feasibility(payload.get("attendance", []))
         }
         return payload
+
+    def fetch_subject_attendance_history(self, semester_id: str | None = None, date: str | None = None) -> dict:
+        attendance_payload = self.fetch_attendance_for_semester(semester_id=semester_id)
+        selected_semester = attendance_payload.get("selected_semester") or semester_id or "default"
+        cache_key = str(selected_semester)
+
+        if cache_key in self._history_cache:
+            history_by_date = self._history_cache[cache_key]
+            if not self._history_cache_has_abbreviations(history_by_date):
+                history_by_date = self._scrape_all_subject_history(attendance_payload.get("attendance", []))
+                self._history_cache[cache_key] = history_by_date
+        else:
+            history_by_date = self._scrape_all_subject_history(attendance_payload.get("attendance", []))
+            self._history_cache[cache_key] = history_by_date
+
+        if date:
+            return {
+                "date": date,
+                "entries": history_by_date.get(date, []),
+                "selected_semester": selected_semester,
+            }
+
+        return {
+            "history_by_date": history_by_date,
+            "selected_semester": selected_semester,
+        }
 
     def _extract_hidden_form_fields(self, html: str) -> dict[str, str]:
         soup = BeautifulSoup(html, "html.parser")
@@ -288,6 +316,31 @@ class PortalScraper:
         if attendance_table is None:
             raise PortalNetworkError("Attendance table not found on My Attendance page")
 
+        headers = [th.get_text(" ", strip=True).lower() for th in attendance_table.find_all("th")]
+
+        code_index = self._find_column_index(headers, ["code", "course code", "subject code"])
+        abbr_index = self._find_column_index(
+            headers,
+            ["course abbr", "courseabbr", "abbr", "short name", "shortname"],
+        )
+        course_index = self._find_column_index(headers, ["course name", "subject name"])
+        if course_index is None:
+            course_index = self._find_column_index(headers, ["course", "subject"])
+        if course_index is not None and abbr_index is not None and course_index == abbr_index:
+            course_index = None
+
+        section_index = self._find_column_index(headers, ["section"])
+        sessions_index = self._find_column_index(headers, ["sessions", "session"]) 
+        attended_index = self._find_column_index(headers, ["attended", "attendance"]) 
+        percentage_index = self._find_column_index(headers, ["%", "percentage"])
+
+        def get_column(columns: list[str], index: int | None, fallback_index: int) -> str:
+            if index is not None and 0 <= index < len(columns):
+                return columns[index]
+            if 0 <= fallback_index < len(columns):
+                return columns[fallback_index]
+            return ""
+
         for row in attendance_table.find_all("tr"):
             cells = row.find_all("td")
             columns = [cell.get_text(" ", strip=True) for cell in cells]
@@ -297,12 +350,17 @@ class PortalScraper:
             if len(columns) < 8:
                 continue
 
-            code = columns[1]
-            course_name = columns[3]
-            section = columns[4]
-            sessions = columns[5]
-            attended = columns[6]
-            percentage = columns[7]
+            code = get_column(columns, code_index, 1)
+            code_cell_index = code_index if code_index is not None else 1
+            code_cell = cells[code_cell_index] if 0 <= code_cell_index < len(cells) else None
+            code_link = code_cell.find("a") if len(cells) > 1 else None
+            history_link = self._resolve_url(code_link.get("href")) if code_link and code_link.get("href") else None
+            course_abbr = get_column(columns, abbr_index, 2)
+            course_name = get_column(columns, course_index, 3)
+            section = get_column(columns, section_index, 4)
+            sessions = get_column(columns, sessions_index, 5)
+            attended = get_column(columns, attended_index, 6)
+            percentage = get_column(columns, percentage_index, 7)
 
             if not course_name or not percentage:
                 continue
@@ -310,8 +368,10 @@ class PortalScraper:
             attendance_items.append(
                 {
                     "subject": course_name,
+                    "course_abbr": course_abbr,
                     "attendance": percentage,
                     "code": code,
+                    "history_link": history_link,
                     "section": section,
                     "sessions": sessions,
                     "attended": attended,
@@ -322,6 +382,13 @@ class PortalScraper:
             raise PortalNetworkError("Attendance rows not found on My Attendance page")
 
         return {"attendance": attendance_items}
+
+    def _history_cache_has_abbreviations(self, history_by_date: dict[str, list[dict[str, str | bool]]]) -> bool:
+        for entries in history_by_date.values():
+            for entry in entries:
+                if str(entry.get("subject_abbr") or "").strip():
+                    return True
+        return False
 
     def _find_attendance_table(self, soup: BeautifulSoup):
         # Primary selector from the portal sample.
@@ -627,6 +694,158 @@ class PortalScraper:
             "max_possible_percentage": max_possible,
         }
 
+    def _scrape_all_subject_history(self, attendance_items: list[dict[str, str]]) -> dict[str, list[dict[str, str | bool]]]:
+        history_by_date: dict[str, list[dict[str, str | bool]]] = {}
+
+        for item in attendance_items:
+            history_link = str(item.get("history_link") or "").strip()
+            if not history_link:
+                continue
+
+            entries = self._scrape_subject_history_page(
+                history_link=history_link,
+                subject=str(item.get("subject") or "").strip(),
+                subject_abbr=str(item.get("course_abbr") or "").strip(),
+                code=str(item.get("code") or "").strip(),
+            )
+
+            for entry in entries:
+                entry_date = str(entry.get("date") or "").strip()
+                if not entry_date:
+                    continue
+                history_by_date.setdefault(entry_date, []).append(entry)
+
+        return history_by_date
+
+    def _scrape_subject_history_page(
+        self,
+        history_link: str,
+        subject: str,
+        subject_abbr: str,
+        code: str,
+    ) -> list[dict[str, str | bool]]:
+        url = self._resolve_url(history_link)
+
+        try:
+            response = self.session.get(
+                url,
+                timeout=15,
+                headers={"Referer": self._build_url("CommonS.aspx?qs=ap")},
+            )
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            raise PortalNetworkError(f"Unable to fetch subject history page: {exc}") from exc
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        entries: list[dict[str, str | bool]] = []
+
+        for table in soup.find_all("table"):
+            headers = [th.get_text(" ", strip=True).lower() for th in table.find_all("th")]
+            if not headers:
+                continue
+
+            date_index = self._find_column_index(headers, ["date", "session date", "ssessiondt"])
+            attended_index = self._find_column_index(headers, ["attended", "attendance"])
+
+            if date_index is None or attended_index is None:
+                continue
+
+            for row in table.find_all("tr"):
+                cells = row.find_all("td")
+                if len(cells) <= max(date_index, attended_index):
+                    continue
+
+                parsed_date = self._extract_history_date([cells[date_index].get_text(" ", strip=True)])
+                attended = self._extract_history_attendance(cells, attended_index)
+
+                if not parsed_date or attended is None:
+                    continue
+
+                entries.append(
+                    {
+                        "date": parsed_date,
+                        "attended": attended,
+                        "subject": subject,
+                        "subject_abbr": subject_abbr,
+                        "code": code,
+                    }
+                )
+
+            if entries:
+                break
+
+        return entries
+
+    def _extract_history_date(self, values: list[str]) -> str | None:
+        date_formats = [
+            "%d/%m/%Y",
+            "%d-%m-%Y",
+            "%Y-%m-%d",
+            "%d %b %Y",
+            "%d %B %Y",
+        ]
+
+        for value in values:
+            cleaned = " ".join((value or "").split())
+            if not cleaned:
+                continue
+
+            for fmt in date_formats:
+                try:
+                    return datetime.strptime(cleaned, fmt).strftime("%Y-%m-%d")
+                except ValueError:
+                    continue
+
+            match = re.search(r"(\d{1,2}[/-]\d{1,2}[/-]\d{4})", cleaned)
+            if match:
+                candidate = match.group(1)
+                for fmt in ("%d/%m/%Y", "%d-%m-%Y"):
+                    try:
+                        return datetime.strptime(candidate, fmt).strftime("%Y-%m-%d")
+                    except ValueError:
+                        continue
+
+        return None
+
+    def _extract_history_attendance(self, cells, attended_index: int | None = None) -> bool | None:
+        true_tokens = {"present", "yes", "attended", "true", "p", "1", "y"}
+        false_tokens = {"absent", "no", "not attended", "false", "a", "0", "n"}
+
+        cells_to_check = cells
+        if attended_index is not None and 0 <= attended_index < len(cells):
+            cells_to_check = [cells[attended_index]]
+
+        for cell in cells_to_check:
+            image = cell.find("img")
+            if image:
+                image_signature = " ".join(
+                    [
+                        (image.get("src") or "").lower(),
+                        (image.get("alt") or "").lower(),
+                        (image.get("title") or "").lower(),
+                    ]
+                )
+                if "present" in image_signature:
+                    return True
+                if "absent" in image_signature:
+                    return False
+
+            text = " ".join((cell.get_text(" ", strip=True) or "").split()).lower()
+            if not text:
+                continue
+
+            if text in true_tokens:
+                return True
+            if text in false_tokens:
+                return False
+
+            if "present" in text:
+                return True
+            if "absent" in text:
+                return False
+
+        return None
+
     def _find_column_index(self, headers: list[str], candidates: list[str]) -> int | None:
         for index, header in enumerate(headers):
             normalized = " ".join(header.split())
@@ -642,6 +861,9 @@ class PortalScraper:
         if not match:
             return None
         return int(match.group(0))
+
+    def _resolve_url(self, maybe_relative_path: str) -> str:
+        return self._build_url(maybe_relative_path)
 
     def _build_url(self, path: str) -> str:
         normalized_base = self.base_url.rstrip("/") + "/"

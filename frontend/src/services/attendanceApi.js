@@ -8,6 +8,7 @@ function normalizeAttendancePayload(data) {
       const totalClasses = Number(item.sessions) || 0
       const attendedClasses = Number(item.attended) || 0
       const displayName = (item.subject || '').trim() || (item.code || '').trim()
+      const shortName = (item.course_abbr || '').trim() || null
 
       if (!displayName) {
         return null
@@ -16,6 +17,7 @@ function normalizeAttendancePayload(data) {
       return {
         id: (item.code || `subject-${index}`).toLowerCase(),
         name: displayName,
+        shortName,
         totalClasses,
         attendedClasses,
         totalSessions: Number(item.total_sessions) || null,
@@ -99,5 +101,36 @@ export async function fetchAttendance({ token, semesterId }) {
     },
     semesters: normalized.semesters,
     selectedSemester: normalized.selectedSemester,
+  }
+}
+
+export async function fetchAttendanceHistory({ token, semesterId, date }) {
+  if (!token) {
+    throw new Error('Session expired. Please login again.')
+  }
+
+  if (!date) {
+    return { entries: [] }
+  }
+
+  const response = await fetch(`${API_BASE_URL}/attendance/history`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, semester_id: semesterId || null, date }),
+  })
+
+  const data = await parseApiResponse(response)
+  const entries = Array.isArray(data?.entries) ? data.entries : []
+
+  return {
+    date: data?.date || date,
+    selectedSemester: data?.selected_semester || semesterId || null,
+    entries: entries.map((entry) => ({
+      date: entry?.date,
+      subject: entry?.subject_abbr || entry?.subject || entry?.code || 'Subject',
+      code: entry?.code || null,
+      status: entry?.attended ? 'Present' : 'Absent',
+      attended: Boolean(entry?.attended),
+    })),
   }
 }

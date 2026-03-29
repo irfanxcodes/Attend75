@@ -20,3 +20,11 @@ def fetch_attendance_for_semester(token: str, semester_id: str | None) -> dict:
         raise PortalAuthenticationError("Session expired. Please login again.")
 
     return record.scraper.fetch_attendance_for_semester(semester_id=semester_id)
+
+
+def fetch_subject_history(token: str, semester_id: str | None, date: str | None) -> dict:
+    record = session_store.get(token)
+    if record is None:
+        raise PortalAuthenticationError("Session expired. Please login again.")
+
+    return record.scraper.fetch_subject_attendance_history(semester_id=semester_id, date=date)
