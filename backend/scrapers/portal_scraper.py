@@ -1,4 +1,5 @@
 import os
+import re
 from urllib.parse import urljoin
 
 import requests
@@ -93,7 +94,13 @@ class PortalScraper:
                 "Portal returned login page while loading attendance (session expired or invalid)"
             )
 
-        return self._build_attendance_payload(attendance_response.text)
+        payload = self._build_attendance_payload(attendance_response.text)
+        courses_map = self._safe_fetch_courses_map(payload.get("selected_semester"))
+        payload["attendance"] = self._merge_attendance_with_total_sessions(
+            payload.get("attendance", []),
+            courses_map,
+        )
+        return payload
 
     def fetch_attendance_for_semester(self, semester_id: str | None = None) -> dict:
         attendance_url = self._build_url("CommonS.aspx?qs=ap")
@@ -120,7 +127,13 @@ class PortalScraper:
                 "Portal returned login page while loading attendance (session expired or invalid)"
             )
 
-        return self._build_attendance_payload(html)
+        payload = self._build_attendance_payload(html)
+        courses_map = self._safe_fetch_courses_map(payload.get("selected_semester"))
+        payload["attendance"] = self._merge_attendance_with_total_sessions(
+            payload.get("attendance", []),
+            courses_map,
+        )
+        return payload
 
     def _extract_hidden_form_fields(self, html: str) -> dict[str, str]:
         soup = BeautifulSoup(html, "html.parser")
@@ -403,6 +416,162 @@ class PortalScraper:
         parsed["semesters"] = semesters
         parsed["selected_semester"] = selected_semester
         return parsed
+
+    def _safe_fetch_courses_map(self, semester_id: str | None) -> dict[str, int]:
+        try:
+            return self._fetch_courses_map(semester_id)
+        except Exception:
+            # Do not break attendance flow if Courses tab parsing fails.
+            return {}
+
+    def _fetch_courses_map(self, semester_id: str | None) -> dict[str, int]:
+        # Use the exact Academics -> Courses page as requested.
+        courses_url = self._build_url("rc/cr.aspx")
+
+        try:
+            courses_response = self.session.get(
+                courses_url,
+                timeout=15,
+                headers={"Referer": self._build_url("Index.aspx")},
+            )
+            courses_response.raise_for_status()
+        except requests.RequestException as exc:
+            raise PortalNetworkError(f"Unable to fetch Courses page from college portal: {exc}") from exc
+
+        html = courses_response.text
+        if semester_id:
+            switched_html = self._switch_semester_on_page(html, courses_url, semester_id)
+            if switched_html is not None:
+                html = switched_html
+
+        if self._looks_like_login_page(html):
+            raise PortalAuthenticationError("Portal returned login page while loading Courses")
+
+        return self._parse_courses_map(html)
+
+    def _switch_semester_on_page(self, html: str, page_url: str, semester_id: str) -> str | None:
+        soup = BeautifulSoup(html, "html.parser")
+
+        select_element = soup.find("select", {"name": "ddlSem"})
+        if select_element is None:
+            # Fallback to first select with numeric options.
+            for candidate in soup.find_all("select"):
+                values = [(option.get("value") or "").strip() for option in candidate.find_all("option")]
+                if any(value.isdigit() for value in values):
+                    select_element = candidate
+                    break
+
+        if select_element is None:
+            return None
+
+        selected_option = select_element.find("option", selected=True)
+        selected_value = (selected_option.get("value") if selected_option else "") or ""
+
+        requested_value = (semester_id or "").strip()
+        if not requested_value:
+            return html
+
+        available_values = {
+            (option.get("value") or "").strip()
+            for option in select_element.find_all("option")
+        }
+        if requested_value not in available_values:
+            return html
+
+        if selected_value == requested_value:
+            return html
+
+        select_name = (select_element.get("name") or "").strip()
+        event_target = (select_element.get("id") or select_name).strip()
+        if not select_name or not event_target:
+            return None
+
+        payload = self._extract_hidden_form_fields(html)
+        payload.update(
+            {
+                "__EVENTTARGET": event_target,
+                "__EVENTARGUMENT": "",
+                select_name: requested_value,
+            }
+        )
+
+        try:
+            response = self.session.post(
+                page_url,
+                data=payload,
+                timeout=15,
+                allow_redirects=True,
+                headers={"Referer": page_url},
+            )
+            response.raise_for_status()
+            return response.text
+        except requests.RequestException as exc:
+            raise PortalNetworkError(f"Unable to switch semester on Courses page: {exc}") from exc
+
+    def _parse_courses_map(self, html: str) -> dict[str, int]:
+        soup = BeautifulSoup(html, "html.parser")
+        courses_map: dict[str, int] = {}
+
+        for table in soup.find_all("table"):
+            headers = [th.get_text(" ", strip=True).lower() for th in table.find_all("th")]
+            if not headers:
+                continue
+
+            code_index = self._find_column_index(headers, ["code", "course code", "subject code"])
+            total_index = self._find_column_index(
+                headers,
+                ["total sessions", "totalsessions", "session total", "no. of sessions", "sessions"],
+            )
+
+            if code_index is None or total_index is None:
+                continue
+
+            for row in table.find_all("tr"):
+                cols = row.find_all("td")
+                if len(cols) <= max(code_index, total_index):
+                    continue
+
+                code_value = self._normalize_code(cols[code_index].get_text(" ", strip=True))
+                total_value = self._parse_int(cols[total_index].get_text(" ", strip=True))
+
+                if code_value and total_value is not None:
+                    courses_map[code_value] = total_value
+
+        return courses_map
+
+    def _merge_attendance_with_total_sessions(
+        self,
+        attendance_items: list[dict[str, str]],
+        courses_map: dict[str, int],
+    ) -> list[dict[str, str | int | None]]:
+        merged: list[dict[str, str | int | None]] = []
+
+        for item in attendance_items:
+            code = self._normalize_code(str(item.get("code", "")))
+            merged.append(
+                {
+                    **item,
+                    "total_sessions": courses_map.get(code),
+                }
+            )
+
+        return merged
+
+    def _find_column_index(self, headers: list[str], candidates: list[str]) -> int | None:
+        for index, header in enumerate(headers):
+            normalized = " ".join(header.split())
+            if any(candidate in normalized for candidate in candidates):
+                return index
+        return None
+
+    def _normalize_code(self, code: str) -> str:
+        return "".join((code or "").upper().split())
+
+    def _parse_int(self, value: str) -> int | None:
+        match = re.search(r"\d+", value or "")
+        if not match:
+            return None
+        return int(match.group(0))
 
     def _build_url(self, path: str) -> str:
         normalized_base = self.base_url.rstrip("/") + "/"
