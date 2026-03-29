@@ -2,9 +2,9 @@ from fastapi import APIRouter
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
-from models.schemas import ApiResponse, AttendanceHistoryRequest, AttendanceRequest, LoginRequest
+from models.schemas import ApiResponse, AttendanceHistoryRequest, AttendanceRequest, LoginRequest, SessionStatusRequest
 from scrapers.portal_scraper import PortalAuthenticationError, PortalNetworkError
-from services.auth_service import fetch_attendance_for_semester, fetch_subject_history, login_user
+from services.auth_service import fetch_attendance_for_semester, fetch_subject_history, get_session_status, login_user
 
 router = APIRouter(tags=["auth"])
 
@@ -81,6 +81,21 @@ async def attendance_history(payload: AttendanceHistoryRequest):
             status_code=502,
             content={"status": "error", "message": str(exc)},
         )
+    except Exception:
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": "Server/network error"},
+        )
+
+
+@router.post("/session/status", response_model=ApiResponse)
+async def session_status(payload: SessionStatusRequest):
+    try:
+        data = await run_in_threadpool(
+            get_session_status,
+            payload.token,
+        )
+        return ApiResponse(status="success", message="Session status fetched", data=data)
     except Exception:
         return JSONResponse(
             status_code=500,

@@ -23,6 +23,8 @@ const initialState = {
   user: {
     id: userSeedData.id,
     name: userSeedData.name,
+    portalName: userSeedData.name,
+    rollNumber: userSeedData.id,
     isAuthenticated: false,
   },
   session: {
@@ -47,6 +49,8 @@ function appStateReducer(state, action) {
           ...state.user,
           id: action.payload.id || state.user.id,
           name: action.payload.name || state.user.name,
+          portalName: action.payload.portalName || action.payload.name || state.user.portalName,
+          rollNumber: action.payload.rollNumber || action.payload.id || state.user.rollNumber,
           isAuthenticated: true,
         },
         session: {

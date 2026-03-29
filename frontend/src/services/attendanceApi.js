@@ -63,11 +63,14 @@ export async function login(credentials) {
 
   const data = await parseApiResponse(response)
   const normalized = normalizeAttendancePayload(data)
+  const rollNumber = (data.roll_number || username || '').toUpperCase()
+  const studentName = (data.student_name || '').trim() || rollNumber
 
   return {
-    id: data.roll_number || username,
-    name: data.roll_number || username,
-    portalName: data.roll_number || username,
+    id: rollNumber,
+    name: studentName,
+    portalName: studentName,
+    rollNumber,
     token: data.token,
     semesters: normalized.semesters,
     selectedSemester: normalized.selectedSemester,
@@ -77,6 +80,22 @@ export async function login(credentials) {
       feasibility: normalized.feasibility,
     },
   }
+}
+
+export async function fetchSessionStatus(token) {
+  const cleanedToken = (token || '').trim()
+  if (!cleanedToken) {
+    return 'expired'
+  }
+
+  const response = await fetch(`${API_BASE_URL}/session/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: cleanedToken }),
+  })
+
+  const data = await parseApiResponse(response)
+  return data?.session_status || 'unknown'
 }
 
 export async function fetchAttendance({ token, semesterId }) {
@@ -133,4 +152,21 @@ export async function fetchAttendanceHistory({ token, semesterId, date }) {
       attended: Boolean(entry?.attended),
     })),
   }
+}
+
+export async function submitFeedback(message) {
+  const cleanedMessage = (message || '').trim()
+
+  if (!cleanedMessage) {
+    throw new Error('Feedback cannot be empty.')
+  }
+
+  const response = await fetch(`${API_BASE_URL}/feedback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: cleanedMessage }),
+  })
+
+  await parseApiResponse(response)
+  return { status: 'success' }
 }

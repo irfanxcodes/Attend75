@@ -75,3 +75,27 @@ class AttendanceHistoryRequest(BaseModel):
         if not cleaned:
             raise ValueError("token must not be empty")
         return cleaned
+
+
+class FeedbackRequest(BaseModel):
+    message: str = Field(..., description="User feedback text")
+
+    @field_validator("message")
+    @classmethod
+    def validate_feedback_message(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("message must not be empty")
+        return cleaned
+
+
+class SessionStatusRequest(BaseModel):
+    token: str = Field(..., description="Session token from /login")
+
+    @field_validator("token")
+    @classmethod
+    def validate_session_status_token(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("token must not be empty")
+        return cleaned

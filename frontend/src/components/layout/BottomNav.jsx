@@ -1,9 +1,9 @@
 import { NavLink } from 'react-router-dom'
 
 const navItems = [
-  { label: 'Dashboard', to: '/dashboard' },
-  { label: 'History', to: '/history' },
-  { label: 'Profile', to: '/profile' },
+  { label: 'Dashboard', to: '/dashboard', icon: '/dashboard-icon.png' },
+  { label: 'History', to: '/history', icon: '/history-icon.svg' },
+  { label: 'Profile', to: '/profile', icon: '/profile-icon.svg' },
 ]
 
 function BottomNav() {
@@ -16,14 +16,20 @@ function BottomNav() {
               to={item.to}
               className={({ isActive }) =>
                 [
-                  'flex h-11 items-center justify-center rounded-xl text-sm font-semibold transition-colors',
+                  'flex h-16 flex-col items-center justify-center gap-1 rounded-xl py-1 text-[11px] font-semibold leading-none transition-colors sm:h-[68px] sm:text-xs',
                   isActive
                     ? 'bg-[#312051] text-[#E8A08C]'
                     : 'text-[#D1D1D1] hover:bg-[#312051]/70 hover:text-[#E8A08C]',
                 ].join(' ')
               }
             >
-              {item.label}
+              <img
+                src={item.icon}
+                alt=""
+                aria-hidden="true"
+                className="h-5 w-5 rounded-sm object-cover sm:h-6 sm:w-6"
+              />
+              <span>{item.label}</span>
             </NavLink>
           </li>
         ))}

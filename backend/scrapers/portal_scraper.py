@@ -84,7 +84,9 @@ class PortalScraper:
 
         # Follow the same navigation chain observed in browser logs:
         # login POST -> Index.aspx -> SDB.aspx -> CommonS.aspx?qs=ap
-        attendance_response = self._run_post_login_navigation(login_url)
+        navigation_payload = self._run_post_login_navigation(login_url)
+        attendance_response = navigation_payload["attendance_response"]
+        student_name = navigation_payload.get("student_name")
 
         if self._looks_like_login_page(attendance_response.text) and not (login_redirected or has_auth_session):
             raise PortalAuthenticationError(
@@ -105,6 +107,7 @@ class PortalScraper:
         payload["feasibility"] = {
             "overall": self._build_overall_feasibility(payload.get("attendance", []))
         }
+        payload["student_name"] = student_name or normalized_roll
         return payload
 
     def fetch_attendance_for_semester(self, semester_id: str | None = None) -> dict:
@@ -228,7 +231,7 @@ class PortalScraper:
 
         return (has_login_controls and has_submit) or (has_login_controls and has_login_form_action)
 
-    def _run_post_login_navigation(self, login_url: str) -> requests.Response:
+    def _run_post_login_navigation(self, login_url: str) -> dict:
         index_url = self._build_url("Index.aspx")
         sdb_url = self._build_url("SDB.aspx")
         attendance_url = self._build_url("CommonS.aspx?qs=ap")
@@ -240,6 +243,7 @@ class PortalScraper:
                 headers={"Referer": login_url},
             )
             index_response.raise_for_status()
+            student_name = self._extract_student_name(index_response.text)
 
             sdb_response = self.session.get(
                 sdb_url,
@@ -254,9 +258,21 @@ class PortalScraper:
                 headers={"Referer": index_url},
             )
             attendance_response.raise_for_status()
-            return attendance_response
+            return {
+                "attendance_response": attendance_response,
+                "student_name": student_name,
+            }
         except requests.RequestException as exc:
             raise PortalNetworkError(f"Unable to complete post-login navigation flow: {exc}") from exc
+
+    def _extract_student_name(self, html: str) -> str | None:
+        soup = BeautifulSoup(html, "html.parser")
+        name_label = soup.find(id="lblName")
+        if name_label is None:
+            return None
+
+        name_text = name_label.get_text(" ", strip=True)
+        return name_text or None
 
     def _get_student_radio_payload(self, html: str) -> dict[str, str]:
         # Exact field discovered from the portal form.
