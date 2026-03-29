@@ -18,6 +18,12 @@ function normalizeAttendancePayload(data) {
         name: displayName,
         totalClasses,
         attendedClasses,
+        totalSessions: Number(item.total_sessions) || null,
+        remainingClasses: Number(item.remaining_classes) || null,
+        maxPossiblePercentage:
+          item.max_possible_percentage === null || item.max_possible_percentage === undefined
+            ? null
+            : Number(item.max_possible_percentage),
       }
     })
     .filter(Boolean)
@@ -27,6 +33,7 @@ function normalizeAttendancePayload(data) {
     history: [],
     semesters: Array.isArray(data?.semesters) ? data.semesters : [],
     selectedSemester: data?.selected_semester || null,
+    feasibility: data?.feasibility || null,
   }
 }
 
@@ -65,6 +72,7 @@ export async function login(credentials) {
     attendanceData: {
       subjects: normalized.subjects,
       history: normalized.history,
+      feasibility: normalized.feasibility,
     },
   }
 }
@@ -87,6 +95,7 @@ export async function fetchAttendance({ token, semesterId }) {
     attendanceData: {
       subjects: normalized.subjects,
       history: normalized.history,
+      feasibility: normalized.feasibility,
     },
     semesters: normalized.semesters,
     selectedSemester: normalized.selectedSemester,

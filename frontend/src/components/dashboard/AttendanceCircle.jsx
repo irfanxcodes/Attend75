@@ -64,7 +64,7 @@ function AttendanceCircle({ percentage, totalClasses, totalAttended, status, onR
             Status: <span className="capitalize text-[#E7DEDE]">{status}</span>
           </p>
           <p>
-            Total classes: <span className="text-[#E7DEDE]">{totalClasses}</span>
+            Classes conducted: <span className="text-[#E7DEDE]">{totalClasses}</span>
           </p>
           <p>
             Classes attended: <span className="text-[#E7DEDE]">{totalAttended}</span>

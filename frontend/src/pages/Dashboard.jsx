@@ -5,13 +5,13 @@ import PredictionCard from '../components/dashboard/PredictionCard'
 import SubjectList from '../components/dashboard/SubjectList'
 import useAppStore from '../hooks/useAppStore'
 import { fetchAttendance } from '../services/attendanceApi'
-import { calculatePrediction } from '../utils/calculations'
+import { calculatePrediction, calculatePredictionFeasibility } from '../utils/calculations'
 
 function Dashboard() {
   const {
     state: {
       user,
-      attendance: { overallPercentage, subjects },
+      attendance: { overallPercentage, subjects, feasibility },
       session,
       selectedTarget,
       ui,
@@ -20,6 +20,10 @@ function Dashboard() {
   } = useAppStore()
 
   const prediction = useMemo(() => calculatePrediction(subjects, selectedTarget), [subjects, selectedTarget])
+  const predictionFeasibility = useMemo(
+    () => calculatePredictionFeasibility(subjects, selectedTarget, feasibility),
+    [feasibility, selectedTarget, subjects],
+  )
   const hasSyncedSavedSemester = useRef(false)
   const totals = useMemo(
     () =>
@@ -160,7 +164,9 @@ function Dashboard() {
       />
       <PredictionCard
         selectedTarget={selectedTarget}
+        currentAttendance={overallPercentage}
         prediction={prediction}
+        feasibility={predictionFeasibility}
         onChangeTarget={actions.setSelectedTarget}
       />
       <SubjectList subjects={subjects} />

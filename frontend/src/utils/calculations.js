@@ -75,6 +75,50 @@ export function calculatePrediction(subjects = [], targetPercentage = 75) {
   }
 }
 
+export function calculatePredictionFeasibility(subjects = [], targetPercentage = 75, backendFeasibility = null) {
+  const fromBackend = backendFeasibility?.overall
+  const backendMax = Number(fromBackend?.max_possible_percentage)
+
+  if (Number.isFinite(backendMax)) {
+    return {
+      isTargetAchievable: targetPercentage <= backendMax,
+      maxPossiblePercentage: Number(backendMax.toFixed(2)),
+    }
+  }
+
+  const totals = subjects.reduce(
+    (accumulator, subject) => {
+      const attended = safeNumber(subject.attendedClasses)
+      const sessions = safeNumber(subject.totalClasses)
+      const totalSessions = safeNumber(subject.totalSessions)
+
+      return {
+        attended: accumulator.attended + attended,
+        sessions: accumulator.sessions + sessions,
+        totalSessions: accumulator.totalSessions + (totalSessions > 0 ? totalSessions : 0),
+        hasMissingTotals: accumulator.hasMissingTotals || totalSessions <= 0,
+      }
+    },
+    { attended: 0, sessions: 0, totalSessions: 0, hasMissingTotals: false },
+  )
+
+  if (totals.hasMissingTotals || totals.totalSessions <= 0) {
+    return {
+      isTargetAchievable: true,
+      maxPossiblePercentage: null,
+    }
+  }
+
+  const remaining = Math.max(totals.totalSessions - totals.sessions, 0)
+  const maxPossible = ((totals.attended + remaining) / totals.totalSessions) * 100
+  const roundedMax = Number(maxPossible.toFixed(2))
+
+  return {
+    isTargetAchievable: targetPercentage <= roundedMax,
+    maxPossiblePercentage: roundedMax,
+  }
+}
+
 export function mapHistoryTrend(historyItems = []) {
   return historyItems.map((item) => {
     const total = safeNumber(item.presentCount) + safeNumber(item.absentCount)

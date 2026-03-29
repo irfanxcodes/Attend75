@@ -100,6 +100,9 @@ class PortalScraper:
             payload.get("attendance", []),
             courses_map,
         )
+        payload["feasibility"] = {
+            "overall": self._build_overall_feasibility(payload.get("attendance", []))
+        }
         return payload
 
     def fetch_attendance_for_semester(self, semester_id: str | None = None) -> dict:
@@ -133,6 +136,9 @@ class PortalScraper:
             payload.get("attendance", []),
             courses_map,
         )
+        payload["feasibility"] = {
+            "overall": self._build_overall_feasibility(payload.get("attendance", []))
+        }
         return payload
 
     def _extract_hidden_form_fields(self, html: str) -> dict[str, str]:
@@ -548,14 +554,78 @@ class PortalScraper:
 
         for item in attendance_items:
             code = self._normalize_code(str(item.get("code", "")))
+            sessions = self._parse_int(str(item.get("sessions", "")))
+            attended = self._parse_int(str(item.get("attended", "")))
+            total_sessions = courses_map.get(code)
+
+            remaining_classes: int | None = None
+            max_possible_percentage: float | None = None
+
+            if total_sessions is not None and sessions is not None:
+                remaining_classes = max(total_sessions - sessions, 0)
+
+            if total_sessions is not None and total_sessions > 0 and attended is not None:
+                possible_attended = attended + (remaining_classes or 0)
+                max_possible_percentage = round((possible_attended / total_sessions) * 100, 2)
+
             merged.append(
                 {
                     **item,
-                    "total_sessions": courses_map.get(code),
+                    "total_sessions": total_sessions,
+                    "remaining_classes": remaining_classes,
+                    "max_possible_percentage": max_possible_percentage,
                 }
             )
 
         return merged
+
+    def _build_overall_feasibility(self, attendance_items: list[dict[str, str | int | float | None]]) -> dict:
+        if not attendance_items:
+            return {
+                "sessions": 0,
+                "attended": 0,
+                "total_sessions": None,
+                "remaining_classes": None,
+                "max_possible_percentage": None,
+            }
+
+        sessions_total = 0
+        attended_total = 0
+        total_sessions_total = 0
+        has_missing_total_sessions = False
+
+        for item in attendance_items:
+            sessions_value = self._parse_int(str(item.get("sessions", ""))) or 0
+            attended_value = self._parse_int(str(item.get("attended", ""))) or 0
+            total_sessions_value = item.get("total_sessions")
+
+            sessions_total += sessions_value
+            attended_total += attended_value
+
+            if isinstance(total_sessions_value, int):
+                total_sessions_total += total_sessions_value
+            else:
+                has_missing_total_sessions = True
+
+        if has_missing_total_sessions or total_sessions_total <= 0:
+            return {
+                "sessions": sessions_total,
+                "attended": attended_total,
+                "total_sessions": None,
+                "remaining_classes": None,
+                "max_possible_percentage": None,
+            }
+
+        remaining_total = max(total_sessions_total - sessions_total, 0)
+        max_possible = round(((attended_total + remaining_total) / total_sessions_total) * 100, 2)
+
+        return {
+            "sessions": sessions_total,
+            "attended": attended_total,
+            "total_sessions": total_sessions_total,
+            "remaining_classes": remaining_total,
+            "max_possible_percentage": max_possible,
+        }
 
     def _find_column_index(self, headers: list[str], candidates: list[str]) -> int | None:
         for index, header in enumerate(headers):

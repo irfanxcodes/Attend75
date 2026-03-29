@@ -15,6 +15,7 @@ function buildAttendanceState(rawAttendance = attendanceSeedData) {
   return {
     subjects,
     overallPercentage: overall.percentage,
+    feasibility: rawAttendance.feasibility || null,
   }
 }
 
