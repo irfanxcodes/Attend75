@@ -3,10 +3,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from db.session import init_database
 from routers.auth import router as auth_router
 from routers.feedback import router as feedback_router
 
 app = FastAPI(title="Attend75 Backend", version="0.1.0")
+
+
+@app.on_event("startup")
+async def startup_event() -> None:
+    init_database()
 
 app.add_middleware(
     CORSMiddleware,

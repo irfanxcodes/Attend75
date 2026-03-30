@@ -24,6 +24,58 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
+## 2.1 Database configuration (Phase 1)
+
+Optional environment variables:
+
+```bash
+# Defaults to SQLite file backend/attend75.db
+export DATABASE_URL="sqlite:///./attend75.db"
+
+# Replace in production with your own Fernet key
+export CREDENTIAL_ENCRYPTION_KEY="<fernet-base64-key>"
+```
+
+PostgreSQL example:
+
+```bash
+export DATABASE_URL="postgresql+psycopg2://user:password@localhost:5432/attend75"
+```
+
+Note: on startup, the backend initializes required tables (`users`, `portal_credentials`) automatically.
+
+## 2.2 Firebase configuration (Phase 2)
+
+Set one of the following to allow Firebase ID token verification:
+
+```bash
+export FIREBASE_SERVICE_ACCOUNT_FILE="/absolute/path/to/service-account.json"
+# or
+export GOOGLE_APPLICATION_CREDENTIALS="/absolute/path/to/service-account.json"
+```
+
+## 2.3 Alembic migrations
+
+Migrations are scaffolded in `alembic/`.
+
+Run migration commands from the backend directory:
+
+```bash
+alembic upgrade head
+```
+
+Create a new migration revision:
+
+```bash
+alembic revision -m "describe change"
+```
+
+Autogenerate from SQLAlchemy models:
+
+```bash
+alembic revision --autogenerate -m "describe change"
+```
+
 ## 3. Run server
 
 ```bash

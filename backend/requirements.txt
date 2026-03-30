@@ -2,3 +2,8 @@ fastapi
 uvicorn
 requests
 beautifulsoup4
+sqlalchemy
+alembic
+cryptography
+psycopg2-binary
+firebase-admin
