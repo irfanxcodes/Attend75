@@ -43,7 +43,11 @@ function Dashboard() {
     return 'danger'
   }, [overallPercentage])
 
-  const displayName = user.portalName || user.name
+  const isFirebaseUser = user.authProvider === 'firebase'
+  const fullName = (user.name || '').trim()
+  const firstName = fullName.split(/\s+/)[0] || ''
+  const guestRollNumber = (user.rollNumber || user.id || '').trim().toUpperCase()
+  const displayName = isFirebaseUser ? firstName || fullName || guestRollNumber : guestRollNumber
 
   const handleRefresh = useCallback(async () => {
     try {

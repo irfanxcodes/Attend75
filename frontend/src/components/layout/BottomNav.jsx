@@ -18,18 +18,25 @@ function BottomNav() {
                 [
                   'flex h-16 flex-col items-center justify-center gap-1 rounded-xl py-1 text-[11px] font-semibold leading-none transition-colors sm:h-[68px] sm:text-xs',
                   isActive
-                    ? 'bg-[#312051] text-[#E8A08C]'
+                    ? 'bg-[#271D43] text-[#F2CA98] ring-1 ring-[#E8A08C]/45'
                     : 'text-[#D1D1D1] hover:bg-[#312051]/70 hover:text-[#E8A08C]',
                 ].join(' ')
               }
             >
-              <img
-                src={item.icon}
-                alt=""
-                aria-hidden="true"
-                className="h-5 w-5 rounded-sm object-cover sm:h-6 sm:w-6"
-              />
-              <span>{item.label}</span>
+              {({ isActive }) => (
+                <>
+                  <img
+                    src={item.icon}
+                    alt=""
+                    aria-hidden="true"
+                    className={[
+                      'h-5 w-5 rounded-sm object-cover transition-all sm:h-6 sm:w-6',
+                      isActive ? 'brightness-125 saturate-150 drop-shadow-[0_0_8px_rgba(232,160,140,0.5)]' : 'opacity-90',
+                    ].join(' ')}
+                  />
+                  <span>{item.label}</span>
+                </>
+              )}
             </NavLink>
           </li>
         ))}

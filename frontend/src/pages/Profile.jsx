@@ -26,7 +26,10 @@ function Profile() {
     actions,
   } = useAppStore()
 
-  const userName = user.portalName || user.name || 'I'
+  const isFirebaseUser = user.authProvider === 'firebase'
+  const userName = isFirebaseUser
+    ? (user.name || user.portalName || user.rollNumber || user.id || 'I')
+    : (user.rollNumber || user.id || user.portalName || user.name || 'I')
   const rollNumber = user.rollNumber || user.id || '--'
   const [feedbackMessage, setFeedbackMessage] = useState('')
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false)

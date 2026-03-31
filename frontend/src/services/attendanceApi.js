@@ -71,6 +71,7 @@ export async function login(credentials) {
     name: studentName,
     portalName: studentName,
     rollNumber,
+    authProvider: 'guest',
     token: data.token,
     semesters: normalized.semesters,
     selectedSemester: normalized.selectedSemester,
@@ -174,13 +175,15 @@ export async function submitFeedback(message) {
 function buildSessionFromAuthPayload(data, fallbackRollNumber = '') {
   const normalized = normalizeAttendancePayload(data)
   const rollNumber = (data?.roll_number || fallbackRollNumber || '').trim().toUpperCase()
-  const studentName = (data?.student_name || data?.display_name || '').trim() || rollNumber
+  const firebaseDisplayName = (data?.display_name || '').trim()
+  const studentName = (data?.student_name || '').trim()
 
   return {
     id: rollNumber,
-    name: studentName,
-    portalName: studentName,
+    name: firebaseDisplayName || studentName || rollNumber,
+    portalName: studentName || rollNumber,
     rollNumber,
+    authProvider: 'firebase',
     token: data?.token || null,
     semesters: normalized.semesters,
     selectedSemester: normalized.selectedSemester,

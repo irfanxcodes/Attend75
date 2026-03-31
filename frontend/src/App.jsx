@@ -4,7 +4,7 @@ import AppRoutes from './routes/AppRoutes'
 function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-gradient-to-b from-slate-100 to-white">
+      <div className="min-h-screen bg-[#48426D] text-[#E7DEDE]">
         <AppRoutes />
       </div>
     </BrowserRouter>

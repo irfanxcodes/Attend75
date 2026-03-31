@@ -269,7 +269,7 @@ function Login() {
               <button
                 type="submit"
                 disabled={isLinkingSubmitting || isGoogleSubmitting || isSubmitting}
-                className="h-[42px] w-full rounded-[8px] border border-[#E8A08C]/80 bg-[#E8A08C]/20 text-sm font-semibold text-[#F5F5F5] disabled:opacity-60"
+                className="h-[42px] w-full rounded-[8px] border border-[#E2BC8B]/85 bg-[#E2BC8B] text-sm font-semibold text-[#1D183E] transition hover:bg-[#D9AA6F] disabled:opacity-60"
               >
                 {isLinkingSubmitting ? 'Linking credentials...' : 'Link Credentials'}
               </button>

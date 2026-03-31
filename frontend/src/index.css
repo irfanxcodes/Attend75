@@ -9,10 +9,10 @@
 
   body {
     font-family: 'Inter', sans-serif;
-    @apply m-0 min-h-screen bg-slate-100 text-slate-900 antialiased;
+    @apply m-0 min-h-screen bg-[#161424] text-[#E7DEDE] antialiased;
   }
 
   #root {
-    @apply min-h-screen;
+    @apply min-h-screen bg-[#161424];
   }
 }

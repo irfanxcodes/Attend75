@@ -25,6 +25,7 @@ const initialState = {
     name: userSeedData.name,
     portalName: userSeedData.name,
     rollNumber: userSeedData.id,
+    authProvider: 'guest',
     isAuthenticated: false,
   },
   session: {
@@ -51,6 +52,7 @@ function appStateReducer(state, action) {
           name: action.payload.name || state.user.name,
           portalName: action.payload.portalName || action.payload.name || state.user.portalName,
           rollNumber: action.payload.rollNumber || action.payload.id || state.user.rollNumber,
+          authProvider: action.payload.authProvider || state.user.authProvider || 'guest',
           isAuthenticated: true,
         },
         session: {
@@ -65,6 +67,7 @@ function appStateReducer(state, action) {
         ...state,
         user: {
           ...state.user,
+          authProvider: 'guest',
           isAuthenticated: false,
         },
         session: {
