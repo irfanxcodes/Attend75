@@ -99,3 +99,29 @@ class SessionStatusRequest(BaseModel):
         if not cleaned:
             raise ValueError("token must not be empty")
         return cleaned
+
+
+class FirebaseLoginRequest(BaseModel):
+    id_token: str = Field(..., description="Firebase ID token from frontend")
+
+    @field_validator("id_token")
+    @classmethod
+    def validate_id_token(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("id_token must not be empty")
+        return cleaned
+
+
+class FirebaseLinkCredentialsRequest(BaseModel):
+    id_token: str = Field(..., description="Firebase ID token from frontend")
+    roll_number: str = Field(..., description="College roll number")
+    password: str = Field(..., description="Portal password")
+
+    @field_validator("id_token", "roll_number", "password")
+    @classmethod
+    def validate_non_empty_fields(cls, value: str, info: ValidationInfo) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError(f"{info.field_name} must not be empty")
+        return cleaned

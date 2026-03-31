@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useAppStore from '../hooks/useAppStore'
-import { login } from '../services/attendanceApi'
+import { linkFirebaseCredentials, login, loginWithFirebase } from '../services/attendanceApi'
+import { signInWithGoogleAndGetIdToken } from '../services/firebaseAuth'
 
 function UserIcon() {
   return (
@@ -54,6 +55,12 @@ function Login() {
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false)
+  const [firebaseToken, setFirebaseToken] = useState('')
+  const [showLinkingForm, setShowLinkingForm] = useState(false)
+  const [linkForm, setLinkForm] = useState({ rollNumber: '', password: '' })
+  const [isLinkingSubmitting, setIsLinkingSubmitting] = useState(false)
+  const [linkError, setLinkError] = useState('')
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -69,6 +76,61 @@ function Login() {
       setError(requestError.message)
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  async function handleGoogleSignIn() {
+    try {
+      setError('')
+      setLinkError('')
+      setIsGoogleSubmitting(true)
+
+      const googleResult = await signInWithGoogleAndGetIdToken()
+      const token = googleResult.idToken
+      setFirebaseToken(token)
+
+      const firebaseResult = await loginWithFirebase(token)
+
+      if (firebaseResult.linked && firebaseResult.session) {
+        actions.setAuthSession(firebaseResult.session)
+        actions.setAttendanceData(firebaseResult.session.attendanceData)
+        navigate('/loading')
+        return
+      }
+
+      setLinkForm({ rollNumber: '', password: '' })
+      setShowLinkingForm(true)
+    } catch (requestError) {
+      setError(requestError.message)
+    } finally {
+      setIsGoogleSubmitting(false)
+    }
+  }
+
+  async function handleLinkCredentials(event) {
+    event.preventDefault()
+
+    try {
+      setLinkError('')
+      setIsLinkingSubmitting(true)
+
+      const linkResult = await linkFirebaseCredentials({
+        idToken: firebaseToken,
+        rollNumber: linkForm.rollNumber,
+        password: linkForm.password,
+      })
+
+      if (!linkResult.linked || !linkResult.session) {
+        throw new Error('Credential linking is not complete yet. Please try again.')
+      }
+
+      actions.setAuthSession(linkResult.session)
+      actions.setAttendanceData(linkResult.session.attendanceData)
+      navigate('/loading')
+    } catch (requestError) {
+      setLinkError(requestError.message)
+    } finally {
+      setIsLinkingSubmitting(false)
     }
   }
 
@@ -131,12 +193,90 @@ function Login() {
             disabled={isSubmitting}
             className="h-[45px] w-full rounded-[10px] bg-[#E8A08C] text-base font-semibold text-[#181818] transition-transform duration-150 hover:brightness-105 active:scale-[0.99] disabled:opacity-60"
           >
-            {isSubmitting ? 'Logging in...' : 'Login'}
+            {isSubmitting ? 'Logging in...' : 'Login as Guest'}
+          </button>
+
+          <div className="mb-3 flex items-center gap-2 text-xs text-slate-300">
+            <span className="h-px flex-1 bg-white/30" />
+            <span>OR</span>
+            <span className="h-px flex-1 bg-white/30" />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={isGoogleSubmitting || isSubmitting || isLinkingSubmitting}
+            className="relative -top-1 mb-3 h-[45px] w-full rounded-[10px] border border-white/40 bg-white text-sm font-semibold text-[#181818] transition-transform duration-150 hover:brightness-105 active:scale-[0.99] disabled:opacity-60"
+          >
+            <span className="inline-flex items-center justify-center gap-2">
+              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+                <path fill="#EA4335" d="M12.25 10.2v3.92h5.54c-.24 1.27-.96 2.34-2.04 3.06l3.31 2.57c1.93-1.78 3.04-4.4 3.04-7.5 0-.72-.06-1.41-.18-2.05h-9.67Z" />
+                <path fill="#34A853" d="M6.5 14.28l-.75.58-2.64 2.05A9.93 9.93 0 0 0 12 22c2.7 0 4.97-.89 6.63-2.43l-3.31-2.57c-.91.61-2.07.98-3.32.98-2.6 0-4.81-1.76-5.6-4.13Z" />
+                <path fill="#FBBC05" d="M3.11 7.09A9.88 9.88 0 0 0 2.5 10c0 1.06.17 2.08.61 2.91 0 .01 3.39-2.63 3.39-2.63A5.9 5.9 0 0 1 6.4 10c0-.43.07-.86.2-1.25Z" />
+                <path fill="#4285F4" d="M12 5.98c1.47 0 2.78.5 3.82 1.49l2.86-2.86C16.97 3.03 14.7 2 12 2a9.93 9.93 0 0 0-8.89 5.09L6.4 9.75C7.19 7.74 9.4 5.98 12 5.98Z" />
+              </svg>
+              <span>{isGoogleSubmitting ? 'Signing in with Google...' : 'Sign in with Google'}</span>
+            </span>
           </button>
 
           <p className="mt-2.5 text-center text-xs text-slate-300">Only used to retrieve your attendance</p>
         </div>
       </form>
+
+      {showLinkingForm ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/45 px-6 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-white/20 bg-[#4F487A] p-5 shadow-xl">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-[#F5F5F5]">Link Portal Credentials</h3>
+                <p className="mt-1 text-xs text-slate-300">Enter roll number and password once. Your credentials are encrypted.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isLinkingSubmitting) return
+                  setShowLinkingForm(false)
+                  setLinkError('')
+                }}
+                className="rounded-md px-2 py-1 text-sm text-slate-200 hover:bg-white/10"
+                aria-label="Close credential linking"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleLinkCredentials} className="space-y-3">
+              <input
+                type="text"
+                value={linkForm.rollNumber}
+                onChange={(event) => setLinkForm((current) => ({ ...current, rollNumber: event.target.value }))}
+                placeholder="Roll number"
+                className="h-[42px] w-full rounded-[8px] border border-white/30 bg-transparent px-3 text-sm text-white placeholder:text-slate-300 outline-none"
+              />
+
+              <input
+                type="password"
+                value={linkForm.password}
+                onChange={(event) => setLinkForm((current) => ({ ...current, password: event.target.value }))}
+                placeholder="Portal password"
+                className="h-[42px] w-full rounded-[8px] border border-white/30 bg-transparent px-3 text-sm text-white placeholder:text-slate-300 outline-none"
+              />
+
+              {linkError ? (
+                <p className="rounded-md border border-rose-300/50 bg-rose-500/15 px-3 py-2 text-xs text-rose-100">{linkError}</p>
+              ) : null}
+
+              <button
+                type="submit"
+                disabled={isLinkingSubmitting || isGoogleSubmitting || isSubmitting}
+                className="h-[42px] w-full rounded-[8px] border border-[#E8A08C]/80 bg-[#E8A08C]/20 text-sm font-semibold text-[#F5F5F5] disabled:opacity-60"
+              >
+                {isLinkingSubmitting ? 'Linking credentials...' : 'Link Credentials'}
+              </button>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </section>
   )
 }

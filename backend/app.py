@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from db.session import init_database
 from routers.auth import router as auth_router
 from routers.feedback import router as feedback_router
+from routers.firebase_auth import router as firebase_auth_router
 
 app = FastAPI(title="Attend75 Backend", version="0.1.0")
 
@@ -52,3 +53,4 @@ async def health_check():
 
 app.include_router(auth_router)
 app.include_router(feedback_router)
+app.include_router(firebase_auth_router)

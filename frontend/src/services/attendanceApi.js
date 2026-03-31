@@ -170,3 +170,75 @@ export async function submitFeedback(message) {
   await parseApiResponse(response)
   return { status: 'success' }
 }
+
+function buildSessionFromAuthPayload(data, fallbackRollNumber = '') {
+  const normalized = normalizeAttendancePayload(data)
+  const rollNumber = (data?.roll_number || fallbackRollNumber || '').trim().toUpperCase()
+  const studentName = (data?.student_name || data?.display_name || '').trim() || rollNumber
+
+  return {
+    id: rollNumber,
+    name: studentName,
+    portalName: studentName,
+    rollNumber,
+    token: data?.token || null,
+    semesters: normalized.semesters,
+    selectedSemester: normalized.selectedSemester,
+    attendanceData: {
+      subjects: normalized.subjects,
+      history: normalized.history,
+      feasibility: normalized.feasibility,
+    },
+  }
+}
+
+export async function loginWithFirebase(idToken) {
+  const token = (idToken || '').trim()
+  if (!token) {
+    throw new Error('Missing Firebase ID token.')
+  }
+
+  const response = await fetch(`${API_BASE_URL}/auth/firebase/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id_token: token }),
+  })
+
+  const data = await parseApiResponse(response)
+  const linked = Boolean(data?.linked || data?.linked_credentials || data?.credentials_linked)
+  const hasSessionPayload = Boolean(data?.token)
+
+  return {
+    linked,
+    session: hasSessionPayload ? buildSessionFromAuthPayload(data) : null,
+    data,
+  }
+}
+
+export async function linkFirebaseCredentials({ idToken, rollNumber, password }) {
+  const token = (idToken || '').trim()
+  const roll = (rollNumber || '').trim().toUpperCase()
+  const pass = (password || '').trim()
+
+  if (!token) {
+    throw new Error('Missing Firebase ID token.')
+  }
+  if (!roll || !pass) {
+    throw new Error('Roll number and password are required.')
+  }
+
+  const response = await fetch(`${API_BASE_URL}/auth/firebase/link-credentials`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id_token: token, roll_number: roll, password: pass }),
+  })
+
+  const data = await parseApiResponse(response)
+  const linked = Boolean(data?.linked || data?.linked_credentials || data?.credentials_linked || data?.token)
+
+  return {
+    linked,
+    session: linked ? buildSessionFromAuthPayload(data, roll) : null,
+    data,
+  }
+}

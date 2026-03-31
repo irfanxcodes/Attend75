@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
+import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup } from 'firebase/auth'
 
 let firebaseApp = null
 let firebaseAuth = null
@@ -42,5 +42,15 @@ export async function signInWithGoogleAndGetIdToken() {
     idToken,
     email: result.user.email,
     displayName: result.user.displayName,
+  }
+}
+
+export function subscribeToFirebaseAuthState(callback) {
+  try {
+    const { firebaseAuth } = ensureFirebaseInitialized()
+    return onAuthStateChanged(firebaseAuth, callback)
+  } catch {
+    callback(null)
+    return () => {}
   }
 }
