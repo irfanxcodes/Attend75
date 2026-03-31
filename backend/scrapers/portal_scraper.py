@@ -8,11 +8,15 @@ from bs4 import BeautifulSoup
 
 
 class PortalAuthenticationError(Exception):
-    pass
+    def __init__(self, message: str, code: str = "AUTH_FAILED"):
+        super().__init__(message)
+        self.code = code
 
 
 class PortalNetworkError(Exception):
-    pass
+    def __init__(self, message: str, code: str = "DATA_FETCH_FAILED"):
+        super().__init__(message)
+        self.code = code
 
 
 class PortalScraper:
@@ -73,14 +77,23 @@ class PortalScraper:
         login_redirected = self._is_success_redirect(response)
         has_auth_session = self._has_authenticated_session()
 
-        if (
-            self._looks_like_login_page(response.text)
-            and self._is_invalid_credentials(response.text)
-            and not (login_redirected or has_auth_session)
-        ):
-            raise PortalAuthenticationError(
-                "Portal rejected login details (login error shown on login response)"
-            )
+        if self._looks_like_login_page(response.text) and not (login_redirected or has_auth_session):
+            invalid_reason = self._classify_invalid_credentials(response.text)
+            if invalid_reason == "INVALID_USERNAME":
+                raise PortalAuthenticationError(
+                    "Portal rejected login due to invalid username/roll number",
+                    code="INVALID_USERNAME",
+                )
+            if invalid_reason == "INCORRECT_PASSWORD":
+                raise PortalAuthenticationError(
+                    "Portal rejected login due to incorrect password",
+                    code="INCORRECT_PASSWORD",
+                )
+            if invalid_reason == "LOGIN_FAILED":
+                raise PortalAuthenticationError(
+                    "Portal rejected login details (login error shown on login response)",
+                    code="LOGIN_FAILED",
+                )
 
         # Follow the same navigation chain observed in browser logs:
         # login POST -> Index.aspx -> SDB.aspx -> CommonS.aspx?qs=ap
@@ -90,12 +103,14 @@ class PortalScraper:
 
         if self._looks_like_login_page(attendance_response.text) and not (login_redirected or has_auth_session):
             raise PortalAuthenticationError(
-                "Portal redirected to login while loading attendance (session not authenticated)"
+                "Portal redirected to login while loading attendance (session not authenticated)",
+                code="LOGIN_FAILED",
             )
 
         if self._looks_like_login_page(attendance_response.text) and not self._contains_attendance_table(attendance_response.text):
             raise PortalAuthenticationError(
-                "Portal returned login page while loading attendance (session expired or invalid)"
+                "Portal returned login page while loading attendance (session expired or invalid)",
+                code="LOGIN_FAILED",
             )
 
         payload = self._build_attendance_payload(attendance_response.text)
@@ -132,7 +147,8 @@ class PortalScraper:
 
         if self._looks_like_login_page(html) and not self._contains_attendance_table(html):
             raise PortalAuthenticationError(
-                "Portal returned login page while loading attendance (session expired or invalid)"
+                "Portal returned login page while loading attendance (session expired or invalid)",
+                code="SESSION_EXPIRED",
             )
 
         payload = self._build_attendance_payload(html)
@@ -184,16 +200,36 @@ class PortalScraper:
 
         return fields
 
-    def _is_invalid_credentials(self, html: str) -> bool:
+    def _classify_invalid_credentials(self, html: str) -> str | None:
         text = html.lower()
-        keywords = [
-            "invalid credentials",
-            "incorrect password",
-            "login failed",
+        username_keywords = [
             "invalid roll number",
+            "invalid username",
+            "invalid login",
+            "username does not exist",
+            "invalid user",
+            "user not found",
+            "invalid enrol",
+        ]
+        password_keywords = [
+            "incorrect password",
+            "invalid password",
+            "wrong password",
+            "password incorrect",
+            "password mismatch",
+        ]
+        generic_keywords = [
+            "invalid credentials",
+            "login failed",
             "please enter valid",
         ]
-        return any(keyword in text for keyword in keywords)
+        if any(keyword in text for keyword in username_keywords):
+            return "INVALID_USERNAME"
+        if any(keyword in text for keyword in password_keywords):
+            return "INCORRECT_PASSWORD"
+        if any(keyword in text for keyword in generic_keywords):
+            return "LOGIN_FAILED"
+        return None
 
     def _is_success_redirect(self, response: requests.Response) -> bool:
         redirect_targets = [
@@ -534,7 +570,10 @@ class PortalScraper:
                 html = switched_html
 
         if self._looks_like_login_page(html):
-            raise PortalAuthenticationError("Portal returned login page while loading Courses")
+            raise PortalAuthenticationError(
+                "Portal returned login page while loading Courses",
+                code="SESSION_EXPIRED",
+            )
 
         return self._parse_courses_map(html)
 

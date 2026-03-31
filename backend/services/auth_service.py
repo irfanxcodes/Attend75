@@ -17,7 +17,7 @@ def login_user(roll_number: str, password: str) -> dict:
 def fetch_attendance_for_semester(token: str, semester_id: str | None) -> dict:
     record = session_store.get(token)
     if record is None:
-        raise PortalAuthenticationError("Session expired. Please login again.")
+        raise PortalAuthenticationError("Session token not found while fetching attendance", code="SESSION_EXPIRED")
 
     return record.scraper.fetch_attendance_for_semester(semester_id=semester_id)
 
@@ -25,7 +25,7 @@ def fetch_attendance_for_semester(token: str, semester_id: str | None) -> dict:
 def fetch_subject_history(token: str, semester_id: str | None, date: str | None) -> dict:
     record = session_store.get(token)
     if record is None:
-        raise PortalAuthenticationError("Session expired. Please login again.")
+        raise PortalAuthenticationError("Session token not found while fetching attendance history", code="SESSION_EXPIRED")
 
     return record.scraper.fetch_subject_attendance_history(semester_id=semester_id, date=date)
 

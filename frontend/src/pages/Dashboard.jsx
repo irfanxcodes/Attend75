@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import AttendanceCircle from '../components/dashboard/AttendanceCircle'
 import Header from '../components/dashboard/Header'
 import PredictionCard from '../components/dashboard/PredictionCard'
 import SubjectList from '../components/dashboard/SubjectList'
 import useAppStore from '../hooks/useAppStore'
-import { fetchAttendance } from '../services/attendanceApi'
+import { fetchAttendance, isSessionExpiredError } from '../services/attendanceApi'
 import { calculatePrediction, calculatePredictionFeasibility } from '../utils/calculations'
 
 function Dashboard() {
+  const navigate = useNavigate()
   const {
     state: {
       user,
@@ -63,11 +65,17 @@ function Dashboard() {
         window.localStorage.setItem('attend75.selectedSemester', result.selectedSemester)
       }
     } catch (error) {
+      if (isSessionExpiredError(error)) {
+        actions.logout()
+        window.localStorage.removeItem('attend75.selectedSemester')
+        navigate('/login', { replace: true })
+        return
+      }
       actions.setError(error.message)
     } finally {
       actions.setLoading(false)
     }
-  }, [actions, session.selectedSemester, session.token])
+  }, [actions, navigate, session.selectedSemester, session.token])
 
   const handleSemesterChange = useCallback(
     async (event) => {
@@ -82,12 +90,18 @@ function Dashboard() {
         actions.setAttendanceData(result.attendanceData)
         actions.setSessionSemesters(result.semesters, result.selectedSemester || semesterId)
       } catch (error) {
+        if (isSessionExpiredError(error)) {
+          actions.logout()
+          window.localStorage.removeItem('attend75.selectedSemester')
+          navigate('/login', { replace: true })
+          return
+        }
         actions.setError(error.message)
       } finally {
         actions.setLoading(false)
       }
     },
-    [actions, session.token],
+    [actions, navigate, session.token],
   )
 
   useEffect(() => {
@@ -119,12 +133,18 @@ function Dashboard() {
         actions.setAttendanceData(result.attendanceData)
         actions.setSessionSemesters(result.semesters, result.selectedSemester || savedSemester)
       } catch (error) {
+        if (isSessionExpiredError(error)) {
+          actions.logout()
+          window.localStorage.removeItem('attend75.selectedSemester')
+          navigate('/login', { replace: true })
+          return
+        }
         actions.setError(error.message)
       } finally {
         actions.setLoading(false)
       }
     })()
-  }, [actions, session.selectedSemester, session.semesters, session.token])
+  }, [actions, navigate, session.selectedSemester, session.semesters, session.token])
 
   return (
     <section className="space-y-4">

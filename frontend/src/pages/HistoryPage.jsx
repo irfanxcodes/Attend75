@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import CalendarGrid from '../components/history/CalendarGrid'
 import CalendarHeader from '../components/history/CalendarHeader'
 import DayDetailCard from '../components/history/DayDetailCard'
 import useAppStore from '../hooks/useAppStore'
-import { fetchAttendanceHistory } from '../services/attendanceApi'
+import { fetchAttendanceHistory, isSessionExpiredError } from '../services/attendanceApi'
 
 function formatDateKey(year, monthIndex, day) {
   const paddedMonth = String(monthIndex + 1).padStart(2, '0')
@@ -35,8 +36,10 @@ function normalizeCode(value) {
 }
 
 function HistoryPage() {
+  const navigate = useNavigate()
   const {
     state: { session, attendance },
+    actions,
   } = useAppStore()
 
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -93,7 +96,9 @@ function HistoryPage() {
     }
 
     if (!session.token) {
-      setHistoryError('Session expired. Please login again.')
+      actions.logout()
+      window.localStorage.removeItem('attend75.selectedSemester')
+      navigate('/login', { replace: true })
       return
     }
 
@@ -126,6 +131,12 @@ function HistoryPage() {
         }
       })
     } catch (error) {
+      if (isSessionExpiredError(error)) {
+        actions.logout()
+        window.localStorage.removeItem('attend75.selectedSemester')
+        navigate('/login', { replace: true })
+        return
+      }
       setHistoryError(error.message)
     } finally {
       setIsLoadingHistory(false)

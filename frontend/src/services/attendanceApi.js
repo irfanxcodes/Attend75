@@ -1,5 +1,46 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
 
+class ApiError extends Error {
+  constructor(message, { code = 'UNKNOWN_ERROR', status = 0, endpoint = 'generic' } = {}) {
+    super(message)
+    this.name = 'ApiError'
+    this.code = code
+    this.status = status
+    this.endpoint = endpoint
+  }
+}
+
+function buildFriendlyMessage(endpoint, code, fallbackMessage) {
+  const normalizedCode = (code || '').trim().toUpperCase()
+
+  if (endpoint === 'login') {
+    if (normalizedCode === 'INVALID_USERNAME') {
+      return 'Invalid username or roll number. Please check and try again.'
+    }
+    if (normalizedCode === 'INCORRECT_PASSWORD') {
+      return 'Incorrect password. Please try again.'
+    }
+    return 'Login failed. Please verify your credentials and try again.'
+  }
+
+  if (endpoint === 'attendance' || endpoint === 'attendance-history' || endpoint === 'session-status') {
+    if (normalizedCode === 'SESSION_EXPIRED') {
+      return 'Your session has expired. Please log in again.'
+    }
+    return 'Unable to load your data. Please try again later.'
+  }
+
+  if (endpoint === 'firebase-login') {
+    return 'Unable to sign in with Google. Please try again.'
+  }
+
+  if (endpoint === 'firebase-link') {
+    return 'Authentication failed. Please try again.'
+  }
+
+  return fallbackMessage || 'Something went wrong during sign-in.'
+}
+
 function normalizeAttendancePayload(data) {
   const rows = Array.isArray(data?.attendance) ? data.attendance : []
 
@@ -39,12 +80,24 @@ function normalizeAttendancePayload(data) {
   }
 }
 
-async function parseApiResponse(response) {
+async function parseApiResponse(response, endpoint = 'generic') {
   const payload = await response.json().catch(() => ({}))
+
   if (!response.ok || payload.status === 'error') {
-    throw new Error(payload.message || 'Request failed. Please try again.')
+    const errorCode = (payload?.error_code || '').trim() || (response.status === 401 ? 'SESSION_EXPIRED' : 'UNKNOWN_ERROR')
+    const message = buildFriendlyMessage(endpoint, errorCode, payload?.message)
+    throw new ApiError(message, {
+      code: errorCode,
+      status: response.status,
+      endpoint,
+    })
   }
+
   return payload.data || {}
+}
+
+export function isSessionExpiredError(error) {
+  return (error?.code || '').toUpperCase() === 'SESSION_EXPIRED'
 }
 
 export async function login(credentials) {
@@ -61,7 +114,7 @@ export async function login(credentials) {
     body: JSON.stringify({ roll_number: username, password }),
   })
 
-  const data = await parseApiResponse(response)
+  const data = await parseApiResponse(response, 'login')
   const normalized = normalizeAttendancePayload(data)
   const rollNumber = (data.roll_number || username || '').toUpperCase()
   const studentName = (data.student_name || '').trim() || rollNumber
@@ -95,13 +148,16 @@ export async function fetchSessionStatus(token) {
     body: JSON.stringify({ token: cleanedToken }),
   })
 
-  const data = await parseApiResponse(response)
+  const data = await parseApiResponse(response, 'session-status')
   return data?.session_status || 'unknown'
 }
 
 export async function fetchAttendance({ token, semesterId }) {
   if (!token) {
-    throw new Error('Session expired. Please login again.')
+    throw new ApiError('Your session has expired. Please log in again.', {
+      code: 'SESSION_EXPIRED',
+      endpoint: 'attendance',
+    })
   }
 
   const response = await fetch(`${API_BASE_URL}/attendance`, {
@@ -110,7 +166,7 @@ export async function fetchAttendance({ token, semesterId }) {
     body: JSON.stringify({ token, semester_id: semesterId || null }),
   })
 
-  const data = await parseApiResponse(response)
+  const data = await parseApiResponse(response, 'attendance')
   const normalized = normalizeAttendancePayload(data)
 
   return {
@@ -126,7 +182,10 @@ export async function fetchAttendance({ token, semesterId }) {
 
 export async function fetchAttendanceHistory({ token, semesterId, date }) {
   if (!token) {
-    throw new Error('Session expired. Please login again.')
+    throw new ApiError('Your session has expired. Please log in again.', {
+      code: 'SESSION_EXPIRED',
+      endpoint: 'attendance-history',
+    })
   }
 
   if (!date) {
@@ -139,7 +198,7 @@ export async function fetchAttendanceHistory({ token, semesterId, date }) {
     body: JSON.stringify({ token, semester_id: semesterId || null, date }),
   })
 
-  const data = await parseApiResponse(response)
+  const data = await parseApiResponse(response, 'attendance-history')
   const entries = Array.isArray(data?.entries) ? data.entries : []
 
   return {
@@ -168,7 +227,7 @@ export async function submitFeedback(message) {
     body: JSON.stringify({ message: cleanedMessage }),
   })
 
-  await parseApiResponse(response)
+  await parseApiResponse(response, 'feedback')
   return { status: 'success' }
 }
 
@@ -207,7 +266,7 @@ export async function loginWithFirebase(idToken) {
     body: JSON.stringify({ id_token: token }),
   })
 
-  const data = await parseApiResponse(response)
+  const data = await parseApiResponse(response, 'firebase-login')
   const linked = Boolean(data?.linked || data?.linked_credentials || data?.credentials_linked)
   const hasSessionPayload = Boolean(data?.token)
 
@@ -236,7 +295,7 @@ export async function linkFirebaseCredentials({ idToken, rollNumber, password })
     body: JSON.stringify({ id_token: token, roll_number: roll, password: pass }),
   })
 
-  const data = await parseApiResponse(response)
+  const data = await parseApiResponse(response, 'firebase-link')
   const linked = Boolean(data?.linked || data?.linked_credentials || data?.credentials_linked || data?.token)
 
   return {
