@@ -1,9 +1,19 @@
 import { useEffect, useState } from 'react'
-import DataSyncCard from '../components/profile/DataSyncCard'
 import LogoutButton from '../components/profile/LogoutButton'
-import ProfileHeader from '../components/profile/ProfileHeader'
 import useAppStore from '../hooks/useAppStore'
 import { fetchSessionStatus, submitFeedback } from '../services/attendanceApi'
+
+function getInitials(name) {
+  if (!name) return 'I'
+
+  const parts = name.trim().split(/\s+/)
+
+  if (parts.length === 1) {
+    return parts[0].charAt(0).toUpperCase()
+  }
+
+  return `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(0)}`.toUpperCase()
+}
 
 function formatLastSynced(date) {
   const dayMonth = date.toLocaleDateString('en-GB', {
@@ -38,6 +48,10 @@ function Profile() {
   const [shareStatus, setShareStatus] = useState('')
   const [syncStatus, setSyncStatus] = useState('Checking...')
   const [lastSynced, setLastSynced] = useState('--')
+  const [isSyncExpanded, setIsSyncExpanded] = useState(false)
+  const [isFeedbackExpanded, setIsFeedbackExpanded] = useState(false)
+  const userInitials = getInitials(userName)
+  const isLinked = syncStatus.toLowerCase() === 'linked'
 
   useEffect(() => {
     let isMounted = true
@@ -150,14 +164,70 @@ function Profile() {
   }
 
   return (
-    <section className="space-y-4">
-      <ProfileHeader userName={userName} />
+    <section className="space-y-4 pb-2">
+      <section className="rounded-2xl bg-[#5B5485] px-5 py-5 shadow-sm">
+        <div className="flex items-center gap-4">
+          <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#E2BC8B]">
+            <span className="text-2xl font-bold text-[#2B2450]">{userInitials}</span>
+          </div>
 
-      <DataSyncCard
-        lastSynced={lastSynced}
-        status={syncStatus}
-        rollNumber={rollNumber}
-      />
+          <div className="min-w-0">
+            <h1 className="truncate text-2xl font-bold text-white">{userName}</h1>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setIsSyncExpanded((current) => !current)}
+          className="mt-4 flex w-full items-center justify-between rounded-xl border border-white/15 bg-[#4F487A] px-3 py-2 text-left transition hover:bg-[#4B4472]"
+          aria-expanded={isSyncExpanded}
+          aria-controls="profile-sync-details"
+        >
+          <div>
+            <h2 className="text-sm font-semibold text-[#F4F1FF]">Data Sync</h2>
+            <p className="text-xs text-[#D8D3E8]">Tap to view session details</p>
+          </div>
+          <svg
+            viewBox="0 0 20 20"
+            className={[
+              'h-5 w-5 flex-shrink-0 text-[#E2BC8B] transition-transform duration-300',
+              isSyncExpanded ? 'rotate-180' : '',
+            ].join(' ')}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+          >
+            <path d="M5 7.5 10 12.5 15 7.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+
+        <div
+          id="profile-sync-details"
+          className={[
+            'overflow-hidden transition-all duration-300',
+            isSyncExpanded ? 'mt-3 max-h-44 opacity-100' : 'max-h-0 opacity-0',
+          ].join(' ')}
+        >
+          <div className="rounded-xl bg-[#E2BC8B] p-4 text-[#1A1535]">
+            <div className="space-y-3 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[#3E365F]">Last Synced</span>
+                <span className="font-semibold">{lastSynced}</span>
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[#3E365F]">Status</span>
+                <span className={`font-semibold ${isLinked ? 'text-[#1F8F3A]' : 'text-[#C53030]'}`}>{syncStatus}</span>
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[#3E365F]">Roll Number</span>
+                <span className="font-semibold">{rollNumber}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <div className="rounded-3xl bg-[#4F487A] p-4 shadow-md ring-1 ring-white/5">
         <div className="flex items-center justify-between gap-3">
@@ -184,32 +254,63 @@ function Profile() {
       </div>
 
       <div className="rounded-3xl bg-[#4F487A] p-4 shadow-md ring-1 ring-white/5">
-        <h2 className="text-lg font-semibold text-[#F4F1FF]">Feedback</h2>
-        <p className="mt-1 text-sm text-[#D8D3E8]">Tell us what we can improve.</p>
-
-        <form className="mt-3 space-y-3" onSubmit={handleFeedbackSubmit}>
-          <textarea
-            value={feedbackMessage}
-            onChange={(event) => setFeedbackMessage(event.target.value)}
-            placeholder="Write your feedback here..."
-            rows={4}
-            className="w-full rounded-2xl border border-[#6D6499] bg-[#5B5485] px-4 py-3 text-sm text-[#F4F1FF] placeholder:text-[#CFC5E8] focus:border-[#E2BC8B] focus:outline-none"
-          />
-
-          {feedbackError ? <p className="text-sm text-[#FECACA]">{feedbackError}</p> : null}
-          {feedbackStatus ? <p className="text-sm text-[#D1FAE5]">{feedbackStatus}</p> : null}
-
-          <button
-            type="submit"
-            disabled={isSubmittingFeedback}
-            className="inline-flex items-center rounded-full bg-[#E2BC8B] px-4 py-2 text-sm font-semibold text-[#1D183E] transition hover:bg-[#D9AA6F] disabled:cursor-not-allowed disabled:opacity-70"
+        <button
+          type="button"
+          onClick={() => setIsFeedbackExpanded((current) => !current)}
+          className="flex w-full items-center justify-between text-left"
+          aria-expanded={isFeedbackExpanded}
+          aria-controls="feedback-details"
+        >
+          <div>
+            <h2 className="text-lg font-semibold text-[#F4F1FF]">Feedback</h2>
+            <p className="mt-1 text-sm text-[#D8D3E8]">Tell us what we can improve.</p>
+          </div>
+          <svg
+            viewBox="0 0 20 20"
+            className={[
+              'h-5 w-5 flex-shrink-0 text-[#E2BC8B] transition-transform duration-300',
+              isFeedbackExpanded ? 'rotate-180' : '',
+            ].join(' ')}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
           >
-            {isSubmittingFeedback ? 'Submitting...' : 'Submit Feedback'}
-          </button>
-        </form>
+            <path d="M5 7.5 10 12.5 15 7.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+
+        <div
+          id="feedback-details"
+          className={[
+            'overflow-hidden transition-all duration-300',
+            isFeedbackExpanded ? 'mt-3 max-h-96 opacity-100' : 'max-h-0 opacity-0',
+          ].join(' ')}
+        >
+          <form className="space-y-3" onSubmit={handleFeedbackSubmit}>
+            <textarea
+              value={feedbackMessage}
+              onChange={(event) => setFeedbackMessage(event.target.value)}
+              placeholder="Write your feedback here..."
+              rows={4}
+              className="w-full rounded-2xl border border-[#6D6499] bg-[#5B5485] px-4 py-3 text-sm text-[#F4F1FF] placeholder:text-[#CFC5E8] focus:border-[#E2BC8B] focus:outline-none"
+            />
+
+            {feedbackError ? <p className="text-sm text-[#FECACA]">{feedbackError}</p> : null}
+            {feedbackStatus ? <p className="text-sm text-[#D1FAE5]">{feedbackStatus}</p> : null}
+
+            <button
+              type="submit"
+              disabled={isSubmittingFeedback}
+              className="inline-flex items-center rounded-full bg-[#E2BC8B] px-4 py-2 text-sm font-semibold text-[#1D183E] transition hover:bg-[#D9AA6F] disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {isSubmittingFeedback ? 'Submitting...' : 'Submit Feedback'}
+            </button>
+          </form>
+        </div>
       </div>
 
       <LogoutButton onLogout={actions.logout} />
+      <p className="pb-1 text-center text-xs text-[#D8D3E8]/65">Attend75 · Made for ICFAI students</p>
     </section>
   )
 }
