@@ -84,7 +84,7 @@ function AppRoutes() {
       }
 
       try {
-        const idToken = await firebaseUser.getIdToken()
+        const idToken = await firebaseUser.getIdToken(true)
         const result = await loginWithFirebase(idToken)
 
         if (result.linked && result.session) {

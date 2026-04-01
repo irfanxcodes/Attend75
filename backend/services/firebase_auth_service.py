@@ -1,4 +1,5 @@
 import os
+import logging
 from pathlib import Path
 
 import firebase_admin
@@ -7,6 +8,9 @@ from firebase_admin import auth, credentials
 
 class FirebaseAuthError(Exception):
     pass
+
+
+logger = logging.getLogger(__name__)
 
 
 def _resolve_credentials_path() -> str | None:
@@ -29,15 +33,19 @@ def initialize_firebase() -> None:
     if credentials_path:
         path = Path(credentials_path).expanduser().resolve()
         if not path.exists():
+            logger.error("Firebase credentials file not found at path=%s", path)
             raise FirebaseAuthError("Firebase credentials file not found")
         cred = credentials.Certificate(str(path))
         firebase_admin.initialize_app(cred)
+        logger.info("Firebase Admin initialized with explicit service account path=%s", path)
         return
 
     # Fallback: rely on default environment credentials if available.
     try:
         firebase_admin.initialize_app()
+        logger.info("Firebase Admin initialized with default application credentials")
     except Exception as exc:
+        logger.exception("Firebase Admin SDK initialization failed")
         raise FirebaseAuthError("Unable to initialize Firebase Admin SDK") from exc
 
 
@@ -51,6 +59,7 @@ def verify_firebase_id_token(id_token: str) -> dict:
     try:
         decoded = auth.verify_id_token(token)
     except Exception as exc:
+        logger.warning("Firebase ID token verification failed: %s", exc)
         raise FirebaseAuthError("Invalid Firebase ID token") from exc
 
     return {

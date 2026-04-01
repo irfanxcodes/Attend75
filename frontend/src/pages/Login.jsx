@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useAppStore from '../hooks/useAppStore'
-import { linkFirebaseCredentials, login, loginWithFirebase } from '../services/attendanceApi'
-import { signInWithGoogleAndGetIdToken } from '../services/firebaseAuth'
+import { isFirebaseAuthError, linkFirebaseCredentials, login, loginWithFirebase } from '../services/attendanceApi'
+import { signInWithGoogleAndGetIdToken, signOutFirebaseUser } from '../services/firebaseAuth'
 
 function UserIcon() {
   return (
@@ -101,6 +101,11 @@ function Login() {
       setLinkForm({ rollNumber: '', password: '' })
       setShowLinkingForm(true)
     } catch (requestError) {
+      if (isFirebaseAuthError(requestError)) {
+        await signOutFirebaseUser()
+        window.location.reload()
+        return
+      }
       setError(requestError.message)
     } finally {
       setIsGoogleSubmitting(false)
@@ -128,6 +133,11 @@ function Login() {
       actions.setAttendanceData(linkResult.session.attendanceData)
       navigate('/loading')
     } catch (requestError) {
+      if (isFirebaseAuthError(requestError)) {
+        await signOutFirebaseUser()
+        window.location.reload()
+        return
+      }
       setLinkError(requestError.message)
     } finally {
       setIsLinkingSubmitting(false)

@@ -100,6 +100,12 @@ export function isSessionExpiredError(error) {
   return (error?.code || '').toUpperCase() === 'SESSION_EXPIRED'
 }
 
+export function isFirebaseAuthError(error) {
+  if (!error) return false
+  const endpoint = (error.endpoint || '').toLowerCase()
+  return error.status === 401 && (endpoint === 'firebase-login' || endpoint === 'firebase-link')
+}
+
 export async function login(credentials) {
   const username = credentials?.username?.trim()
   const password = credentials?.password?.trim()

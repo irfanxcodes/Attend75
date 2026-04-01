@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup } from 'firebase/auth'
+import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
 
 let firebaseApp = null
 let firebaseAuth = null
@@ -36,13 +36,18 @@ export async function signInWithGoogleAndGetIdToken() {
   const provider = new GoogleAuthProvider()
 
   const result = await signInWithPopup(firebaseAuth, provider)
-  const idToken = await result.user.getIdToken()
+  const idToken = await result.user.getIdToken(true)
 
   return {
     idToken,
     email: result.user.email,
     displayName: result.user.displayName,
   }
+}
+
+export async function signOutFirebaseUser() {
+  const { firebaseAuth } = ensureFirebaseInitialized()
+  await signOut(firebaseAuth)
 }
 
 export function subscribeToFirebaseAuthState(callback) {
