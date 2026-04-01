@@ -62,6 +62,29 @@ function AppRoutes() {
   const [isAuthBootstrapComplete, setAuthBootstrapComplete] = useState(false)
 
   useEffect(() => {
+    const handleStorage = (event) => {
+      if (event.key !== 'attend75.authEvent' || !event.newValue) {
+        return
+      }
+
+      try {
+        const payload = JSON.parse(event.newValue)
+        if (payload?.type === 'logout') {
+          actions.logout()
+          setAuthBootstrapComplete(true)
+        }
+      } catch {
+        // Ignore invalid payloads from local storage.
+      }
+    }
+
+    window.addEventListener('storage', handleStorage)
+    return () => {
+      window.removeEventListener('storage', handleStorage)
+    }
+  }, [actions])
+
+  useEffect(() => {
     if (isAuthBootstrapComplete) {
       return () => {}
     }

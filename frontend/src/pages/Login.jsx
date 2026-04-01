@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useAppStore from '../hooks/useAppStore'
-import { isFirebaseAuthError, linkFirebaseCredentials, login, loginWithFirebase } from '../services/attendanceApi'
+import { isFirebaseAuthError, isPortalCredentialError, linkFirebaseCredentials, login, loginWithFirebase } from '../services/attendanceApi'
 import { signInWithGoogleAndGetIdToken, signOutFirebaseUser } from '../services/firebaseAuth'
 
 function UserIcon() {
@@ -101,6 +101,11 @@ function Login() {
       setLinkForm({ rollNumber: '', password: '' })
       setShowLinkingForm(true)
     } catch (requestError) {
+      if (isPortalCredentialError(requestError)) {
+        setLinkError(requestError.message)
+        setShowLinkingForm(true)
+        return
+      }
       if (isFirebaseAuthError(requestError)) {
         await signOutFirebaseUser()
         window.location.reload()

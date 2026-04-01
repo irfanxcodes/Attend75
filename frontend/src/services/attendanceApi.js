@@ -10,6 +10,12 @@ class ApiError extends Error {
   }
 }
 
+function delay(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
+}
+
 function buildFriendlyMessage(endpoint, code, fallbackMessage) {
   const normalizedCode = (code || '').trim().toUpperCase()
 
@@ -31,10 +37,22 @@ function buildFriendlyMessage(endpoint, code, fallbackMessage) {
   }
 
   if (endpoint === 'firebase-login') {
+    if (normalizedCode === 'PORTAL_CREDENTIALS_INVALID') {
+      return 'Your linked portal credentials need to be updated.'
+    }
+    if (normalizedCode === 'PORTAL_DATA_FETCH_FAILED') {
+      return 'Unable to load your data. Please try again later.'
+    }
     return 'Unable to sign in with Google. Please try again.'
   }
 
   if (endpoint === 'firebase-link') {
+    if (normalizedCode === 'PORTAL_CREDENTIALS_INVALID') {
+      return 'Invalid portal credentials. Please check and try again.'
+    }
+    if (normalizedCode === 'PORTAL_DATA_FETCH_FAILED') {
+      return 'Unable to load your data. Please try again later.'
+    }
     return 'Authentication failed. Please try again.'
   }
 
@@ -84,7 +102,11 @@ async function parseApiResponse(response, endpoint = 'generic') {
   const payload = await response.json().catch(() => ({}))
 
   if (!response.ok || payload.status === 'error') {
-    const errorCode = (payload?.error_code || '').trim() || (response.status === 401 ? 'SESSION_EXPIRED' : 'UNKNOWN_ERROR')
+    const endpointKey = String(endpoint || '').toLowerCase()
+    const fallbackCode = endpointKey.startsWith('firebase')
+      ? 'FIREBASE_AUTH_FAILED'
+      : (response.status === 401 ? 'SESSION_EXPIRED' : 'UNKNOWN_ERROR')
+    const errorCode = (payload?.error_code || '').trim() || fallbackCode
     const message = buildFriendlyMessage(endpoint, errorCode, payload?.message)
     throw new ApiError(message, {
       code: errorCode,
@@ -104,6 +126,10 @@ export function isFirebaseAuthError(error) {
   if (!error) return false
   const endpoint = (error.endpoint || '').toLowerCase()
   return error.status === 401 && (endpoint === 'firebase-login' || endpoint === 'firebase-link')
+}
+
+export function isPortalCredentialError(error) {
+  return (error?.code || '').toUpperCase() === 'PORTAL_CREDENTIALS_INVALID'
 }
 
 export async function login(credentials) {
@@ -266,13 +292,33 @@ export async function loginWithFirebase(idToken) {
     throw new Error('Missing Firebase ID token.')
   }
 
-  const response = await fetch(`${API_BASE_URL}/auth/firebase/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id_token: token }),
-  })
+  let data
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/firebase/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_token: token }),
+    })
+    data = await parseApiResponse(response, 'firebase-login')
+  } catch (error) {
+    const shouldRetry =
+      error instanceof TypeError ||
+      (error instanceof ApiError && (error.status >= 500 || (error.status === 401 && error.code === 'FIREBASE_AUTH_FAILED')))
 
-  const data = await parseApiResponse(response, 'firebase-login')
+    if (!shouldRetry) {
+      throw error
+    }
+
+    await delay(300)
+
+    const retryResponse = await fetch(`${API_BASE_URL}/auth/firebase/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_token: token }),
+    })
+    data = await parseApiResponse(retryResponse, 'firebase-login')
+  }
+
   const linked = Boolean(data?.linked || data?.linked_credentials || data?.credentials_linked)
   const hasSessionPayload = Boolean(data?.token)
 
