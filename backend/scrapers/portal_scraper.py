@@ -26,6 +26,7 @@ class PortalScraper:
         self.session = session or requests.Session()
         self.base_url = os.getenv("PORTAL_BASE_URL", "http://111.93.16.209/sz")
         self.login_path = os.getenv("PORTAL_LOGIN_PATH", "login.aspx")
+        self.request_timeout = float(os.getenv("PORTAL_REQUEST_TIMEOUT_SECONDS", "15"))
         self._history_cache: dict[str, dict[str, list[dict[str, str | bool]]]] = {}
         self.session.headers.update(
             {
@@ -44,7 +45,7 @@ class PortalScraper:
 
         try:
             # Load the login page first to receive cookies and optional CSRF token.
-            login_page = self.session.get(login_url, timeout=15)
+            login_page = self.session.get(login_url, timeout=self.request_timeout)
             login_page.raise_for_status()
 
             payload = self._extract_hidden_form_fields(login_page.text)
@@ -63,7 +64,7 @@ class PortalScraper:
             response = self.session.post(
                 login_url,
                 data=payload,
-                timeout=15,
+                timeout=self.request_timeout,
                 allow_redirects=True,
                 headers={
                     "Referer": login_url,
@@ -131,7 +132,7 @@ class PortalScraper:
         try:
             attendance_response = self.session.get(
                 attendance_url,
-                timeout=15,
+                timeout=self.request_timeout,
                 headers={"Referer": self._build_url("Index.aspx")},
             )
             attendance_response.raise_for_status()
@@ -275,7 +276,7 @@ class PortalScraper:
         try:
             index_response = self.session.get(
                 index_url,
-                timeout=15,
+                timeout=self.request_timeout,
                 headers={"Referer": login_url},
             )
             index_response.raise_for_status()
@@ -283,14 +284,14 @@ class PortalScraper:
 
             sdb_response = self.session.get(
                 sdb_url,
-                timeout=15,
+                timeout=self.request_timeout,
                 headers={"Referer": index_url},
             )
             sdb_response.raise_for_status()
 
             attendance_response = self.session.get(
                 attendance_url,
-                timeout=15,
+                timeout=self.request_timeout,
                 headers={"Referer": index_url},
             )
             attendance_response.raise_for_status()
@@ -500,7 +501,7 @@ class PortalScraper:
             response = self.session.post(
                 attendance_url,
                 data=payload,
-                timeout=15,
+                timeout=self.request_timeout,
                 allow_redirects=True,
                 headers={"Referer": attendance_url},
             )
@@ -556,7 +557,7 @@ class PortalScraper:
         try:
             courses_response = self.session.get(
                 courses_url,
-                timeout=15,
+                timeout=self.request_timeout,
                 headers={"Referer": self._build_url("Index.aspx")},
             )
             courses_response.raise_for_status()
@@ -627,7 +628,7 @@ class PortalScraper:
             response = self.session.post(
                 page_url,
                 data=payload,
-                timeout=15,
+                timeout=self.request_timeout,
                 allow_redirects=True,
                 headers={"Referer": page_url},
             )
@@ -784,7 +785,7 @@ class PortalScraper:
         try:
             response = self.session.get(
                 url,
-                timeout=15,
+                timeout=self.request_timeout,
                 headers={"Referer": self._build_url("CommonS.aspx?qs=ap")},
             )
             response.raise_for_status()
