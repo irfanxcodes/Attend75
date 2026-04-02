@@ -27,3 +27,7 @@ dist-ssr
 # Python cache files
 __pycache__/
 *.py[cod]
+
+# Local database backups
+backend/backups/*.db
+backend/backups/*.sql
