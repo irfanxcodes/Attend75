@@ -27,6 +27,20 @@ dist-ssr
 # Python cache files
 __pycache__/
 *.py[cod]
+.venv/
+venv/
+
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+backend/.env.production
+frontend/.env.production
+
+# Firebase service credentials
+*firebase-adminsdk*.json
+*service-account*.json
+firebase-service-account.json
 
 # Local database backups
 backend/backups/*.db
