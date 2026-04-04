@@ -14,7 +14,7 @@ const Splash = lazy(() => import('../pages/Splash'))
 
 function RouteFallback({ message = 'Loading page...' }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#48426D] px-6">
+    <div className="flex min-h-dvh items-center justify-center bg-[#48426D] px-4 sm:px-6">
       <div className="w-full max-w-sm rounded-2xl border border-white/20 bg-[#5B5485] p-5 text-center shadow-md">
         <p className="text-sm font-medium text-[#F4F1FF]">{message}</p>
       </div>

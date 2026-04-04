@@ -11,23 +11,23 @@ function PredictionCard({ selectedTarget, currentAttendance, prediction, feasibi
   }
 
   return (
-    <section className="rounded-2xl border border-white/20 bg-[#312051] p-5">
-      <div className="flex items-center justify-between">
+    <section className="rounded-2xl border border-white/20 bg-[#312051] p-4 sm:p-5">
+      <div className="flex items-center justify-between gap-3">
         <h2 className="text-base font-semibold text-[#E7DEDE]">Prediction</h2>
         <p className="text-xs text-[#D1D1D1]">Target: {selectedTarget}%</p>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-3">
         <div className={["rounded-xl p-3", isTargetAchievable ? "bg-[#22C55E]/15" : "bg-[#22C55E]/10"].join(' ')}>
           <p className="text-xs uppercase tracking-wide text-[#D1D1D1]">To Attend</p>
-          <p className={["mt-1 text-2xl font-bold", isTargetAchievable ? "text-[#22C55E]" : "text-[#86EFAC]"] .join(' ')}>
+          <p className={["mt-1 text-xl font-bold sm:text-2xl", isTargetAchievable ? "text-[#22C55E]" : "text-[#86EFAC]"] .join(' ')}>
             {prediction.toAttend}
           </p>
         </div>
 
         <div className="rounded-xl bg-[#F59E0B]/15 p-3">
           <p className="text-xs uppercase tracking-wide text-[#D1D1D1]">Can Miss</p>
-          <p className="mt-1 text-2xl font-bold text-[#F59E0B]">{prediction.canMiss}</p>
+          <p className="mt-1 text-xl font-bold text-[#F59E0B] sm:text-2xl">{prediction.canMiss}</p>
         </div>
       </div>
 
@@ -37,14 +37,14 @@ function PredictionCard({ selectedTarget, currentAttendance, prediction, feasibi
         </div>
       ) : null}
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-wrap gap-1.5 sm:gap-2">
         {targets.map((target) => (
           <button
             key={target}
             type="button"
             onClick={() => onChangeTarget(target)}
             className={[
-              'rounded-full px-4 py-1.5 text-sm font-medium transition-colors',
+              'rounded-full px-3 py-1.5 text-xs font-medium transition-colors sm:px-4 sm:text-sm',
               sliderValue === target
                 ? 'bg-[#E8A08C] text-[#312051]'
                 : 'bg-white/10 text-[#D1D1D1] hover:bg-white/20',

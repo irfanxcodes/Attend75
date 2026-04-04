@@ -34,6 +34,9 @@ export DATABASE_URL="sqlite:///./attend75.db"
 
 # Replace in production with your own Fernet key
 export CREDENTIAL_ENCRYPTION_KEY="<fernet-base64-key>"
+
+# Optional: override feedback storage path (default: backend/feedback.json)
+export FEEDBACK_FILE_PATH="/opt/attend75/backend/feedback.json"
 ```
 
 PostgreSQL example:

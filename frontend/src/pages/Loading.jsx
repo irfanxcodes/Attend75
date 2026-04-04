@@ -15,10 +15,10 @@ function Loading() {
   }, [navigate])
 
   return (
-    <section className="flex min-h-screen items-center justify-center bg-[#4B467C] px-6">
+    <section className="flex min-h-dvh items-center justify-center bg-[#4B467C] px-4 sm:px-6">
       <div className="flex flex-col items-center gap-[14px] text-center">
-        <p className="text-[17px] font-medium tracking-[0.5px] text-[#E8A08C]">Fetching Attendance</p>
-        <span className="inline-flex text-[20px] leading-none text-[#E8A08C] animate-hourglass">⌛</span>
+        <p className="text-base font-medium tracking-[0.5px] text-[#E8A08C] sm:text-[17px]">Fetching Attendance</p>
+        <span className="inline-flex text-xl leading-none text-[#E8A08C] animate-hourglass">⌛</span>
       </div>
     </section>
   )

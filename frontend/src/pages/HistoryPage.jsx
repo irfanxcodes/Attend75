@@ -180,13 +180,13 @@ function HistoryPage() {
   }, [currentDate, historyBySemesterDate, selectedDate, semesterCacheKey])
 
   return (
-    <section className="space-y-4 pb-2">
+    <section className="space-y-3 pb-2 sm:space-y-4">
       <header>
-        <h1 className="text-4xl font-bold tracking-tight text-[#E7DEDE]">History</h1>
-        <p className="mt-1 text-sm text-[#CFC5E8]">View your day-wise attendance from calendar dates.</p>
+        <h1 className="text-3xl font-bold tracking-tight text-[#E7DEDE] sm:text-4xl">History</h1>
+        <p className="mt-1 text-xs text-[#CFC5E8] sm:text-sm">View your day-wise attendance from calendar dates.</p>
       </header>
 
-      <div className="space-y-3 rounded-3xl bg-[#4F487A] p-4 shadow-md ring-1 ring-white/5">
+      <div className="space-y-3 rounded-3xl bg-[#4F487A] p-3 shadow-md ring-1 ring-white/5 sm:p-4">
         <CalendarHeader
           currentDate={currentDate}
           onPreviousMonth={handlePreviousMonth}

@@ -150,14 +150,14 @@ function Login() {
   }
 
   return (
-    <section className="min-h-screen bg-[#4B467C] p-6">
-      <form onSubmit={handleSubmit} className="mx-auto flex min-h-[calc(100vh-48px)] w-full max-w-md flex-col justify-between">
-        <header className="pt-10 text-center">
-          <h1 className="text-[34px] font-bold text-[#F5F5F5]">Attend75</h1>
+    <section className="min-h-dvh bg-[#4B467C] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pt-6">
+      <form onSubmit={handleSubmit} className="mx-auto flex min-h-[calc(100dvh-2rem)] w-full max-w-md flex-col justify-between sm:min-h-[calc(100dvh-3rem)]">
+        <header className="pt-4 text-center sm:pt-8">
+          <h1 className="text-3xl font-bold text-[#F5F5F5] sm:text-[34px]">Attend75</h1>
         </header>
 
         <div>
-          <h2 className="text-[22px] font-semibold text-[#E8A08C] underline decoration-[#E8A08C] underline-offset-[6px]">Sign in</h2>
+          <h2 className="text-xl font-semibold text-[#E8A08C] underline decoration-[#E8A08C] underline-offset-[6px] sm:text-[22px]">Sign in</h2>
 
           <div className="mt-5 space-y-5">
             <label className="block">
@@ -202,7 +202,7 @@ function Login() {
           ) : null}
         </div>
 
-        <div className="pt-[30px]">
+        <div className="pt-6 sm:pt-[30px]">
           <button
             type="submit"
             disabled={isSubmitting}
@@ -221,7 +221,7 @@ function Login() {
             type="button"
             onClick={handleGoogleSignIn}
             disabled={isGoogleSubmitting || isSubmitting || isLinkingSubmitting}
-            className="relative -top-1 mb-3 h-[45px] w-full rounded-[10px] border border-white/40 bg-white text-sm font-semibold text-[#181818] transition-transform duration-150 hover:brightness-105 active:scale-[0.99] disabled:opacity-60"
+            className="mb-3 h-[45px] w-full rounded-[10px] border border-white/40 bg-white text-sm font-semibold text-[#181818] transition-transform duration-150 hover:brightness-105 active:scale-[0.99] disabled:opacity-60"
           >
             <span className="inline-flex items-center justify-center gap-2">
               <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
@@ -239,8 +239,8 @@ function Login() {
       </form>
 
       {showLinkingForm ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/45 px-6 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-white/20 bg-[#4F487A] p-5 shadow-xl">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/45 px-3 py-4 backdrop-blur-sm sm:px-6">
+          <div className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-2xl border border-white/20 bg-[#4F487A] p-4 shadow-xl sm:p-5">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-lg font-semibold text-[#F5F5F5]">Link Portal Credentials</h3>

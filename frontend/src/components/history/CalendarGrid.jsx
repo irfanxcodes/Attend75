@@ -23,17 +23,17 @@ function CalendarGrid({ currentDate, selectedDate, onSelectDate }) {
   const cells = buildCalendarCells(currentDate)
 
   return (
-    <div className="rounded-2xl bg-[#E2BC8B] p-4 text-[#15122D] shadow-sm">
-      <div className="mb-2 grid grid-cols-7 gap-2 text-center text-xs font-semibold uppercase tracking-wide text-[#3E365F]/80">
+    <div className="rounded-2xl bg-[#E2BC8B] p-3 text-[#15122D] shadow-sm sm:p-4">
+      <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[11px] font-semibold uppercase tracking-wide text-[#3E365F]/80 sm:gap-2 sm:text-xs">
         {WEEKDAY_LABELS.map((day) => (
           <span key={day}>{day}</span>
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-2">
+      <div className="grid grid-cols-7 gap-1 sm:gap-2">
         {cells.map((cell) => {
           if (!cell.day) {
-            return <span key={cell.id} className="h-10" aria-hidden="true" />
+            return <span key={cell.id} className="h-9 sm:h-10" aria-hidden="true" />
           }
 
           const isSelected = selectedDate === cell.day
@@ -43,7 +43,7 @@ function CalendarGrid({ currentDate, selectedDate, onSelectDate }) {
               key={cell.id}
               type="button"
               onClick={() => onSelectDate(cell.day)}
-              className={`h-10 rounded-full text-sm font-medium transition duration-200 ${
+              className={`h-9 rounded-full text-xs font-medium transition duration-200 sm:h-10 sm:text-sm ${
                 isSelected
                   ? 'bg-[#5B5485] text-white shadow-sm'
                   : 'text-[#1D1738] hover:bg-[#D2A56C] hover:text-[#121021]'

@@ -21,10 +21,10 @@ function Splash() {
   }, [navigate])
 
   return (
-    <section className="flex min-h-screen items-center justify-center bg-[#48426D] px-6">
+    <section className="flex min-h-dvh items-center justify-center bg-[#48426D] px-4 sm:px-6">
       <h1
         className={[
-          "text-center text-[48px] font-medium tracking-tight text-[#F1AA9B] transition-all duration-700",
+          "text-center text-4xl font-medium tracking-tight text-[#F1AA9B] transition-all duration-700 sm:text-[48px]",
           isExiting ? 'opacity-0' : 'opacity-100',
         ].join(' ')}
         style={{ fontFamily: 'Inter, sans-serif' }}

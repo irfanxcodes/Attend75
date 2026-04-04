@@ -1,9 +1,21 @@
 import json
+import logging
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
+from uuid import uuid4
 
-_FEEDBACK_FILE = Path(__file__).resolve().parent.parent / "feedback.json"
+logger = logging.getLogger(__name__)
+
+
+def _resolve_feedback_file() -> Path:
+    configured_path = os.getenv("FEEDBACK_FILE_PATH", "").strip()
+    if configured_path:
+        return Path(configured_path).expanduser().resolve()
+    return Path(__file__).resolve().parent.parent / "feedback.json"
+
+
 _FEEDBACK_LOCK = Lock()
 
 
@@ -12,7 +24,11 @@ def submit_feedback(message: str) -> dict[str, str]:
     if not cleaned_message:
         raise ValueError("message must not be empty")
 
+    feedback_file = _resolve_feedback_file()
+    feedback_file.parent.mkdir(parents=True, exist_ok=True)
+
     entry = {
+        "id": str(uuid4()),
         "message": cleaned_message,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
@@ -20,15 +36,19 @@ def submit_feedback(message: str) -> dict[str, str]:
     with _FEEDBACK_LOCK:
         existing_entries: list[dict[str, str]] = []
 
-        if _FEEDBACK_FILE.exists():
+        if feedback_file.exists():
             try:
-                parsed = json.loads(_FEEDBACK_FILE.read_text(encoding="utf-8"))
+                parsed = json.loads(feedback_file.read_text(encoding="utf-8"))
                 if isinstance(parsed, list):
                     existing_entries = parsed
             except json.JSONDecodeError:
                 existing_entries = []
 
         existing_entries.append(entry)
-        _FEEDBACK_FILE.write_text(json.dumps(existing_entries, indent=2), encoding="utf-8")
+        temp_path = feedback_file.with_suffix(f"{feedback_file.suffix}.tmp")
+        temp_path.write_text(json.dumps(existing_entries, indent=2), encoding="utf-8")
+        temp_path.replace(feedback_file)
+
+    logger.info("Feedback saved [id=%s, path=%s]", entry["id"], feedback_file)
 
     return entry

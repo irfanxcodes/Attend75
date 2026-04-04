@@ -153,8 +153,9 @@ function Profile() {
 
     try {
       setIsSubmittingFeedback(true)
-      await submitFeedback(feedbackMessage)
-      setFeedbackStatus('Feedback submitted successfully.')
+      const result = await submitFeedback(feedbackMessage)
+      const submittedAt = result?.timestamp ? new Date(result.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null
+      setFeedbackStatus(submittedAt ? `Feedback submitted successfully at ${submittedAt}.` : 'Feedback submitted successfully.')
       setFeedbackMessage('')
     } catch (error) {
       setFeedbackError(error.message || 'Unable to submit feedback right now.')
@@ -164,15 +165,15 @@ function Profile() {
   }
 
   return (
-    <section className="space-y-4 pb-2">
-      <section className="rounded-2xl bg-[#5B5485] px-5 py-5 shadow-sm">
+    <section className="space-y-3 pb-2 sm:space-y-4">
+      <section className="rounded-2xl bg-[#5B5485] px-4 py-4 shadow-sm sm:px-5 sm:py-5">
         <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#E2BC8B]">
-            <span className="text-2xl font-bold text-[#2B2450]">{userInitials}</span>
+          <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#E2BC8B] sm:h-16 sm:w-16">
+            <span className="text-xl font-bold text-[#2B2450] sm:text-2xl">{userInitials}</span>
           </div>
 
           <div className="min-w-0">
-            <h1 className="truncate text-2xl font-bold text-white">{userName}</h1>
+            <h1 className="break-words text-xl font-bold text-white sm:text-2xl">{userName}</h1>
           </div>
         </div>
 
@@ -184,8 +185,8 @@ function Profile() {
           aria-controls="profile-sync-details"
         >
           <div>
-            <h2 className="text-sm font-semibold text-[#F4F1FF]">Data Sync</h2>
-            <p className="text-xs text-[#D8D3E8]">Tap to view session details</p>
+            <h2 className="text-sm font-semibold text-[#F4F1FF] sm:text-base">Data Sync</h2>
+            <p className="text-xs text-[#D8D3E8] sm:text-sm">Tap to view session details</p>
           </div>
           <svg
             viewBox="0 0 20 20"
@@ -208,11 +209,11 @@ function Profile() {
             isSyncExpanded ? 'mt-3 max-h-44 opacity-100' : 'max-h-0 opacity-0',
           ].join(' ')}
         >
-          <div className="rounded-xl bg-[#E2BC8B] p-4 text-[#1A1535]">
-            <div className="space-y-3 text-sm">
+          <div className="rounded-xl bg-[#E2BC8B] p-3 text-[#1A1535] sm:p-4">
+            <div className="space-y-3 text-xs sm:text-sm">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-[#3E365F]">Last Synced</span>
-                <span className="font-semibold">{lastSynced}</span>
+                <span className="break-all text-right font-semibold">{lastSynced}</span>
               </div>
 
               <div className="flex items-center justify-between gap-3">
@@ -222,18 +223,18 @@ function Profile() {
 
               <div className="flex items-center justify-between gap-3">
                 <span className="text-[#3E365F]">Roll Number</span>
-                <span className="font-semibold">{rollNumber}</span>
+                <span className="break-all text-right font-semibold">{rollNumber}</span>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <div className="rounded-3xl bg-[#4F487A] p-4 shadow-md ring-1 ring-white/5">
-        <div className="flex items-center justify-between gap-3">
+      <div className="rounded-3xl bg-[#4F487A] p-3 shadow-md ring-1 ring-white/5 sm:p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-[#F4F1FF]">Share Attend75</h2>
-            <p className="text-sm text-[#D8D3E8]">Share the app via WhatsApp, Instagram, and more.</p>
+            <h2 className="text-base font-semibold text-[#F4F1FF] sm:text-lg">Share Attend75</h2>
+            <p className="text-xs text-[#D8D3E8] sm:text-sm">Share the app via WhatsApp, Instagram, and more.</p>
           </div>
 
           <button
@@ -253,7 +254,7 @@ function Profile() {
         {shareStatus ? <p className="mt-3 text-sm text-[#F4F1FF]">{shareStatus}</p> : null}
       </div>
 
-      <div className="rounded-3xl bg-[#4F487A] p-4 shadow-md ring-1 ring-white/5">
+      <div className="rounded-3xl bg-[#4F487A] p-3 shadow-md ring-1 ring-white/5 sm:p-4">
         <button
           type="button"
           onClick={() => setIsFeedbackExpanded((current) => !current)}
@@ -262,8 +263,8 @@ function Profile() {
           aria-controls="feedback-details"
         >
           <div>
-            <h2 className="text-lg font-semibold text-[#F4F1FF]">Feedback</h2>
-            <p className="mt-1 text-sm text-[#D8D3E8]">Tell us what we can improve.</p>
+            <h2 className="text-base font-semibold text-[#F4F1FF] sm:text-lg">Feedback</h2>
+            <p className="mt-1 text-xs text-[#D8D3E8] sm:text-sm">Tell us what we can improve.</p>
           </div>
           <svg
             viewBox="0 0 20 20"
@@ -289,7 +290,11 @@ function Profile() {
           <form className="space-y-3" onSubmit={handleFeedbackSubmit}>
             <textarea
               value={feedbackMessage}
-              onChange={(event) => setFeedbackMessage(event.target.value)}
+              onChange={(event) => {
+                setFeedbackMessage(event.target.value)
+                if (feedbackStatus) setFeedbackStatus('')
+                if (feedbackError) setFeedbackError('')
+              }}
               placeholder="Write your feedback here..."
               rows={4}
               className="w-full rounded-2xl border border-[#6D6499] bg-[#5B5485] px-4 py-3 text-sm text-[#F4F1FF] placeholder:text-[#CFC5E8] focus:border-[#E2BC8B] focus:outline-none"
@@ -310,7 +315,7 @@ function Profile() {
       </div>
 
       <LogoutButton onLogout={actions.logout} />
-      <p className="pb-1 text-center text-xs text-[#D8D3E8]/65">Attend75 · Made for ICFAI students</p>
+      <p className="px-2 pb-1 text-center text-xs text-[#D8D3E8]/65">Attend75 · Made for ICFAI students</p>
     </section>
   )
 }

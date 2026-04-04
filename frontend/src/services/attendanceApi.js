@@ -56,6 +56,13 @@ function buildFriendlyMessage(endpoint, code, fallbackMessage) {
     return 'Authentication failed. Please try again.'
   }
 
+  if (endpoint === 'feedback') {
+    if (normalizedCode === 'FEEDBACK_SAVE_FAILED') {
+      return 'Unable to save feedback right now. Please try again shortly.'
+    }
+    return 'Unable to submit feedback right now. Please try again.'
+  }
+
   return fallbackMessage || 'Something went wrong during sign-in.'
 }
 
@@ -259,8 +266,12 @@ export async function submitFeedback(message) {
     body: JSON.stringify({ message: cleanedMessage }),
   })
 
-  await parseApiResponse(response, 'feedback')
-  return { status: 'success' }
+  const data = await parseApiResponse(response, 'feedback')
+  return {
+    status: 'success',
+    feedbackId: data?.feedback_id || null,
+    timestamp: data?.timestamp || null,
+  }
 }
 
 function buildSessionFromAuthPayload(data, fallbackRollNumber = '') {
