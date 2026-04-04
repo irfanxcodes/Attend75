@@ -70,5 +70,15 @@ class SessionStore:
                 record.last_accessed_at = now
             return record
 
+    def stats(self) -> dict[str, int]:
+        now = time.time()
+        with self._lock:
+            self._prune_expired_locked(now)
+            return {
+                "active_sessions": len(self._sessions),
+                "max_sessions": self._max_sessions,
+                "session_ttl_seconds": self._session_ttl_seconds,
+            }
+
 
 session_store = SessionStore()

@@ -1,16 +1,21 @@
 import os
+import time
+import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi import Request
 
 from db.session import init_database
 from routers.auth import router as auth_router
+from routers.admin import router as admin_router
 from routers.feedback import router as feedback_router
 from routers.firebase_auth import router as firebase_auth_router
 
 app = FastAPI(title="Attend75 Backend", version="0.1.0")
+logger = logging.getLogger("attend75.request")
 
 
 def _cors_origins() -> list[str]:
@@ -35,6 +40,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def request_timing_middleware(request: Request, call_next):
+    started = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = round((time.perf_counter() - started) * 1000, 2)
+
+    logger.info(
+        "request path=%s method=%s status=%s duration_ms=%s",
+        request.url.path,
+        request.method,
+        response.status_code,
+        duration_ms,
+    )
+    return response
 
 
 @app.exception_handler(RequestValidationError)
@@ -62,5 +83,6 @@ async def health_check():
 
 
 app.include_router(auth_router)
+app.include_router(admin_router)
 app.include_router(feedback_router)
 app.include_router(firebase_auth_router)

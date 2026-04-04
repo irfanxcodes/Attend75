@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import useAppStore from '../hooks/useAppStore'
+import { parseAdminSession } from '../services/adminApi'
 import { loginWithFirebase } from '../services/attendanceApi'
 import { subscribeToFirebaseAuthState } from '../services/firebaseAuth'
 
@@ -11,6 +12,8 @@ const Loading = lazy(() => import('../pages/Loading'))
 const Login = lazy(() => import('../pages/Login'))
 const Profile = lazy(() => import('../pages/Profile'))
 const Splash = lazy(() => import('../pages/Splash'))
+const AdminLogin = lazy(() => import('../pages/admin/AdminLogin'))
+const AdminDashboard = lazy(() => import('../pages/admin/AdminDashboard'))
 
 function RouteFallback({ message = 'Loading page...' }) {
   return (
@@ -52,6 +55,24 @@ function PublicLoginRoute({ isAuthBootstrapComplete }) {
   }
 
   return <Login />
+}
+
+function AdminProtectedRoute() {
+  const session = parseAdminSession()
+  if (!session?.sessionToken) {
+    return <Navigate to="/admin/login" replace />
+  }
+
+  return <AdminDashboard />
+}
+
+function AdminPublicRoute() {
+  const session = parseAdminSession()
+  if (session?.sessionToken) {
+    return <Navigate to="/admin" replace />
+  }
+
+  return <AdminLogin />
 }
 
 function AppRoutes() {
@@ -134,6 +155,8 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<Splash />} />
         <Route path="/login" element={<PublicLoginRoute isAuthBootstrapComplete={isAuthBootstrapComplete} />} />
+        <Route path="/admin/login" element={<AdminPublicRoute />} />
+        <Route path="/admin" element={<AdminProtectedRoute />} />
         <Route path="/loading" element={<Loading />} />
         <Route path="/dashboard" element={<Navigate to="/app/dashboard" replace />} />
         <Route path="/history" element={<Navigate to="/app/history" replace />} />

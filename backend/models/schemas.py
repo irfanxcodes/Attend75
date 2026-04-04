@@ -125,3 +125,16 @@ class FirebaseLinkCredentialsRequest(BaseModel):
         if not cleaned:
             raise ValueError(f"{info.field_name} must not be empty")
         return cleaned
+
+
+class AdminPasswordLoginRequest(BaseModel):
+    username: str = Field(..., description="Admin username")
+    password: str = Field(..., description="Admin password")
+
+    @field_validator("username", "password")
+    @classmethod
+    def validate_non_empty_admin_fields(cls, value: str, info: ValidationInfo) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError(f"{info.field_name} must not be empty")
+        return cleaned

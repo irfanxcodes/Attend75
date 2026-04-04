@@ -111,6 +111,54 @@ export FIREBASE_SERVICE_ACCOUNT_FILE="/absolute/path/to/service-account.json"
 export GOOGLE_APPLICATION_CREDENTIALS="/absolute/path/to/service-account.json"
 ```
 
+## 2.4 Admin dashboard configuration (password-based)
+
+Admin auth is separate from normal user auth and is fully backend-controlled.
+
+Required environment variables:
+
+```bash
+export ADMIN_USERNAME="admin"
+export ADMIN_PASSWORD_HASH="pbkdf2_sha256$310000$<salt_hex>$<digest_hex>"
+```
+
+Optional:
+
+```bash
+# Admin session TTL in seconds (default: 43200 = 12 hours)
+export ADMIN_SESSION_TTL_SECONDS="43200"
+```
+
+Generate `ADMIN_PASSWORD_HASH` from a plaintext password:
+
+```bash
+python - <<'PY'
+import secrets, hashlib
+
+password = "replace-with-strong-password"
+iterations = 310000
+salt = secrets.token_bytes(16)
+digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
+print(f"pbkdf2_sha256${iterations}${salt.hex()}${digest.hex()}")
+PY
+```
+
+Do not store plaintext admin passwords in frontend code or git-tracked files.
+
+Local run example:
+
+```bash
+export ADMIN_USERNAME="admin"
+export ADMIN_PASSWORD_HASH="pbkdf2_sha256$310000$..."
+uvicorn app:app --reload
+```
+
+VPS/systemd recommendation:
+
+1. Add `ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH`, and optional `ADMIN_SESSION_TTL_SECONDS` to service environment.
+2. Restart backend service.
+3. Verify admin login at `/admin/auth/login`.
+
 ## 2.3 Alembic migrations
 
 Migrations are scaffolded in `alembic/`.

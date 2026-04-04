@@ -52,3 +52,20 @@ def submit_feedback(message: str) -> dict[str, str]:
     logger.info("Feedback saved [id=%s, path=%s]", entry["id"], feedback_file)
 
     return entry
+
+
+def list_feedback(limit: int = 50) -> list[dict[str, str]]:
+    capped_limit = max(1, min(limit, 200))
+    feedback_file = _resolve_feedback_file()
+
+    if not feedback_file.exists():
+        return []
+
+    try:
+        parsed = json.loads(feedback_file.read_text(encoding="utf-8"))
+        if not isinstance(parsed, list):
+            return []
+    except json.JSONDecodeError:
+        return []
+
+    return list(reversed(parsed[-capped_limit:]))
