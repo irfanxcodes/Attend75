@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 from pydantic import model_validator
@@ -79,6 +79,7 @@ class AttendanceHistoryRequest(BaseModel):
 
 class FeedbackRequest(BaseModel):
     message: str = Field(..., description="User feedback text")
+    user_name: str | None = Field(default=None, description="Display name of feedback submitter")
 
     @field_validator("message")
     @classmethod
@@ -87,6 +88,18 @@ class FeedbackRequest(BaseModel):
         if not cleaned:
             raise ValueError("message must not be empty")
         return cleaned
+
+    @field_validator("user_name")
+    @classmethod
+    def validate_user_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
+
+
+class AdminFeedbackStatusUpdateRequest(BaseModel):
+    status: Literal["new", "reviewed", "resolved"] = Field(..., description="Updated feedback status")
 
 
 class SessionStatusRequest(BaseModel):

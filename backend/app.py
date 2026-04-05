@@ -13,6 +13,7 @@ from routers.auth import router as auth_router
 from routers.admin import router as admin_router
 from routers.feedback import router as feedback_router
 from routers.firebase_auth import router as firebase_auth_router
+from services.request_metrics import observe_request
 
 app = FastAPI(title="Attend75 Backend", version="0.1.0")
 logger = logging.getLogger("attend75.request")
@@ -47,6 +48,7 @@ async def request_timing_middleware(request: Request, call_next):
     started = time.perf_counter()
     response = await call_next(request)
     duration_ms = round((time.perf_counter() - started) * 1000, 2)
+    observe_request(path=request.url.path, status_code=response.status_code, duration_ms=duration_ms)
 
     logger.info(
         "request path=%s method=%s status=%s duration_ms=%s",

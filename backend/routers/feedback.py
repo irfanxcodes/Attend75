@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 @router.post("/feedback", response_model=ApiResponse)
 async def feedback(payload: FeedbackRequest):
     try:
-        entry = await run_in_threadpool(submit_feedback, payload.message)
+        entry = await run_in_threadpool(submit_feedback, payload.message, payload.user_name)
         return ApiResponse(
             status="success",
             message="Feedback submitted",

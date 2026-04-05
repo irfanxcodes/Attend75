@@ -1,13 +1,15 @@
 import logging
+from datetime import date
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
-from models.schemas import AdminPasswordLoginRequest, ApiResponse
+from models.schemas import AdminFeedbackStatusUpdateRequest, AdminPasswordLoginRequest, ApiResponse
 from services.admin_service import (
 	get_admin_overview,
 	get_feedback_log,
+	set_feedback_status,
 	login_admin_with_password,
 	logout_admin_session,
 	require_admin_user,
@@ -70,14 +72,46 @@ async def admin_overview(_: dict = Depends(require_admin_user)):
 async def admin_feedback(
 	_: dict = Depends(require_admin_user),
 	limit: int = Query(default=50, ge=1, le=200),
+	query: str | None = Query(default=None, max_length=200),
+	start_date: date | None = Query(default=None),
+	end_date: date | None = Query(default=None),
+	status: str | None = Query(default=None),
+	sort: str = Query(default="latest"),
 ):
 	try:
-		items = await run_in_threadpool(get_feedback_log, limit)
+		items = await run_in_threadpool(get_feedback_log, limit, query, start_date, end_date, status, sort)
 		return ApiResponse(status="success", message="Admin feedback log fetched", data={"items": items})
 	except Exception:
 		logger.exception("Failed to fetch admin feedback log")
 		return JSONResponse(
 			status_code=500,
 			content={"status": "error", "message": "Unable to fetch feedback log"},
+		)
+
+
+@router.patch("/feedback/{feedback_id}/status", response_model=ApiResponse)
+async def admin_feedback_status_update(
+	feedback_id: str,
+	payload: AdminFeedbackStatusUpdateRequest,
+	_: dict = Depends(require_admin_user),
+):
+	try:
+		updated = await run_in_threadpool(set_feedback_status, feedback_id, payload.status)
+		if not updated:
+			return JSONResponse(
+				status_code=404,
+				content={"status": "error", "message": "Feedback entry not found"},
+			)
+		return ApiResponse(status="success", message="Feedback status updated", data={"item": updated})
+	except ValueError as exc:
+		return JSONResponse(
+			status_code=422,
+			content={"status": "error", "message": str(exc)},
+		)
+	except Exception:
+		logger.exception("Failed to update feedback status")
+		return JSONResponse(
+			status_code=500,
+			content={"status": "error", "message": "Unable to update feedback status"},
 		)
 

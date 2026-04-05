@@ -1,13 +1,13 @@
 const configuredApiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || '').trim()
 
 function resolveApiBaseUrl() {
-  if (configuredApiBaseUrl) {
-    return configuredApiBaseUrl
-  }
-
-  // In local Vite dev, always use the local backend unless explicitly overridden.
+  // In local Vite dev, always use local backend to keep admin testing isolated from production.
   if (import.meta.env.DEV) {
     return 'http://127.0.0.1:8000'
+  }
+
+  if (configuredApiBaseUrl) {
+    return configuredApiBaseUrl
   }
 
   // In deployed environments, use same-origin API rewrites to avoid CORS and mixed-content failures.
@@ -135,12 +135,42 @@ export async function fetchAdminOverview(sessionToken) {
   })
 }
 
-export async function fetchAdminFeedbackLog(sessionToken, limit = 50) {
-  const data = await requestAdminJson(`${API_BASE_URL}/admin/feedback?limit=${encodeURIComponent(limit)}`, {
+export async function fetchAdminFeedbackLog(sessionToken, options = {}) {
+  const params = new URLSearchParams()
+  params.set('limit', String(options.limit ?? 50))
+
+  if (options.query) params.set('query', String(options.query))
+  if (options.startDate) params.set('start_date', String(options.startDate))
+  if (options.endDate) params.set('end_date', String(options.endDate))
+  if (options.status) params.set('status', String(options.status))
+  if (options.sort) params.set('sort', String(options.sort))
+
+  const data = await requestAdminJson(`${API_BASE_URL}/admin/feedback?${params.toString()}`, {
     method: 'GET',
     headers: authHeaders(sessionToken),
   })
   return Array.isArray(data?.items) ? data.items : []
+}
+
+export async function updateAdminFeedbackStatus(sessionToken, feedbackId, status) {
+  const normalizedFeedbackId = String(feedbackId || '').trim()
+  const normalizedStatus = String(status || '').trim().toLowerCase()
+
+  if (!normalizedFeedbackId) {
+    throw new AdminApiError('Feedback id is required.')
+  }
+
+  if (!['new', 'reviewed', 'resolved'].includes(normalizedStatus)) {
+    throw new AdminApiError('Invalid feedback status.')
+  }
+
+  const data = await requestAdminJson(`${API_BASE_URL}/admin/feedback/${encodeURIComponent(normalizedFeedbackId)}/status`, {
+    method: 'PATCH',
+    headers: authHeaders(sessionToken),
+    body: JSON.stringify({ status: normalizedStatus }),
+  })
+
+  return data?.item || null
 }
 
 export async function logoutAdminSession(sessionToken) {

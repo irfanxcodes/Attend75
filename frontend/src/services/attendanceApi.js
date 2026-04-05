@@ -253,8 +253,9 @@ export async function fetchAttendanceHistory({ token, semesterId, date }) {
   }
 }
 
-export async function submitFeedback(message) {
+export async function submitFeedback(message, userName = null) {
   const cleanedMessage = (message || '').trim()
+  const cleanedUserName = String(userName || '').trim()
 
   if (!cleanedMessage) {
     throw new Error('Feedback cannot be empty.')
@@ -263,7 +264,7 @@ export async function submitFeedback(message) {
   const response = await fetch(`${API_BASE_URL}/feedback`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message: cleanedMessage }),
+    body: JSON.stringify({ message: cleanedMessage, user_name: cleanedUserName || null }),
   })
 
   const data = await parseApiResponse(response, 'feedback')

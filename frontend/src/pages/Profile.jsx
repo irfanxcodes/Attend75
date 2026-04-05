@@ -153,7 +153,7 @@ function Profile() {
 
     try {
       setIsSubmittingFeedback(true)
-      const result = await submitFeedback(feedbackMessage)
+      const result = await submitFeedback(feedbackMessage, userName)
       const submittedAt = result?.timestamp ? new Date(result.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null
       setFeedbackStatus(submittedAt ? `Feedback submitted successfully at ${submittedAt}.` : 'Feedback submitted successfully.')
       setFeedbackMessage('')
