@@ -184,6 +184,7 @@ function HistoryPage() {
       <header>
         <h1 className="text-3xl font-bold tracking-tight text-[#E7DEDE] sm:text-4xl">History</h1>
         <p className="mt-1 text-xs text-[#CFC5E8] sm:text-sm">View your day-wise attendance from calendar dates.</p>
+        <p className="mt-1 text-xs text-[#CFC5E8] sm:text-sm">select the semster you want to check.</p>
       </header>
 
       <div className="space-y-3 rounded-3xl bg-[#4F487A] p-3 shadow-md ring-1 ring-white/5 sm:p-4">

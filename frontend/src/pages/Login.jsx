@@ -168,7 +168,7 @@ function Login() {
                   type="text"
                   value={form.username}
                   onChange={(event) => setForm((current) => ({ ...current, username: event.target.value }))}
-                  placeholder="24FMUCHH01XXXX"
+                  placeholder="Roll number"
                   className="w-full bg-transparent text-sm text-white placeholder:text-slate-300 outline-none"
                 />
               </div>
@@ -234,7 +234,7 @@ function Login() {
             </span>
           </button>
 
-          <p className="mt-2.5 text-center text-xs text-slate-300">Only used to retrieve your attendance</p>
+          <p className="mt-2.5 text-center text-xs text-slate-300"> Yours crendentials are only used to retrieve your attendance</p>
         </div>
       </form>
 
