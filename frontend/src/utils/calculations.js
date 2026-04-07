@@ -3,6 +3,20 @@ function safeNumber(value) {
   return Number.isFinite(numeric) ? numeric : 0
 }
 
+function deriveClassesLeft(subject) {
+  const explicitRemaining = Number(subject.remainingClasses)
+  if (Number.isFinite(explicitRemaining)) {
+    return Math.max(0, explicitRemaining)
+  }
+
+  const totalSessions = Number(subject.totalSessions)
+  if (Number.isFinite(totalSessions) && totalSessions > 0) {
+    return Math.max(0, totalSessions - safeNumber(subject.totalClasses))
+  }
+
+  return 0
+}
+
 export function calculateAttendancePercentage(attendedClasses, totalClasses) {
   const attended = safeNumber(attendedClasses)
   const total = safeNumber(totalClasses)
@@ -18,6 +32,7 @@ export function enrichSubjectsWithPercentage(subjects = []) {
   return subjects.map((subject) => ({
     ...subject,
     percentage: calculateAttendancePercentage(subject.attendedClasses, subject.totalClasses),
+    classesLeft: deriveClassesLeft(subject),
   }))
 }
 
@@ -27,14 +42,16 @@ export function calculateOverallAttendance(subjects = []) {
       return {
         attended: accumulator.attended + safeNumber(subject.attendedClasses),
         total: accumulator.total + safeNumber(subject.totalClasses),
+        classesLeft: accumulator.classesLeft + safeNumber(subject.classesLeft),
       }
     },
-    { attended: 0, total: 0 },
+    { attended: 0, total: 0, classesLeft: 0 },
   )
 
   return {
     attended: totals.attended,
     total: totals.total,
+    classesLeft: totals.classesLeft,
     percentage: calculateAttendancePercentage(totals.attended, totals.total),
   }
 }

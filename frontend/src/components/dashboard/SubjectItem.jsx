@@ -14,6 +14,7 @@ function SubjectItem({ subject }) {
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-[#D1D1D1]">
         <p>Total: {subject.totalClasses}</p>
         <p>Attended: {subject.attendedClasses}</p>
+        <p>Classes left: {subject.classesLeft || 0}</p>
       </div>
     </article>
   )

@@ -13,7 +13,7 @@ function RefreshIcon() {
   )
 }
 
-function AttendanceCircle({ percentage, totalClasses, totalAttended, status, onRefresh, isRefreshing }) {
+function AttendanceCircle({ percentage, totalClasses, totalAttended, totalClassesLeft, status, onRefresh, isRefreshing }) {
   const bounded = Math.max(0, Math.min(100, percentage))
   const circumference = 2 * Math.PI * 50
   const offset = circumference - (bounded / 100) * circumference
@@ -68,6 +68,9 @@ function AttendanceCircle({ percentage, totalClasses, totalAttended, status, onR
           </p>
           <p>
             Classes attended: <span className="text-[#E7DEDE]">{totalAttended}</span>
+          </p>
+          <p>
+            Classes left: <span className="text-[#E7DEDE]">{totalClassesLeft}</span>
           </p>
         </div>
       </div>

@@ -33,8 +33,9 @@ function Dashboard() {
         (accumulator, subject) => ({
           totalClasses: accumulator.totalClasses + subject.totalClasses,
           totalAttended: accumulator.totalAttended + subject.attendedClasses,
+          totalClassesLeft: accumulator.totalClassesLeft + (subject.classesLeft || 0),
         }),
-        { totalClasses: 0, totalAttended: 0 },
+        { totalClasses: 0, totalAttended: 0, totalClassesLeft: 0 },
       ),
     [subjects],
   )
@@ -182,6 +183,7 @@ function Dashboard() {
         percentage={overallPercentage}
         totalClasses={totals.totalClasses}
         totalAttended={totals.totalAttended}
+        totalClassesLeft={totals.totalClassesLeft}
         status={status}
         onRefresh={handleRefresh}
         isRefreshing={ui.isLoading}
