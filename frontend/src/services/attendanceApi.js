@@ -37,6 +37,9 @@ function buildFriendlyMessage(endpoint, code, fallbackMessage) {
   }
 
   if (endpoint === 'firebase-login') {
+    if (normalizedCode === 'FIREBASE_AUTH_FAILED') {
+      return 'Google sign-in is unavailable right now. For local setup, configure backend Firebase Admin credentials and try again.'
+    }
     if (normalizedCode === 'PORTAL_CREDENTIALS_INVALID') {
       return 'Your linked portal credentials need to be updated.'
     }
@@ -47,6 +50,9 @@ function buildFriendlyMessage(endpoint, code, fallbackMessage) {
   }
 
   if (endpoint === 'firebase-link') {
+    if (normalizedCode === 'FIREBASE_AUTH_FAILED') {
+      return 'Authentication failed while linking credentials. For local setup, configure backend Firebase Admin credentials and try again.'
+    }
     if (normalizedCode === 'PORTAL_CREDENTIALS_INVALID') {
       return 'Invalid portal credentials. Please check and try again.'
     }

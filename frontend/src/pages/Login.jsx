@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useAppStore from '../hooks/useAppStore'
 import { isFirebaseAuthError, isPortalCredentialError, linkFirebaseCredentials, login, loginWithFirebase } from '../services/attendanceApi'
@@ -48,6 +48,19 @@ function EyeIcon({ open }) {
   )
 }
 
+function LoadingSpinner() {
+  return (
+    <svg className="h-5 w-5 animate-spin text-[#2F254D]" viewBox="0 0 24 24" aria-hidden="true">
+      <circle className="opacity-25" cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" fill="none" />
+      <path
+        className="opacity-95"
+        fill="currentColor"
+        d="M12 3a9 9 0 0 1 9 9h-3a6 6 0 0 0-6-6V3Z"
+      />
+    </svg>
+  )
+}
+
 function Login() {
   const navigate = useNavigate()
   const { actions } = useAppStore()
@@ -61,6 +74,31 @@ function Login() {
   const [linkForm, setLinkForm] = useState({ rollNumber: '', password: '' })
   const [isLinkingSubmitting, setIsLinkingSubmitting] = useState(false)
   const [linkError, setLinkError] = useState('')
+  const isAuthLoading = isGoogleSubmitting || isLinkingSubmitting
+  const [isAuthOverlayMounted, setIsAuthOverlayMounted] = useState(false)
+  const [isAuthOverlayVisible, setIsAuthOverlayVisible] = useState(false)
+
+  useEffect(() => {
+    let closeTimer = null
+
+    if (isAuthLoading) {
+      setIsAuthOverlayMounted(true)
+      window.requestAnimationFrame(() => {
+        setIsAuthOverlayVisible(true)
+      })
+    } else if (isAuthOverlayMounted) {
+      setIsAuthOverlayVisible(false)
+      closeTimer = window.setTimeout(() => {
+        setIsAuthOverlayMounted(false)
+      }, 220)
+    }
+
+    return () => {
+      if (closeTimer) {
+        window.clearTimeout(closeTimer)
+      }
+    }
+  }, [isAuthLoading, isAuthOverlayMounted])
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -107,8 +145,12 @@ function Login() {
         return
       }
       if (isFirebaseAuthError(requestError)) {
-        await signOutFirebaseUser()
-        window.location.reload()
+        try {
+          await signOutFirebaseUser()
+        } catch {
+          // Ignore local sign-out failures and still show the actionable error message.
+        }
+        setError(requestError.message)
         return
       }
       setError(requestError.message)
@@ -139,8 +181,12 @@ function Login() {
       navigate('/loading')
     } catch (requestError) {
       if (isFirebaseAuthError(requestError)) {
-        await signOutFirebaseUser()
-        window.location.reload()
+        try {
+          await signOutFirebaseUser()
+        } catch {
+          // Ignore local sign-out failures and still show the actionable error message.
+        }
+        setLinkError(requestError.message)
         return
       }
       setLinkError(requestError.message)
@@ -150,8 +196,13 @@ function Login() {
   }
 
   return (
-    <section className="min-h-dvh bg-[#4B467C] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pt-6">
-      <form onSubmit={handleSubmit} className="mx-auto flex min-h-[calc(100dvh-2rem)] w-full max-w-md flex-col justify-between sm:min-h-[calc(100dvh-3rem)]">
+    <section className="relative min-h-dvh bg-[#4B467C] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pt-6">
+      <form
+        onSubmit={handleSubmit}
+        className={`mx-auto flex min-h-[calc(100dvh-2rem)] w-full max-w-md flex-col justify-between transition duration-200 sm:min-h-[calc(100dvh-3rem)] ${
+          isAuthLoading ? 'pointer-events-none select-none blur-[2px] brightness-75' : ''
+        }`}
+      >
         <header className="pt-4 text-center sm:pt-8">
           <h1 className="text-3xl font-bold text-[#F5F5F5] sm:text-[34px]">Attend75</h1>
         </header>
@@ -289,6 +340,26 @@ function Login() {
                 {isLinkingSubmitting ? 'Linking credentials...' : 'Link Credentials'}
               </button>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {isAuthOverlayMounted ? (
+        <div
+          className={`fixed inset-0 z-50 flex items-center justify-center bg-[#1A1530]/45 px-4 backdrop-blur-[1.5px] transition-opacity duration-200 ${
+            isAuthOverlayVisible ? 'opacity-100' : 'opacity-0'
+          } ${isAuthLoading ? 'pointer-events-auto' : 'pointer-events-none'}`}
+        >
+          <div
+            className={`w-full max-w-xs rounded-2xl border border-white/20 bg-[#F4E7D3] p-5 text-center shadow-2xl transition-all duration-200 ${
+              isAuthOverlayVisible ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-1 scale-[0.98] opacity-0'
+            }`}
+          >
+            <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-[#E7D2B0]">
+              <LoadingSpinner />
+            </div>
+            <p className="text-sm font-semibold tracking-wide text-[#2F254D]">Signing you in...</p>
+            <p className="mt-1 text-xs text-[#5A4E77]">Please wait while we set up your account.</p>
           </div>
         </div>
       ) : null}
