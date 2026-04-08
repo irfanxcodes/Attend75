@@ -6,7 +6,13 @@ from fastapi.responses import JSONResponse
 
 from models.schemas import ApiResponse, AttendanceHistoryRequest, AttendanceRequest, LoginRequest, SessionStatusRequest
 from scrapers.portal_scraper import PortalAuthenticationError, PortalNetworkError
-from services.auth_service import fetch_attendance_for_semester, fetch_subject_history, get_session_status, login_user
+from services.auth_service import (
+    fetch_attendance_for_semester,
+    fetch_consolidated_marks,
+    fetch_subject_history,
+    get_session_status,
+    login_user,
+)
 
 router = APIRouter(tags=["auth"])
 logger = logging.getLogger(__name__)
@@ -130,3 +136,26 @@ async def session_status(payload: SessionStatusRequest):
             status_code=500,
             content={"status": "error", "error_code": "UNKNOWN_ERROR", "message": "Unable to load your data. Please try again later."},
         )
+
+
+@router.post("/marks/consolidated", response_model=ApiResponse)
+async def marks_consolidated(payload: AttendanceRequest):
+    try:
+        data = await run_in_threadpool(
+            fetch_consolidated_marks,
+            payload.token,
+            payload.semester_id,
+        )
+        return ApiResponse(status="success", message="Consolidated marks fetched", data=data)
+    except PortalAuthenticationError as exc:
+        error_code = getattr(exc, "code", "SESSION_EXPIRED")
+        logger.warning("Consolidated marks auth failure [code=%s, detail=%s]", error_code, str(exc))
+        if error_code == "SESSION_EXPIRED":
+            return _data_error_response("SESSION_EXPIRED", status_code=401)
+        return _data_error_response("DATA_FETCH_FAILED", status_code=502)
+    except PortalNetworkError:
+        logger.exception("Consolidated marks portal/network failure")
+        return _data_error_response("DATA_FETCH_FAILED", status_code=502)
+    except Exception:
+        logger.exception("Unexpected consolidated marks fetch error")
+        return _data_error_response("DATA_FETCH_FAILED", status_code=500)

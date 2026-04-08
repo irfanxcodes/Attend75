@@ -63,6 +63,13 @@ function buildFriendlyMessage(endpoint, code, fallbackMessage) {
     return 'Unable to submit feedback right now. Please try again.'
   }
 
+  if (endpoint === 'marks') {
+    if (normalizedCode === 'SESSION_EXPIRED') {
+      return 'Your session has expired. Please log in again.'
+    }
+    return 'Unable to load marks right now. Please try again.'
+  }
+
   return fallbackMessage || 'Something went wrong during sign-in.'
 }
 
@@ -251,6 +258,23 @@ export async function fetchAttendanceHistory({ token, semesterId, date }) {
       attended: Boolean(entry?.attended),
     })),
   }
+}
+
+export async function fetchConsolidatedMarks({ token, semesterId }) {
+  if (!token) {
+    throw new ApiError('Your session has expired. Please log in again.', {
+      code: 'SESSION_EXPIRED',
+      endpoint: 'marks',
+    })
+  }
+
+  const response = await fetch(`${API_BASE_URL}/marks/consolidated`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, semester_id: semesterId || null }),
+  })
+
+  return parseApiResponse(response, 'marks')
 }
 
 export async function submitFeedback(message, userName = null) {

@@ -189,6 +189,267 @@ class PortalScraper:
             "selected_semester": selected_semester,
         }
 
+    def fetch_consolidated_marks(self, semester_id: str | None = None) -> dict:
+        if semester_id:
+            self.session.cookies.set("SemesterID", str(semester_id).strip())
+
+        html, page_url = self._load_consolidated_marks_page()
+
+        if semester_id:
+            switched_html = self._switch_semester_on_page(html, page_url, semester_id)
+            if switched_html is not None:
+                html = switched_html
+            self.session.cookies.set("SemesterID", str(semester_id).strip())
+
+        if self._looks_like_login_page(html):
+            raise PortalAuthenticationError(
+                "Portal returned login page while loading consolidated marks",
+                code="SESSION_EXPIRED",
+            )
+
+        semesters, selected_semester = self._extract_semesters(html)
+        subjects = self._parse_consolidated_marks_subjects(html)
+
+        return {
+            "subjects": subjects,
+            "semesters": semesters,
+            "selected_semester": selected_semester,
+        }
+
+    def _load_consolidated_marks_page(self) -> tuple[str, str]:
+        env_path = (os.getenv("PORTAL_CONSOLIDATED_MARKS_PATH", "CommonS.aspx?qs=cmarks") or "").strip()
+        candidate_paths: list[str] = []
+        if env_path:
+            candidate_paths.append(env_path)
+
+        candidate_paths.extend(
+            [
+                "CommonS.aspx?qs=cmarks",
+                "rc/cml.aspx",
+                "rc/cm.aspx",
+                "CommonS.aspx?qs=cml",
+                "CommonS.aspx?qs=cm",
+            ]
+        )
+
+        first_login_html: str | None = None
+
+        for path in candidate_paths:
+            url = self._build_url(path)
+            try:
+                response = self.session.get(
+                    url,
+                    timeout=self.request_timeout,
+                    headers={"Referer": self._build_url("Index.aspx")},
+                )
+                response.raise_for_status()
+            except requests.RequestException:
+                continue
+
+            html = response.text
+            if self._looks_like_login_page(html):
+                if first_login_html is None:
+                    first_login_html = html
+                continue
+
+            if self._find_consolidated_marks_table(BeautifulSoup(html, "html.parser")) is not None:
+                return html, url
+
+        if first_login_html is not None:
+            raise PortalAuthenticationError(
+                "Portal returned login page while loading consolidated marks",
+                code="SESSION_EXPIRED",
+            )
+
+        raise PortalNetworkError("Consolidated marks table not found on portal")
+
+    def _find_consolidated_marks_table(self, soup: BeautifulSoup):
+        expected_headers = ["code", "units", "component", "weightage"]
+
+        for candidate in soup.find_all("table"):
+            classes = candidate.get("class") or []
+            if classes and "table" not in classes:
+                continue
+
+            headers = [th.get_text(" ", strip=True).lower() for th in candidate.find_all("th")]
+            if not headers:
+                continue
+
+            if all(any(token in header for header in headers) for token in expected_headers):
+                return candidate
+
+        return None
+
+    def _parse_consolidated_marks_subjects(self, html: str) -> list[dict[str, object]]:
+        soup = BeautifulSoup(html, "html.parser")
+        marks_table = self._find_consolidated_marks_table(soup)
+        if marks_table is None:
+            raise PortalNetworkError("Consolidated marks table not found on portal page")
+
+        headers = [th.get_text(" ", strip=True).lower() for th in marks_table.find_all("th")]
+        code_index = self._find_column_index(headers, ["code", "course code", "subject code"])
+        course_index = self._find_column_index(headers, ["course", "course name", "subject", "subject name"])
+        units_index = self._find_column_index(headers, ["units", "unit"])
+        component_index = self._find_column_index(headers, ["component", "components"])
+        weightage_index = self._find_column_index(headers, ["weightage", "marks", "score"])
+
+        if code_index is None or course_index is None or component_index is None or weightage_index is None:
+            raise PortalNetworkError("Required consolidated marks columns are missing")
+
+        header_count = len(headers)
+
+        subjects_by_code: dict[str, dict[str, object]] = {}
+        subject_order: list[str] = []
+        current_code = ""
+        current_name = ""
+        current_units = ""
+
+        for row in marks_table.find_all("tr"):
+            cells = row.find_all("td", recursive=False)
+            if not cells:
+                cells = row.find_all("td")
+            if not cells:
+                continue
+
+            columns = self._expand_row_cells(cells, header_count)
+            if len(columns) <= max(code_index, course_index, component_index, weightage_index):
+                continue
+
+            row_code = columns[code_index].strip() if code_index < len(columns) else ""
+            row_name = columns[course_index].strip() if course_index < len(columns) else ""
+            row_component = columns[component_index].strip() if component_index < len(columns) else ""
+            row_weightage = columns[weightage_index].strip() if weightage_index < len(columns) else ""
+            row_units = columns[units_index].strip() if units_index is not None and units_index < len(columns) else ""
+
+            if row_code:
+                current_code = row_code
+            if row_name:
+                current_name = row_name
+            if row_units:
+                current_units = row_units
+
+            if not current_code or not row_component:
+                continue
+
+            normalized_code = self._normalize_code(current_code)
+            if not normalized_code:
+                continue
+
+            if normalized_code not in subjects_by_code:
+                subjects_by_code[normalized_code] = {
+                    "code": normalized_code,
+                    "name": current_name or normalized_code,
+                    "subject_code": normalized_code,
+                    "subject_name": current_name or normalized_code,
+                    "units": self._parse_int(current_units) if self._parse_int(current_units) is not None else (current_units or None),
+                    "components": [],
+                    "_total_obtained": 0.0,
+                    "_total_max": 0.0,
+                    "_explicit_total": None,
+                }
+                subject_order.append(normalized_code)
+            else:
+                if current_name:
+                    subjects_by_code[normalized_code]["name"] = current_name
+                    subjects_by_code[normalized_code]["subject_name"] = current_name
+                if current_units:
+                    parsed_units = self._parse_int(current_units)
+                    subjects_by_code[normalized_code]["units"] = parsed_units if parsed_units is not None else current_units
+
+            subject_entry = subjects_by_code[normalized_code]
+            numeric_obtained, numeric_max = self._parse_component_weightage(row_weightage)
+
+            if row_component.lower().replace(" ", "") in {"total:", "total"}:
+                subject_entry["_explicit_total"] = self._to_number_or_none(numeric_obtained)
+                if numeric_max is not None:
+                    subject_entry["_total_max"] += numeric_max
+                continue
+
+            existing_components = subject_entry.get("components", [])
+            if existing_components:
+                previous = existing_components[-1]
+                previous_name = str(previous.get("name") or "").strip().lower()
+                previous_value = str(previous.get("value") or "").strip()
+                if previous_name == row_component.strip().lower() and previous_value == row_weightage.strip():
+                    continue
+
+            subject_entry["components"].append(
+                {
+                    "name": row_component,
+                    "value": row_weightage,
+                    "numeric_value": self._to_number_or_none(numeric_obtained),
+                    "max_value": self._to_number_or_none(numeric_max),
+                }
+            )
+
+            if numeric_obtained is not None:
+                subject_entry["_total_obtained"] += numeric_obtained
+            if numeric_max is not None:
+                subject_entry["_total_max"] += numeric_max
+
+        subjects: list[dict[str, object]] = []
+        for code in subject_order:
+            entry = subjects_by_code[code]
+            total_obtained = float(entry.pop("_total_obtained", 0.0))
+            total_max = float(entry.pop("_total_max", 0.0))
+            explicit_total = entry.pop("_explicit_total", None)
+
+            has_numeric_components = total_obtained > 0
+            entry["total"] = self._to_number_or_zero(total_obtained) if has_numeric_components else (explicit_total or 0)
+            entry["max_total"] = self._to_number_or_zero(total_max) if total_max > 0 else 60
+            subjects.append(entry)
+
+        if not subjects:
+            raise PortalNetworkError("Consolidated marks rows not found for the selected semester")
+
+        return subjects
+
+    def _expand_row_cells(self, cells, header_count: int) -> list[str]:
+        columns: list[str] = []
+
+        for cell in cells:
+            text = self._clean_cell_text(cell.get_text(" ", strip=True))
+            colspan_raw = (cell.get("colspan") or "1").strip()
+
+            try:
+                span = max(int(colspan_raw), 1)
+            except ValueError:
+                span = 1
+
+            columns.extend([text] * span)
+
+        if len(columns) < header_count:
+            columns.extend([""] * (header_count - len(columns)))
+
+        return columns[:header_count]
+
+    def _clean_cell_text(self, value: str) -> str:
+        cleaned = (value or "").replace("\xa0", " ").strip()
+        return "" if cleaned in {"-", "--"} else cleaned
+
+    def _parse_component_weightage(self, raw_value: str) -> tuple[float | None, float | None]:
+        value = (raw_value or "").strip()
+        if not value:
+            return None, None
+
+        ratio_match = re.search(r"(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)", value)
+        if ratio_match:
+            return float(ratio_match.group(1)), float(ratio_match.group(2))
+
+        numbers = re.findall(r"\d+(?:\.\d+)?", value)
+        if not numbers:
+            return None, None
+
+        return float(numbers[0]), None
+
+    def _to_number_or_none(self, value: float | None) -> int | float | None:
+        if value is None:
+            return None
+        return int(value) if float(value).is_integer() else round(float(value), 2)
+
+    def _to_number_or_zero(self, value: float) -> int | float:
+        return int(value) if float(value).is_integer() else round(float(value), 2)
+
     def _extract_hidden_form_fields(self, html: str) -> dict[str, str]:
         soup = BeautifulSoup(html, "html.parser")
         fields: dict[str, str] = {}

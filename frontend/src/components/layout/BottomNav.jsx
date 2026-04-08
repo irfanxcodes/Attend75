@@ -3,13 +3,14 @@ import { NavLink } from 'react-router-dom'
 const navItems = [
   { label: 'Dashboard', to: '/dashboard', icon: '/dashboard-icon.png' },
   { label: 'History', to: '/history', icon: '/history-icon.svg' },
+  { label: 'Marks', to: '/marks', icon: '/marks.png' },
   { label: 'Profile', to: '/profile', icon: '/profile-icon.svg' },
 ]
 
 function BottomNav() {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-white/20 bg-[#3E3760] px-4 pb-[calc(12px+env(safe-area-inset-bottom))] pt-2 backdrop-blur">
-      <ul className="mx-auto grid w-full max-w-md grid-cols-3 gap-2">
+      <ul className="mx-auto grid w-full max-w-md grid-cols-4 gap-2">
         {navItems.map((item) => (
           <li key={item.to}>
             <NavLink

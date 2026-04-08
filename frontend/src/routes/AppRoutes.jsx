@@ -10,6 +10,7 @@ const Dashboard = lazy(() => import('../pages/Dashboard'))
 const History = lazy(() => import('../pages/History'))
 const Loading = lazy(() => import('../pages/Loading'))
 const Login = lazy(() => import('../pages/Login'))
+const Marks = lazy(() => import('../pages/Marks'))
 const Profile = lazy(() => import('../pages/Profile'))
 const Splash = lazy(() => import('../pages/Splash'))
 const AdminLogin = lazy(() => import('../pages/admin/AdminLogin'))
@@ -160,11 +161,13 @@ function AppRoutes() {
         <Route path="/loading" element={<Loading />} />
         <Route path="/dashboard" element={<Navigate to="/app/dashboard" replace />} />
         <Route path="/history" element={<Navigate to="/app/history" replace />} />
+        <Route path="/marks" element={<Navigate to="/app/marks" replace />} />
         <Route path="/profile" element={<Navigate to="/app/profile" replace />} />
         <Route path="/app" element={<ProtectedAppRoutes isAuthBootstrapComplete={isAuthBootstrapComplete} />}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="history" element={<History />} />
+          <Route path="marks" element={<Marks />} />
           <Route path="profile" element={<Profile />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
