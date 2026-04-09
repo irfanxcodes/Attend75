@@ -174,21 +174,47 @@ def _build_failed_request_insights(request_metrics: dict) -> list[dict[str, str 
         if failed_count <= 0:
             continue
 
-        if path == "/marks/consolidated":
-            reason = "Some clients are still calling stale marks API flows and receiving auth/not-found responses."
-            fix = "Deploy frontend + backend together and stop retries after non-retriable marks errors."
+        if path in {"/", "/robots.txt", "/favicon.ico", "/apple-touch-icon.png", "/sitemap.xml"}:
+            reason = "Bot/crawler or generic internet probe traffic is hitting unsupported routes."
+            fix = "Handle these routes explicitly (200/204) or filter them at reverse proxy/firewall to reduce telemetry noise."
+        elif path in {"/marks/consolidate", "/marks/consolidated"}:
+            if client_errors > 0 and server_errors == 0:
+                reason = "Clients are using stale or invalid marks endpoints/payloads, causing non-server failures."
+                fix = "Align frontend and backend deployments; stop retrying on 4xx non-retriable marks responses."
+            else:
+                reason = "Marks endpoint is experiencing server-side failures in the current deployment."
+                fix = "Inspect marks router/scraper logs for 5xx/502 failures and add guarded retries only for network errors."
         elif path.startswith("/attendance"):
-            reason = "Expired session tokens are causing predictable 401 responses on attendance calls."
-            fix = "Force re-login on SESSION_EXPIRED and avoid repeated retries with expired tokens."
+            if server_errors > 0:
+                reason = "Attendance requests are failing server-side (likely portal/network/scraper instability), not only auth expiry."
+                fix = "Review backend logs for 5xx/502 causes, tighten scraper error handling, and add short bounded retries for network faults."
+            else:
+                reason = "Expired or invalid session tokens are causing client-side auth failures on attendance routes."
+                fix = "Force re-login on SESSION_EXPIRED and prevent retries with expired tokens."
         elif path.startswith("/auth/firebase"):
-            reason = "Google sign-in token verification or credential-link flow is failing for some requests."
-            fix = "Verify Firebase Admin credentials, token audience, and linked portal credentials integrity."
+            if server_errors > 0:
+                reason = "Firebase auth flow is failing due to backend/service-side errors."
+                fix = "Check Firebase Admin SDK initialization, credential file availability, and upstream portal dependency health."
+            else:
+                reason = "Google sign-in token verification or credential-link flow is failing for some requests."
+                fix = "Verify Firebase Admin credentials, token audience, and linked portal credentials integrity."
         elif path.startswith("/admin"):
             reason = "Admin calls are being made with missing/expired bearer tokens."
             fix = "Renew admin sessions and avoid background polling after logout/session expiry."
+        elif path == "/login":
+            if server_errors > 0:
+                reason = "Login route has server-side failures (portal/network or internal exceptions)."
+                fix = "Inspect backend login logs and upstream portal availability; alert on repeated 5xx/502."
+            else:
+                reason = "Invalid credentials or malformed login requests are producing expected client-side failures."
+                fix = "Throttle repeated invalid attempts and show clear validation to reduce repeated bad requests."
         else:
-            reason = "Unknown or unsupported endpoint traffic is inflating failed request counters."
-            fix = "Block noisy probes at edge/firewall and enforce valid route rewrites."
+            if server_errors > 0:
+                reason = "Unknown endpoint is generating backend failures that need investigation."
+                fix = "Inspect logs for this path and add explicit route handling or proxy rules."
+            else:
+                reason = "Unknown or unsupported endpoint traffic is inflating failed request counters."
+                fix = "Block noisy probes at edge/firewall and enforce valid route rewrites."
 
         insights.append(
             {
@@ -209,6 +235,7 @@ def _build_page_health(top_failed_paths: list[dict]) -> list[dict[str, str | int
         "/attendance": "Dashboard",
         "/attendance/history": "History",
         "/marks/consolidated": "Marks",
+        "/marks/consolidate": "Marks",
         "/auth/firebase/login": "Login",
         "/auth/firebase/link-credentials": "Login",
         "/login": "Login",
@@ -226,25 +253,59 @@ def _build_page_health(top_failed_paths: list[dict]) -> list[dict[str, str | int
         if failed_count <= 0:
             continue
 
-        client_errors = int(item.get("clientErrorCount") or 0)
         server_errors = int(item.get("serverErrorCount") or 0)
-
-        reason_bits = []
-        if server_errors > 0:
-            reason_bits.append("server-side errors")
-        if client_errors > 0:
-            reason_bits.append("expired/invalid client requests")
-        if not reason_bits:
-            reason_bits.append("intermittent request failures")
+        if server_errors <= 0:
+            continue
 
         pages[page] = {
             "page": page,
             "endpoint": path,
-            "failedCount": failed_count,
-            "reason": ", ".join(reason_bits),
+            "failedCount": server_errors,
+            "reason": "server-side errors",
         }
 
     return list(pages.values())
+
+
+def _build_client_side_issues(top_failed_paths: list[dict]) -> list[dict[str, str | int]]:
+    endpoint_to_page = {
+        "/attendance": "Dashboard",
+        "/attendance/history": "History",
+        "/marks/consolidated": "Marks",
+        "/marks/consolidate": "Marks",
+        "/auth/firebase/login": "Login",
+        "/auth/firebase/link-credentials": "Login",
+        "/login": "Login",
+    }
+
+    issues: list[dict[str, str | int]] = []
+
+    for item in top_failed_paths:
+        path = str(item.get("path") or "")
+        page = endpoint_to_page.get(path)
+        if not page:
+            continue
+
+        client_errors = int(item.get("clientErrorCount") or 0)
+        if client_errors <= 0:
+            continue
+
+        reason = "expired or invalid client requests"
+        if path in {"/marks/consolidate", "/marks/consolidated"}:
+            reason = "stale endpoint usage or expired session token"
+        elif path == "/login":
+            reason = "invalid credentials or malformed login request"
+
+        issues.append(
+            {
+                "page": page,
+                "endpoint": path,
+                "failedCount": client_errors,
+                "reason": reason,
+            }
+        )
+
+    return issues
 
 
 def get_admin_overview() -> dict:
@@ -304,6 +365,7 @@ def get_admin_overview() -> dict:
     app_error_rate_percent = float(request_metrics.get("appErrorRatePercent", 0.0))
     failed_request_insights = _build_failed_request_insights(request_metrics)
     non_working_pages = _build_page_health(request_metrics.get("topFailedPaths", []) or [])
+    client_side_issues = _build_client_side_issues(request_metrics.get("topFailedPaths", []) or [])
 
     health_status = {
         "backendStatus": "up",
@@ -426,9 +488,11 @@ def get_admin_overview() -> dict:
             "historyOpenCount": int(feature_usage.get("historyOpenCount", 0)),
             "marksOpenCount": int(feature_usage.get("marksOpenCount", 0)),
             "mostViewedSemester": feature_usage.get("mostViewedSemester"),
+            "mostViewedSemesterLabel": feature_usage.get("mostViewedSemesterLabel"),
             "mostViewedSemesterCount": int(feature_usage.get("mostViewedSemesterCount", 0)),
             "totalSemesterInteractions": int(feature_usage.get("totalSemesterInteractions", 0)),
             "nonWorkingPages": non_working_pages,
+            "clientSideIssues": client_side_issues,
         },
     }
 

@@ -310,11 +310,13 @@ function buildSessionFromAuthPayload(data, fallbackRollNumber = '') {
   const rollNumber = (data?.roll_number || fallbackRollNumber || '').trim().toUpperCase()
   const firebaseDisplayName = (data?.display_name || '').trim()
   const studentName = (data?.student_name || '').trim()
+  const email = (data?.email || '').trim()
 
   return {
     id: rollNumber,
     name: firebaseDisplayName || studentName || rollNumber,
     portalName: studentName || rollNumber,
+    email: email || null,
     rollNumber,
     authProvider: 'firebase',
     token: data?.token || null,

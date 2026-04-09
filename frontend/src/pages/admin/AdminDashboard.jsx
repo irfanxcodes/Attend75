@@ -513,14 +513,20 @@ function AdminDashboard() {
   const nonWorkingPages = Array.isArray(overview?.featureUsage?.nonWorkingPages)
     ? overview.featureUsage.nonWorkingPages
     : []
+  const clientSideIssues = Array.isArray(overview?.featureUsage?.clientSideIssues)
+    ? overview.featureUsage.clientSideIssues
+    : []
 
   const featureUsageCards = useMemo(() => {
     const metrics = overview?.featureUsage
     if (!metrics) return []
 
-    const normalizedMostViewedSemester = metrics.mostViewedSemester && metrics.mostViewedSemester !== 'default'
-      ? String(metrics.mostViewedSemester)
-      : 'Default semester selection'
+    let normalizedMostViewedSemester = 'Default semester selection'
+    if (metrics.mostViewedSemester && metrics.mostViewedSemester !== 'default') {
+      const label = String(metrics.mostViewedSemesterLabel || '').trim()
+      const id = String(metrics.mostViewedSemester).trim()
+      normalizedMostViewedSemester = label || `Semester ID ${id}`
+    }
 
     return [
       {
@@ -874,7 +880,7 @@ function AdminDashboard() {
 
               <section className="rounded-2xl border border-white/20 bg-[#312051] p-4 sm:p-5">
                 <h2 className="text-lg font-semibold text-[#F4F1FF]">Pages Not Working</h2>
-                <p className="mt-1 text-sm text-[#D8D3E8]">Pages with failed API patterns and likely reasons based on endpoint diagnostics.</p>
+                <p className="mt-1 text-sm text-[#D8D3E8]">Only server-side failures are listed here to highlight truly degraded pages.</p>
 
                 {nonWorkingPages.length ? (
                   <div className="mt-3 space-y-2">
@@ -888,7 +894,27 @@ function AdminDashboard() {
                     ))}
                   </div>
                 ) : (
-                  <p className="mt-3 text-sm text-[#D8D3E8]">No problematic pages detected from current telemetry.</p>
+                  <p className="mt-3 text-sm text-[#D8D3E8]">No server-side page failures detected from current telemetry.</p>
+                )}
+              </section>
+
+              <section className="rounded-2xl border border-white/20 bg-[#312051] p-4 sm:p-5">
+                <h2 className="text-lg font-semibold text-[#F4F1FF]">Client/API Misuse Issues</h2>
+                <p className="mt-1 text-sm text-[#D8D3E8]">Client-side failures (expired sessions, stale endpoints, invalid requests) are separated from server outages.</p>
+
+                {clientSideIssues.length ? (
+                  <div className="mt-3 space-y-2">
+                    {clientSideIssues.map((item, index) => (
+                      <article key={`${item.page}-${item.endpoint}-${index}`} className="rounded-xl border border-white/10 bg-[#3A315D] p-3">
+                        <p className="text-sm font-semibold text-[#F4F1FF]">{item.page}</p>
+                        <p className="mt-1 text-xs text-[#D8D3E8]">Endpoint: {item.endpoint}</p>
+                        <p className="mt-1 text-xs text-[#D8D3E8]">Client Failures: {formatMetricNumber(item.failedCount)}</p>
+                        <p className="mt-1 text-xs text-[#D8D3E8]">Reason: {item.reason}</p>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-[#D8D3E8]">No client/API misuse issues detected from current telemetry.</p>
                 )}
               </section>
             </section>

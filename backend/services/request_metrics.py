@@ -2,6 +2,7 @@ import threading
 from datetime import datetime, timezone
 from collections import defaultdict
 import time
+import os
 
 
 class RequestMetricsStore:
@@ -12,8 +13,18 @@ class RequestMetricsStore:
         self._failed_requests = 0
         self._client_error_requests = 0
         self._server_error_requests = 0
+        self._ignored_noise_requests = 0
         self._total_duration_ms = 0.0
         self._last_error_timestamp: str | None = None
+        raw_ignored = os.getenv(
+            "REQUEST_METRICS_IGNORED_PATHS",
+            "/,/robots.txt,/favicon.ico,/apple-touch-icon.png,/sitemap.xml",
+        )
+        self._ignored_noise_paths = {
+            segment.strip()
+            for segment in str(raw_ignored).split(",")
+            if segment.strip()
+        }
         self._path_stats: dict[str, dict[str, float | int]] = defaultdict(
             lambda: {
                 "total": 0,
@@ -26,28 +37,36 @@ class RequestMetricsStore:
 
     def observe(self, path: str, status_code: int, duration_ms: float) -> None:
         normalized_path = (path or "").strip() or "/"
+        normalized_status = int(status_code)
+
+        # Ignore common bot/probe noise to keep admin failure metrics actionable.
+        if normalized_status < 500 and normalized_path in self._ignored_noise_paths:
+            with self._lock:
+                self._ignored_noise_requests += 1
+            return
+
         with self._lock:
             self._total_requests += 1
             self._total_duration_ms += max(float(duration_ms), 0.0)
 
-            is_success = int(status_code) < 400
+            is_success = normalized_status < 400
             if not is_success:
                 self._failed_requests += 1
                 self._last_error_timestamp = datetime.now(timezone.utc).isoformat()
-                if 400 <= int(status_code) < 500:
+                if 400 <= normalized_status < 500:
                     self._client_error_requests += 1
-                elif int(status_code) >= 500:
+                elif normalized_status >= 500:
                     self._server_error_requests += 1
 
             stat = self._path_stats[normalized_path]
             stat["total"] += 1
             if is_success:
                 stat["success"] += 1
-            elif 400 <= int(status_code) < 500:
+            elif 400 <= normalized_status < 500:
                 stat["client_errors"] += 1
-            elif int(status_code) >= 500:
+            elif normalized_status >= 500:
                 stat["server_errors"] += 1
-            stat["last_status_code"] = int(status_code)
+            stat["last_status_code"] = normalized_status
 
     def snapshot(self) -> dict[str, float | int | None]:
         with self._lock:
@@ -57,6 +76,7 @@ class RequestMetricsStore:
             uptime_seconds = int(max(time.time() - self._started_at_epoch, 0))
             client_error_requests = self._client_error_requests
             server_error_requests = self._server_error_requests
+            ignored_noise_requests = self._ignored_noise_requests
 
             scraper_totals = 0
             scraper_successes = 0
@@ -99,6 +119,7 @@ class RequestMetricsStore:
                 "failedRequestCount": failed_requests,
                 "clientErrorCount": client_error_requests,
                 "serverErrorCount": server_error_requests,
+                "ignoredNoiseRequestCount": ignored_noise_requests,
                 "requestFailureRatePercent": request_failure_rate_percent,
                 "appErrorRatePercent": app_error_rate_percent,
                 "averageResponseTimeMs": average_response_time_ms,

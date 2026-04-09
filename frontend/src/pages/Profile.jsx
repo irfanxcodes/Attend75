@@ -40,6 +40,7 @@ function Profile() {
   const userName = isFirebaseUser
     ? (user.name || user.portalName || user.rollNumber || user.id || 'I')
     : (user.rollNumber || user.id || user.portalName || user.name || 'I')
+  const userEmail = isFirebaseUser ? String(user.email || '').trim() : ''
   const rollNumber = user.rollNumber || user.id || '--'
   const [feedbackMessage, setFeedbackMessage] = useState('')
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false)
@@ -225,6 +226,13 @@ function Profile() {
                 <span className="text-[#3E365F]">Roll Number</span>
                 <span className="break-all text-right font-semibold">{rollNumber}</span>
               </div>
+
+              {userEmail ? (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[#3E365F]">Email</span>
+                  <span className="break-all text-right font-semibold">{userEmail}</span>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
