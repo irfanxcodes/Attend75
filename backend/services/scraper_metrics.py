@@ -1,6 +1,7 @@
 import threading
 import time
 from collections import deque
+from collections import Counter
 from datetime import datetime, timezone
 
 
@@ -16,6 +17,7 @@ class ScraperMetricsStore:
         self._last_success_timestamp: str | None = None
         self._consecutive_network_failures = 0
         self._recent_network_failures_epoch = deque(maxlen=20)
+        self._failure_code_counts: Counter[str] = Counter()
 
     def observe(self, success: bool, duration_ms: float, failure_kind: str | None = None, failure_code: str | None = None) -> None:
         now_epoch = time.time()
@@ -34,6 +36,10 @@ class ScraperMetricsStore:
             self._failure_count += 1
             self._last_failure_timestamp = now_iso
             self._last_failure_code = failure_code
+            if failure_code:
+                self._failure_code_counts[str(failure_code).strip().upper()] += 1
+            else:
+                self._failure_code_counts["UNKNOWN"] += 1
 
             if failure_kind == "network":
                 self._consecutive_network_failures += 1
@@ -62,6 +68,11 @@ class ScraperMetricsStore:
                 self._consecutive_network_failures >= 3 and len(recent_network_failures) >= 3
             )
 
+            top_failure_codes = [
+                {"code": code, "count": count}
+                for code, count in self._failure_code_counts.most_common(5)
+            ]
+
             return {
                 "totalAttempts": total_attempts,
                 "successRatePercent": success_rate_percent,
@@ -71,6 +82,7 @@ class ScraperMetricsStore:
                 "lastFailureCode": self._last_failure_code,
                 "portalDowntimeDetected": portal_downtime_detected,
                 "consecutiveNetworkFailures": self._consecutive_network_failures,
+                "topFailureCodes": top_failure_codes,
             }
 
 

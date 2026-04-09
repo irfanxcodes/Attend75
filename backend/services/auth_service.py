@@ -1,7 +1,7 @@
 import time
 
 from scrapers.portal_scraper import PortalAuthenticationError, PortalNetworkError, PortalScraper
-from services.feature_usage_metrics import observe_history_open, observe_sync_attendance
+from services.feature_usage_metrics import observe_history_open, observe_marks_open, observe_sync_attendance
 from services.scraper_metrics import observe_scrape
 from services.session_store import session_store
 
@@ -112,6 +112,7 @@ def fetch_consolidated_marks(token: str, semester_id: str | None) -> dict:
     try:
         payload = record.scraper.fetch_consolidated_marks(semester_id=semester_id)
         observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
+        observe_marks_open(semester_id=semester_id)
         return payload
     except PortalNetworkError as exc:
         observe_scrape(

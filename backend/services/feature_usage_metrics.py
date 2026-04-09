@@ -7,6 +7,7 @@ class FeatureUsageMetricsStore:
         self._lock = threading.Lock()
         self._sync_attendance_count = 0
         self._history_open_count = 0
+        self._marks_open_count = 0
         self._semester_views: Counter[str] = Counter()
 
     def observe_sync_attendance(self, semester_id: str | None) -> None:
@@ -21,6 +22,12 @@ class FeatureUsageMetricsStore:
             self._history_open_count += 1
             self._semester_views[normalized_semester] += 1
 
+    def observe_marks_open(self, semester_id: str | None) -> None:
+        normalized_semester = (semester_id or "").strip() or "default"
+        with self._lock:
+            self._marks_open_count += 1
+            self._semester_views[normalized_semester] += 1
+
     def snapshot(self) -> dict[str, int | str | None]:
         with self._lock:
             most_viewed_semester: str | None = None
@@ -31,6 +38,7 @@ class FeatureUsageMetricsStore:
             return {
                 "syncAttendanceCount": self._sync_attendance_count,
                 "historyOpenCount": self._history_open_count,
+                "marksOpenCount": self._marks_open_count,
                 "mostViewedSemester": most_viewed_semester,
                 "mostViewedSemesterCount": most_viewed_count,
                 "totalSemesterInteractions": int(sum(self._semester_views.values())),
@@ -46,6 +54,10 @@ def observe_sync_attendance(semester_id: str | None) -> None:
 
 def observe_history_open(semester_id: str | None) -> None:
     feature_usage_metrics_store.observe_history_open(semester_id=semester_id)
+
+
+def observe_marks_open(semester_id: str | None) -> None:
+    feature_usage_metrics_store.observe_marks_open(semester_id=semester_id)
 
 
 def get_feature_usage_snapshot() -> dict[str, int | str | None]:

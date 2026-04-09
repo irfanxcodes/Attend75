@@ -6,7 +6,6 @@ import {
   fetchAdminOverview,
   logoutAdminSession,
   parseAdminSession,
-  updateAdminFeedbackStatus,
 } from '../../services/adminApi'
 
 const NAV_ITEMS = [
@@ -32,7 +31,12 @@ const HEALTH_METRIC_DEFINITIONS = [
   {
     name: 'Error Rate',
     type: 'Derived',
-    definition: 'Computed as failedRequests / totalRequests × 100 over the current process lifetime.',
+    definition: 'Computed as 5xx server errors / total requests × 100 over the current process lifetime.',
+  },
+  {
+    name: 'Request Failure Rate',
+    type: 'Derived',
+    definition: 'Computed as all failed requests (4xx + 5xx) / total requests × 100.',
   },
   {
     name: 'Last Error Timestamp',
@@ -93,12 +97,16 @@ const FEATURE_USAGE_DEFINITIONS = [
   {
     name: 'Most Viewed Semester',
     type: 'Derived',
-    definition: 'Semester with the highest total interactions across sync and history usage in the current process lifetime.',
+    definition: 'Semester with the highest total interactions across sync, history, and marks usage in the current process lifetime.',
+  },
+  {
+    name: 'Marks Usage',
+    type: 'Real-time',
+    definition: 'Counts successful consolidated marks fetch actions since backend process startup.',
   },
 ]
 
 const NO_ACTIVITY_MESSAGE = 'No activity recorded yet. Metrics will appear once users interact with the app.'
-const FEEDBACK_STATUS_OPTIONS = ['new', 'reviewed', 'resolved']
 
 function StatCard({ label, value, subtitle, tone = 'default' }) {
   const toneClasses = {
@@ -114,6 +122,60 @@ function StatCard({ label, value, subtitle, tone = 'default' }) {
       <p className={`mt-2 text-2xl font-bold ${toneClasses[tone] || toneClasses.default}`}>{value}</p>
       {subtitle ? <p className="mt-1 text-xs text-[#CFC5E8]">{subtitle}</p> : null}
     </article>
+  )
+}
+
+function SectionInfoButton({ label, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/25 bg-white/5 text-[#E6DCF7] transition hover:bg-white/15"
+      aria-label={`Show ${label} metric definitions`}
+      title={`About ${label} metrics`}
+    >
+      i
+    </button>
+  )
+}
+
+function MetricDefinitionsModal({ title, items, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-6 backdrop-blur-sm">
+      <div className="w-full max-w-2xl rounded-2xl border border-white/20 bg-[#312051] p-4 shadow-2xl sm:p-5">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-lg font-semibold text-[#F4F1FF]">{title}</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md px-2 py-1 text-sm text-slate-200 hover:bg-white/10"
+            aria-label="Close metric definitions"
+          >
+            x
+          </button>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+          {items.map((item) => (
+            <article key={item.name} className="rounded-xl border border-white/10 bg-[#3A315D] p-3">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm font-semibold text-[#F4F1FF]">{item.name}</h4>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide ${
+                    item.type === 'Real-time'
+                      ? 'bg-emerald-400/20 text-emerald-200'
+                      : 'bg-amber-300/20 text-amber-100'
+                  }`}
+                >
+                  {item.type}
+                </span>
+              </div>
+              <p className="mt-2 text-xs text-[#D8D3E8]">{item.definition}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -152,15 +214,9 @@ function AdminDashboard() {
   const [activeSection, setActiveSection] = useState('homepage')
   const [isLoading, setIsLoading] = useState(true)
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(true)
-  const [isUpdatingFeedbackId, setIsUpdatingFeedbackId] = useState('')
   const [feedbackError, setFeedbackError] = useState('')
-  const [feedbackFilters, setFeedbackFilters] = useState({
-    query: '',
-    startDate: '',
-    endDate: '',
-    status: '',
-    sort: 'latest',
-  })
+  const [feedbackSort, setFeedbackSort] = useState('latest')
+  const [metricInfoModal, setMetricInfoModal] = useState('')
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -189,11 +245,7 @@ function AdminDashboard() {
           fetchAdminOverview(adminSession.sessionToken),
           fetchAdminFeedbackLog(adminSession.sessionToken, {
             limit: 200,
-            query: feedbackFilters.query || undefined,
-            startDate: feedbackFilters.startDate || undefined,
-            endDate: feedbackFilters.endDate || undefined,
-            status: feedbackFilters.status || undefined,
-            sort: feedbackFilters.sort || 'latest',
+            sort: feedbackSort || 'latest',
           }),
         ])
 
@@ -223,7 +275,7 @@ function AdminDashboard() {
     return () => {
       isActive = false
     }
-  }, [adminSession, navigate, feedbackFilters])
+  }, [adminSession, navigate, feedbackSort])
 
   const homepageCards = useMemo(() => {
     if (!overview?.homepage) return []
@@ -321,8 +373,17 @@ function AdminDashboard() {
       cards.push({
         label: 'Error Rate',
         value: formatMetricPercentage(healthStatus.errorRatePercent),
-        subtitle: 'Derived from live request outcomes',
+        subtitle: '5xx server errors only',
         tone: Number(healthStatus.errorRatePercent) > 0 ? 'danger' : 'success',
+      })
+    }
+
+    if (Number.isFinite(Number(healthStatus.requestFailureRatePercent))) {
+      cards.push({
+        label: 'Request Failure Rate',
+        value: formatMetricPercentage(healthStatus.requestFailureRatePercent),
+        subtitle: 'All 4xx + 5xx request outcomes',
+        tone: Number(healthStatus.requestFailureRatePercent) > 0 ? 'warning' : 'success',
       })
     }
 
@@ -446,6 +507,12 @@ function AdminDashboard() {
   const hasScraperActivity = Number(overview?.scraperPerformance?.totalAttempts || 0) > 0
   const hasUserGrowthActivity = userGrowthSeries.some((point) => Number(point.newUsers || 0) > 0)
   const hasFeatureUsageActivity = Number(overview?.featureUsage?.totalSemesterInteractions || 0) > 0
+  const failedRequestInsights = Array.isArray(overview?.homepage?.failedRequestInsights)
+    ? overview.homepage.failedRequestInsights
+    : []
+  const nonWorkingPages = Array.isArray(overview?.featureUsage?.nonWorkingPages)
+    ? overview.featureUsage.nonWorkingPages
+    : []
 
   const featureUsageCards = useMemo(() => {
     const metrics = overview?.featureUsage
@@ -469,45 +536,19 @@ function AdminDashboard() {
         tone: 'default',
       },
       {
+        label: 'Marks Opened',
+        value: formatMetricNumber(metrics.marksOpenCount),
+        subtitle: 'Successful marks loads since startup',
+        tone: 'default',
+      },
+      {
         label: 'Most Viewed Semester',
         value: normalizedMostViewedSemester,
-        subtitle: `${formatMetricNumber(metrics.mostViewedSemesterCount)} interactions`,
+        subtitle: `${formatMetricNumber(metrics.mostViewedSemesterCount)} interactions across sync/history/marks`,
         tone: Number(metrics.mostViewedSemesterCount) > 0 ? 'warning' : 'default',
       },
     ]
   }, [overview])
-
-  async function handleFeedbackStatusChange(feedbackId, status) {
-    if (!adminSession?.sessionToken || !feedbackId) return
-
-    try {
-      setFeedbackError('')
-      setIsUpdatingFeedbackId(feedbackId)
-      const updatedItem = await updateAdminFeedbackStatus(adminSession.sessionToken, feedbackId, status)
-      if (!updatedItem) return
-
-      setFeedbackItems((current) => current.map((entry) => (entry.id === feedbackId ? updatedItem : entry)))
-    } catch (statusError) {
-      setFeedbackError(statusError.message || 'Unable to update feedback status.')
-    } finally {
-      setIsUpdatingFeedbackId('')
-    }
-  }
-
-  function handleFeedbackFilterChange(field, value) {
-    setFeedbackFilters((current) => ({ ...current, [field]: value }))
-  }
-
-  function normalizeFeedbackStatus(status) {
-    const normalized = String(status || 'new').toLowerCase()
-    return FEEDBACK_STATUS_OPTIONS.includes(normalized) ? normalized : 'new'
-  }
-
-  function feedbackStatusClasses(status) {
-    if (status === 'resolved') return 'bg-emerald-400/20 text-emerald-100'
-    if (status === 'reviewed') return 'bg-amber-300/20 text-amber-100'
-    return 'bg-sky-300/20 text-sky-100'
-  }
 
   return (
     <section className="min-h-dvh bg-[radial-gradient(circle_at_20%_0%,#5f5690_0%,#3b335f_44%,#2b2446_100%)] px-4 pb-10 pt-5 sm:px-6 lg:px-8">
@@ -533,7 +574,6 @@ function AdminDashboard() {
                   }`}
                 >
                   <span>{item.label}</span>
-                  {!isActive && item.id !== 'homepage' && item.id !== 'scraper-performance' && item.id !== 'feature-usage' && item.id !== 'feedback-management' ? <span className="text-[10px] uppercase tracking-wide opacity-70">Soon</span> : null}
                 </button>
               )
             })}
@@ -564,7 +604,7 @@ function AdminDashboard() {
                       : isFeatureUsage
                         ? 'Live usage counters for core user actions and semester interaction patterns.'
                         : isFeedbackManagement
-                          ? 'Manage feedback lifecycle with status updates, search, date filters, and latest-first sorting.'
+                          ? 'Review feedback entries with streamlined latest/oldest sorting.'
                     : 'This section will be implemented next.'}
             </p>
           </header>
@@ -586,43 +626,39 @@ function AdminDashboard() {
               </div>
 
               <section className="rounded-2xl border border-white/20 bg-[#312051] p-4 sm:p-5">
-                <h2 className="text-lg font-semibold text-[#F4F1FF]">Recent Feedback Preview</h2>
-                <p className="mt-1 text-sm text-[#D8D3E8]">Quick snapshot from feedback management queue.</p>
+                <h2 className="text-lg font-semibold text-[#F4F1FF]">Failed Request Diagnostics</h2>
+                <p className="mt-1 text-sm text-[#D8D3E8]">Root-cause breakdown for the failed request count and practical mitigation actions.</p>
 
-                <div className="mt-4 overflow-x-auto">
-                  <table className="min-w-full border-separate border-spacing-y-2">
-                    <thead>
-                      <tr className="text-left text-xs uppercase tracking-wide text-[#CFC5E8]">
-                        <th className="px-3 py-2">Message</th>
-                        <th className="px-3 py-2">Timestamp</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {feedbackItems.length ? (
-                        feedbackItems.slice(0, 5).map((entry) => (
-                          <tr key={entry.id || `${entry.timestamp}-${entry.message}`} className="rounded-lg bg-[#3A315D] text-sm text-[#F4F1FF]">
-                            <td className="px-3 py-2 align-top">{entry.message}</td>
-                            <td className="whitespace-nowrap px-3 py-2 align-top text-xs text-[#D8D3E8]">
-                              {entry.timestamp ? new Date(entry.timestamp).toLocaleString() : '--'}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={2} className="rounded-lg bg-[#3A315D] px-3 py-4 text-sm text-[#D8D3E8]">
-                            No feedback entries available.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                {failedRequestInsights.length ? (
+                  <div className="mt-4 space-y-3">
+                    {failedRequestInsights.map((item) => (
+                      <article key={`${item.path}-${item.failedCount}`} className="rounded-xl border border-white/10 bg-[#3A315D] p-3">
+                        <p className="text-sm font-semibold text-[#F4F1FF]">{item.path}</p>
+                        <p className="mt-1 text-xs text-[#D8D3E8]">
+                          {item.failedCount} failed requests ({item.clientErrorCount} client, {item.serverErrorCount} server)
+                        </p>
+                        <p className="mt-2 text-xs text-[#D8D3E8]"><span className="font-semibold text-[#F4F1FF]">Cause:</span> {item.likelyCause}</p>
+                        <p className="mt-1 text-xs text-[#D8D3E8]"><span className="font-semibold text-[#F4F1FF]">Fix:</span> {item.recommendedFix}</p>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-[#D8D3E8]">No failed request diagnostics yet.</p>
+                )}
               </section>
             </>
           ) : null}
 
           {!isLoading && !error && isHealthStatus ? (
             <section className="space-y-3">
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#312051] px-4 py-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-[#F4F1FF]">App Health</h2>
+                  <p className="text-xs text-[#D8D3E8]">Server-error rate, request quality, and backend health indicators.</p>
+                </div>
+                <SectionInfoButton label="App Health" onClick={() => setMetricInfoModal('health')} />
+              </div>
+
               {!hasRequestActivity ? (
                 <div className="rounded-xl border border-amber-300/40 bg-amber-500/10 p-3 text-sm text-amber-100">
                   {NO_ACTIVITY_MESSAGE}
@@ -636,28 +672,13 @@ function AdminDashboard() {
               </div>
 
               <section className="rounded-2xl border border-white/20 bg-[#312051] p-4 sm:p-5">
-                <h2 className="text-lg font-semibold text-[#F4F1FF]">Metric Definitions</h2>
-                <p className="mt-1 text-sm text-[#D8D3E8]">Measurement logic used in this panel.</p>
-
-                <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
-                  {HEALTH_METRIC_DEFINITIONS.map((item) => (
-                    <article key={item.name} className="rounded-xl border border-white/10 bg-[#3A315D] p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <h3 className="text-sm font-semibold text-[#F4F1FF]">{item.name}</h3>
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide ${
-                            item.type === 'Real-time'
-                              ? 'bg-emerald-400/20 text-emerald-200'
-                              : 'bg-amber-300/20 text-amber-100'
-                          }`}
-                        >
-                          {item.type}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-xs text-[#D8D3E8]">{item.definition}</p>
-                    </article>
-                  ))}
-                </div>
+                <h2 className="text-lg font-semibold text-[#F4F1FF]">Error Rate Analysis</h2>
+                <p className="mt-1 text-sm text-[#D8D3E8]">
+                  Error Rate reflects 5xx server failures only. Request Failure Rate includes all 4xx and 5xx responses and is often elevated by expired sessions or invalid client calls.
+                </p>
+                <p className="mt-3 text-xs text-[#D8D3E8]">
+                  Current Request Failure Rate: {formatMetricPercentage(overview?.healthStatus?.requestFailureRatePercent)}
+                </p>
               </section>
             </section>
           ) : null}
@@ -766,6 +787,14 @@ function AdminDashboard() {
 
           {!isLoading && !error && isScraperPerformance ? (
             <section className="space-y-3">
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#312051] px-4 py-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-[#F4F1FF]">Scraper Performance</h2>
+                  <p className="text-xs text-[#D8D3E8]">Success/failure trends and root causes from scraper telemetry.</p>
+                </div>
+                <SectionInfoButton label="Scraper Performance" onClick={() => setMetricInfoModal('scraper')} />
+              </div>
+
               {!hasScraperActivity ? (
                 <div className="rounded-xl border border-amber-300/40 bg-amber-500/10 p-3 text-sm text-amber-100">
                   {NO_ACTIVITY_MESSAGE}
@@ -779,28 +808,30 @@ function AdminDashboard() {
               </div>
 
               <section className="rounded-2xl border border-white/20 bg-[#312051] p-4 sm:p-5">
-                <h2 className="text-lg font-semibold text-[#F4F1FF]">Scraper Metric Definitions</h2>
-                <p className="mt-1 text-sm text-[#D8D3E8]">Measurement logic used in this panel.</p>
+                <h2 className="text-lg font-semibold text-[#F4F1FF]">Failure Analysis & Fixes</h2>
+                <p className="mt-1 text-sm text-[#D8D3E8]">
+                  Success and failure rates are driven by authentication/session validity, portal responsiveness, and client retry behavior.
+                </p>
 
-                <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
-                  {SCRAPER_METRIC_DEFINITIONS.map((item) => (
-                    <article key={item.name} className="rounded-xl border border-white/10 bg-[#3A315D] p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <h3 className="text-sm font-semibold text-[#F4F1FF]">{item.name}</h3>
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide ${
-                            item.type === 'Real-time'
-                              ? 'bg-emerald-400/20 text-emerald-200'
-                              : 'bg-amber-300/20 text-amber-100'
-                          }`}
-                        >
-                          {item.type}
-                        </span>
+                <div className="mt-3 space-y-2">
+                  {Array.isArray(overview?.scraperPerformance?.topFailureCodes) && overview.scraperPerformance.topFailureCodes.length ? (
+                    overview.scraperPerformance.topFailureCodes.map((item) => (
+                      <div key={`${item.code}-${item.count}`} className="rounded-lg border border-white/10 bg-[#3A315D] px-3 py-2 text-xs text-[#D8D3E8]">
+                        <span className="font-semibold text-[#F4F1FF]">{item.code}</span>: {item.count} failures
                       </div>
-                      <p className="mt-2 text-xs text-[#D8D3E8]">{item.definition}</p>
-                    </article>
-                  ))}
+                    ))
+                  ) : (
+                    <p className="text-xs text-[#D8D3E8]">No failure-code distribution available yet.</p>
+                  )}
                 </div>
+
+                {String(overview?.scraperPerformance?.lastFailureCode || '').toUpperCase() === 'LOGIN_FAILED' ? (
+                  <div className="mt-3 rounded-xl border border-rose-300/35 bg-rose-500/10 p-3 text-xs text-rose-100">
+                    <p className="font-semibold">Last Failure Root Cause: LOGIN_FAILED</p>
+                    <p className="mt-1">Likely cause: invalid portal credentials, portal login form changes, or stale authenticated session cookies.</p>
+                    <p className="mt-1">Fixes: enforce re-login on auth failure, validate credentials before retry loops, and alert on login-form selector drift in scraper.</p>
+                  </div>
+                ) : null}
               </section>
 
               <section className="rounded-2xl border border-amber-300/40 bg-amber-500/10 p-4 sm:p-5">
@@ -814,6 +845,14 @@ function AdminDashboard() {
 
           {!isLoading && !error && isFeatureUsage ? (
             <section className="space-y-3">
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#312051] px-4 py-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-[#F4F1FF]">Feature Usage</h2>
+                  <p className="text-xs text-[#D8D3E8]">Live adoption metrics for attendance, history, and marks flows.</p>
+                </div>
+                <SectionInfoButton label="Feature Usage" onClick={() => setMetricInfoModal('feature')} />
+              </div>
+
               {!hasFeatureUsageActivity ? (
                 <div className="rounded-xl border border-amber-300/40 bg-amber-500/10 p-3 text-sm text-amber-100">
                   {NO_ACTIVITY_MESSAGE}
@@ -827,28 +866,30 @@ function AdminDashboard() {
               </div>
 
               <section className="rounded-2xl border border-white/20 bg-[#312051] p-4 sm:p-5">
-                <h2 className="text-lg font-semibold text-[#F4F1FF]">Feature Usage Metric Definitions</h2>
-                <p className="mt-1 text-sm text-[#D8D3E8]">Measurement logic used in this panel.</p>
+                <h2 className="text-lg font-semibold text-[#F4F1FF]">Most Viewed Semester Validation</h2>
+                <p className="mt-1 text-sm text-[#D8D3E8]">
+                  Source audited from backend feature usage counters. Semester interactions now include Sync Attendance, History, and Marks events.
+                </p>
+              </section>
 
-                <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
-                  {FEATURE_USAGE_DEFINITIONS.map((item) => (
-                    <article key={item.name} className="rounded-xl border border-white/10 bg-[#3A315D] p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <h3 className="text-sm font-semibold text-[#F4F1FF]">{item.name}</h3>
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide ${
-                            item.type === 'Real-time'
-                              ? 'bg-emerald-400/20 text-emerald-200'
-                              : 'bg-amber-300/20 text-amber-100'
-                          }`}
-                        >
-                          {item.type}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-xs text-[#D8D3E8]">{item.definition}</p>
-                    </article>
-                  ))}
-                </div>
+              <section className="rounded-2xl border border-white/20 bg-[#312051] p-4 sm:p-5">
+                <h2 className="text-lg font-semibold text-[#F4F1FF]">Pages Not Working</h2>
+                <p className="mt-1 text-sm text-[#D8D3E8]">Pages with failed API patterns and likely reasons based on endpoint diagnostics.</p>
+
+                {nonWorkingPages.length ? (
+                  <div className="mt-3 space-y-2">
+                    {nonWorkingPages.map((item) => (
+                      <article key={`${item.page}-${item.endpoint}`} className="rounded-xl border border-white/10 bg-[#3A315D] p-3">
+                        <p className="text-sm font-semibold text-[#F4F1FF]">{item.page}</p>
+                        <p className="mt-1 text-xs text-[#D8D3E8]">Endpoint: {item.endpoint}</p>
+                        <p className="mt-1 text-xs text-[#D8D3E8]">Failed Requests: {formatMetricNumber(item.failedCount)}</p>
+                        <p className="mt-1 text-xs text-[#D8D3E8]">Reason: {item.reason}</p>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-[#D8D3E8]">No problematic pages detected from current telemetry.</p>
+                )}
               </section>
             </section>
           ) : null}
@@ -857,59 +898,14 @@ function AdminDashboard() {
             <section className="space-y-3">
               <section className="rounded-2xl border border-white/20 bg-[#312051] p-4 sm:p-5">
                 <h2 className="text-lg font-semibold text-[#F4F1FF]">Feedback Management</h2>
-                <p className="mt-1 text-sm text-[#D8D3E8]">Track and triage feedback by status, date range, and search query.</p>
+                <p className="mt-1 text-sm text-[#D8D3E8]">Feedback list with simple chronological sorting.</p>
 
-                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
-                  <label className="space-y-1">
-                    <span className="text-xs uppercase tracking-wide text-[#CFC5E8]">Search Feedback</span>
-                    <input
-                      type="text"
-                      value={feedbackFilters.query}
-                      onChange={(event) => handleFeedbackFilterChange('query', event.target.value)}
-                      placeholder="Message, user, status"
-                      className="w-full rounded-lg border border-white/20 bg-[#3A315D] px-3 py-2 text-sm text-[#F4F1FF] placeholder:text-[#BEB5DA] focus:border-[#E2BC8B] focus:outline-none"
-                    />
-                  </label>
-
-                  <label className="space-y-1">
-                    <span className="text-xs uppercase tracking-wide text-[#CFC5E8]">Start Date</span>
-                    <input
-                      type="date"
-                      value={feedbackFilters.startDate}
-                      onChange={(event) => handleFeedbackFilterChange('startDate', event.target.value)}
-                      className="w-full rounded-lg border border-white/20 bg-[#3A315D] px-3 py-2 text-sm text-[#F4F1FF] focus:border-[#E2BC8B] focus:outline-none"
-                    />
-                  </label>
-
-                  <label className="space-y-1">
-                    <span className="text-xs uppercase tracking-wide text-[#CFC5E8]">End Date</span>
-                    <input
-                      type="date"
-                      value={feedbackFilters.endDate}
-                      onChange={(event) => handleFeedbackFilterChange('endDate', event.target.value)}
-                      className="w-full rounded-lg border border-white/20 bg-[#3A315D] px-3 py-2 text-sm text-[#F4F1FF] focus:border-[#E2BC8B] focus:outline-none"
-                    />
-                  </label>
-
-                  <label className="space-y-1">
-                    <span className="text-xs uppercase tracking-wide text-[#CFC5E8]">Status</span>
-                    <select
-                      value={feedbackFilters.status}
-                      onChange={(event) => handleFeedbackFilterChange('status', event.target.value)}
-                      className="w-full rounded-lg border border-white/20 bg-[#3A315D] px-3 py-2 text-sm text-[#F4F1FF] focus:border-[#E2BC8B] focus:outline-none"
-                    >
-                      <option value="">All</option>
-                      <option value="new">New</option>
-                      <option value="reviewed">Reviewed</option>
-                      <option value="resolved">Resolved</option>
-                    </select>
-                  </label>
-
-                  <label className="space-y-1">
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <label className="space-y-1 md:max-w-xs">
                     <span className="text-xs uppercase tracking-wide text-[#CFC5E8]">Sort</span>
                     <select
-                      value={feedbackFilters.sort}
-                      onChange={(event) => handleFeedbackFilterChange('sort', event.target.value)}
+                      value={feedbackSort}
+                      onChange={(event) => setFeedbackSort(event.target.value)}
                       className="w-full rounded-lg border border-white/20 bg-[#3A315D] px-3 py-2 text-sm text-[#F4F1FF] focus:border-[#E2BC8B] focus:outline-none"
                     >
                       <option value="latest">Latest</option>
@@ -929,59 +925,29 @@ function AdminDashboard() {
                         <th className="px-3 py-2">User Name</th>
                         <th className="px-3 py-2">Message</th>
                         <th className="px-3 py-2">Timestamp</th>
-                        <th className="px-3 py-2">Status</th>
-                        <th className="px-3 py-2">Mark As</th>
                       </tr>
                     </thead>
                     <tbody>
                       {isFeedbackLoading ? (
                         <tr>
-                          <td colSpan={5} className="rounded-lg bg-[#3A315D] px-3 py-4 text-sm text-[#D8D3E8]">
+                          <td colSpan={3} className="rounded-lg bg-[#3A315D] px-3 py-4 text-sm text-[#D8D3E8]">
                             Loading feedback...
                           </td>
                         </tr>
                       ) : feedbackItems.length ? (
-                        feedbackItems.map((entry) => {
-                          const status = normalizeFeedbackStatus(entry.status)
-
-                          return (
-                            <tr key={entry.id || `${entry.timestamp}-${entry.message}`} className="rounded-lg bg-[#3A315D] text-sm text-[#F4F1FF]">
-                              <td className="whitespace-nowrap px-3 py-2 align-top">{entry.user_name || 'Anonymous'}</td>
-                              <td className="px-3 py-2 align-top">{entry.message}</td>
-                              <td className="whitespace-nowrap px-3 py-2 align-top text-xs text-[#D8D3E8]">
-                                {entry.timestamp ? new Date(entry.timestamp).toLocaleString() : '--'}
-                              </td>
-                              <td className="px-3 py-2 align-top">
-                                <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide ${feedbackStatusClasses(status)}`}>
-                                  {status}
-                                </span>
-                              </td>
-                              <td className="px-3 py-2 align-top">
-                                <div className="flex flex-wrap gap-2">
-                                  {FEEDBACK_STATUS_OPTIONS.map((option) => (
-                                    <button
-                                      key={`${entry.id}-${option}`}
-                                      type="button"
-                                      onClick={() => handleFeedbackStatusChange(entry.id, option)}
-                                      disabled={!entry.id || isUpdatingFeedbackId === entry.id || status === option}
-                                      className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                                        status === option
-                                          ? 'bg-[#E2BC8B] text-[#1D183E]'
-                                          : 'bg-white/10 text-[#F4F1FF] hover:bg-white/20'
-                                      } disabled:cursor-not-allowed disabled:opacity-70`}
-                                    >
-                                      {option}
-                                    </button>
-                                  ))}
-                                </div>
-                              </td>
-                            </tr>
-                          )
-                        })
+                        feedbackItems.map((entry) => (
+                          <tr key={entry.id || `${entry.timestamp}-${entry.message}`} className="rounded-lg bg-[#3A315D] text-sm text-[#F4F1FF]">
+                            <td className="whitespace-nowrap px-3 py-2 align-top">{entry.user_name || 'Anonymous'}</td>
+                            <td className="px-3 py-2 align-top">{entry.message}</td>
+                            <td className="whitespace-nowrap px-3 py-2 align-top text-xs text-[#D8D3E8]">
+                              {entry.timestamp ? new Date(entry.timestamp).toLocaleDateString() : '--'}
+                            </td>
+                          </tr>
+                        ))
                       ) : (
                         <tr>
-                          <td colSpan={5} className="rounded-lg bg-[#3A315D] px-3 py-4 text-sm text-[#D8D3E8]">
-                            No feedback entries match the current filters.
+                          <td colSpan={3} className="rounded-lg bg-[#3A315D] px-3 py-4 text-sm text-[#D8D3E8]">
+                            No feedback entries available.
                           </td>
                         </tr>
                       )}
@@ -990,6 +956,30 @@ function AdminDashboard() {
                 </div>
               </section>
             </section>
+          ) : null}
+
+          {metricInfoModal === 'health' ? (
+            <MetricDefinitionsModal
+              title="App Health Metric Definitions"
+              items={HEALTH_METRIC_DEFINITIONS}
+              onClose={() => setMetricInfoModal('')}
+            />
+          ) : null}
+
+          {metricInfoModal === 'scraper' ? (
+            <MetricDefinitionsModal
+              title="Scraper Performance Metric Definitions"
+              items={SCRAPER_METRIC_DEFINITIONS}
+              onClose={() => setMetricInfoModal('')}
+            />
+          ) : null}
+
+          {metricInfoModal === 'feature' ? (
+            <MetricDefinitionsModal
+              title="Feature Usage Metric Definitions"
+              items={FEATURE_USAGE_DEFINITIONS}
+              onClose={() => setMetricInfoModal('')}
+            />
           ) : null}
 
           {!isLoading && !error && !isHomepage && !isHealthStatus && !isUserAnalytics && !isScraperPerformance && !isFeatureUsage && !isFeedbackManagement ? (

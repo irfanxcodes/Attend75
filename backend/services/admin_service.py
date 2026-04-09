@@ -162,6 +162,91 @@ def require_admin_user(
     return require_admin_session(authorization)
 
 
+def _build_failed_request_insights(request_metrics: dict) -> list[dict[str, str | int]]:
+    insights: list[dict[str, str | int]] = []
+
+    for item in request_metrics.get("topFailedPaths", []) or []:
+        path = str(item.get("path") or "")
+        failed_count = int(item.get("failedCount") or 0)
+        client_errors = int(item.get("clientErrorCount") or 0)
+        server_errors = int(item.get("serverErrorCount") or 0)
+
+        if failed_count <= 0:
+            continue
+
+        if path == "/marks/consolidated":
+            reason = "Some clients are still calling stale marks API flows and receiving auth/not-found responses."
+            fix = "Deploy frontend + backend together and stop retries after non-retriable marks errors."
+        elif path.startswith("/attendance"):
+            reason = "Expired session tokens are causing predictable 401 responses on attendance calls."
+            fix = "Force re-login on SESSION_EXPIRED and avoid repeated retries with expired tokens."
+        elif path.startswith("/auth/firebase"):
+            reason = "Google sign-in token verification or credential-link flow is failing for some requests."
+            fix = "Verify Firebase Admin credentials, token audience, and linked portal credentials integrity."
+        elif path.startswith("/admin"):
+            reason = "Admin calls are being made with missing/expired bearer tokens."
+            fix = "Renew admin sessions and avoid background polling after logout/session expiry."
+        else:
+            reason = "Unknown or unsupported endpoint traffic is inflating failed request counters."
+            fix = "Block noisy probes at edge/firewall and enforce valid route rewrites."
+
+        insights.append(
+            {
+                "path": path,
+                "failedCount": failed_count,
+                "clientErrorCount": client_errors,
+                "serverErrorCount": server_errors,
+                "likelyCause": reason,
+                "recommendedFix": fix,
+            }
+        )
+
+    return insights
+
+
+def _build_page_health(top_failed_paths: list[dict]) -> list[dict[str, str | int]]:
+    endpoint_to_page = {
+        "/attendance": "Dashboard",
+        "/attendance/history": "History",
+        "/marks/consolidated": "Marks",
+        "/auth/firebase/login": "Login",
+        "/auth/firebase/link-credentials": "Login",
+        "/login": "Login",
+    }
+
+    pages: dict[str, dict[str, str | int]] = {}
+
+    for item in top_failed_paths:
+        path = str(item.get("path") or "")
+        page = endpoint_to_page.get(path)
+        if not page:
+            continue
+
+        failed_count = int(item.get("failedCount") or 0)
+        if failed_count <= 0:
+            continue
+
+        client_errors = int(item.get("clientErrorCount") or 0)
+        server_errors = int(item.get("serverErrorCount") or 0)
+
+        reason_bits = []
+        if server_errors > 0:
+            reason_bits.append("server-side errors")
+        if client_errors > 0:
+            reason_bits.append("expired/invalid client requests")
+        if not reason_bits:
+            reason_bits.append("intermittent request failures")
+
+        pages[page] = {
+            "page": page,
+            "endpoint": path,
+            "failedCount": failed_count,
+            "reason": ", ".join(reason_bits),
+        }
+
+    return list(pages.values())
+
+
 def get_admin_overview() -> dict:
     db_connected = False
 
@@ -215,14 +300,16 @@ def get_admin_overview() -> dict:
     request_metrics = get_request_metrics_snapshot()
     scraper_metrics = get_scraper_metrics_snapshot()
     feature_usage = get_feature_usage_snapshot()
-    total_requests = int(request_metrics.get("totalRequests", 0))
-    failed_requests = int(request_metrics.get("failedRequestCount", 0))
-    error_rate_percent = round((failed_requests / total_requests) * 100, 2) if total_requests > 0 else 0.0
+    request_failure_rate_percent = float(request_metrics.get("requestFailureRatePercent", 0.0))
+    app_error_rate_percent = float(request_metrics.get("appErrorRatePercent", 0.0))
+    failed_request_insights = _build_failed_request_insights(request_metrics)
+    non_working_pages = _build_page_health(request_metrics.get("topFailedPaths", []) or [])
 
     health_status = {
         "backendStatus": "up",
         "apiLatencyMs": float(request_metrics.get("averageResponseTimeMs", 0.0)),
-        "errorRatePercent": error_rate_percent,
+        "errorRatePercent": app_error_rate_percent,
+        "requestFailureRatePercent": request_failure_rate_percent,
         "lastErrorTimestamp": request_metrics.get("lastErrorTimestamp"),
         "uptimeSeconds": int(request_metrics.get("uptimeSeconds", 0)),
         "databaseConnectivity": "connected" if db_connected else "disconnected",
@@ -243,12 +330,22 @@ def get_admin_overview() -> dict:
             }
         )
 
+    linked_roll_by_email: dict[str, str] = {}
+    for row in user_rows:
+        email_key = str(row.email or "").strip().lower()
+        roll_value = str(row.roll_number or "").strip().upper()
+        if email_key and roll_value and email_key not in linked_roll_by_email:
+            linked_roll_by_email[email_key] = roll_value
+
     users_table = [
         {
             "serialNo": index + 1,
             "name": row.display_name,
             "emailId": row.email,
-            "rollNumber": row.roll_number,
+            "rollNumber": (
+                str(row.roll_number or "").strip().upper()
+                or linked_roll_by_email.get(str(row.email or "").strip().lower())
+            ),
         }
         for index, row in enumerate(user_rows)
     ]
@@ -288,6 +385,7 @@ def get_admin_overview() -> dict:
             "activeSessions": int(session_stats.get("active_sessions", 0)),
             "feedbackCount": total_feedback_count,
             "failedRequestCount": int(request_metrics.get("failedRequestCount", 0)),
+            "failedRequestInsights": failed_request_insights,
             "averageResponseTimeMs": float(request_metrics.get("averageResponseTimeMs", 0.0)),
             "scraperSuccessRate": request_metrics.get("scraperSuccessRate"),
         },
@@ -321,13 +419,16 @@ def get_admin_overview() -> dict:
             "portalDowntimeDetected": bool(scraper_metrics.get("portalDowntimeDetected", False)),
             "consecutiveNetworkFailures": int(scraper_metrics.get("consecutiveNetworkFailures", 0)),
             "downtimeHeuristic": "Portal downtime is flagged when 3 or more consecutive network failures occur within a 10-minute window.",
+            "topFailureCodes": scraper_metrics.get("topFailureCodes", []),
         },
         "featureUsage": {
             "syncAttendanceCount": int(feature_usage.get("syncAttendanceCount", 0)),
             "historyOpenCount": int(feature_usage.get("historyOpenCount", 0)),
+            "marksOpenCount": int(feature_usage.get("marksOpenCount", 0)),
             "mostViewedSemester": feature_usage.get("mostViewedSemester"),
             "mostViewedSemesterCount": int(feature_usage.get("mostViewedSemesterCount", 0)),
             "totalSemesterInteractions": int(feature_usage.get("totalSemesterInteractions", 0)),
+            "nonWorkingPages": non_working_pages,
         },
     }
 
