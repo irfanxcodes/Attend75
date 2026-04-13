@@ -1,9 +1,45 @@
 import time
+import os
 
 from scrapers.portal_scraper import PortalAuthenticationError, PortalNetworkError, PortalScraper
 from services.feature_usage_metrics import observe_history_open, observe_marks_open, observe_sync_attendance
 from services.scraper_metrics import observe_scrape
 from services.session_store import session_store
+
+
+def _portal_operation_retry_attempts() -> int:
+    raw = os.getenv("PORTAL_OPERATION_RETRY_ATTEMPTS", "2").strip()
+    try:
+        return max(int(raw), 1)
+    except ValueError:
+        return 2
+
+
+def _portal_operation_retry_backoff_seconds() -> float:
+    raw = os.getenv("PORTAL_OPERATION_RETRY_BACKOFF_SECONDS", "0.6").strip()
+    try:
+        return max(float(raw), 0.0)
+    except ValueError:
+        return 0.6
+
+
+def _run_with_network_retry(operation):
+    attempts = _portal_operation_retry_attempts()
+    backoff = _portal_operation_retry_backoff_seconds()
+    last_error = None
+
+    for attempt in range(1, attempts + 1):
+        try:
+            return operation()
+        except PortalNetworkError as exc:
+            last_error = exc
+            if attempt >= attempts:
+                raise
+            if backoff > 0:
+                time.sleep(backoff * attempt)
+
+    if last_error is not None:
+        raise last_error
 
 
 def _resolve_semester_usage_context(payload: dict | None, fallback_semester_id: str | None = None) -> tuple[str | None, str | None]:
@@ -28,7 +64,7 @@ def login_user(roll_number: str, password: str) -> dict:
     started = time.perf_counter()
     scraper = PortalScraper()
     try:
-        data = scraper.login(roll_number=roll_number, password=password)
+        data = _run_with_network_retry(lambda: scraper.login(roll_number=roll_number, password=password))
         record = session_store.create(roll_number=roll_number, scraper=scraper)
         observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
         return {
@@ -64,7 +100,9 @@ def fetch_attendance_for_semester(token: str, semester_id: str | None) -> dict:
 
     started = time.perf_counter()
     try:
-        payload = record.scraper.fetch_attendance_for_semester(semester_id=semester_id)
+        payload = _run_with_network_retry(
+            lambda: record.scraper.fetch_attendance_for_semester(semester_id=semester_id)
+        )
         observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
         resolved_id, resolved_label = _resolve_semester_usage_context(payload, semester_id)
         observe_sync_attendance(semester_id=resolved_id, semester_label=resolved_label)
@@ -97,7 +135,9 @@ def fetch_subject_history(token: str, semester_id: str | None, date: str | None)
 
     started = time.perf_counter()
     try:
-        payload = record.scraper.fetch_subject_attendance_history(semester_id=semester_id, date=date)
+        payload = _run_with_network_retry(
+            lambda: record.scraper.fetch_subject_attendance_history(semester_id=semester_id, date=date)
+        )
         observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
         resolved_id, _ = _resolve_semester_usage_context(payload, semester_id)
         observe_history_open(semester_id=resolved_id)
@@ -130,7 +170,9 @@ def fetch_consolidated_marks(token: str, semester_id: str | None) -> dict:
 
     started = time.perf_counter()
     try:
-        payload = record.scraper.fetch_consolidated_marks(semester_id=semester_id)
+        payload = _run_with_network_retry(
+            lambda: record.scraper.fetch_consolidated_marks(semester_id=semester_id)
+        )
         observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
         resolved_id, resolved_label = _resolve_semester_usage_context(payload, semester_id)
         observe_marks_open(semester_id=resolved_id, semester_label=resolved_label)
@@ -163,7 +205,7 @@ def get_session_status(token: str) -> dict:
 
     started = time.perf_counter()
     try:
-        record.scraper.fetch_attendance_for_semester()
+        _run_with_network_retry(lambda: record.scraper.fetch_attendance_for_semester())
         observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
         return {"session_status": "linked"}
     except PortalNetworkError as exc:

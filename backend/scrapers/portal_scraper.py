@@ -115,6 +115,8 @@ class PortalScraper:
             )
 
         payload = self._build_attendance_payload(attendance_response.text)
+        if payload.get("attendance") is None:
+            payload["attendance"] = []
         courses_map = self._safe_fetch_courses_map(payload.get("selected_semester"))
         payload["attendance"] = self._merge_attendance_with_total_sessions(
             payload.get("attendance", []),
@@ -153,6 +155,8 @@ class PortalScraper:
             )
 
         payload = self._build_attendance_payload(html)
+        if payload.get("attendance") is None:
+            payload["attendance"] = []
         courses_map = self._safe_fetch_courses_map(payload.get("selected_semester"))
         payload["attendance"] = self._merge_attendance_with_total_sessions(
             payload.get("attendance", []),
@@ -208,7 +212,14 @@ class PortalScraper:
             )
 
         semesters, selected_semester = self._extract_semesters(html)
-        subjects = self._parse_consolidated_marks_subjects(html)
+        try:
+            subjects = self._parse_consolidated_marks_subjects(html)
+        except PortalNetworkError as exc:
+            message = str(exc).lower()
+            if "table not found" in message or "rows not found" in message:
+                subjects = []
+            else:
+                raise
 
         return {
             "subjects": subjects,
@@ -628,7 +639,8 @@ class PortalScraper:
 
         attendance_table = self._find_attendance_table(soup)
         if attendance_table is None:
-            raise PortalNetworkError("Attendance table not found on My Attendance page")
+            # Some sessions/terms may not have attendance rows yet.
+            return {"attendance": []}
 
         headers = [th.get_text(" ", strip=True).lower() for th in attendance_table.find_all("th")]
 
@@ -693,7 +705,7 @@ class PortalScraper:
             )
 
         if not attendance_items:
-            raise PortalNetworkError("Attendance rows not found on My Attendance page")
+            return {"attendance": []}
 
         return {"attendance": attendance_items}
 
