@@ -370,6 +370,8 @@ def get_admin_overview() -> dict:
     health_status = {
         "backendStatus": "up",
         "apiLatencyMs": float(request_metrics.get("averageResponseTimeMs", 0.0)),
+        "p50ResponseTimeMs": float(request_metrics.get("p50ResponseTimeMs", 0.0)),
+        "p95ResponseTimeMs": float(request_metrics.get("p95ResponseTimeMs", 0.0)),
         "errorRatePercent": app_error_rate_percent,
         "requestFailureRatePercent": request_failure_rate_percent,
         "lastErrorTimestamp": request_metrics.get("lastErrorTimestamp"),

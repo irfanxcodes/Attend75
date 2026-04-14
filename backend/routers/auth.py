@@ -41,6 +41,7 @@ def _data_error_response(error_code: str, status_code: int = 502) -> JSONRespons
         "MARKS_TABLE_NOT_FOUND": "Marks are not available right now for this semester.",
         "MARKS_ROWS_NOT_FOUND": "Marks are not available right now for this semester.",
         "MARKS_EMPTY_RESPONSE": "Portal returned an empty marks response. Please try again.",
+        "MARKS_PAGE_PATHS_NOT_FOUND": "Marks page is currently unavailable on portal. Please try again later.",
         "MARKS_HTML_STRUCTURE_CHANGED": "Portal marks format changed. Please try again later.",
         "MARKS_PARSER_FAILURE": "Unable to parse marks data from portal right now.",
         "SEMESTER_SWITCH_MISMATCH": "Unable to switch semester on portal. Please retry.",

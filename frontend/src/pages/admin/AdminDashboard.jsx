@@ -29,6 +29,16 @@ const HEALTH_METRIC_DEFINITIONS = [
     definition: 'Average request duration in milliseconds since backend process startup.',
   },
   {
+    name: 'P50 Response Time',
+    type: 'Derived',
+    definition: 'Median API response time in milliseconds from recent observed requests.',
+  },
+  {
+    name: 'P95 Response Time',
+    type: 'Derived',
+    definition: '95th percentile API response time in milliseconds from recent observed requests.',
+  },
+  {
     name: 'Error Rate',
     type: 'Derived',
     definition: 'Computed as 5xx server errors / total requests × 100 over the current process lifetime.',
@@ -364,7 +374,25 @@ function AdminDashboard() {
       cards.push({
         label: 'API Latency',
         value: `${formatMetricNumber(healthStatus.apiLatencyMs)} ms`,
-        subtitle: 'Derived from live request timings',
+        subtitle: 'Average derived from live request timings',
+        tone: 'warning',
+      })
+    }
+
+    if (Number.isFinite(Number(healthStatus.p50ResponseTimeMs))) {
+      cards.push({
+        label: 'P50 Response Time',
+        value: `${formatMetricNumber(healthStatus.p50ResponseTimeMs)} ms`,
+        subtitle: 'Median recent API response duration',
+        tone: 'default',
+      })
+    }
+
+    if (Number.isFinite(Number(healthStatus.p95ResponseTimeMs))) {
+      cards.push({
+        label: 'P95 Response Time',
+        value: `${formatMetricNumber(healthStatus.p95ResponseTimeMs)} ms`,
+        subtitle: '95th percentile recent API response duration',
         tone: 'warning',
       })
     }

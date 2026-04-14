@@ -44,7 +44,13 @@ class PortalScraper:
             float(os.getenv("PORTAL_MARKS_REQUEST_TIMEOUT_SECONDS", "7")),
             1.0,
         )
-        self.max_marks_path_attempts = max(int(os.getenv("PORTAL_MARKS_MAX_PATH_ATTEMPTS", "3")), 1)
+        max_attempts_raw = str(os.getenv("PORTAL_MARKS_MAX_PATH_ATTEMPTS", "0")).strip()
+        try:
+            parsed_max_attempts = int(max_attempts_raw)
+        except ValueError:
+            parsed_max_attempts = 0
+        # 0 means probe all known candidate paths.
+        self.max_marks_path_attempts = max(parsed_max_attempts, 0)
         self._preferred_marks_path: str | None = None
         self._attendance_cache_ttl_seconds = max(float(os.getenv("PORTAL_ATTENDANCE_CACHE_TTL_SECONDS", "20")), 0.0)
         self._marks_cache_ttl_seconds = max(float(os.getenv("PORTAL_MARKS_CACHE_TTL_SECONDS", "45")), 0.0)
@@ -299,6 +305,7 @@ class PortalScraper:
         seen_paths: set[str] = set()
         first_login_html: str | None = None
         attempted_count = 0
+        effective_max_attempts = self.max_marks_path_attempts or len(candidate_paths)
 
         for path in candidate_paths:
             normalized_path = str(path or "").strip()
@@ -306,7 +313,7 @@ class PortalScraper:
                 continue
             seen_paths.add(normalized_path)
             attempted_count += 1
-            if attempted_count > self.max_marks_path_attempts:
+            if attempted_count > effective_max_attempts:
                 break
 
             url = self._build_url(path)
@@ -318,7 +325,12 @@ class PortalScraper:
                 )
                 response.raise_for_status()
             except requests.RequestException as exc:
-                if attempted_count >= self.max_marks_path_attempts:
+                status_code = int(getattr(getattr(exc, "response", None), "status_code", 0) or 0)
+                # 404 is expected on some portal paths; continue probing alternates.
+                if status_code == 404:
+                    continue
+
+                if attempted_count >= effective_max_attempts:
                     raise self._portal_network_error(
                         exc,
                         stage="MARKS_PAGE_FETCH",
@@ -349,6 +361,15 @@ class PortalScraper:
             raise PortalAuthenticationError(
                 "Portal returned login page while loading consolidated marks",
                 code="SESSION_EXPIRED_REDIRECTED_TO_LOGIN",
+            )
+
+        if attempted_count > 0:
+            raise PortalNetworkError(
+                "Consolidated marks page paths were not found on portal",
+                code="MARKS_PAGE_PATHS_NOT_FOUND",
+                stage="MARKS_PAGE_FETCH",
+                retriable=False,
+                http_status=502,
             )
 
         raise PortalNetworkError(
