@@ -18,8 +18,19 @@ class ScraperMetricsStore:
         self._consecutive_network_failures = 0
         self._recent_network_failures_epoch = deque(maxlen=20)
         self._failure_code_counts: Counter[str] = Counter()
+        self._failure_stage_counts: Counter[str] = Counter()
+        self._retriable_failure_count = 0
+        self._non_retriable_failure_count = 0
 
-    def observe(self, success: bool, duration_ms: float, failure_kind: str | None = None, failure_code: str | None = None) -> None:
+    def observe(
+        self,
+        success: bool,
+        duration_ms: float,
+        failure_kind: str | None = None,
+        failure_code: str | None = None,
+        failure_stage: str | None = None,
+        retriable: bool | None = None,
+    ) -> None:
         now_epoch = time.time()
         now_iso = datetime.now(timezone.utc).isoformat()
 
@@ -40,6 +51,16 @@ class ScraperMetricsStore:
                 self._failure_code_counts[str(failure_code).strip().upper()] += 1
             else:
                 self._failure_code_counts["UNKNOWN"] += 1
+
+            if failure_stage:
+                self._failure_stage_counts[str(failure_stage).strip().upper()] += 1
+            else:
+                self._failure_stage_counts["UNKNOWN"] += 1
+
+            if retriable is True:
+                self._retriable_failure_count += 1
+            elif retriable is False:
+                self._non_retriable_failure_count += 1
 
             if failure_kind == "network":
                 self._consecutive_network_failures += 1
@@ -72,6 +93,10 @@ class ScraperMetricsStore:
                 {"code": code, "count": count}
                 for code, count in self._failure_code_counts.most_common(5)
             ]
+            top_failure_stages = [
+                {"stage": stage, "count": count}
+                for stage, count in self._failure_stage_counts.most_common(5)
+            ]
 
             return {
                 "totalAttempts": total_attempts,
@@ -83,18 +108,30 @@ class ScraperMetricsStore:
                 "portalDowntimeDetected": portal_downtime_detected,
                 "consecutiveNetworkFailures": self._consecutive_network_failures,
                 "topFailureCodes": top_failure_codes,
+                "topFailureStages": top_failure_stages,
+                "retriableFailureCount": self._retriable_failure_count,
+                "nonRetriableFailureCount": self._non_retriable_failure_count,
             }
 
 
 scraper_metrics_store = ScraperMetricsStore()
 
 
-def observe_scrape(success: bool, duration_ms: float, failure_kind: str | None = None, failure_code: str | None = None) -> None:
+def observe_scrape(
+    success: bool,
+    duration_ms: float,
+    failure_kind: str | None = None,
+    failure_code: str | None = None,
+    failure_stage: str | None = None,
+    retriable: bool | None = None,
+) -> None:
     scraper_metrics_store.observe(
         success=success,
         duration_ms=duration_ms,
         failure_kind=failure_kind,
         failure_code=failure_code,
+        failure_stage=failure_stage,
+        retriable=retriable,
     )
 
 

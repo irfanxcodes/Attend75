@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import InstagramButton from '../components/common/InstagramButton'
 import LogoutButton from '../components/profile/LogoutButton'
 import useAppStore from '../hooks/useAppStore'
 import { fetchSessionStatus, submitFeedback } from '../services/attendanceApi'
@@ -323,7 +324,10 @@ function Profile() {
       </div>
 
       <LogoutButton onLogout={actions.logout} />
-      <p className="px-2 pb-1 text-center text-xs text-[#D8D3E8]/65">Attend75 · Made for ICFAI students</p>
+      <div className="flex items-center justify-center gap-3 px-2 pb-1">
+        <p className="text-center text-xs text-[#D8D3E8]/65">Attend75 · Made for ICFAI students</p>
+        <InstagramButton />
+      </div>
     </section>
   )
 }

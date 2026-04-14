@@ -1,6 +1,7 @@
 import threading
 from datetime import datetime, timezone
 from collections import defaultdict
+from collections import deque
 import time
 import os
 
@@ -15,6 +16,7 @@ class RequestMetricsStore:
         self._server_error_requests = 0
         self._ignored_noise_requests = 0
         self._total_duration_ms = 0.0
+        self._recent_durations_ms = deque(maxlen=1000)
         self._last_error_timestamp: str | None = None
         raw_ignored = os.getenv(
             "REQUEST_METRICS_IGNORED_PATHS",
@@ -47,7 +49,9 @@ class RequestMetricsStore:
 
         with self._lock:
             self._total_requests += 1
-            self._total_duration_ms += max(float(duration_ms), 0.0)
+            normalized_duration = max(float(duration_ms), 0.0)
+            self._total_duration_ms += normalized_duration
+            self._recent_durations_ms.append(normalized_duration)
 
             is_success = normalized_status < 400
             if not is_success:
@@ -91,6 +95,8 @@ class RequestMetricsStore:
 
             request_failure_rate_percent = round((failed_requests / total_requests) * 100, 2) if total_requests else 0.0
             app_error_rate_percent = round((server_error_requests / total_requests) * 100, 2) if total_requests else 0.0
+            p50_response_time_ms = self._compute_percentile(self._recent_durations_ms, 50)
+            p95_response_time_ms = self._compute_percentile(self._recent_durations_ms, 95)
 
             top_failed_paths = []
             for path, stat in self._path_stats.items():
@@ -123,11 +129,25 @@ class RequestMetricsStore:
                 "requestFailureRatePercent": request_failure_rate_percent,
                 "appErrorRatePercent": app_error_rate_percent,
                 "averageResponseTimeMs": average_response_time_ms,
+                "p50ResponseTimeMs": p50_response_time_ms,
+                "p95ResponseTimeMs": p95_response_time_ms,
                 "lastErrorTimestamp": self._last_error_timestamp,
                 "uptimeSeconds": uptime_seconds,
                 "scraperSuccessRate": scraper_success_rate,
                 "topFailedPaths": top_failed_paths[:8],
             }
+
+    def _compute_percentile(self, samples: deque[float], percentile: int) -> float:
+        if not samples:
+            return 0.0
+
+        values = sorted(float(item) for item in samples)
+        if len(values) == 1:
+            return round(values[0], 2)
+
+        percentile = max(0, min(percentile, 100))
+        index = int(round((percentile / 100) * (len(values) - 1)))
+        return round(values[index], 2)
 
 
 request_metrics_store = RequestMetricsStore()

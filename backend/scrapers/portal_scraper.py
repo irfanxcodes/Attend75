@@ -1,5 +1,7 @@
 import os
 import re
+import time
+import copy
 from datetime import datetime
 from urllib.parse import urljoin
 
@@ -14,9 +16,20 @@ class PortalAuthenticationError(Exception):
 
 
 class PortalNetworkError(Exception):
-    def __init__(self, message: str, code: str = "DATA_FETCH_FAILED"):
+    def __init__(
+        self,
+        message: str,
+        code: str = "DATA_FETCH_FAILED",
+        *,
+        stage: str | None = None,
+        retriable: bool = True,
+        http_status: int | None = None,
+    ):
         super().__init__(message)
         self.code = code
+        self.stage = stage
+        self.retriable = retriable
+        self.http_status = http_status
 
 
 class PortalScraper:
@@ -27,6 +40,16 @@ class PortalScraper:
         self.base_url = os.getenv("PORTAL_BASE_URL", "http://111.93.16.209/sz")
         self.login_path = os.getenv("PORTAL_LOGIN_PATH", "login.aspx")
         self.request_timeout = float(os.getenv("PORTAL_REQUEST_TIMEOUT_SECONDS", "15"))
+        self.marks_request_timeout = max(
+            float(os.getenv("PORTAL_MARKS_REQUEST_TIMEOUT_SECONDS", "7")),
+            1.0,
+        )
+        self.max_marks_path_attempts = max(int(os.getenv("PORTAL_MARKS_MAX_PATH_ATTEMPTS", "3")), 1)
+        self._preferred_marks_path: str | None = None
+        self._attendance_cache_ttl_seconds = max(float(os.getenv("PORTAL_ATTENDANCE_CACHE_TTL_SECONDS", "20")), 0.0)
+        self._marks_cache_ttl_seconds = max(float(os.getenv("PORTAL_MARKS_CACHE_TTL_SECONDS", "45")), 0.0)
+        self._attendance_cache: dict[str, tuple[float, dict]] = {}
+        self._marks_cache: dict[str, tuple[float, dict]] = {}
         self._history_cache: dict[str, dict[str, list[dict[str, str | bool]]]] = {}
         self.session.headers.update(
             {
@@ -73,7 +96,11 @@ class PortalScraper:
             )
             response.raise_for_status()
         except requests.RequestException as exc:
-            raise PortalNetworkError(f"Unable to connect to college portal: {exc}") from exc
+            raise self._portal_network_error(
+                exc,
+                stage="LOGIN_REQUEST",
+                message_prefix="Unable to connect to college portal",
+            ) from exc
 
         login_redirected = self._is_success_redirect(response)
         has_auth_session = self._has_authenticated_session()
@@ -128,7 +155,13 @@ class PortalScraper:
         payload["student_name"] = student_name or normalized_roll
         return payload
 
-    def fetch_attendance_for_semester(self, semester_id: str | None = None) -> dict:
+    def fetch_attendance_for_semester(self, semester_id: str | None = None, force_refresh: bool = False) -> dict:
+        cache_key = self._semester_cache_key(semester_id)
+        if not force_refresh:
+            cached_payload = self._read_cache(self._attendance_cache, cache_key, self._attendance_cache_ttl_seconds)
+            if cached_payload is not None:
+                return cached_payload
+
         attendance_url = self._build_url("CommonS.aspx?qs=ap")
 
         try:
@@ -139,7 +172,11 @@ class PortalScraper:
             )
             attendance_response.raise_for_status()
         except requests.RequestException as exc:
-            raise PortalNetworkError(f"Unable to fetch attendance data from college portal: {exc}") from exc
+            raise self._portal_network_error(
+                exc,
+                stage="ATTENDANCE_FETCH",
+                message_prefix="Unable to fetch attendance data from college portal",
+            ) from exc
 
         html = attendance_response.text
 
@@ -165,6 +202,10 @@ class PortalScraper:
         payload["feasibility"] = {
             "overall": self._build_overall_feasibility(payload.get("attendance", []))
         }
+        self._write_cache(self._attendance_cache, cache_key, payload, self._attendance_cache_ttl_seconds)
+        selected_semester = str(payload.get("selected_semester") or "").strip()
+        if selected_semester:
+            self._write_cache(self._attendance_cache, selected_semester, payload, self._attendance_cache_ttl_seconds)
         return payload
 
     def fetch_subject_attendance_history(self, semester_id: str | None = None, date: str | None = None) -> dict:
@@ -193,7 +234,13 @@ class PortalScraper:
             "selected_semester": selected_semester,
         }
 
-    def fetch_consolidated_marks(self, semester_id: str | None = None) -> dict:
+    def fetch_consolidated_marks(self, semester_id: str | None = None, force_refresh: bool = False) -> dict:
+        cache_key = self._semester_cache_key(semester_id)
+        if not force_refresh:
+            cached_payload = self._read_cache(self._marks_cache, cache_key, self._marks_cache_ttl_seconds)
+            if cached_payload is not None:
+                return cached_payload
+
         if semester_id:
             self.session.cookies.set("SemesterID", str(semester_id).strip())
 
@@ -215,22 +262,28 @@ class PortalScraper:
         try:
             subjects = self._parse_consolidated_marks_subjects(html)
         except PortalNetworkError as exc:
-            message = str(exc).lower()
-            if "table not found" in message or "rows not found" in message:
+            failure_code = str(getattr(exc, "code", "")).strip().upper()
+            if failure_code in {"MARKS_TABLE_NOT_FOUND", "MARKS_ROWS_NOT_FOUND"}:
                 subjects = []
             else:
                 raise
 
-        return {
+        payload = {
             "subjects": subjects,
             "semesters": semesters,
             "selected_semester": selected_semester,
         }
+        self._write_cache(self._marks_cache, cache_key, payload, self._marks_cache_ttl_seconds)
+        if selected_semester:
+            self._write_cache(self._marks_cache, str(selected_semester).strip(), payload, self._marks_cache_ttl_seconds)
+        return payload
 
     def _load_consolidated_marks_page(self) -> tuple[str, str]:
         env_path = (os.getenv("PORTAL_CONSOLIDATED_MARKS_PATH", "CommonS.aspx?qs=cmarks") or "").strip()
         candidate_paths: list[str] = []
-        if env_path:
+        if self._preferred_marks_path:
+            candidate_paths.append(self._preferred_marks_path)
+        if env_path and env_path not in candidate_paths:
             candidate_paths.append(env_path)
 
         candidate_paths.extend(
@@ -243,36 +296,67 @@ class PortalScraper:
             ]
         )
 
+        seen_paths: set[str] = set()
         first_login_html: str | None = None
+        attempted_count = 0
 
         for path in candidate_paths:
+            normalized_path = str(path or "").strip()
+            if not normalized_path or normalized_path in seen_paths:
+                continue
+            seen_paths.add(normalized_path)
+            attempted_count += 1
+            if attempted_count > self.max_marks_path_attempts:
+                break
+
             url = self._build_url(path)
             try:
                 response = self.session.get(
                     url,
-                    timeout=self.request_timeout,
+                    timeout=self.marks_request_timeout,
                     headers={"Referer": self._build_url("Index.aspx")},
                 )
                 response.raise_for_status()
-            except requests.RequestException:
+            except requests.RequestException as exc:
+                if attempted_count >= self.max_marks_path_attempts:
+                    raise self._portal_network_error(
+                        exc,
+                        stage="MARKS_PAGE_FETCH",
+                        message_prefix="Unable to fetch consolidated marks page",
+                    ) from exc
                 continue
 
             html = response.text
-            if self._looks_like_login_page(html):
-                if first_login_html is None:
-                    first_login_html = html
+            if not str(html or "").strip():
+                raise PortalNetworkError(
+                    "Consolidated marks page returned an empty response",
+                    code="MARKS_EMPTY_RESPONSE",
+                    stage="MARKS_PAGE_FETCH",
+                    retriable=True,
+                    http_status=502,
+                )
+
+            final_url = str(getattr(response, "url", "") or "").lower()
+            if "login.aspx" in final_url or self._looks_like_login_page(html):
+                first_login_html = html
                 continue
 
             if self._find_consolidated_marks_table(BeautifulSoup(html, "html.parser")) is not None:
+                self._preferred_marks_path = normalized_path
                 return html, url
 
         if first_login_html is not None:
             raise PortalAuthenticationError(
                 "Portal returned login page while loading consolidated marks",
-                code="SESSION_EXPIRED",
+                code="SESSION_EXPIRED_REDIRECTED_TO_LOGIN",
             )
 
-        raise PortalNetworkError("Consolidated marks table not found on portal")
+        raise PortalNetworkError(
+            "Consolidated marks table not found on portal",
+            code="MARKS_TABLE_NOT_FOUND",
+            stage="MARKS_PARSE",
+            retriable=False,
+        )
 
     def _find_consolidated_marks_table(self, soup: BeautifulSoup):
         expected_headers = ["code", "units", "component", "weightage"]
@@ -292,10 +376,23 @@ class PortalScraper:
         return None
 
     def _parse_consolidated_marks_subjects(self, html: str) -> list[dict[str, object]]:
+        if not str(html or "").strip():
+            raise PortalNetworkError(
+                "Consolidated marks HTML response is empty",
+                code="MARKS_EMPTY_RESPONSE",
+                stage="MARKS_PARSE",
+                retriable=True,
+            )
+
         soup = BeautifulSoup(html, "html.parser")
         marks_table = self._find_consolidated_marks_table(soup)
         if marks_table is None:
-            raise PortalNetworkError("Consolidated marks table not found on portal page")
+            raise PortalNetworkError(
+                "Consolidated marks table not found on portal page",
+                code="MARKS_TABLE_NOT_FOUND",
+                stage="MARKS_PARSE",
+                retriable=False,
+            )
 
         headers = [th.get_text(" ", strip=True).lower() for th in marks_table.find_all("th")]
         code_index = self._find_column_index(headers, ["code", "course code", "subject code"])
@@ -305,7 +402,12 @@ class PortalScraper:
         weightage_index = self._find_column_index(headers, ["weightage", "marks", "score"])
 
         if code_index is None or course_index is None or component_index is None or weightage_index is None:
-            raise PortalNetworkError("Required consolidated marks columns are missing")
+            raise PortalNetworkError(
+                "Required consolidated marks columns are missing",
+                code="MARKS_HTML_STRUCTURE_CHANGED",
+                stage="MARKS_PARSE",
+                retriable=False,
+            )
 
         header_count = len(headers)
 
@@ -316,87 +418,96 @@ class PortalScraper:
         current_units = ""
 
         for row in marks_table.find_all("tr"):
-            cells = row.find_all("td", recursive=False)
-            if not cells:
-                cells = row.find_all("td")
-            if not cells:
-                continue
-
-            columns = self._expand_row_cells(cells, header_count)
-            if len(columns) <= max(code_index, course_index, component_index, weightage_index):
-                continue
-
-            row_code = columns[code_index].strip() if code_index < len(columns) else ""
-            row_name = columns[course_index].strip() if course_index < len(columns) else ""
-            row_component = columns[component_index].strip() if component_index < len(columns) else ""
-            row_weightage = columns[weightage_index].strip() if weightage_index < len(columns) else ""
-            row_units = columns[units_index].strip() if units_index is not None and units_index < len(columns) else ""
-
-            if row_code:
-                current_code = row_code
-            if row_name:
-                current_name = row_name
-            if row_units:
-                current_units = row_units
-
-            if not current_code or not row_component:
-                continue
-
-            normalized_code = self._normalize_code(current_code)
-            if not normalized_code:
-                continue
-
-            if normalized_code not in subjects_by_code:
-                subjects_by_code[normalized_code] = {
-                    "code": normalized_code,
-                    "name": current_name or normalized_code,
-                    "subject_code": normalized_code,
-                    "subject_name": current_name or normalized_code,
-                    "units": self._parse_int(current_units) if self._parse_int(current_units) is not None else (current_units or None),
-                    "components": [],
-                    "_total_obtained": 0.0,
-                    "_total_max": 0.0,
-                    "_explicit_total": None,
-                }
-                subject_order.append(normalized_code)
-            else:
-                if current_name:
-                    subjects_by_code[normalized_code]["name"] = current_name
-                    subjects_by_code[normalized_code]["subject_name"] = current_name
-                if current_units:
-                    parsed_units = self._parse_int(current_units)
-                    subjects_by_code[normalized_code]["units"] = parsed_units if parsed_units is not None else current_units
-
-            subject_entry = subjects_by_code[normalized_code]
-            numeric_obtained, numeric_max = self._parse_component_weightage(row_weightage)
-
-            if row_component.lower().replace(" ", "") in {"total:", "total"}:
-                subject_entry["_explicit_total"] = self._to_number_or_none(numeric_obtained)
-                if numeric_max is not None:
-                    subject_entry["_total_max"] += numeric_max
-                continue
-
-            existing_components = subject_entry.get("components", [])
-            if existing_components:
-                previous = existing_components[-1]
-                previous_name = str(previous.get("name") or "").strip().lower()
-                previous_value = str(previous.get("value") or "").strip()
-                if previous_name == row_component.strip().lower() and previous_value == row_weightage.strip():
+            try:
+                cells = row.find_all("td", recursive=False)
+                if not cells:
+                    cells = row.find_all("td")
+                if not cells:
                     continue
 
-            subject_entry["components"].append(
-                {
-                    "name": row_component,
-                    "value": row_weightage,
-                    "numeric_value": self._to_number_or_none(numeric_obtained),
-                    "max_value": self._to_number_or_none(numeric_max),
-                }
-            )
+                columns = self._expand_row_cells(cells, header_count)
+                if len(columns) <= max(code_index, course_index, component_index, weightage_index):
+                    continue
 
-            if numeric_obtained is not None:
-                subject_entry["_total_obtained"] += numeric_obtained
-            if numeric_max is not None:
-                subject_entry["_total_max"] += numeric_max
+                row_code = columns[code_index].strip() if code_index < len(columns) else ""
+                row_name = columns[course_index].strip() if course_index < len(columns) else ""
+                row_component = columns[component_index].strip() if component_index < len(columns) else ""
+                row_weightage = columns[weightage_index].strip() if weightage_index < len(columns) else ""
+                row_units = columns[units_index].strip() if units_index is not None and units_index < len(columns) else ""
+
+                if row_code:
+                    current_code = row_code
+                if row_name:
+                    current_name = row_name
+                if row_units:
+                    current_units = row_units
+
+                if not current_code or not row_component:
+                    continue
+
+                normalized_code = self._normalize_code(current_code)
+                if not normalized_code:
+                    continue
+
+                if normalized_code not in subjects_by_code:
+                    parsed_units = self._parse_int(current_units)
+                    subjects_by_code[normalized_code] = {
+                        "code": normalized_code,
+                        "name": current_name or normalized_code,
+                        "subject_code": normalized_code,
+                        "subject_name": current_name or normalized_code,
+                        "units": parsed_units if parsed_units is not None else (current_units or None),
+                        "components": [],
+                        "_total_obtained": 0.0,
+                        "_total_max": 0.0,
+                        "_explicit_total": None,
+                    }
+                    subject_order.append(normalized_code)
+                else:
+                    if current_name:
+                        subjects_by_code[normalized_code]["name"] = current_name
+                        subjects_by_code[normalized_code]["subject_name"] = current_name
+                    if current_units:
+                        parsed_units = self._parse_int(current_units)
+                        subjects_by_code[normalized_code]["units"] = parsed_units if parsed_units is not None else current_units
+
+                subject_entry = subjects_by_code[normalized_code]
+                numeric_obtained, numeric_max = self._parse_component_weightage(row_weightage)
+
+                if row_component.lower().replace(" ", "") in {"total:", "total"}:
+                    subject_entry["_explicit_total"] = self._to_number_or_none(numeric_obtained)
+                    if numeric_max is not None:
+                        subject_entry["_total_max"] += numeric_max
+                    continue
+
+                existing_components = subject_entry.get("components", [])
+                if existing_components:
+                    previous = existing_components[-1]
+                    previous_name = str(previous.get("name") or "").strip().lower()
+                    previous_value = str(previous.get("value") or "").strip()
+                    if previous_name == row_component.strip().lower() and previous_value == row_weightage.strip():
+                        continue
+
+                subject_entry["components"].append(
+                    {
+                        "name": row_component,
+                        "value": row_weightage,
+                        "numeric_value": self._to_number_or_none(numeric_obtained),
+                        "max_value": self._to_number_or_none(numeric_max),
+                    }
+                )
+
+                if numeric_obtained is not None:
+                    subject_entry["_total_obtained"] += numeric_obtained
+                if numeric_max is not None:
+                    subject_entry["_total_max"] += numeric_max
+            except Exception as exc:
+                raise PortalNetworkError(
+                    f"Unable to parse consolidated marks row: {exc}",
+                    code="MARKS_PARSER_FAILURE",
+                    stage="MARKS_PARSE",
+                    retriable=False,
+                ) from exc
 
         subjects: list[dict[str, object]] = []
         for code in subject_order:
@@ -411,7 +522,12 @@ class PortalScraper:
             subjects.append(entry)
 
         if not subjects:
-            raise PortalNetworkError("Consolidated marks rows not found for the selected semester")
+            raise PortalNetworkError(
+                "Consolidated marks rows not found for the selected semester",
+                code="MARKS_ROWS_NOT_FOUND",
+                stage="MARKS_PARSE",
+                retriable=False,
+            )
 
         return subjects
 
@@ -572,7 +688,11 @@ class PortalScraper:
                 "student_name": student_name,
             }
         except requests.RequestException as exc:
-            raise PortalNetworkError(f"Unable to complete post-login navigation flow: {exc}") from exc
+            raise self._portal_network_error(
+                exc,
+                stage="POST_LOGIN_NAVIGATION",
+                message_prefix="Unable to complete post-login navigation flow",
+            ) from exc
 
     def _extract_student_name(self, html: str) -> str | None:
         soup = BeautifulSoup(html, "html.parser")
@@ -762,9 +882,10 @@ class PortalScraper:
             return html
 
         payload = self._extract_hidden_form_fields(html)
+        event_target = self._resolve_event_target(semester_dropdown) or "ddlSem"
         payload.update(
             {
-                "__EVENTTARGET": "ddlSem",
+                "__EVENTTARGET": event_target,
                 "__EVENTARGUMENT": "",
                 "ddlSem": requested_value,
             }
@@ -779,9 +900,24 @@ class PortalScraper:
                 headers={"Referer": attendance_url},
             )
             response.raise_for_status()
-            return response.text
+            switched_html = response.text
+            switched_semesters, switched_selected = self._extract_semesters(switched_html)
+            has_requested_semester = any(str(item.get("id") or "").strip() == requested_value for item in switched_semesters)
+            if has_requested_semester and switched_selected and switched_selected != requested_value:
+                raise PortalNetworkError(
+                    "Portal did not switch to requested semester",
+                    code="SEMESTER_SWITCH_MISMATCH",
+                    stage="ATTENDANCE_SWITCH_SEMESTER",
+                    retriable=False,
+                    http_status=502,
+                )
+            return switched_html
         except requests.RequestException as exc:
-            raise PortalNetworkError(f"Unable to switch semester: {exc}") from exc
+            raise self._portal_network_error(
+                exc,
+                stage="ATTENDANCE_SWITCH_SEMESTER",
+                message_prefix="Unable to switch semester",
+            ) from exc
 
     def _extract_semesters(self, html: str) -> tuple[list[dict[str, str]], str | None]:
         soup = BeautifulSoup(html, "html.parser")
@@ -835,7 +971,11 @@ class PortalScraper:
             )
             courses_response.raise_for_status()
         except requests.RequestException as exc:
-            raise PortalNetworkError(f"Unable to fetch Courses page from college portal: {exc}") from exc
+            raise self._portal_network_error(
+                exc,
+                stage="COURSES_FETCH",
+                message_prefix="Unable to fetch Courses page from college portal",
+            ) from exc
 
         html = courses_response.text
         if semester_id:
@@ -884,7 +1024,7 @@ class PortalScraper:
             return html
 
         select_name = (select_element.get("name") or "").strip()
-        event_target = (select_element.get("id") or select_name).strip()
+        event_target = self._resolve_event_target(select_element)
         if not select_name or not event_target:
             return None
 
@@ -906,9 +1046,36 @@ class PortalScraper:
                 headers={"Referer": page_url},
             )
             response.raise_for_status()
-            return response.text
+            switched_html = response.text
+            switched_semesters, switched_selected = self._extract_semesters(switched_html)
+            has_requested_semester = any(str(item.get("id") or "").strip() == requested_value for item in switched_semesters)
+            if has_requested_semester and switched_selected and switched_selected != requested_value:
+                raise PortalNetworkError(
+                    "Portal did not switch to requested semester",
+                    code="SEMESTER_SWITCH_MISMATCH",
+                    stage="SEMESTER_SWITCH",
+                    retriable=False,
+                    http_status=502,
+                )
+            return switched_html
         except requests.RequestException as exc:
-            raise PortalNetworkError(f"Unable to switch semester on Courses page: {exc}") from exc
+            raise self._portal_network_error(
+                exc,
+                stage="SEMESTER_SWITCH",
+                message_prefix="Unable to switch semester on portal page",
+            ) from exc
+
+    def _resolve_event_target(self, select_element) -> str:
+        select_name = str((select_element.get("name") or "")).strip()
+        select_id = str((select_element.get("id") or "")).strip()
+        onchange = str((select_element.get("onchange") or "")).strip()
+
+        if onchange:
+            match = re.search(r"__doPostBack\('(.*?)'", onchange)
+            if match and str(match.group(1) or "").strip():
+                return str(match.group(1)).strip()
+
+        return select_id or select_name
 
     def _parse_courses_map(self, html: str) -> dict[str, int]:
         soup = BeautifulSoup(html, "html.parser")
@@ -1063,7 +1230,11 @@ class PortalScraper:
             )
             response.raise_for_status()
         except requests.RequestException as exc:
-            raise PortalNetworkError(f"Unable to fetch subject history page: {exc}") from exc
+            raise self._portal_network_error(
+                exc,
+                stage="HISTORY_FETCH",
+                message_prefix="Unable to fetch subject history page",
+            ) from exc
 
         soup = BeautifulSoup(response.text, "html.parser")
         entries: list[dict[str, str | bool]] = []
@@ -1181,6 +1352,75 @@ class PortalScraper:
             if any(candidate in normalized for candidate in candidates):
                 return index
         return None
+
+    def _semester_cache_key(self, semester_id: str | None) -> str:
+        cleaned = str(semester_id or "").strip()
+        return cleaned or "__active__"
+
+    def _read_cache(self, cache: dict[str, tuple[float, dict]], key: str, ttl_seconds: float) -> dict | None:
+        if ttl_seconds <= 0:
+            return None
+
+        now = time.time()
+        entry = cache.get(key)
+        if entry is None:
+            return None
+
+        expires_at, payload = entry
+        if expires_at < now:
+            cache.pop(key, None)
+            return None
+
+        return copy.deepcopy(payload)
+
+    def _write_cache(self, cache: dict[str, tuple[float, dict]], key: str, payload: dict, ttl_seconds: float) -> None:
+        if not key:
+            return
+        if ttl_seconds <= 0:
+            return
+
+        cache[key] = (time.time() + ttl_seconds, copy.deepcopy(payload))
+
+    def _portal_network_error(self, exc: requests.RequestException, stage: str, message_prefix: str) -> PortalNetworkError:
+        upper_stage = (stage or "DATA_FETCH").strip().upper()
+
+        if isinstance(exc, requests.Timeout):
+            return PortalNetworkError(
+                f"{message_prefix}: request timed out",
+                code=f"{upper_stage}_TIMEOUT",
+                stage=upper_stage,
+                retriable=True,
+                http_status=504,
+            )
+
+        if isinstance(exc, requests.ConnectionError):
+            return PortalNetworkError(
+                f"{message_prefix}: connection failed",
+                code=f"{upper_stage}_CONNECTION_FAILED",
+                stage=upper_stage,
+                retriable=True,
+                http_status=502,
+            )
+
+        if isinstance(exc, requests.HTTPError):
+            status_code = int(getattr(getattr(exc, "response", None), "status_code", 0) or 0)
+            is_retriable = status_code >= 500 or status_code == 0
+            code_suffix = f"HTTP_{status_code}" if status_code else "HTTP_ERROR"
+            return PortalNetworkError(
+                f"{message_prefix}: upstream returned {status_code or 'an error'}",
+                code=f"{upper_stage}_{code_suffix}",
+                stage=upper_stage,
+                retriable=is_retriable,
+                http_status=status_code or 502,
+            )
+
+        return PortalNetworkError(
+            f"{message_prefix}: {exc}",
+            code=f"{upper_stage}_REQUEST_FAILED",
+            stage=upper_stage,
+            retriable=True,
+            http_status=502,
+        )
 
     def _normalize_code(self, code: str) -> str:
         return "".join((code or "").upper().split())

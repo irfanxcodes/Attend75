@@ -4,6 +4,7 @@ import AttendanceCircle from '../components/dashboard/AttendanceCircle'
 import Header from '../components/dashboard/Header'
 import PredictionCard from '../components/dashboard/PredictionCard'
 import SubjectList from '../components/dashboard/SubjectList'
+import InstagramButton from '../components/common/InstagramButton'
 import useAppStore from '../hooks/useAppStore'
 import { fetchAttendance, isSessionExpiredError } from '../services/attendanceApi'
 import { calculatePrediction, calculatePredictionFeasibility } from '../utils/calculations'
@@ -59,6 +60,7 @@ function Dashboard() {
       const result = await fetchAttendance({
         token: session.token,
         semesterId: session.selectedSemester,
+        forceRefresh: true,
       })
       actions.setAttendanceData(result.attendanceData)
       actions.setSessionSemesters(result.semesters, result.selectedSemester)
@@ -196,6 +198,11 @@ function Dashboard() {
         onChangeTarget={actions.setSelectedTarget}
       />
       <SubjectList subjects={subjects} />
+
+      <div className="flex items-center justify-end gap-2 px-1 pb-1">
+        <span className="text-xs text-[#D8D3E8]/80">Follow us</span>
+        <InstagramButton className="h-7 w-7 bg-[#3A315D]" iconClassName="h-3.5 w-3.5" />
+      </div>
     </section>
   )
 }

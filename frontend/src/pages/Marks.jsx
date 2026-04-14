@@ -159,6 +159,7 @@ function Marks() {
       const response = await fetchConsolidatedMarks({
         token: session.token,
         semesterId: session.selectedSemester,
+        forceRefresh,
       })
 
       const marksRows = Array.isArray(response?.subjects) ? response.subjects : []

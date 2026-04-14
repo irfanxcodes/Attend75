@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from db.models.portal_credential import PortalCredential
 from db.models.user import User
 from db.session import SessionLocal
+from scrapers.portal_scraper import PortalAuthenticationError
 from services.auth_service import login_user
 from services.crypto_service import credential_crypto_service
 from services.firebase_auth_service import FirebaseAuthError, verify_firebase_id_token
@@ -53,15 +54,31 @@ def firebase_login(id_token: str) -> dict:
         if credential is None:
             return {
                 "linked": False,
+                "relink_required": True,
                 "firebase_uid": user.firebase_uid,
                 "email": user.email,
                 "display_name": user.display_name,
             }
 
         portal_password = credential_crypto_service.decrypt(credential.encrypted_password)
-        guest_session = login_user(roll_number=credential.roll_number, password=portal_password)
+        try:
+            guest_session = login_user(roll_number=credential.roll_number, password=portal_password)
+        except PortalAuthenticationError as exc:
+            auth_code = str(getattr(exc, "code", "LOGIN_FAILED") or "LOGIN_FAILED").strip().upper()
+            if auth_code in {"INCORRECT_PASSWORD", "INVALID_USERNAME", "LOGIN_FAILED"}:
+                return {
+                    "linked": False,
+                    "relink_required": True,
+                    "relink_reason": "PORTAL_CREDENTIALS_INVALID",
+                    "firebase_uid": user.firebase_uid,
+                    "email": user.email,
+                    "display_name": user.display_name,
+                }
+            raise
+
         return {
             "linked": True,
+            "relink_required": False,
             "firebase_uid": user.firebase_uid,
             "email": user.email,
             "display_name": user.display_name,
@@ -94,6 +111,7 @@ def link_firebase_credentials(id_token: str, roll_number: str, password: str) ->
     guest_session = login_user(roll_number=cleaned_roll, password=password)
     return {
         "linked": True,
+        "relink_required": False,
         "firebase_uid": firebase_user.get("firebase_uid"),
         "email": firebase_user.get("email"),
         "display_name": firebase_user.get("display_name"),

@@ -10,6 +10,23 @@ class ApiError extends Error {
   }
 }
 
+const inFlightRequests = new Map()
+
+function withInFlightRequest(key, requestFactory) {
+  if (inFlightRequests.has(key)) {
+    return inFlightRequests.get(key)
+  }
+
+  const requestPromise = Promise.resolve()
+    .then(() => requestFactory())
+    .finally(() => {
+      inFlightRequests.delete(key)
+    })
+
+  inFlightRequests.set(key, requestPromise)
+  return requestPromise
+}
+
 function delay(ms) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms)
@@ -30,8 +47,14 @@ function buildFriendlyMessage(endpoint, code, fallbackMessage) {
   }
 
   if (endpoint === 'attendance' || endpoint === 'attendance-history' || endpoint === 'session-status') {
-    if (normalizedCode === 'SESSION_EXPIRED') {
+    if (normalizedCode.startsWith('SESSION_EXPIRED')) {
       return 'Your session has expired. Please log in again.'
+    }
+    if (normalizedCode === 'SEMESTER_SWITCH_MISMATCH') {
+      return 'Unable to switch semester on portal. Please try again.'
+    }
+    if (normalizedCode.includes('TIMEOUT')) {
+      return 'The portal is taking too long to respond. Please try again shortly.'
     }
     return 'Unable to load your data. Please try again later.'
   }
@@ -46,6 +69,9 @@ function buildFriendlyMessage(endpoint, code, fallbackMessage) {
     if (normalizedCode === 'PORTAL_DATA_FETCH_FAILED') {
       return 'Unable to load your data. Please try again later.'
     }
+    if (normalizedCode.includes('TIMEOUT')) {
+      return 'The portal timed out while signing in. Please try again.'
+    }
     return 'Unable to sign in with Google. Please try again.'
   }
 
@@ -59,6 +85,9 @@ function buildFriendlyMessage(endpoint, code, fallbackMessage) {
     if (normalizedCode === 'PORTAL_DATA_FETCH_FAILED') {
       return 'Unable to load your data. Please try again later.'
     }
+    if (normalizedCode.includes('TIMEOUT')) {
+      return 'The portal timed out while linking credentials. Please try again.'
+    }
     return 'Authentication failed. Please try again.'
   }
 
@@ -70,8 +99,21 @@ function buildFriendlyMessage(endpoint, code, fallbackMessage) {
   }
 
   if (endpoint === 'marks') {
-    if (normalizedCode === 'SESSION_EXPIRED') {
+    if (normalizedCode.startsWith('SESSION_EXPIRED')) {
       return 'Your session has expired. Please log in again.'
+    }
+    if (
+      normalizedCode === 'MARKS_TABLE_NOT_FOUND' ||
+      normalizedCode === 'MARKS_ROWS_NOT_FOUND' ||
+      normalizedCode === 'MARKS_EMPTY_RESPONSE'
+    ) {
+      return 'Marks are not available yet for this semester.'
+    }
+    if (normalizedCode === 'MARKS_HTML_STRUCTURE_CHANGED' || normalizedCode === 'MARKS_PARSER_FAILURE') {
+      return 'Portal marks format changed. Please try again later.'
+    }
+    if (normalizedCode.includes('TIMEOUT')) {
+      return 'The portal is taking too long to load marks. Please try again shortly.'
     }
     return 'Unable to load marks right now. Please try again.'
   }
@@ -139,7 +181,7 @@ async function parseApiResponse(response, endpoint = 'generic') {
 }
 
 export function isSessionExpiredError(error) {
-  return (error?.code || '').toUpperCase() === 'SESSION_EXPIRED'
+  return (error?.code || '').toUpperCase().startsWith('SESSION_EXPIRED')
 }
 
 export function isFirebaseAuthError(error) {
@@ -194,17 +236,20 @@ export async function fetchSessionStatus(token) {
     return 'expired'
   }
 
-  const response = await fetch(`${API_BASE_URL}/session/status`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token: cleanedToken }),
-  })
+  const requestKey = `session-status:${cleanedToken}`
+  return withInFlightRequest(requestKey, async () => {
+    const response = await fetch(`${API_BASE_URL}/session/status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: cleanedToken }),
+    })
 
-  const data = await parseApiResponse(response, 'session-status')
-  return data?.session_status || 'unknown'
+    const data = await parseApiResponse(response, 'session-status')
+    return data?.session_status || 'unknown'
+  })
 }
 
-export async function fetchAttendance({ token, semesterId }) {
+export async function fetchAttendance({ token, semesterId, forceRefresh = false }) {
   if (!token) {
     throw new ApiError('Your session has expired. Please log in again.', {
       code: 'SESSION_EXPIRED',
@@ -212,24 +257,27 @@ export async function fetchAttendance({ token, semesterId }) {
     })
   }
 
-  const response = await fetch(`${API_BASE_URL}/attendance`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, semester_id: semesterId || null }),
+  const requestKey = `attendance:${token}:${semesterId || ''}:${forceRefresh ? 'fresh' : 'cache'}`
+  return withInFlightRequest(requestKey, async () => {
+    const response = await fetch(`${API_BASE_URL}/attendance`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, semester_id: semesterId || null, force_refresh: Boolean(forceRefresh) }),
+    })
+
+    const data = await parseApiResponse(response, 'attendance')
+    const normalized = normalizeAttendancePayload(data)
+
+    return {
+      attendanceData: {
+        subjects: normalized.subjects,
+        history: normalized.history,
+        feasibility: normalized.feasibility,
+      },
+      semesters: normalized.semesters,
+      selectedSemester: normalized.selectedSemester,
+    }
   })
-
-  const data = await parseApiResponse(response, 'attendance')
-  const normalized = normalizeAttendancePayload(data)
-
-  return {
-    attendanceData: {
-      subjects: normalized.subjects,
-      history: normalized.history,
-      feasibility: normalized.feasibility,
-    },
-    semesters: normalized.semesters,
-    selectedSemester: normalized.selectedSemester,
-  }
 }
 
 export async function fetchAttendanceHistory({ token, semesterId, date }) {
@@ -244,29 +292,32 @@ export async function fetchAttendanceHistory({ token, semesterId, date }) {
     return { entries: [] }
   }
 
-  const response = await fetch(`${API_BASE_URL}/attendance/history`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, semester_id: semesterId || null, date }),
+  const requestKey = `attendance-history:${token}:${semesterId || ''}:${date}`
+  return withInFlightRequest(requestKey, async () => {
+    const response = await fetch(`${API_BASE_URL}/attendance/history`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, semester_id: semesterId || null, date }),
+    })
+
+    const data = await parseApiResponse(response, 'attendance-history')
+    const entries = Array.isArray(data?.entries) ? data.entries : []
+
+    return {
+      date: data?.date || date,
+      selectedSemester: data?.selected_semester || semesterId || null,
+      entries: entries.map((entry) => ({
+        date: entry?.date,
+        subject: entry?.subject_abbr || entry?.subject || entry?.code || 'Subject',
+        code: entry?.code || null,
+        status: entry?.attended ? 'Present' : 'Absent',
+        attended: Boolean(entry?.attended),
+      })),
+    }
   })
-
-  const data = await parseApiResponse(response, 'attendance-history')
-  const entries = Array.isArray(data?.entries) ? data.entries : []
-
-  return {
-    date: data?.date || date,
-    selectedSemester: data?.selected_semester || semesterId || null,
-    entries: entries.map((entry) => ({
-      date: entry?.date,
-      subject: entry?.subject_abbr || entry?.subject || entry?.code || 'Subject',
-      code: entry?.code || null,
-      status: entry?.attended ? 'Present' : 'Absent',
-      attended: Boolean(entry?.attended),
-    })),
-  }
 }
 
-export async function fetchConsolidatedMarks({ token, semesterId }) {
+export async function fetchConsolidatedMarks({ token, semesterId, forceRefresh = false }) {
   if (!token) {
     throw new ApiError('Your session has expired. Please log in again.', {
       code: 'SESSION_EXPIRED',
@@ -274,13 +325,16 @@ export async function fetchConsolidatedMarks({ token, semesterId }) {
     })
   }
 
-  const response = await fetch(`${API_BASE_URL}/marks/consolidated`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, semester_id: semesterId || null }),
-  })
+  const requestKey = `marks:${token}:${semesterId || ''}:${forceRefresh ? 'fresh' : 'cache'}`
+  return withInFlightRequest(requestKey, async () => {
+    const response = await fetch(`${API_BASE_URL}/marks/consolidated`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, semester_id: semesterId || null, force_refresh: Boolean(forceRefresh) }),
+    })
 
-  return parseApiResponse(response, 'marks')
+    return parseApiResponse(response, 'marks')
+  })
 }
 
 export async function submitFeedback(message, userName = null) {

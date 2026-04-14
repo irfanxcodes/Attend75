@@ -38,6 +38,12 @@ def _data_error_response(error_code: str, status_code: int = 502) -> JSONRespons
     message_map = {
         "SESSION_EXPIRED": "Your session has expired. Please log in again.",
         "DATA_FETCH_FAILED": "Unable to load your data. Please try again later.",
+        "MARKS_TABLE_NOT_FOUND": "Marks are not available right now for this semester.",
+        "MARKS_ROWS_NOT_FOUND": "Marks are not available right now for this semester.",
+        "MARKS_EMPTY_RESPONSE": "Portal returned an empty marks response. Please try again.",
+        "MARKS_HTML_STRUCTURE_CHANGED": "Portal marks format changed. Please try again later.",
+        "MARKS_PARSER_FAILURE": "Unable to parse marks data from portal right now.",
+        "SEMESTER_SWITCH_MISMATCH": "Unable to switch semester on portal. Please retry.",
     }
     return JSONResponse(
         status_code=status_code,
@@ -82,17 +88,22 @@ async def attendance(payload: AttendanceRequest):
             fetch_attendance_for_semester,
             payload.token,
             payload.semester_id,
+            payload.force_refresh,
         )
         return ApiResponse(status="success", message="Attendance fetched", data=data)
     except PortalAuthenticationError as exc:
         error_code = getattr(exc, "code", "SESSION_EXPIRED")
         logger.warning("Attendance auth failure [code=%s, detail=%s]", error_code, str(exc))
-        if error_code == "SESSION_EXPIRED":
-            return _data_error_response("SESSION_EXPIRED", status_code=401)
-        return _data_error_response("DATA_FETCH_FAILED", status_code=502)
+        if str(error_code).strip().upper().startswith("SESSION_EXPIRED"):
+            return _data_error_response(error_code, status_code=401)
+        return _data_error_response(error_code, status_code=502)
     except PortalNetworkError as exc:
-        logger.exception("Attendance portal/network failure")
-        return _data_error_response("DATA_FETCH_FAILED", status_code=502)
+        error_code = getattr(exc, "code", "DATA_FETCH_FAILED")
+        logger.exception("Attendance portal/network failure [code=%s]", error_code)
+        status_code = int(getattr(exc, "http_status", 502) or 502)
+        if status_code < 400:
+            status_code = 502
+        return _data_error_response(error_code, status_code=status_code)
     except Exception:
         logger.exception("Unexpected attendance fetch error")
         return _data_error_response("DATA_FETCH_FAILED", status_code=500)
@@ -111,12 +122,16 @@ async def attendance_history(payload: AttendanceHistoryRequest):
     except PortalAuthenticationError as exc:
         error_code = getattr(exc, "code", "SESSION_EXPIRED")
         logger.warning("Attendance history auth failure [code=%s, detail=%s]", error_code, str(exc))
-        if error_code == "SESSION_EXPIRED":
-            return _data_error_response("SESSION_EXPIRED", status_code=401)
-        return _data_error_response("DATA_FETCH_FAILED", status_code=502)
+        if str(error_code).strip().upper().startswith("SESSION_EXPIRED"):
+            return _data_error_response(error_code, status_code=401)
+        return _data_error_response(error_code, status_code=502)
     except PortalNetworkError as exc:
-        logger.exception("Attendance history portal/network failure")
-        return _data_error_response("DATA_FETCH_FAILED", status_code=502)
+        error_code = getattr(exc, "code", "DATA_FETCH_FAILED")
+        logger.exception("Attendance history portal/network failure [code=%s]", error_code)
+        status_code = int(getattr(exc, "http_status", 502) or 502)
+        if status_code < 400:
+            status_code = 502
+        return _data_error_response(error_code, status_code=status_code)
     except Exception:
         logger.exception("Unexpected attendance history fetch error")
         return _data_error_response("DATA_FETCH_FAILED", status_code=500)
@@ -145,17 +160,22 @@ async def marks_consolidated(payload: AttendanceRequest):
             fetch_consolidated_marks,
             payload.token,
             payload.semester_id,
+            payload.force_refresh,
         )
         return ApiResponse(status="success", message="Consolidated marks fetched", data=data)
     except PortalAuthenticationError as exc:
         error_code = getattr(exc, "code", "SESSION_EXPIRED")
         logger.warning("Consolidated marks auth failure [code=%s, detail=%s]", error_code, str(exc))
-        if error_code == "SESSION_EXPIRED":
-            return _data_error_response("SESSION_EXPIRED", status_code=401)
-        return _data_error_response("DATA_FETCH_FAILED", status_code=502)
-    except PortalNetworkError:
-        logger.exception("Consolidated marks portal/network failure")
-        return _data_error_response("DATA_FETCH_FAILED", status_code=502)
+        if str(error_code).strip().upper().startswith("SESSION_EXPIRED"):
+            return _data_error_response(error_code, status_code=401)
+        return _data_error_response(error_code, status_code=502)
+    except PortalNetworkError as exc:
+        error_code = getattr(exc, "code", "DATA_FETCH_FAILED")
+        logger.exception("Consolidated marks portal/network failure [code=%s]", error_code)
+        status_code = int(getattr(exc, "http_status", 502) or 502)
+        if status_code < 400:
+            status_code = 502
+        return _data_error_response(error_code, status_code=status_code)
     except Exception:
         logger.exception("Unexpected consolidated marks fetch error")
         return _data_error_response("DATA_FETCH_FAILED", status_code=500)

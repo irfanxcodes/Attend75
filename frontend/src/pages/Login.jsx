@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import InstagramButton from '../components/common/InstagramButton'
 import useAppStore from '../hooks/useAppStore'
 import { isFirebaseAuthError, isPortalCredentialError, linkFirebaseCredentials, login, loginWithFirebase } from '../services/attendanceApi'
 import { signInWithGoogleAndGetIdToken, signOutFirebaseUser } from '../services/firebaseAuth'
@@ -286,6 +287,10 @@ function Login() {
           </button>
 
           <p className="mt-2.5 text-center text-xs text-slate-300"> Yours crendentials are only used to retrieve your attendance</p>
+          <div className="mt-3 flex items-center justify-center gap-2">
+            <span className="text-[11px] text-slate-300">Follow us on</span>
+            <InstagramButton className="h-7 w-7 bg-[#5B5485]" iconClassName="h-3.5 w-3.5" />
+          </div>
         </div>
       </form>
 

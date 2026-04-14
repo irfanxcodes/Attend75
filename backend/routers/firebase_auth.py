@@ -38,13 +38,14 @@ async def login_with_firebase(payload: FirebaseLoginRequest):
                 "message": "Your linked portal credentials need to be updated.",
             },
         )
-    except PortalNetworkError:
-        logger.exception("Firebase login portal data fetch failure")
+    except PortalNetworkError as exc:
+        error_code = getattr(exc, "code", "PORTAL_DATA_FETCH_FAILED")
+        logger.exception("Firebase login portal data fetch failure [code=%s]", error_code)
         return JSONResponse(
             status_code=502,
             content={
                 "status": "error",
-                "error_code": "PORTAL_DATA_FETCH_FAILED",
+                "error_code": error_code,
                 "message": "Unable to load your data. Please try again later.",
             },
         )
@@ -90,13 +91,14 @@ async def link_credentials(payload: FirebaseLinkCredentialsRequest):
                 "message": "Invalid portal credentials. Please check and try again.",
             },
         )
-    except PortalNetworkError:
-        logger.exception("Firebase link portal data fetch failure")
+    except PortalNetworkError as exc:
+        error_code = getattr(exc, "code", "PORTAL_DATA_FETCH_FAILED")
+        logger.exception("Firebase link portal data fetch failure [code=%s]", error_code)
         return JSONResponse(
             status_code=502,
             content={
                 "status": "error",
-                "error_code": "PORTAL_DATA_FETCH_FAILED",
+                "error_code": error_code,
                 "message": "Unable to load your data. Please try again later.",
             },
         )
