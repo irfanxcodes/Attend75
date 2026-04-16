@@ -3,6 +3,7 @@ import os
 import threading
 
 from scrapers.portal_scraper import PortalAuthenticationError, PortalNetworkError, PortalScraper
+from services.feature_usage_event_service import record_feature_usage_event
 from services.feature_usage_metrics import observe_history_open, observe_marks_open, observe_sync_attendance
 from services.scraper_metrics import observe_scrape
 from services.session_store import session_store
@@ -234,6 +235,44 @@ def fetch_consolidated_marks(token: str, semester_id: str | None, force_refresh:
         raise
 
 
+def fetch_faculty_contacts(token: str, semester_id: str | None, force_refresh: bool = False) -> dict:
+    record = session_store.get(token)
+    if record is None:
+        raise PortalAuthenticationError("Session token not found while fetching faculty contacts", code="SESSION_EXPIRED")
+
+    started = time.perf_counter()
+    try:
+        payload = _run_with_network_retry(
+            lambda: record.scraper.fetch_faculty_contacts(
+                semester_id=semester_id,
+                force_refresh=force_refresh,
+            )
+        )
+        observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
+        return payload
+    except PortalNetworkError as exc:
+        observe_scrape(
+            success=False,
+            duration_ms=(time.perf_counter() - started) * 1000,
+            failure_kind="network",
+            failure_code=getattr(exc, "code", None),
+            failure_stage=getattr(exc, "stage", None),
+            retriable=getattr(exc, "retriable", None),
+        )
+        raise
+    except PortalAuthenticationError as exc:
+        observe_scrape(
+            success=False,
+            duration_ms=(time.perf_counter() - started) * 1000,
+            failure_kind="auth",
+            failure_code=getattr(exc, "code", None),
+        )
+        raise
+    except Exception:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000, failure_kind="unknown")
+        raise
+
+
 def get_session_status(token: str) -> dict:
     record = session_store.get(token)
     if record is None:
@@ -265,3 +304,27 @@ def get_session_status(token: str) -> dict:
     except Exception:
         observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000, failure_kind="unknown")
         return {"session_status": "unknown"}
+
+
+def track_feature_usage_event(
+    token: str,
+    feature_name: str,
+    action_type: str,
+    subject_code: str | None = None,
+    subject_name: str | None = None,
+    attendance_date: str | None = None,
+) -> dict:
+    record = session_store.get(token)
+    if record is None:
+        raise PortalAuthenticationError("Session token not found while tracking feature usage", code="SESSION_EXPIRED")
+
+    record_feature_usage_event(
+        feature_name=feature_name,
+        action_type=action_type,
+        user_identifier=record.roll_number,
+        subject_code=subject_code,
+        subject_name=subject_name,
+        attendance_date=attendance_date,
+    )
+
+    return {"tracked": True}

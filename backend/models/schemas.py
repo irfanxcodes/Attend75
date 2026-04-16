@@ -78,6 +78,31 @@ class AttendanceHistoryRequest(BaseModel):
         return cleaned
 
 
+class FeatureUsageEventRequest(BaseModel):
+    token: str = Field(..., description="Session token from /login")
+    feature_name: Literal["mail_faculty"] = Field(..., description="Feature identifier")
+    action_type: Literal["compose_opened", "send_confirmed"] = Field(..., description="Tracked action type")
+    subject_code: str | None = Field(default=None, description="Optional subject code")
+    subject_name: str | None = Field(default=None, description="Optional subject name")
+    attendance_date: str | None = Field(default=None, description="Optional attendance date in YYYY-MM-DD")
+
+    @field_validator("token")
+    @classmethod
+    def validate_event_token(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("token must not be empty")
+        return cleaned
+
+    @field_validator("subject_code", "subject_name", "attendance_date")
+    @classmethod
+    def normalize_optional_event_fields(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
+
+
 class FeedbackRequest(BaseModel):
     message: str = Field(..., description="User feedback text")
     user_name: str | None = Field(default=None, description="Display name of feedback submitter")

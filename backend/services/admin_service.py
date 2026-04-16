@@ -13,6 +13,7 @@ from sqlalchemy import func, text
 from db.models.portal_credential import PortalCredential
 from db.models.user import User
 from db.session import SessionLocal
+from services.feature_usage_event_service import get_mail_faculty_usage_summary
 from services.feature_usage_metrics import get_feature_usage_snapshot
 from services.feedback_service import feedback_count, list_feedback, update_feedback_status
 from services.request_metrics import get_request_metrics_snapshot
@@ -361,6 +362,7 @@ def get_admin_overview() -> dict:
     request_metrics = get_request_metrics_snapshot()
     scraper_metrics = get_scraper_metrics_snapshot()
     feature_usage = get_feature_usage_snapshot()
+    mail_faculty_usage = get_mail_faculty_usage_summary(limit_subjects=5)
     request_failure_rate_percent = float(request_metrics.get("requestFailureRatePercent", 0.0))
     app_error_rate_percent = float(request_metrics.get("appErrorRatePercent", 0.0))
     failed_request_insights = _build_failed_request_insights(request_metrics)
@@ -493,6 +495,10 @@ def get_admin_overview() -> dict:
             "mostViewedSemesterLabel": feature_usage.get("mostViewedSemesterLabel"),
             "mostViewedSemesterCount": int(feature_usage.get("mostViewedSemesterCount", 0)),
             "totalSemesterInteractions": int(feature_usage.get("totalSemesterInteractions", 0)),
+            "mailFacultyComposeOpenedCount": int(mail_faculty_usage.get("composeOpenedCount", 0)),
+            "mailFacultySendConfirmedCount": int(mail_faculty_usage.get("sendConfirmedCount", 0)),
+            "mailFacultyUniqueUsersCount": int(mail_faculty_usage.get("uniqueUsersCount", 0)),
+            "mailFacultyTopSubjects": mail_faculty_usage.get("topSubjects", []),
             "nonWorkingPages": non_working_pages,
             "clientSideIssues": client_side_issues,
         },

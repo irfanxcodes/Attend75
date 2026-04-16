@@ -118,6 +118,16 @@ function buildFriendlyMessage(endpoint, code, fallbackMessage) {
     return 'Unable to load marks right now. Please try again.'
   }
 
+  if (endpoint === 'faculty-contacts') {
+    if (normalizedCode.startsWith('SESSION_EXPIRED')) {
+      return 'Your session has expired. Please log in again.'
+    }
+    if (normalizedCode.includes('TIMEOUT')) {
+      return 'Faculty details are taking too long to load. Please try again.'
+    }
+    return 'Unable to load faculty email right now. Please try again.'
+  }
+
   return fallbackMessage || 'Something went wrong during sign-in.'
 }
 
@@ -335,6 +345,67 @@ export async function fetchConsolidatedMarks({ token, semesterId, forceRefresh =
 
     return parseApiResponse(response, 'marks')
   })
+}
+
+export async function fetchFacultyContacts({ token, semesterId, forceRefresh = false }) {
+  if (!token) {
+    throw new ApiError('Your session has expired. Please log in again.', {
+      code: 'SESSION_EXPIRED',
+      endpoint: 'faculty-contacts',
+    })
+  }
+
+  const requestKey = `faculty-contacts:${token}:${semesterId || ''}:${forceRefresh ? 'fresh' : 'cache'}`
+  return withInFlightRequest(requestKey, async () => {
+    const response = await fetch(`${API_BASE_URL}/faculty/contacts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, semester_id: semesterId || null, force_refresh: Boolean(forceRefresh) }),
+    })
+
+    const data = await parseApiResponse(response, 'faculty-contacts')
+    const contacts = Array.isArray(data?.faculty_contacts) ? data.faculty_contacts : []
+
+    return {
+      contacts,
+      selectedSemester: data?.selected_semester || semesterId || null,
+      semesters: Array.isArray(data?.semesters) ? data.semesters : [],
+    }
+  })
+}
+
+export async function trackFeatureUsageEvent({
+  token,
+  featureName,
+  actionType,
+  subjectCode = null,
+  subjectName = null,
+  attendanceDate = null,
+}) {
+  if (!token) {
+    throw new ApiError('Your session has expired. Please log in again.', {
+      code: 'SESSION_EXPIRED',
+      endpoint: 'feature-usage-track',
+    })
+  }
+
+  const payload = {
+    token,
+    feature_name: String(featureName || '').trim(),
+    action_type: String(actionType || '').trim(),
+    subject_code: subjectCode ? String(subjectCode).trim() : null,
+    subject_name: subjectName ? String(subjectName).trim() : null,
+    attendance_date: attendanceDate ? String(attendanceDate).trim() : null,
+  }
+
+  const response = await fetch(`${API_BASE_URL}/feature-usage/track`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    keepalive: true,
+  })
+
+  return parseApiResponse(response, 'feature-usage-track')
 }
 
 export async function submitFeedback(message, userName = null) {

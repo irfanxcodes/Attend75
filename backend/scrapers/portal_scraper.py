@@ -2,6 +2,7 @@ import os
 import re
 import time
 import copy
+import logging
 from datetime import datetime
 from urllib.parse import urljoin
 
@@ -36,6 +37,7 @@ class PortalScraper:
     PASSWORD_MAX_LENGTH = 10
 
     def __init__(self, session: requests.Session | None = None):
+        self._logger = logging.getLogger(__name__)
         self.session = session or requests.Session()
         self.base_url = os.getenv("PORTAL_BASE_URL", "http://111.93.16.209/sz")
         self.login_path = os.getenv("PORTAL_LOGIN_PATH", "login.aspx")
@@ -56,6 +58,8 @@ class PortalScraper:
         self._marks_cache_ttl_seconds = max(float(os.getenv("PORTAL_MARKS_CACHE_TTL_SECONDS", "45")), 0.0)
         self._attendance_cache: dict[str, tuple[float, dict]] = {}
         self._marks_cache: dict[str, tuple[float, dict]] = {}
+        self._faculty_cache_ttl_seconds = max(float(os.getenv("PORTAL_FACULTY_CACHE_TTL_SECONDS", "60")), 0.0)
+        self._faculty_cache: dict[str, tuple[float, dict]] = {}
         self._history_cache: dict[str, dict[str, list[dict[str, str | bool]]]] = {}
         self.session.headers.update(
             {
@@ -284,7 +288,56 @@ class PortalScraper:
             self._write_cache(self._marks_cache, str(selected_semester).strip(), payload, self._marks_cache_ttl_seconds)
         return payload
 
+    def fetch_faculty_contacts(self, semester_id: str | None = None, force_refresh: bool = False) -> dict:
+        cache_key = self._semester_cache_key(semester_id)
+        if not force_refresh:
+            cached_payload = self._read_cache(self._faculty_cache, cache_key, self._faculty_cache_ttl_seconds)
+            if cached_payload is not None:
+                return cached_payload
+
+        faculty_url = self._build_url("CommonS.aspx?qs=mf")
+
+        try:
+            response = self.session.get(
+                faculty_url,
+                timeout=self.request_timeout,
+                headers={"Referer": self._build_url("Index.aspx")},
+            )
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            raise self._portal_network_error(
+                exc,
+                stage="FACULTY_FETCH",
+                message_prefix="Unable to fetch faculty page from college portal",
+            ) from exc
+
+        html = response.text
+        if semester_id:
+            switched_html = self._switch_semester_on_page(html, faculty_url, semester_id)
+            if switched_html is not None:
+                html = switched_html
+
+        if self._looks_like_login_page(html):
+            raise PortalAuthenticationError(
+                "Portal returned login page while loading faculty contacts",
+                code="SESSION_EXPIRED",
+            )
+
+        semesters, selected_semester = self._extract_semesters(html)
+        contacts = self._parse_faculty_contacts(html)
+        payload = {
+            "faculty_contacts": contacts,
+            "semesters": semesters,
+            "selected_semester": selected_semester,
+        }
+        self._write_cache(self._faculty_cache, cache_key, payload, self._faculty_cache_ttl_seconds)
+        if selected_semester:
+            self._write_cache(self._faculty_cache, str(selected_semester).strip(), payload, self._faculty_cache_ttl_seconds)
+        return payload
+
     def _load_consolidated_marks_page(self) -> tuple[str, str]:
+        self._prime_marks_navigation_context()
+
         env_path = (os.getenv("PORTAL_CONSOLIDATED_MARKS_PATH", "CommonS.aspx?qs=cmarks") or "").strip()
         candidate_paths: list[str] = []
         if self._preferred_marks_path:
@@ -302,10 +355,22 @@ class PortalScraper:
             ]
         )
 
+        candidate_paths.extend(self._discover_marks_candidate_paths_from_attendance())
+
         seen_paths: set[str] = set()
         first_login_html: str | None = None
         attempted_count = 0
         effective_max_attempts = self.max_marks_path_attempts or len(candidate_paths)
+        saw_non_404_response = False
+        probe_logs: list[str] = []
+
+        def _append_probe_log(path_value: str, status: str, *, final_url: str | None = None, marker: str | None = None) -> None:
+            entry = f"{path_value} -> {status}"
+            if final_url:
+                entry += f" [{final_url}]"
+            if marker:
+                entry += f" ({marker})"
+            probe_logs.append(entry)
 
         for path in candidate_paths:
             normalized_path = str(path or "").strip()
@@ -326,6 +391,7 @@ class PortalScraper:
                 response.raise_for_status()
             except requests.RequestException as exc:
                 status_code = int(getattr(getattr(exc, "response", None), "status_code", 0) or 0)
+                _append_probe_log(normalized_path, str(status_code or "REQUEST_ERROR"), marker="request-exception")
                 # 404 is expected on some portal paths; continue probing alternates.
                 if status_code == 404:
                     continue
@@ -339,7 +405,12 @@ class PortalScraper:
                 continue
 
             html = response.text
+            response_status = int(getattr(response, "status_code", 0) or 0)
+            final_url = str(getattr(response, "url", "") or "")
+            if response_status and response_status != 404:
+                saw_non_404_response = True
             if not str(html or "").strip():
+                _append_probe_log(normalized_path, str(response_status or "EMPTY"), final_url=final_url, marker="empty-response")
                 raise PortalNetworkError(
                     "Consolidated marks page returned an empty response",
                     code="MARKS_EMPTY_RESPONSE",
@@ -348,22 +419,40 @@ class PortalScraper:
                     http_status=502,
                 )
 
-            final_url = str(getattr(response, "url", "") or "").lower()
+            final_url_lower = final_url.lower()
             if "login.aspx" in final_url or self._looks_like_login_page(html):
                 first_login_html = html
+                _append_probe_log(normalized_path, str(response_status or "200"), final_url=final_url, marker="redirected-to-login")
                 continue
 
-            if self._find_consolidated_marks_table(BeautifulSoup(html, "html.parser")) is not None:
+            has_marks_table = self._find_consolidated_marks_table(BeautifulSoup(html, "html.parser")) is not None
+            if has_marks_table:
                 self._preferred_marks_path = normalized_path
+                _append_probe_log(normalized_path, str(response_status or "200"), final_url=final_url, marker="marks-table-found")
+                self._logger.warning("Marks path probe success: %s", "; ".join(probe_logs[-8:]))
                 return html, url
 
+            _append_probe_log(normalized_path, str(response_status or "200"), final_url=final_url, marker="no-marks-table")
+
         if first_login_html is not None:
+            self._logger.warning("Marks path probes ended at login redirect: %s", "; ".join(probe_logs[-12:]))
             raise PortalAuthenticationError(
                 "Portal returned login page while loading consolidated marks",
                 code="SESSION_EXPIRED_REDIRECTED_TO_LOGIN",
             )
 
+        if saw_non_404_response:
+            self._logger.warning("Marks path probes reached pages without marks table: %s", "; ".join(probe_logs[-12:]))
+            raise PortalNetworkError(
+                "Consolidated marks page returned reachable responses but no marks table was found",
+                code="MARKS_TABLE_NOT_FOUND",
+                stage="MARKS_PARSE",
+                retriable=False,
+                http_status=502,
+            )
+
         if attempted_count > 0:
+            self._logger.warning("Marks path probes not found (404 across candidates): %s", "; ".join(probe_logs[-12:]))
             raise PortalNetworkError(
                 "Consolidated marks page paths were not found on portal",
                 code="MARKS_PAGE_PATHS_NOT_FOUND",
@@ -378,6 +467,50 @@ class PortalScraper:
             stage="MARKS_PARSE",
             retriable=False,
         )
+
+    def _prime_marks_navigation_context(self) -> None:
+        # Some portal deployments expose marks routes only after index/menu navigation.
+        for path in ["Index.aspx", "SDB.aspx"]:
+            try:
+                self.session.get(
+                    self._build_url(path),
+                    timeout=self.request_timeout,
+                    headers={"Referer": self._build_url("Index.aspx")},
+                )
+            except requests.RequestException:
+                continue
+
+    def _discover_marks_candidate_paths_from_attendance(self) -> list[str]:
+        attendance_url = self._build_url("CommonS.aspx?qs=ap")
+        discovered: list[str] = []
+        seen: set[str] = set()
+
+        try:
+            response = self.session.get(
+                attendance_url,
+                timeout=self.marks_request_timeout,
+                headers={"Referer": self._build_url("Index.aspx")},
+            )
+            response.raise_for_status()
+        except requests.RequestException:
+            return discovered
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        for anchor in soup.find_all("a"):
+            href = str(anchor.get("href") or "").strip()
+            if not href:
+                continue
+
+            href_lower = href.lower()
+            if "marks" not in href_lower and "qs=cm" not in href_lower and "qs=cml" not in href_lower and "qs=cmarks" not in href_lower:
+                continue
+
+            normalized = href.lstrip("/")
+            if normalized and normalized not in seen:
+                seen.add(normalized)
+                discovered.append(normalized)
+
+        return discovered
 
     def _find_consolidated_marks_table(self, soup: BeautifulSoup):
         expected_headers = ["code", "units", "component", "weightage"]
@@ -570,6 +703,58 @@ class PortalScraper:
             columns.extend([""] * (header_count - len(columns)))
 
         return columns[:header_count]
+
+    def _parse_faculty_contacts(self, html: str) -> list[dict[str, str]]:
+        if not str(html or "").strip():
+            return []
+
+        soup = BeautifulSoup(html, "html.parser")
+        email_regex = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
+        contacts_by_code: dict[str, dict[str, str]] = {}
+
+        for table in soup.find_all("table"):
+            headers = [th.get_text(" ", strip=True).lower() for th in table.find_all("th")]
+            if not headers:
+                continue
+
+            code_index = self._find_column_index(headers, ["code", "course code", "subject code"])
+            faculty_index = self._find_column_index(headers, ["faculty", "teacher", "staff", "name"])
+            email_index = self._find_column_index(headers, ["email", "e-mail", "mail"])
+
+            if code_index is None or email_index is None:
+                continue
+
+            for row in table.find_all("tr"):
+                cells = row.find_all("td")
+                if not cells:
+                    continue
+
+                columns = self._expand_row_cells(cells, len(headers))
+                if len(columns) <= max(code_index, email_index):
+                    continue
+
+                raw_code = columns[code_index].strip() if code_index < len(columns) else ""
+                subject_code = self._normalize_code(raw_code)
+                if not subject_code:
+                    continue
+
+                raw_email = columns[email_index].strip() if email_index < len(columns) else ""
+                match = re.search(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", raw_email)
+                faculty_email = (match.group(0) if match else raw_email).strip().lower()
+                if not email_regex.match(faculty_email):
+                    continue
+
+                faculty_name = ""
+                if faculty_index is not None and faculty_index < len(columns):
+                    faculty_name = columns[faculty_index].strip()
+
+                contacts_by_code[subject_code] = {
+                    "subject_code": subject_code,
+                    "faculty_name": faculty_name,
+                    "faculty_email": faculty_email,
+                }
+
+        return list(contacts_by_code.values())
 
     def _clean_cell_text(self, value: str) -> str:
         cleaned = (value or "").replace("\xa0", " ").strip()

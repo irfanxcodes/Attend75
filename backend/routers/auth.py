@@ -4,14 +4,16 @@ from fastapi import APIRouter
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
-from models.schemas import ApiResponse, AttendanceHistoryRequest, AttendanceRequest, LoginRequest, SessionStatusRequest
+from models.schemas import ApiResponse, AttendanceHistoryRequest, AttendanceRequest, FeatureUsageEventRequest, LoginRequest, SessionStatusRequest
 from scrapers.portal_scraper import PortalAuthenticationError, PortalNetworkError
 from services.auth_service import (
     fetch_attendance_for_semester,
     fetch_consolidated_marks,
+    fetch_faculty_contacts,
     fetch_subject_history,
     get_session_status,
     login_user,
+    track_feature_usage_event,
 )
 
 router = APIRouter(tags=["auth"])
@@ -44,6 +46,9 @@ def _data_error_response(error_code: str, status_code: int = 502) -> JSONRespons
         "MARKS_PAGE_PATHS_NOT_FOUND": "Marks page is currently unavailable on portal. Please try again later.",
         "MARKS_HTML_STRUCTURE_CHANGED": "Portal marks format changed. Please try again later.",
         "MARKS_PARSER_FAILURE": "Unable to parse marks data from portal right now.",
+        "FACULTY_FETCH_TIMEOUT": "Faculty details are taking too long to load. Please try again.",
+        "FACULTY_TABLE_NOT_FOUND": "Faculty details are not available right now.",
+        "FEATURE_USAGE_TRACK_FAILED": "Unable to track feature usage right now.",
         "SEMESTER_SWITCH_MISMATCH": "Unable to switch semester on portal. Please retry.",
     }
     return JSONResponse(
@@ -172,7 +177,7 @@ async def marks_consolidated(payload: AttendanceRequest):
         return _data_error_response(error_code, status_code=502)
     except PortalNetworkError as exc:
         error_code = getattr(exc, "code", "DATA_FETCH_FAILED")
-        logger.exception("Consolidated marks portal/network failure [code=%s]", error_code)
+        logger.exception("Consolidated marks portal/network failure [code=%s, detail=%s]", error_code, str(exc))
         status_code = int(getattr(exc, "http_status", 502) or 502)
         if status_code < 400:
             status_code = 502
@@ -180,3 +185,55 @@ async def marks_consolidated(payload: AttendanceRequest):
     except Exception:
         logger.exception("Unexpected consolidated marks fetch error")
         return _data_error_response("DATA_FETCH_FAILED", status_code=500)
+
+
+@router.post("/faculty/contacts", response_model=ApiResponse)
+async def faculty_contacts(payload: AttendanceRequest):
+    try:
+        data = await run_in_threadpool(
+            fetch_faculty_contacts,
+            payload.token,
+            payload.semester_id,
+            payload.force_refresh,
+        )
+        return ApiResponse(status="success", message="Faculty contacts fetched", data=data)
+    except PortalAuthenticationError as exc:
+        error_code = getattr(exc, "code", "SESSION_EXPIRED")
+        logger.warning("Faculty contacts auth failure [code=%s, detail=%s]", error_code, str(exc))
+        if str(error_code).strip().upper().startswith("SESSION_EXPIRED"):
+            return _data_error_response(error_code, status_code=401)
+        return _data_error_response(error_code, status_code=502)
+    except PortalNetworkError as exc:
+        error_code = getattr(exc, "code", "DATA_FETCH_FAILED")
+        logger.exception("Faculty contacts portal/network failure [code=%s]", error_code)
+        status_code = int(getattr(exc, "http_status", 502) or 502)
+        if status_code < 400:
+            status_code = 502
+        return _data_error_response(error_code, status_code=status_code)
+    except Exception:
+        logger.exception("Unexpected faculty contacts fetch error")
+        return _data_error_response("DATA_FETCH_FAILED", status_code=500)
+
+
+@router.post("/feature-usage/track", response_model=ApiResponse)
+async def feature_usage_track(payload: FeatureUsageEventRequest):
+    try:
+        data = await run_in_threadpool(
+            track_feature_usage_event,
+            payload.token,
+            payload.feature_name,
+            payload.action_type,
+            payload.subject_code,
+            payload.subject_name,
+            payload.attendance_date,
+        )
+        return ApiResponse(status="success", message="Feature usage tracked", data=data)
+    except PortalAuthenticationError as exc:
+        error_code = getattr(exc, "code", "SESSION_EXPIRED")
+        logger.warning("Feature usage track auth failure [code=%s, detail=%s]", error_code, str(exc))
+        if str(error_code).strip().upper().startswith("SESSION_EXPIRED"):
+            return _data_error_response(error_code, status_code=401)
+        return _data_error_response(error_code, status_code=502)
+    except Exception:
+        logger.exception("Unexpected feature usage track error")
+        return _data_error_response("FEATURE_USAGE_TRACK_FAILED", status_code=500)

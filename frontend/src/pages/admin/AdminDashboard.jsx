@@ -114,6 +114,21 @@ const FEATURE_USAGE_DEFINITIONS = [
     type: 'Real-time',
     definition: 'Counts successful consolidated marks fetch actions since backend process startup.',
   },
+  {
+    name: 'Mail Faculty Compose Opened',
+    type: 'Database',
+    definition: 'Counts mail faculty compose-opened actions persisted in backend database event logs.',
+  },
+  {
+    name: 'Mail Faculty Unique Users',
+    type: 'Database',
+    definition: 'Distinct users who triggered Mail Faculty actions, computed from backend event records.',
+  },
+  {
+    name: 'Mail Faculty Send Confirmed',
+    type: 'Database',
+    definition: 'Counts explicit send-confirmed events when a confirmation flow is implemented and tracked.',
+  },
 ]
 
 const NO_ACTIVITY_MESSAGE = 'No activity recorded yet. Metrics will appear once users interact with the app.'
@@ -534,7 +549,10 @@ function AdminDashboard() {
   const hasRequestActivity = Number(overview?.instrumentation?.requestMetrics?.totalRequests || 0) > 0
   const hasScraperActivity = Number(overview?.scraperPerformance?.totalAttempts || 0) > 0
   const hasUserGrowthActivity = userGrowthSeries.some((point) => Number(point.newUsers || 0) > 0)
-  const hasFeatureUsageActivity = Number(overview?.featureUsage?.totalSemesterInteractions || 0) > 0
+  const hasFeatureUsageActivity =
+    Number(overview?.featureUsage?.totalSemesterInteractions || 0) > 0 ||
+    Number(overview?.featureUsage?.mailFacultyComposeOpenedCount || 0) > 0 ||
+    Number(overview?.featureUsage?.mailFacultySendConfirmedCount || 0) > 0
   const failedRequestInsights = Array.isArray(overview?.homepage?.failedRequestInsights)
     ? overview.homepage.failedRequestInsights
     : []
@@ -581,7 +599,30 @@ function AdminDashboard() {
         subtitle: `${formatMetricNumber(metrics.mostViewedSemesterCount)} interactions across sync/history/marks`,
         tone: Number(metrics.mostViewedSemesterCount) > 0 ? 'warning' : 'default',
       },
+      {
+        label: 'Mail Faculty Compose Opened',
+        value: formatMetricNumber(metrics.mailFacultyComposeOpenedCount),
+        subtitle: 'Backend-tracked compose-opened actions',
+        tone: Number(metrics.mailFacultyComposeOpenedCount) > 0 ? 'success' : 'default',
+      },
+      {
+        label: 'Mail Faculty Unique Users',
+        value: formatMetricNumber(metrics.mailFacultyUniqueUsersCount),
+        subtitle: 'Distinct users who used Mail Faculty',
+        tone: Number(metrics.mailFacultyUniqueUsersCount) > 0 ? 'success' : 'default',
+      },
+      {
+        label: 'Mail Faculty Send Confirmed',
+        value: formatMetricNumber(metrics.mailFacultySendConfirmedCount),
+        subtitle: 'Tracked separately from compose-opened events',
+        tone: Number(metrics.mailFacultySendConfirmedCount) > 0 ? 'success' : 'default',
+      },
     ]
+  }, [overview])
+
+  const mailFacultyTopSubjects = useMemo(() => {
+    const items = overview?.featureUsage?.mailFacultyTopSubjects
+    return Array.isArray(items) ? items : []
   }, [overview])
 
   return (
@@ -904,6 +945,24 @@ function AdminDashboard() {
                 <p className="mt-1 text-sm text-[#D8D3E8]">
                   Source audited from backend feature usage counters. Semester interactions now include Sync Attendance, History, and Marks events.
                 </p>
+              </section>
+
+              <section className="rounded-2xl border border-white/20 bg-[#312051] p-4 sm:p-5">
+                <h2 className="text-lg font-semibold text-[#F4F1FF]">Mail Faculty Most-Used Subjects</h2>
+                <p className="mt-1 text-sm text-[#D8D3E8]">Top subjects by backend-tracked Mail Faculty compose-opened events.</p>
+
+                {mailFacultyTopSubjects.length ? (
+                  <div className="mt-3 space-y-2">
+                    {mailFacultyTopSubjects.map((item, index) => (
+                      <article key={`${item.subject}-${index}`} className="rounded-xl border border-white/10 bg-[#3A315D] p-3">
+                        <p className="text-sm font-semibold text-[#F4F1FF]">{item.subject}</p>
+                        <p className="mt-1 text-xs text-[#D8D3E8]">Mail Faculty actions: {formatMetricNumber(item.count)}</p>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-[#D8D3E8]">No Mail Faculty subject usage recorded yet.</p>
+                )}
               </section>
 
               <section className="rounded-2xl border border-white/20 bg-[#312051] p-4 sm:p-5">

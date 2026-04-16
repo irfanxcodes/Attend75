@@ -23,6 +23,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def init_database() -> None:
     # Import model modules so SQLAlchemy registers table metadata.
+    from db.models import feature_usage_event  # noqa: F401
     from db.models import portal_credential  # noqa: F401
     from db.models import user  # noqa: F401
 
