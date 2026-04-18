@@ -243,6 +243,7 @@ function AdminDashboard() {
   const [feedbackSort, setFeedbackSort] = useState('latest')
   const [metricInfoModal, setMetricInfoModal] = useState('')
   const [error, setError] = useState('')
+  const [refreshTick, setRefreshTick] = useState(0)
 
   useEffect(() => {
     const currentSession = parseAdminSession()
@@ -259,11 +260,25 @@ function AdminDashboard() {
       return
     }
 
+    const intervalId = window.setInterval(() => {
+      setRefreshTick((current) => current + 1)
+    }, 45000)
+
+    return () => {
+      window.clearInterval(intervalId)
+    }
+  }, [adminSession?.sessionToken])
+
+  useEffect(() => {
+    if (!adminSession?.sessionToken) {
+      return
+    }
+
     let isActive = true
 
     void (async () => {
       try {
-        setIsLoading(true)
+        setIsLoading(!overview)
         setError('')
 
         const [overviewData, feedbackLog] = await Promise.all([
@@ -300,7 +315,7 @@ function AdminDashboard() {
     return () => {
       isActive = false
     }
-  }, [adminSession, navigate, feedbackSort])
+  }, [adminSession, navigate, feedbackSort, refreshTick])
 
   const homepageCards = useMemo(() => {
     if (!overview?.homepage) return []
@@ -952,10 +967,10 @@ function AdminDashboard() {
                 <p className="mt-1 text-sm text-[#D8D3E8]">Top subjects by backend-tracked Mail Faculty compose-opened events.</p>
 
                 {mailFacultyTopSubjects.length ? (
-                  <div className="mt-3 space-y-2">
+                  <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
                     {mailFacultyTopSubjects.map((item, index) => (
-                      <article key={`${item.subject}-${index}`} className="rounded-xl border border-white/10 bg-[#3A315D] p-3">
-                        <p className="text-sm font-semibold text-[#F4F1FF]">{item.subject}</p>
+                      <article key={`${item.subjectName || item.subject || item.subjectCode || 'UNKNOWN'}-${index}`} className="rounded-xl border border-white/10 bg-[#3A315D] p-3">
+                        <p className="text-sm font-semibold text-[#F4F1FF]">{item.subjectName || item.subject || item.subjectCode || 'UNKNOWN'}</p>
                         <p className="mt-1 text-xs text-[#D8D3E8]">Mail Faculty actions: {formatMetricNumber(item.count)}</p>
                       </article>
                     ))}

@@ -17,7 +17,7 @@ const REASON_OPTIONS = [
   'Other',
 ]
 
-const IBS_COLLEGE_EMAIL_REGEX = /^[A-Za-z0-9._%+-]+@ibsindia\.org$/i
+const IBS_COLLEGE_EMAIL_REGEX = /^[A-Za-z0-9._%+-]+@(ibsindia|ifheindia)\.org$/i
 
 function formatDateKey(year, monthIndex, day) {
   const paddedMonth = String(monthIndex + 1).padStart(2, '0')

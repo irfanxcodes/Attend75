@@ -46,6 +46,18 @@ class PortalScraper:
             float(os.getenv("PORTAL_MARKS_REQUEST_TIMEOUT_SECONDS", "7")),
             1.0,
         )
+        retry_attempts_raw = str(os.getenv("PORTAL_MARKS_TABLE_RETRY_ATTEMPTS", "2")).strip()
+        retry_delay_raw = str(os.getenv("PORTAL_MARKS_TABLE_RETRY_DELAY_SECONDS", "1.2")).strip()
+        try:
+            parsed_retry_attempts = int(retry_attempts_raw)
+        except ValueError:
+            parsed_retry_attempts = 2
+        try:
+            parsed_retry_delay = float(retry_delay_raw)
+        except ValueError:
+            parsed_retry_delay = 1.2
+        self.marks_table_retry_attempts = max(parsed_retry_attempts, 0)
+        self.marks_table_retry_delay_seconds = max(parsed_retry_delay, 0.0)
         max_attempts_raw = str(os.getenv("PORTAL_MARKS_MAX_PATH_ATTEMPTS", "0")).strip()
         try:
             parsed_max_attempts = int(max_attempts_raw)
@@ -254,28 +266,64 @@ class PortalScraper:
         if semester_id:
             self.session.cookies.set("SemesterID", str(semester_id).strip())
 
-        html, page_url = self._load_consolidated_marks_page()
+        transient_failure_codes = {
+            "MARKS_TABLE_NOT_FOUND",
+            "MARKS_ROWS_NOT_FOUND",
+            "MARKS_PAGE_PATHS_NOT_FOUND",
+        }
+        attempt = 0
 
-        if semester_id:
-            switched_html = self._switch_semester_on_page(html, page_url, semester_id)
-            if switched_html is not None:
-                html = switched_html
-            self.session.cookies.set("SemesterID", str(semester_id).strip())
+        while True:
+            try:
+                html, page_url = self._load_consolidated_marks_page()
 
-        if self._looks_like_login_page(html):
-            raise PortalAuthenticationError(
-                "Portal returned login page while loading consolidated marks",
-                code="SESSION_EXPIRED",
-            )
+                if semester_id:
+                    switched_html = self._switch_semester_on_page(html, page_url, semester_id)
+                    if switched_html is not None:
+                        html = switched_html
+                    self.session.cookies.set("SemesterID", str(semester_id).strip())
 
-        semesters, selected_semester = self._extract_semesters(html)
-        try:
-            subjects = self._parse_consolidated_marks_subjects(html)
-        except PortalNetworkError as exc:
-            failure_code = str(getattr(exc, "code", "")).strip().upper()
-            if failure_code in {"MARKS_TABLE_NOT_FOUND", "MARKS_ROWS_NOT_FOUND"}:
-                subjects = []
-            else:
+                if self._looks_like_login_page(html):
+                    raise PortalAuthenticationError(
+                        "Portal returned login page while loading consolidated marks",
+                        code="SESSION_EXPIRED",
+                    )
+
+                semesters, selected_semester = self._extract_semesters(html)
+                try:
+                    subjects = self._parse_consolidated_marks_subjects(html)
+                except PortalNetworkError as exc:
+                    failure_code = str(getattr(exc, "code", "")).strip().upper()
+                    if failure_code in {"MARKS_TABLE_NOT_FOUND", "MARKS_ROWS_NOT_FOUND"}:
+                        subjects = []
+                    else:
+                        raise
+                break
+            except PortalNetworkError as exc:
+                failure_code = str(getattr(exc, "code", "")).strip().upper()
+                should_retry = failure_code in transient_failure_codes and attempt < self.marks_table_retry_attempts
+                if should_retry:
+                    attempt += 1
+                    delay_seconds = self.marks_table_retry_delay_seconds * attempt
+                    self._logger.warning(
+                        "Retrying consolidated marks fetch after transient failure [attempt=%s/%s, code=%s, delay=%.2fs]",
+                        attempt,
+                        self.marks_table_retry_attempts,
+                        failure_code or "UNKNOWN",
+                        delay_seconds,
+                    )
+                    self._prime_marks_navigation_context()
+                    if delay_seconds > 0:
+                        time.sleep(delay_seconds)
+                    continue
+
+                stale_payload = self._read_stale_cache(self._marks_cache, cache_key)
+                if stale_payload is not None and failure_code in transient_failure_codes:
+                    self._logger.warning(
+                        "Serving stale consolidated marks cache after transient portal failure [code=%s]",
+                        failure_code or "UNKNOWN",
+                    )
+                    return stale_payload
                 raise
 
         payload = {
@@ -364,12 +412,21 @@ class PortalScraper:
         saw_non_404_response = False
         probe_logs: list[str] = []
 
-        def _append_probe_log(path_value: str, status: str, *, final_url: str | None = None, marker: str | None = None) -> None:
+        def _append_probe_log(
+            path_value: str,
+            status: str,
+            *,
+            final_url: str | None = None,
+            marker: str | None = None,
+            html_preview: str | None = None,
+        ) -> None:
             entry = f"{path_value} -> {status}"
             if final_url:
                 entry += f" [{final_url}]"
             if marker:
                 entry += f" ({marker})"
+            if html_preview:
+                entry += f" [preview={html_preview}]"
             probe_logs.append(entry)
 
         for path in candidate_paths:
@@ -407,10 +464,17 @@ class PortalScraper:
             html = response.text
             response_status = int(getattr(response, "status_code", 0) or 0)
             final_url = str(getattr(response, "url", "") or "")
+            html_preview = self._build_safe_html_preview(html)
             if response_status and response_status != 404:
                 saw_non_404_response = True
             if not str(html or "").strip():
-                _append_probe_log(normalized_path, str(response_status or "EMPTY"), final_url=final_url, marker="empty-response")
+                _append_probe_log(
+                    normalized_path,
+                    str(response_status or "EMPTY"),
+                    final_url=final_url,
+                    marker="empty-response",
+                    html_preview=html_preview,
+                )
                 raise PortalNetworkError(
                     "Consolidated marks page returned an empty response",
                     code="MARKS_EMPTY_RESPONSE",
@@ -422,17 +486,35 @@ class PortalScraper:
             final_url_lower = final_url.lower()
             if "login.aspx" in final_url or self._looks_like_login_page(html):
                 first_login_html = html
-                _append_probe_log(normalized_path, str(response_status or "200"), final_url=final_url, marker="redirected-to-login")
+                _append_probe_log(
+                    normalized_path,
+                    str(response_status or "200"),
+                    final_url=final_url,
+                    marker="redirected-to-login",
+                    html_preview=html_preview,
+                )
                 continue
 
             has_marks_table = self._find_consolidated_marks_table(BeautifulSoup(html, "html.parser")) is not None
             if has_marks_table:
                 self._preferred_marks_path = normalized_path
-                _append_probe_log(normalized_path, str(response_status or "200"), final_url=final_url, marker="marks-table-found")
+                _append_probe_log(
+                    normalized_path,
+                    str(response_status or "200"),
+                    final_url=final_url,
+                    marker="marks-table-found",
+                    html_preview=html_preview,
+                )
                 self._logger.warning("Marks path probe success: %s", "; ".join(probe_logs[-8:]))
                 return html, url
 
-            _append_probe_log(normalized_path, str(response_status or "200"), final_url=final_url, marker="no-marks-table")
+            _append_probe_log(
+                normalized_path,
+                str(response_status or "200"),
+                final_url=final_url,
+                marker="no-marks-table",
+                html_preview=html_preview,
+            )
 
         if first_login_html is not None:
             self._logger.warning("Marks path probes ended at login redirect: %s", "; ".join(probe_logs[-12:]))
@@ -513,21 +595,58 @@ class PortalScraper:
         return discovered
 
     def _find_consolidated_marks_table(self, soup: BeautifulSoup):
-        expected_headers = ["code", "units", "component", "weightage"]
+        code_tokens = ["code", "course code", "subject code"]
+        component_tokens = ["component", "components"]
+        score_tokens = ["weightage", "marks", "score"]
 
         for candidate in soup.find_all("table"):
-            classes = candidate.get("class") or []
-            if classes and "table" not in classes:
-                continue
-
             headers = [th.get_text(" ", strip=True).lower() for th in candidate.find_all("th")]
+            if not headers:
+                first_row = candidate.find("tr")
+                if first_row is not None:
+                    headers = [cell.get_text(" ", strip=True).lower() for cell in first_row.find_all(["td", "th"])]
             if not headers:
                 continue
 
-            if all(any(token in header for header in headers) for token in expected_headers):
+            has_code = any(any(token in header for token in code_tokens) for header in headers)
+            has_component = any(any(token in header for token in component_tokens) for header in headers)
+            has_score = any(any(token in header for token in score_tokens) for header in headers)
+
+            if has_code and has_component and has_score:
                 return candidate
 
         return None
+
+    def _read_stale_cache(self, cache: dict[str, tuple[float, dict]], key: str | None) -> dict | None:
+        normalized_key = str(key or "").strip() or "default"
+        cached = cache.get(normalized_key)
+        if cached is None:
+            return None
+
+        _, payload = cached
+        return copy.deepcopy(payload)
+
+    def _build_safe_html_preview(self, html: str, limit: int = 320) -> str:
+        if not str(html or "").strip():
+            return ""
+
+        preview = re.sub(r"\s+", " ", str(html)).strip()
+        preview = re.sub(
+            r"(name=[\"']__VIEWSTATE[\"'][^>]*value=[\"'])[^\"']+([\"'])",
+            r"\1[REDACTED]\2",
+            preview,
+            flags=re.IGNORECASE,
+        )
+        preview = re.sub(
+            r"(name=[\"']__EVENTVALIDATION[\"'][^>]*value=[\"'])[^\"']+([\"'])",
+            r"\1[REDACTED]\2",
+            preview,
+            flags=re.IGNORECASE,
+        )
+
+        if len(preview) > limit:
+            return f"{preview[:limit]}..."
+        return preview
 
     def _parse_consolidated_marks_subjects(self, html: str) -> list[dict[str, object]]:
         if not str(html or "").strip():

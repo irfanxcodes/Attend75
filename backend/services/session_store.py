@@ -3,6 +3,7 @@ import secrets
 import threading
 import time
 from dataclasses import dataclass
+from dataclasses import field
 
 from scrapers.portal_scraper import PortalScraper
 
@@ -14,6 +15,7 @@ class SessionRecord:
     scraper: PortalScraper
     created_at: float
     last_accessed_at: float
+    scraper_lock: threading.RLock = field(default_factory=threading.RLock)
 
 
 class SessionStore:

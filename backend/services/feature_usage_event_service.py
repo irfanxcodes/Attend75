@@ -41,7 +41,7 @@ def record_feature_usage_event(
         session.commit()
 
 
-def get_mail_faculty_usage_summary(limit_subjects: int = 5) -> dict[str, int | list[dict[str, int | str]]]:
+def get_mail_faculty_usage_summary(limit_subjects: int = 5) -> dict[str, int | list[dict[str, int | str | None]]]:
     with SessionLocal() as session:
         base_query = session.query(FeatureUsageEvent).filter(FeatureUsageEvent.feature_name == MAIL_FACULTY_FEATURE)
 
@@ -62,30 +62,47 @@ def get_mail_faculty_usage_summary(limit_subjects: int = 5) -> dict[str, int | l
 
         top_subject_rows = (
             session.query(
-                func.coalesce(
-                    func.nullif(FeatureUsageEvent.subject_code, ""),
-                    func.nullif(FeatureUsageEvent.subject_name, ""),
-                    "UNKNOWN",
-                ).label("subject"),
+                func.nullif(FeatureUsageEvent.subject_code, "").label("subject_code"),
+                func.nullif(FeatureUsageEvent.subject_name, "").label("subject_name"),
                 func.count(FeatureUsageEvent.id).label("count"),
             )
             .filter(FeatureUsageEvent.feature_name == MAIL_FACULTY_FEATURE)
             .filter(FeatureUsageEvent.action_type == ACTION_COMPOSE_OPENED)
-            .group_by("subject")
-            .order_by(desc("count"), "subject")
-            .limit(max(int(limit_subjects or 0), 1))
+            .group_by("subject_code", "subject_name")
+            .order_by(desc("count"), "subject_name", "subject_code")
             .all()
         )
+
+    merged_subject_counts: dict[str, dict[str, int | str | None]] = {}
+    for row in top_subject_rows:
+        subject_code = str(row.subject_code or "").strip().upper() or None
+        subject_name = str(row.subject_name or "").strip() or None
+        label = subject_name or subject_code or "UNKNOWN"
+
+        existing = merged_subject_counts.get(label)
+        if existing is None:
+            merged_subject_counts[label] = {
+                "subject": label,
+                "subjectCode": subject_code,
+                "subjectName": subject_name,
+                "count": int(row.count or 0),
+            }
+            continue
+
+        existing["count"] = int(existing.get("count") or 0) + int(row.count or 0)
+        if not existing.get("subjectName") and subject_name:
+            existing["subjectName"] = subject_name
+        if not existing.get("subjectCode") and subject_code:
+            existing["subjectCode"] = subject_code
+
+    top_subjects = sorted(
+        merged_subject_counts.values(),
+        key=lambda item: (-int(item.get("count") or 0), str(item.get("subject") or "")),
+    )[: max(int(limit_subjects or 0), 1)]
 
     return {
         "composeOpenedCount": compose_opened_count,
         "sendConfirmedCount": send_confirmed_count,
         "uniqueUsersCount": unique_users_count,
-        "topSubjects": [
-            {
-                "subject": str(row.subject or "UNKNOWN"),
-                "count": int(row.count or 0),
-            }
-            for row in top_subject_rows
-        ],
+        "topSubjects": top_subjects,
     }

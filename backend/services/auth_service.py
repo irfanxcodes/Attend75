@@ -26,13 +26,32 @@ def _portal_operation_retry_backoff_seconds() -> float:
 
 
 def _prefetch_marks_after_login_enabled() -> bool:
-    raw = str(os.getenv("PORTAL_PREFETCH_MARKS_AFTER_LOGIN", "true")).strip().lower()
+    raw = str(os.getenv("PORTAL_PREFETCH_MARKS_AFTER_LOGIN", "false")).strip().lower()
     return raw not in {"0", "false", "no", "off"}
 
 
-def _prefetch_marks_after_login(scraper: PortalScraper, semester_id: str | None) -> None:
+def _prefetch_marks_after_login_delay_seconds() -> float:
+    raw = str(os.getenv("PORTAL_PREFETCH_MARKS_AFTER_LOGIN_DELAY_SECONDS", "1.5")).strip()
     try:
-        scraper.fetch_consolidated_marks(semester_id=semester_id, force_refresh=True)
+        return max(float(raw), 0.0)
+    except ValueError:
+        return 1.5
+
+
+def _run_with_session_lock(record, operation):
+    with record.scraper_lock:
+        return operation()
+
+
+def _prefetch_marks_after_login(record, semester_id: str | None) -> None:
+    delay = _prefetch_marks_after_login_delay_seconds()
+    try:
+        if delay > 0:
+            time.sleep(delay)
+        _run_with_session_lock(
+            record,
+            lambda: record.scraper.fetch_consolidated_marks(semester_id=semester_id, force_refresh=True),
+        )
     except Exception:
         # Prefetch is best-effort and must never block or fail login.
         return
@@ -86,7 +105,7 @@ def login_user(roll_number: str, password: str) -> dict:
         if _prefetch_marks_after_login_enabled():
             threading.Thread(
                 target=_prefetch_marks_after_login,
-                args=(scraper, data.get("selected_semester")),
+                args=(record, data.get("selected_semester")),
                 daemon=True,
             ).start()
         observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
@@ -125,10 +144,13 @@ def fetch_attendance_for_semester(token: str, semester_id: str | None, force_ref
 
     started = time.perf_counter()
     try:
-        payload = _run_with_network_retry(
-            lambda: record.scraper.fetch_attendance_for_semester(
-                semester_id=semester_id,
-                force_refresh=force_refresh,
+        payload = _run_with_session_lock(
+            record,
+            lambda: _run_with_network_retry(
+                lambda: record.scraper.fetch_attendance_for_semester(
+                    semester_id=semester_id,
+                    force_refresh=force_refresh,
+                )
             )
         )
         observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
@@ -165,8 +187,11 @@ def fetch_subject_history(token: str, semester_id: str | None, date: str | None)
 
     started = time.perf_counter()
     try:
-        payload = _run_with_network_retry(
-            lambda: record.scraper.fetch_subject_attendance_history(semester_id=semester_id, date=date)
+        payload = _run_with_session_lock(
+            record,
+            lambda: _run_with_network_retry(
+                lambda: record.scraper.fetch_subject_attendance_history(semester_id=semester_id, date=date)
+            ),
         )
         observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
         resolved_id, _ = _resolve_semester_usage_context(payload, semester_id)
@@ -202,10 +227,13 @@ def fetch_consolidated_marks(token: str, semester_id: str | None, force_refresh:
 
     started = time.perf_counter()
     try:
-        payload = _run_with_network_retry(
-            lambda: record.scraper.fetch_consolidated_marks(
-                semester_id=semester_id,
-                force_refresh=force_refresh,
+        payload = _run_with_session_lock(
+            record,
+            lambda: _run_with_network_retry(
+                lambda: record.scraper.fetch_consolidated_marks(
+                    semester_id=semester_id,
+                    force_refresh=force_refresh,
+                )
             )
         )
         observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
@@ -242,10 +270,13 @@ def fetch_faculty_contacts(token: str, semester_id: str | None, force_refresh: b
 
     started = time.perf_counter()
     try:
-        payload = _run_with_network_retry(
-            lambda: record.scraper.fetch_faculty_contacts(
-                semester_id=semester_id,
-                force_refresh=force_refresh,
+        payload = _run_with_session_lock(
+            record,
+            lambda: _run_with_network_retry(
+                lambda: record.scraper.fetch_faculty_contacts(
+                    semester_id=semester_id,
+                    force_refresh=force_refresh,
+                )
             )
         )
         observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
@@ -280,7 +311,10 @@ def get_session_status(token: str) -> dict:
 
     started = time.perf_counter()
     try:
-        _run_with_network_retry(lambda: record.scraper.fetch_attendance_for_semester(force_refresh=True))
+        _run_with_session_lock(
+            record,
+            lambda: _run_with_network_retry(lambda: record.scraper.fetch_attendance_for_semester(force_refresh=True)),
+        )
         observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
         return {"session_status": "linked"}
     except PortalNetworkError as exc:

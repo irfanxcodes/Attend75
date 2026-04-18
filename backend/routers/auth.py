@@ -178,6 +178,26 @@ async def marks_consolidated(payload: AttendanceRequest):
     except PortalNetworkError as exc:
         error_code = getattr(exc, "code", "DATA_FETCH_FAILED")
         logger.exception("Consolidated marks portal/network failure [code=%s, detail=%s]", error_code, str(exc))
+        transient_codes = {
+            "MARKS_TABLE_NOT_FOUND",
+            "MARKS_ROWS_NOT_FOUND",
+            "MARKS_PAGE_PATHS_NOT_FOUND",
+        }
+        if str(error_code).strip().upper() in transient_codes:
+            return ApiResponse(
+                status="success",
+                message="Consolidated marks temporarily unavailable; returning controlled empty result",
+                data={
+                    "subjects": [],
+                    "semesters": [],
+                    "selected_semester": payload.semester_id,
+                    "portal_error": {
+                        "code": str(error_code).strip().upper(),
+                        "message": str(exc),
+                        "transient": True,
+                    },
+                },
+            )
         status_code = int(getattr(exc, "http_status", 502) or 502)
         if status_code < 400:
             status_code = 502
