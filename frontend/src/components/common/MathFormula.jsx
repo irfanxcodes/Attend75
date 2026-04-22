@@ -1,24 +1,31 @@
-import { BlockMath } from 'react-katex'
-import { latexFallbackText } from '../../utils/mathLatex'
+import { useMemo } from 'react'
+import katex from 'katex'
+import { latexFallbackText, normalizeLatex } from '../../utils/mathLatex'
 
-function MathFormula({ latex, fallbackText = '', className = '', debugId = '' }) {
-  const resolvedLatex = String(latex || '').trim()
+function MathFormula({ latex, fallbackText = '', className = '' }) {
+  const resolvedLatex = normalizeLatex(latex)
   const resolvedFallbackText = latexFallbackText(latex, fallbackText)
+  const renderedHtml = useMemo(() => {
+    if (!resolvedLatex) {
+      return ''
+    }
+
+    try {
+      return katex.renderToString(resolvedLatex, {
+        displayMode: true,
+        throwOnError: true,
+        strict: 'ignore',
+      })
+    } catch {
+      return ''
+    }
+  }, [resolvedLatex])
 
   return (
-    <div
-      className={`study-formula-block rounded-xl border border-[#A8D8FF]/25 bg-[#241C45] px-3 py-3 sm:px-4 sm:py-3.5 ${className}`}
-      data-debug-id={debugId || undefined}
-      data-has-latex={resolvedLatex ? 'true' : 'false'}
-      data-latex={resolvedLatex || undefined}
-      data-fallback-text={resolvedFallbackText || undefined}
-    >
+    <div className={`study-formula-block rounded-xl border border-[#A8D8FF]/25 bg-[#241C45] px-3 py-3 sm:px-4 sm:py-3.5 ${className}`}>
       <div className="overflow-x-auto">
-        {resolvedLatex ? (
-          <BlockMath
-            math={resolvedLatex}
-            renderError={() => <p className="text-sm text-[#F2CA98]">{resolvedFallbackText}</p>}
-          />
+        {renderedHtml ? (
+          <div dangerouslySetInnerHTML={{ __html: renderedHtml }} />
         ) : (
           <p className="text-sm text-[#F2CA98]">{resolvedFallbackText}</p>
         )}

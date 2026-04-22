@@ -50,14 +50,6 @@ function getFormulaNotationEntries(formula) {
   return Object.entries(formula.notation).filter(([symbol, meaning]) => String(symbol).trim() && String(meaning).trim())
 }
 
-function shouldShowFormulaDebug(formula) {
-  return [
-    'Expected Return',
-    'Arithmetic / Average Annual Return',
-    'Standard Deviation',
-  ].includes(String(formula?.name || '').trim())
-}
-
 function NotationList({ entries }) {
   return (
     <dl className="space-y-1.5 text-xs text-[#D8D3E8]">
@@ -433,20 +425,7 @@ function StudyLessonDetail() {
                           latex={formula.latex}
                           fallbackText={formula.formula}
                           className="mt-2"
-                          debugId={`lesson:${subject.id}:${lesson.id}:${section.title}:${formula.name}`}
                         />
-
-                        {shouldShowFormulaDebug(formula) ? (
-                          <div className="mt-2 rounded-lg border border-[#F2CA98]/25 bg-[#241C45]/70 px-3 py-2 text-[11px] leading-relaxed text-[#F5DEBE]">
-                            <p className="font-semibold uppercase tracking-[0.1em] text-[#F2CA98]">Debug Marker</p>
-                            <p className="mt-1 break-words">
-                              <span className="font-semibold">LATEX:</span> {String(formula.latex || '-')}
-                            </p>
-                            <p className="mt-1 break-words">
-                              <span className="font-semibold">PLAIN:</span> {String(formula.formula || '-')}
-                            </p>
-                          </div>
-                        ) : null}
 
                         {notationEntries.length ? (
                           <div className="mt-2">
