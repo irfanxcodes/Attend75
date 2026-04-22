@@ -1,12 +1,18 @@
 import { BlockMath } from 'react-katex'
 import { latexFallbackText } from '../../utils/mathLatex'
 
-function MathFormula({ latex, fallbackText = '', className = '' }) {
+function MathFormula({ latex, fallbackText = '', className = '', debugId = '' }) {
   const resolvedLatex = String(latex || '').trim()
   const resolvedFallbackText = latexFallbackText(latex, fallbackText)
 
   return (
-    <div className={`study-formula-block rounded-xl border border-[#A8D8FF]/25 bg-[#241C45] px-3 py-3 sm:px-4 sm:py-3.5 ${className}`}>
+    <div
+      className={`study-formula-block rounded-xl border border-[#A8D8FF]/25 bg-[#241C45] px-3 py-3 sm:px-4 sm:py-3.5 ${className}`}
+      data-debug-id={debugId || undefined}
+      data-has-latex={resolvedLatex ? 'true' : 'false'}
+      data-latex={resolvedLatex || undefined}
+      data-fallback-text={resolvedFallbackText || undefined}
+    >
       <div className="overflow-x-auto">
         {resolvedLatex ? (
           <BlockMath
