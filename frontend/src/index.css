@@ -16,3 +16,22 @@
     @apply min-h-dvh bg-[#161424] overflow-x-clip;
   }
 }
+
+@layer components {
+  .study-formula-block .katex-display {
+    margin: 0;
+    text-align: center;
+  }
+
+  .study-formula-block .katex {
+    font-size: 1.03rem;
+    line-height: 1.55;
+    color: #f2ca98;
+  }
+
+  @media (max-width: 640px) {
+    .study-formula-block .katex {
+      font-size: 0.95rem;
+    }
+  }
+}

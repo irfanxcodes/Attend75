@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import InstagramButton from '../components/common/InstagramButton'
 import LogoutButton from '../components/profile/LogoutButton'
 import useAppStore from '../hooks/useAppStore'
@@ -32,6 +33,7 @@ function formatLastSynced(date) {
 }
 
 function Profile() {
+  const location = useLocation()
   const {
     state: { user, session },
     actions,
@@ -54,6 +56,22 @@ function Profile() {
   const [isFeedbackExpanded, setIsFeedbackExpanded] = useState(false)
   const userInitials = getInitials(userName)
   const isLinked = syncStatus.toLowerCase() === 'linked'
+
+  useEffect(() => {
+    if (location.hash !== '#feedback-details') {
+      return undefined
+    }
+
+    setIsFeedbackExpanded(true)
+
+    const timeoutId = window.setTimeout(() => {
+      document.getElementById('feedback-details')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 50)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [location.hash])
 
   useEffect(() => {
     let isMounted = true

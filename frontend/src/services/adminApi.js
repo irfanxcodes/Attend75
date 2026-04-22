@@ -39,6 +39,10 @@ function buildAdminErrorMessage(status, payload) {
     return 'Admin API is not available on the current backend deployment.'
   }
 
+  if (status === 503) {
+    return apiMessage || 'Admin authentication is not configured on the backend.'
+  }
+
   if (status >= 500) {
     return 'Admin service is temporarily unavailable. Please try again.'
   }

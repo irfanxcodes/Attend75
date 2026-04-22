@@ -13,6 +13,11 @@ const Login = lazy(() => import('../pages/Login'))
 const Marks = lazy(() => import('../pages/Marks'))
 const Profile = lazy(() => import('../pages/Profile'))
 const Splash = lazy(() => import('../pages/Splash'))
+const StudyMe = lazy(() => import('../pages/StudyMe'))
+const StudyLessons = lazy(() => import('../pages/StudyLessons'))
+const StudyLessonDetail = lazy(() => import('../pages/StudyLessonDetail'))
+const StudyPdfViewer = lazy(() => import('../pages/StudyPdfViewer'))
+const StudyTopicPractice = lazy(() => import('../pages/StudyTopicPractice'))
 const AdminLogin = lazy(() => import('../pages/admin/AdminLogin'))
 const AdminDashboard = lazy(() => import('../pages/admin/AdminDashboard'))
 
@@ -112,6 +117,11 @@ function AppRoutes() {
     }
 
     let isActive = true
+    const bootstrapTimeoutId = window.setTimeout(() => {
+      if (isActive) {
+        setAuthBootstrapComplete(true)
+      }
+    }, 10000)
 
     const unsubscribe = subscribeToFirebaseAuthState(async (firebaseUser) => {
       if (!isActive) {
@@ -129,8 +139,17 @@ function AppRoutes() {
       }
 
       try {
-        const idToken = await firebaseUser.getIdToken(true)
-        const result = await loginWithFirebase(idToken)
+        const result = await Promise.race([
+          (async () => {
+            const idToken = await firebaseUser.getIdToken(true)
+            return loginWithFirebase(idToken)
+          })(),
+          new Promise((_, reject) => {
+            window.setTimeout(() => {
+              reject(new Error('Firebase bootstrap timed out'))
+            }, 7000)
+          }),
+        ])
 
         if (result.linked && result.session) {
           actions.setAuthSession(result.session)
@@ -147,6 +166,7 @@ function AppRoutes() {
 
     return () => {
       isActive = false
+      window.clearTimeout(bootstrapTimeoutId)
       unsubscribe()
     }
   }, [actions, isAuthBootstrapComplete, user.isAuthenticated])
@@ -162,12 +182,22 @@ function AppRoutes() {
         <Route path="/dashboard" element={<Navigate to="/app/dashboard" replace />} />
         <Route path="/history" element={<Navigate to="/app/history" replace />} />
         <Route path="/marks" element={<Navigate to="/app/marks" replace />} />
+        <Route path="/study" element={<StudyMe />} />
+        <Route path="/study/:subjectId" element={<StudyLessons />} />
+        <Route path="/study/:subjectId/:lessonId" element={<StudyLessonDetail />} />
+        <Route path="/study/:subjectId/:lessonId/pdf" element={<StudyPdfViewer />} />
+        <Route path="/study/:subjectId/:lessonId/practice/:topicId" element={<StudyTopicPractice />} />
         <Route path="/profile" element={<Navigate to="/app/profile" replace />} />
         <Route path="/app" element={<ProtectedAppRoutes isAuthBootstrapComplete={isAuthBootstrapComplete} />}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="history" element={<History />} />
           <Route path="marks" element={<Marks />} />
+          <Route path="study" element={<StudyMe />} />
+          <Route path="study/:subjectId" element={<StudyLessons />} />
+          <Route path="study/:subjectId/:lessonId" element={<StudyLessonDetail />} />
+          <Route path="study/:subjectId/:lessonId/pdf" element={<StudyPdfViewer />} />
+          <Route path="study/:subjectId/:lessonId/practice/:topicId" element={<StudyTopicPractice />} />
           <Route path="profile" element={<Profile />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

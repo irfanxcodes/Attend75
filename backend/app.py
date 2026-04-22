@@ -30,6 +30,15 @@ def _cors_origins() -> list[str]:
     ]
 
 
+def _cors_origin_regex() -> str:
+    raw = os.getenv("CORS_ALLOW_ORIGIN_REGEX", "").strip()
+    if raw:
+        return raw
+
+    # Local development: allow localhost and 127.0.0.1 across dev ports.
+    return r"https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+
+
 @app.on_event("startup")
 async def startup_event() -> None:
     init_database()
@@ -37,6 +46,7 @@ async def startup_event() -> None:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),
+    allow_origin_regex=_cors_origin_regex(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

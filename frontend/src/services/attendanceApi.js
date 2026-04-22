@@ -1,4 +1,22 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+const configuredApiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || '').trim()
+
+function resolveApiBaseUrl() {
+  if (import.meta.env.DEV) {
+    return 'http://127.0.0.1:8000'
+  }
+
+  if (configuredApiBaseUrl) {
+    return configuredApiBaseUrl
+  }
+
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    return '/api'
+  }
+
+  return 'http://127.0.0.1:8000'
+}
+
+const API_BASE_URL = resolveApiBaseUrl()
 
 class ApiError extends Error {
   constructor(message, { code = 'UNKNOWN_ERROR', status = 0, endpoint = 'generic' } = {}) {

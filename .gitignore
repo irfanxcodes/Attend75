@@ -45,3 +45,5 @@ firebase-service-account.json
 # Local database backups
 backend/backups/*.db
 backend/backups/*.sql
+
+frontend/public/pdfs/FM-4 notes.pdf
