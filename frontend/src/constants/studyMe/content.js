@@ -1,3 +1,5 @@
+const latex = String.raw
+
 export const STUDYME_SUBJECTS = [
   {
     id: 'financial-management',
@@ -480,20 +482,21 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'Expected Return',
                 formula: 'E(R) = Sigma[p_i * R_i]',
-                latex: 'E(R) = \\sum p_i R_i',
+                latex: latex`E(R) = \sum_{i=1}^{n} p_i R_i`,
                 notation: {
                   'E(R)': 'Expected return',
                   p_i: 'Probability of outcome i',
                   R_i: 'Return in scenario i',
                   i: 'Index of each possible outcome',
+                  n: 'Total number of outcomes',
                 },
               },
               {
                 name: 'Arithmetic / Average Annual Return',
                 formula: 'R(bar) = Sigma R_i / n',
-                latex: '\\bar{R} = \\frac{\\sum_{i=1}^{n} R_i}{n}',
+                latex: latex`\bar{R} = \frac{\sum_{i=1}^{n} R_i}{n}`,
                 notation: {
-                  '\\bar{R}': 'Arithmetic average return',
+                  [latex`\bar{R}`]: 'Arithmetic average return',
                   R_i: 'Return in year/period i',
                   n: 'Total number of years/periods',
                   i: 'Period index from 1 to n',
@@ -502,11 +505,11 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'Geometric Return',
                 formula: 'R_g = [(1+R_1)(1+R_2)...(1+R_n)]^(1/n)-1',
-                latex: 'R_g = \\left[(1 + R_1)(1 + R_2)\\cdots(1 + R_n)\\right]^{\\frac{1}{n}} - 1',
+                latex: latex`R_g = \left[(1 + R_1)(1 + R_2)\cdots(1 + R_n)\right]^{\frac{1}{n}} - 1`,
                 notation: {
                   R_g: 'Geometric (compound average) return',
                   R_i: 'Return in period i',
-                  '\\cdots': 'Multiply all terms from (1 + R_1) to (1 + R_n)',
+                  [latex`\cdots`]: 'Multiply all terms from (1 + R_1) to (1 + R_n)',
                   n: 'Total number of periods',
                 },
               },
@@ -519,42 +522,42 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'Historical Risk (Variance)',
                 formula: 'σ² = Σ(R_t - R̄)² / (n - 1)',
-                latex: '\\sigma^2 = \\frac{\\sum_{t=1}^{n}(R_t - \\bar{R})^2}{n - 1}',
+                latex: latex`\sigma^2 = \frac{\sum_{t=1}^{n}(R_t - \bar{R})^2}{n - 1}`,
                 notation: {
-                  '\\sigma^2': 'Variance (historical risk)',
+                  [latex`\sigma^2`]: 'Variance (historical risk)',
                   R_t: 'Return in time period t',
-                  '\\bar{R}': 'Average return',
-                  n: 'number of years',
+                  [latex`\bar{R}`]: 'Average return',
+                  n: 'Number of years',
                 },
               },
               {
                 name: 'Expected Risk (Variance)',
                 formula: 'σ² = Σ pᵢ (Rᵢ - E(R))²',
-                latex: '\\sigma^2 = \\sum_{i=1}^{n} p_i (R_i - E(R))^2',
+                latex: latex`\sigma^2 = \sum_{i=1}^{n} p_i (R_i - E(R))^2`,
                 notation: {
-                  '\\sigma^2': 'Variance (expected risk)',
+                  [latex`\sigma^2`]: 'Variance (expected risk)',
                   p_i: 'Probability of outcome i',
                   R_i: 'Return in scenario i',
                   'E(R)': 'Expected return',
-                  n: 'number of years',
+                  n: 'Number of outcomes',
                 },
               },
               {
                 name: 'Standard Deviation',
                 formula: 'sigma = square root of variance',
-                latex: '\\sigma = \\sqrt{\\sigma^2}',
+                latex: latex`\sigma = \sqrt{\sigma^2}`,
                 notation: {
-                  '\\sigma': 'Standard deviation (total risk)',
-                  '\\sigma^2': 'Variance (average squared deviation from mean return)',
+                  [latex`\sigma`]: 'Standard deviation (total risk)',
+                  [latex`\sigma^2`]: 'Variance (average squared deviation from mean return)',
                 },
               },
               {
                 name: 'Coefficient of Variation',
                 formula: 'CV = sigma / E(R)',
-                latex: 'CV = \\frac{\\sigma}{E(R)}',
+                latex: latex`CV = \frac{\sigma}{E(R)}`,
                 notation: {
                   CV: 'Coefficient of variation',
-                  '\\sigma': 'Standard deviation',
+                  [latex`\sigma`]: 'Standard deviation',
                   'E(R)': 'Expected return',
                 },
               },
@@ -566,9 +569,9 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'Beta (β)',
                 formula: 'β = Cov(R_i, R_m) / σ_m²',
-                latex: '\\beta = \\frac{\\mathrm{Cov}(R_i, R_m)}{\\sigma_m^2}',
+                latex: latex`\beta = \frac{\mathrm{Cov}(R_i, R_m)}{\sigma_m^2}`,
                 notation: {
-                  '\\beta': 'is:',
+                  [latex`\beta`]: 'Systematic risk coefficient',
                   'numerator': 'covariance between stock and market',
                   'denominator': 'variance of the market',
                 },
@@ -576,24 +579,24 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'Covariance (Numerator of Beta)',
                 formula: 'Cov(R_j, R_m) = Σ[(R_jt − R̄_j)(R_mt − R̄_m)] / (n − 1)',
-                latex: '\\mathrm{Cov}(R_j, R_m) = \\frac{\\sum_{t=1}^{n}(R_{jt} - \\bar{R}_j)(R_{mt} - \\bar{R}_m)}{n - 1}',
+                latex: latex`\mathrm{Cov}(R_j, R_m) = \frac{\sum_{t=1}^{n}(R_{jt} - \bar{R}_j)(R_{mt} - \bar{R}_m)}{n - 1}`,
                 notation: {
-                  '\\mathrm{Cov}(R_j, R_m)': 'Covariance between security j and market',
+                  [latex`\mathrm{Cov}(R_j, R_m)`]: 'Covariance between security j and market',
                   R_jt: 'Return of security j at time t',
                   R_mt: 'Return of market at time t',
-                  '\\bar{R}_j': 'Average return of security j',
-                  '\\bar{R}_m': 'Average return of market',
+                  [latex`\bar{R}_j`]: 'Average return of security j',
+                  [latex`\bar{R}_m`]: 'Average return of market',
                   n: 'Number of observations',
                 },
               },
               {
                 name: 'Variance of Market (Denominator of Beta)',
                 formula: 'σ_m² = Σ(R_mt − R̄_m)² / (n − 1)',
-                latex: '\\sigma_m^2 = \\frac{\\sum_{t=1}^{n}(R_{mt} - \\bar{R}_m)^2}{n - 1}',
+                latex: latex`\sigma_m^2 = \frac{\sum_{t=1}^{n}(R_{mt} - \bar{R}_m)^2}{n - 1}`,
                 notation: {
-                  '\\sigma_m^2': 'Variance of market returns',
+                  [latex`\sigma_m^2`]: 'Variance of market returns',
                   R_mt: 'Market return at time t',
-                  '\\bar{R}_m': 'Average market return',
+                  [latex`\bar{R}_m`]: 'Average market return',
                   n: 'Number of observations',
                 },
               },

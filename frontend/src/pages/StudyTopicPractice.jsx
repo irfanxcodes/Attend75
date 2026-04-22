@@ -6,6 +6,7 @@ import StudyBackButton from '../components/common/StudyBackButton'
 import { getStudyLessonById, getStudySubjectById } from '../constants/studyMe/content'
 import useAppStore from '../hooks/useAppStore'
 import { fireAndForgetStudyMeEvent } from '../services/studyMeAnalytics'
+import { latexFallbackText, normalizeLatex } from '../utils/mathLatex'
 
 const MODES = [
   { id: 'learn', label: 'Learn' },
@@ -118,7 +119,10 @@ function FormulaPanel({ formula }) {
           {notationEntries.map(([symbol, meaning]) => (
             <div key={symbol} className="rounded-md bg-white/5 px-2 py-1.5">
               <dt className="font-semibold text-[#F2CA98]">
-                <InlineMath math={symbol} renderError={() => <span>{symbol}</span>} />
+                <InlineMath
+                  math={normalizeLatex(symbol)}
+                  renderError={() => <span>{latexFallbackText(symbol, symbol)}</span>}
+                />
               </dt>
               <dd className="mt-0.5 leading-relaxed">{meaning}</dd>
             </div>
@@ -195,7 +199,10 @@ function SolutionBody({ item, formula }) {
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Substitution</p>
           <div className="mt-1 rounded-lg bg-white/5 px-3 py-2 text-xs text-[#E7DEDE]">
-            <InlineMath math={item.substitution} renderError={() => <span>{item.substitution}</span>} />
+            <InlineMath
+              math={normalizeLatex(item.substitution)}
+              renderError={() => <span>{latexFallbackText(item.substitution, item.substitution)}</span>}
+            />
           </div>
         </div>
       ) : null}
