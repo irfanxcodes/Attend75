@@ -112,7 +112,12 @@ function FormulaPanel({ formula }) {
         </span>
       </div>
 
-      <MathFormula latex={formula.latex} fallbackText={formula.fallbackText} className="mt-2" />
+      <MathFormula
+        latex={formula.latex}
+        fallbackText={formula.fallbackText}
+        className="mt-2"
+        debugId={`practice:${subjectId}:${lessonId}:${topicId}:${formula.label || 'formula'}`}
+      />
 
       {notationEntries.length ? (
         <dl className="mt-2 grid grid-cols-1 gap-1.5 text-xs text-[#D8D3E8] sm:grid-cols-2">
