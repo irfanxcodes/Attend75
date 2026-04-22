@@ -1,11 +1,17 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import StudyBackButton from '../components/common/StudyBackButton'
 import { STUDYME_SUBJECTS } from '../constants/studyMe/content'
+import useAppStore from '../hooks/useAppStore'
 import { getSubjectProgress } from '../services/studyProgress'
+import { fireAndForgetStudyMeEvent } from '../services/studyMeAnalytics'
 
 function StudyMe() {
   const navigate = useNavigate()
+  const hasTrackedOpenRef = useRef(false)
+  const {
+    state: { user, session },
+  } = useAppStore()
   const subject = STUDYME_SUBJECTS[0] || null
 
   const progress = useMemo(() => {
@@ -16,6 +22,27 @@ function StudyMe() {
     const lessonIds = subject.lessons.map((lesson) => lesson.id)
     return getSubjectProgress(subject.id, lessonIds)
   }, [subject])
+
+  useEffect(() => {
+    if (hasTrackedOpenRef.current) {
+      return
+    }
+
+    hasTrackedOpenRef.current = true
+    fireAndForgetStudyMeEvent({
+      eventType: 'studyme_opened',
+      token: session.token,
+      userName: user.portalName || user.name || user.rollNumber || user.id,
+      subjectName: subject?.title || null,
+    })
+  }, [session.token, subject, user.id, user.name, user.portalName, user.rollNumber])
+
+  const openSubject = () => {
+    if (!subject) {
+      return
+    }
+    navigate(`/study/${subject.id}`)
+  }
 
   if (!subject) {
     return (
@@ -48,11 +75,11 @@ function StudyMe() {
       <article
         role="button"
         tabIndex={0}
-        onClick={() => navigate(`/study/${subject.id}`)}
+        onClick={openSubject}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault()
-            navigate(`/study/${subject.id}`)
+            openSubject()
           }
         }}
         className="cursor-pointer rounded-3xl border border-white/20 bg-[#312051] p-4 shadow-md transition hover:bg-[#3A315D]"
@@ -84,7 +111,7 @@ function StudyMe() {
             type="button"
             onClick={(event) => {
               event.stopPropagation()
-              navigate(`/study/${subject.id}`)
+              openSubject()
             }}
             className="rounded-full bg-[#E2BC8B] px-4 py-2 text-sm font-semibold text-[#1D183E] hover:bg-[#D9AA6F]"
           >

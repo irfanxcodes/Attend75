@@ -12,6 +12,7 @@ from scrapers.portal_scraper import PortalScraper
 class SessionRecord:
     token: str
     roll_number: str
+    user_name: str | None
     scraper: PortalScraper
     created_at: float
     last_accessed_at: float
@@ -47,12 +48,13 @@ class SessionStore:
         for token, _ in oldest_tokens:
             self._sessions.pop(token, None)
 
-    def create(self, roll_number: str, scraper: PortalScraper) -> SessionRecord:
+    def create(self, roll_number: str, scraper: PortalScraper, user_name: str | None = None) -> SessionRecord:
         token = secrets.token_urlsafe(24)
         now = time.time()
         record = SessionRecord(
             token=token,
             roll_number=roll_number,
+            user_name=(user_name or "").strip() or None,
             scraper=scraper,
             created_at=now,
             last_accessed_at=now,

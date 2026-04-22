@@ -19,6 +19,7 @@ from services.feedback_service import feedback_count, list_feedback, update_feed
 from services.request_metrics import get_request_metrics_snapshot
 from services.scraper_metrics import get_scraper_metrics_snapshot
 from services.session_store import session_store
+from services.studyme_event_service import get_studyme_analytics
 
 
 class AdminSessionStore:
@@ -363,6 +364,7 @@ def get_admin_overview() -> dict:
     scraper_metrics = get_scraper_metrics_snapshot()
     feature_usage = get_feature_usage_snapshot()
     mail_faculty_usage = get_mail_faculty_usage_summary(limit_subjects=5)
+    studyme_analytics = get_studyme_analytics()
     request_failure_rate_percent = float(request_metrics.get("requestFailureRatePercent", 0.0))
     app_error_rate_percent = float(request_metrics.get("appErrorRatePercent", 0.0))
     failed_request_insights = _build_failed_request_insights(request_metrics)
@@ -502,6 +504,7 @@ def get_admin_overview() -> dict:
             "nonWorkingPages": non_working_pages,
             "clientSideIssues": client_side_issues,
         },
+        "studyMeAnalytics": studyme_analytics,
     }
 
 

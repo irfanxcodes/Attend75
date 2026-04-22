@@ -13,6 +13,7 @@ from routers.auth import router as auth_router
 from routers.admin import router as admin_router
 from routers.feedback import router as feedback_router
 from routers.firebase_auth import router as firebase_auth_router
+from routers.studyme import router as studyme_router
 from services.request_metrics import observe_request
 
 app = FastAPI(title="Attend75 Backend", version="0.1.0")
@@ -98,3 +99,4 @@ app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(feedback_router)
 app.include_router(firebase_auth_router)
+app.include_router(studyme_router)

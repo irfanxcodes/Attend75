@@ -124,6 +124,32 @@ class FeedbackRequest(BaseModel):
         return cleaned or None
 
 
+class StudyMeEventRequest(BaseModel):
+    event_type: str = Field(..., description="StudyMe event type")
+    token: str | None = Field(default=None, description="Optional session token")
+    user_name: str | None = Field(default=None, description="Fallback display name for anonymous tracking")
+    subject_name: str | None = Field(default=None, description="StudyMe subject name")
+    lesson_name: str | None = Field(default=None, description="StudyMe lesson name")
+    topic_name: str | None = Field(default=None, description="StudyMe topic name")
+    event_date: str | None = Field(default=None, description="Event date in YYYY-MM-DD format")
+
+    @field_validator("event_type")
+    @classmethod
+    def validate_event_type(cls, value: str) -> str:
+        cleaned = value.strip().lower()
+        if not cleaned:
+            raise ValueError("event_type must not be empty")
+        return cleaned
+
+    @field_validator("token", "user_name", "subject_name", "lesson_name", "topic_name", "event_date")
+    @classmethod
+    def normalize_optional_studyme_fields(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
+
+
 class AdminFeedbackStatusUpdateRequest(BaseModel):
     status: Literal["new", "reviewed", "resolved"] = Field(..., description="Updated feedback status")
 

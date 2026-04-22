@@ -4,6 +4,7 @@ import InstagramButton from '../components/common/InstagramButton'
 import LogoutButton from '../components/profile/LogoutButton'
 import useAppStore from '../hooks/useAppStore'
 import { fetchSessionStatus, submitFeedback } from '../services/attendanceApi'
+import { fireAndForgetStudyMeEvent } from '../services/studyMeAnalytics'
 
 function getInitials(name) {
   if (!name) return 'I'
@@ -30,6 +31,15 @@ function formatLastSynced(date) {
   })
 
   return `${dayMonth}, ${time}`
+}
+
+function looksLikeStudyMeFeedback(message) {
+  const normalized = String(message || '').trim().toLowerCase()
+  if (!normalized) {
+    return false
+  }
+
+  return ['studyme', 'subject', 'lesson', 'topic', 'pdf', 'prompt', 'ai', 'chatgpt'].some((keyword) => normalized.includes(keyword))
 }
 
 function Profile() {
@@ -176,6 +186,13 @@ function Profile() {
       const result = await submitFeedback(feedbackMessage, userName)
       const submittedAt = result?.timestamp ? new Date(result.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null
       setFeedbackStatus(submittedAt ? `Feedback submitted successfully at ${submittedAt}.` : 'Feedback submitted successfully.')
+      if (looksLikeStudyMeFeedback(feedbackMessage)) {
+        fireAndForgetStudyMeEvent({
+          eventType: 'studyme_feedback_sent',
+          token: session.token,
+          userName,
+        })
+      }
       setFeedbackMessage('')
     } catch (error) {
       setFeedbackError(error.message || 'Unable to submit feedback right now.')

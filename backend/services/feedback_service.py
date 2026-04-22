@@ -156,6 +156,11 @@ def list_feedback(
     return filtered[:capped_limit]
 
 
+def list_all_feedback() -> list[dict[str, str]]:
+    with _FEEDBACK_LOCK:
+        return list(_read_feedback_entries())
+
+
 def update_feedback_status(feedback_id: str, status: str) -> dict[str, str] | None:
     normalized_id = (feedback_id or "").strip()
     normalized_status = (status or "").strip().lower()

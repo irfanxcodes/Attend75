@@ -1,8 +1,10 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import StudyBackButton from '../components/common/StudyBackButton'
 import { getStudySubjectById } from '../constants/studyMe/content'
+import useAppStore from '../hooks/useAppStore'
 import { getSubjectProgress } from '../services/studyProgress'
+import { fireAndForgetStudyMeEvent } from '../services/studyMeAnalytics'
 
 function statusChip(status) {
   if (status === 'completed') {
@@ -31,6 +33,10 @@ function statusChip(status) {
 function StudyLessons() {
   const navigate = useNavigate()
   const { subjectId } = useParams()
+  const hasTrackedSubjectOpenRef = useRef(false)
+  const {
+    state: { user, session },
+  } = useAppStore()
   const subject = getStudySubjectById(subjectId)
 
   const progress = useMemo(() => {
@@ -41,6 +47,24 @@ function StudyLessons() {
     const lessonIds = subject.lessons.map((lesson) => lesson.id)
     return getSubjectProgress(subject.id, lessonIds)
   }, [subject])
+
+  useEffect(() => {
+    if (!subject || hasTrackedSubjectOpenRef.current) {
+      return
+    }
+
+    hasTrackedSubjectOpenRef.current = true
+    fireAndForgetStudyMeEvent({
+      eventType: 'studyme_subject_opened',
+      token: session.token,
+      userName: user.portalName || user.name || user.rollNumber || user.id,
+      subjectName: subject.title,
+    })
+  }, [session.token, subject, user.id, user.name, user.portalName, user.rollNumber])
+
+  const openLesson = (lesson) => {
+    navigate(`/study/${subject.id}/${lesson.id}`)
+  }
 
   if (!subject) {
     return (
@@ -79,11 +103,11 @@ function StudyLessons() {
               key={lesson.id}
               role="button"
               tabIndex={0}
-              onClick={() => navigate(`/study/${subject.id}/${lesson.id}`)}
+              onClick={() => openLesson(lesson)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                   event.preventDefault()
-                  navigate(`/study/${subject.id}/${lesson.id}`)
+                  openLesson(lesson)
                 }
               }}
               className="cursor-pointer rounded-2xl border border-white/15 bg-[#312051] p-4 transition hover:bg-[#3A315D]"

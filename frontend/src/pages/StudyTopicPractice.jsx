@@ -1,9 +1,11 @@
 import { InlineMath } from 'react-katex'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import MathFormula from '../components/common/MathFormula'
 import StudyBackButton from '../components/common/StudyBackButton'
 import { getStudyLessonById, getStudySubjectById } from '../constants/studyMe/content'
+import useAppStore from '../hooks/useAppStore'
+import { fireAndForgetStudyMeEvent } from '../services/studyMeAnalytics'
 
 const MODES = [
   { id: 'learn', label: 'Learn' },
@@ -341,6 +343,10 @@ function MistakeCard({ item }) {
 
 function StudyTopicPractice() {
   const { subjectId, lessonId, topicId } = useParams()
+  const hasTrackedTopicOpenRef = useRef(false)
+  const {
+    state: { user, session },
+  } = useAppStore()
 
   const subject = getStudySubjectById(subjectId)
   const lesson = getStudyLessonById(subjectId, lessonId)
@@ -373,6 +379,22 @@ function StudyTopicPractice() {
   })
 
   const hasAnyFilters = difficultyOptions.length > 1 || typeOptions.length > 1
+
+  useEffect(() => {
+    if (!subject || !lesson || !topic || hasTrackedTopicOpenRef.current) {
+      return
+    }
+
+    hasTrackedTopicOpenRef.current = true
+    fireAndForgetStudyMeEvent({
+      eventType: 'studyme_topic_opened',
+      token: session.token,
+      userName: user.portalName || user.name || user.rollNumber || user.id,
+      subjectName: subject.title,
+      lessonName: lesson.title,
+      topicName: topic.title,
+    })
+  }, [lesson, session.token, subject, topic, user.id, user.name, user.portalName, user.rollNumber])
 
   const changeMode = (modeId) => {
     setActiveMode(modeId)

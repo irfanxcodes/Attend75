@@ -502,7 +502,7 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'Geometric Return',
                 formula: 'R_g = [(1+R_1)(1+R_2)...(1+R_n)]^(1/n)-1',
-                latex: 'R_g = \\left[(1 + R_1)(1 + R_2)\\cdots(1 + R_n)\\right]^{\\frac{1}{n} - 1} ',
+                latex: 'R_g = \\left[(1 + R_1)(1 + R_2)\\cdots(1 + R_n)\\right]^{\\frac{1}{n}} - 1',
                 notation: {
                   R_g: 'Geometric (compound average) return',
                   R_i: 'Return in period i',

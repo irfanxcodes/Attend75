@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { id: 'user-analytics', label: 'User Analytics' },
   { id: 'scraper-performance', label: 'Scraper Performance' },
   { id: 'feature-usage', label: 'Feature Usage' },
+  { id: 'studyme-analytics', label: 'StudyMe Analytics' },
   { id: 'feedback-management', label: 'Feedback Management' },
 ]
 
@@ -383,6 +384,7 @@ function AdminDashboard() {
   const isUserAnalytics = activeSection === 'user-analytics'
   const isScraperPerformance = activeSection === 'scraper-performance'
   const isFeatureUsage = activeSection === 'feature-usage'
+  const isStudyMeAnalytics = activeSection === 'studyme-analytics'
   const isFeedbackManagement = activeSection === 'feedback-management'
 
   const healthStatusCards = useMemo(() => {
@@ -640,6 +642,79 @@ function AdminDashboard() {
     return Array.isArray(items) ? items : []
   }, [overview])
 
+  const studyMeOverviewCards = useMemo(() => {
+    const metrics = overview?.studyMeAnalytics?.overview
+    if (!metrics) return []
+
+    return [
+      {
+        label: 'Total StudyMe Users',
+        value: formatMetricNumber(metrics.totalStudyMeUsers),
+        subtitle: 'Distinct users with tracked StudyMe events',
+        tone: Number(metrics.totalStudyMeUsers) > 0 ? 'success' : 'default',
+      },
+      {
+        label: 'StudyMe Users Today',
+        value: formatMetricNumber(metrics.studyMeUsersToday),
+        subtitle: 'Unique StudyMe users for the current backend date',
+        tone: Number(metrics.studyMeUsersToday) > 0 ? 'success' : 'default',
+      },
+      {
+        label: 'Total Lesson Opens',
+        value: formatMetricNumber(metrics.totalLessonOpens),
+        subtitle: 'Lesson detail visits tracked from StudyMe',
+        tone: 'default',
+      },
+      {
+        label: 'Total Topic Opens',
+        value: formatMetricNumber(metrics.totalTopicOpens),
+        subtitle: 'Topic practice/PDF entry points',
+        tone: 'default',
+      },
+      {
+        label: 'Total PDF Opens',
+        value: formatMetricNumber(metrics.totalPdfOpens),
+        subtitle: 'Embedded PDF viewer opens',
+        tone: 'default',
+      },
+      {
+        label: 'Total AI Prompt Copies',
+        value: formatMetricNumber(metrics.totalAiPromptCopies),
+        subtitle: 'Lesson + topic prompt copy events',
+        tone: Number(metrics.totalAiPromptCopies) > 0 ? 'success' : 'default',
+      },
+      {
+        label: 'Total Lesson Completions',
+        value: formatMetricNumber(metrics.totalLessonCompletions),
+        subtitle: 'Explicit mark-complete actions',
+        tone: Number(metrics.totalLessonCompletions) > 0 ? 'success' : 'default',
+      },
+    ]
+  }, [overview])
+
+  const studyMeFunnel = useMemo(() => {
+    const items = overview?.studyMeAnalytics?.funnel
+    return Array.isArray(items) ? items : []
+  }, [overview])
+
+  const studyMeLessonRows = useMemo(() => {
+    const items = overview?.studyMeAnalytics?.lessonAnalytics
+    return Array.isArray(items) ? items : []
+  }, [overview])
+
+  const studyMeTopicRows = useMemo(() => {
+    const items = overview?.studyMeAnalytics?.topicAnalytics
+    return Array.isArray(items) ? items : []
+  }, [overview])
+
+  const studyMeAiUsage = overview?.studyMeAnalytics?.aiUsageInsights || null
+  const studyMePdfEngagement = overview?.studyMeAnalytics?.pdfEngagement || null
+  const studyMeDemandInsights = overview?.studyMeAnalytics?.demandInsights || null
+  const hasStudyMeActivity =
+    Number(overview?.studyMeAnalytics?.overview?.totalLessonOpens || 0) > 0 ||
+    Number(overview?.studyMeAnalytics?.overview?.totalTopicOpens || 0) > 0 ||
+    Number(overview?.studyMeAnalytics?.overview?.totalPdfOpens || 0) > 0
+
   return (
     <section className="min-h-dvh bg-[radial-gradient(circle_at_20%_0%,#5f5690_0%,#3b335f_44%,#2b2446_100%)] px-4 pb-10 pt-5 sm:px-6 lg:px-8">
       <div className="mx-auto grid w-full max-w-7xl gap-4 lg:grid-cols-[260px_1fr]">
@@ -692,7 +767,9 @@ function AdminDashboard() {
                     : isScraperPerformance
                       ? 'Live scraper telemetry for success, failures, performance, and downtime heuristics.'
                       : isFeatureUsage
-                        ? 'Live usage counters for core user actions and semester interaction patterns.'
+                      ? 'Live usage counters for core user actions and semester interaction patterns.'
+                      : isStudyMeAnalytics
+                        ? 'Usage analytics for StudyMe adoption, lesson flow, AI actions, PDF engagement, and subject demand.'
                         : isFeedbackManagement
                           ? 'Review feedback entries with streamlined latest/oldest sorting.'
                     : 'This section will be implemented next.'}
@@ -1022,6 +1099,281 @@ function AdminDashboard() {
             </section>
           ) : null}
 
+          {!isLoading && !error && isStudyMeAnalytics ? (
+            <section className="space-y-3">
+              {!hasStudyMeActivity ? (
+                <div className="rounded-xl border border-amber-300/40 bg-amber-500/10 p-3 text-sm text-amber-100">
+                  {NO_ACTIVITY_MESSAGE}
+                </div>
+              ) : null}
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {studyMeOverviewCards.map((card) => (
+                  <StatCard key={card.label} label={card.label} value={card.value} subtitle={card.subtitle} tone={card.tone} />
+                ))}
+              </div>
+
+              <section className="rounded-2xl border border-white/20 bg-[#312051] p-4 sm:p-5">
+                <h2 className="text-lg font-semibold text-[#F4F1FF]">User Funnel</h2>
+                <p className="mt-1 text-sm text-[#D8D3E8]">Counts by step, plus drop-off from the previous StudyMe stage.</p>
+
+                {studyMeFunnel.length ? (
+                  <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-2">
+                    {studyMeFunnel.map((step) => (
+                      <article key={step.step} className="rounded-xl border border-white/10 bg-[#3A315D] p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-[#F4F1FF]">{step.step}</p>
+                          <span className="text-lg font-bold text-[#E2BC8B]">{formatMetricNumber(step.count)}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-[#D8D3E8]">
+                          Drop-off: {formatMetricNumber(step.dropOffCount)} ({formatMetricPercentage(step.dropOffPercent)})
+                        </p>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-[#D8D3E8]">No StudyMe funnel events have been recorded yet.</p>
+                )}
+              </section>
+
+              <section className="rounded-2xl border border-white/20 bg-[#312051] p-4 sm:p-5">
+                <h2 className="text-lg font-semibold text-[#F4F1FF]">Lesson Analytics</h2>
+                <p className="mt-1 text-sm text-[#D8D3E8]">Per-lesson adoption, AI usage, PDF opens, and completion rate.</p>
+
+                <div className="mt-4 overflow-x-auto">
+                  <table className="min-w-full border-separate border-spacing-y-2">
+                    <thead>
+                      <tr className="text-left text-xs uppercase tracking-wide text-[#CFC5E8]">
+                        <th className="px-3 py-2">Lesson</th>
+                        <th className="px-3 py-2">Opens</th>
+                        <th className="px-3 py-2">Unique Users</th>
+                        <th className="px-3 py-2">Completions</th>
+                        <th className="px-3 py-2">AI Usage</th>
+                        <th className="px-3 py-2">Topic Prompt Copies</th>
+                        <th className="px-3 py-2">PDF Opens</th>
+                        <th className="px-3 py-2">Important Votes</th>
+                        <th className="px-3 py-2">Completion Rate</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {studyMeLessonRows.length ? (
+                        studyMeLessonRows.map((row) => (
+                          <tr key={row.lessonName} className="rounded-lg bg-[#3A315D] text-sm text-[#F4F1FF]">
+                            <td className="px-3 py-2 align-top">{row.lessonName}</td>
+                            <td className="whitespace-nowrap px-3 py-2 align-top">{formatMetricNumber(row.totalOpens)}</td>
+                            <td className="whitespace-nowrap px-3 py-2 align-top">{formatMetricNumber(row.uniqueUsers)}</td>
+                            <td className="whitespace-nowrap px-3 py-2 align-top">{formatMetricNumber(row.completionCount)}</td>
+                            <td className="whitespace-nowrap px-3 py-2 align-top">{formatMetricNumber(row.aiPromptUsageCount)}</td>
+                            <td className="whitespace-nowrap px-3 py-2 align-top">{formatMetricNumber(row.topicPromptCopyCount)}</td>
+                            <td className="whitespace-nowrap px-3 py-2 align-top">{formatMetricNumber(row.pdfOpenCount)}</td>
+                            <td className="whitespace-nowrap px-3 py-2 align-top">{formatMetricNumber(row.importantVotesCount)}</td>
+                            <td className="whitespace-nowrap px-3 py-2 align-top">{formatMetricPercentage(row.completionRate)}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={9} className="rounded-lg bg-[#3A315D] px-3 py-4 text-sm text-[#D8D3E8]">
+                            No lesson analytics available yet.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-white/20 bg-[#312051] p-4 sm:p-5">
+                <h2 className="text-lg font-semibold text-[#F4F1FF]">Topic Analytics</h2>
+                <p className="mt-1 text-sm text-[#D8D3E8]">Topic usage, PDF openings, prompt copies, and important votes.</p>
+
+                <div className="mt-4 overflow-x-auto">
+                  <table className="min-w-full border-separate border-spacing-y-2">
+                    <thead>
+                      <tr className="text-left text-xs uppercase tracking-wide text-[#CFC5E8]">
+                        <th className="px-3 py-2">Topic</th>
+                        <th className="px-3 py-2">Parent Lesson</th>
+                        <th className="px-3 py-2">Topic Opens</th>
+                        <th className="px-3 py-2">PDF Opens</th>
+                        <th className="px-3 py-2">Prompt Copies</th>
+                        <th className="px-3 py-2">Important Votes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {studyMeTopicRows.length ? (
+                        studyMeTopicRows.map((row) => (
+                          <tr key={`${row.parentLesson}-${row.topicName}`} className="rounded-lg bg-[#3A315D] text-sm text-[#F4F1FF]">
+                            <td className="px-3 py-2 align-top">{row.topicName}</td>
+                            <td className="px-3 py-2 align-top">{row.parentLesson}</td>
+                            <td className="whitespace-nowrap px-3 py-2 align-top">{formatMetricNumber(row.topicOpens)}</td>
+                            <td className="whitespace-nowrap px-3 py-2 align-top">{formatMetricNumber(row.pdfOpens)}</td>
+                            <td className="whitespace-nowrap px-3 py-2 align-top">{formatMetricNumber(row.promptCopies)}</td>
+                            <td className="whitespace-nowrap px-3 py-2 align-top">{formatMetricNumber(row.importantVotes)}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={6} className="rounded-lg bg-[#3A315D] px-3 py-4 text-sm text-[#D8D3E8]">
+                            No topic analytics available yet.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                <section className="rounded-2xl border border-white/20 bg-[#312051] p-4 sm:p-5">
+                  <h2 className="text-lg font-semibold text-[#F4F1FF]">AI Usage Insights</h2>
+                  <p className="mt-1 text-sm text-[#D8D3E8]">Lesson AI opens, prompt copies, and most-used topics for AI help.</p>
+
+                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <StatCard
+                      label="Lesson AI Opened"
+                      value={formatMetricNumber(studyMeAiUsage?.lessonAiOpenedCount)}
+                      subtitle="Study this lesson with AI"
+                      tone="default"
+                    />
+                    <StatCard
+                      label="Lesson Prompt Copies"
+                      value={formatMetricNumber(studyMeAiUsage?.lessonAiCopiedCount)}
+                      subtitle="Lesson prompt copy actions"
+                      tone="success"
+                    />
+                    <StatCard
+                      label="Topic Prompt Copies"
+                      value={formatMetricNumber(studyMeAiUsage?.topicPromptCopiedCount)}
+                      subtitle="Topic prompt copy actions"
+                      tone="success"
+                    />
+                  </div>
+
+                  <div className="mt-4 space-y-2">
+                    {Array.isArray(studyMeAiUsage?.mostUsedTopicsForAi) && studyMeAiUsage.mostUsedTopicsForAi.length ? (
+                      studyMeAiUsage.mostUsedTopicsForAi.slice(0, 5).map((item) => (
+                        <article key={`${item.parentLesson}-${item.topicName}`} className="rounded-xl border border-white/10 bg-[#3A315D] p-3">
+                          <p className="text-sm font-semibold text-[#F4F1FF]">{item.topicName}</p>
+                          <p className="mt-1 text-xs text-[#D8D3E8]">{item.parentLesson}</p>
+                          <p className="mt-1 text-xs text-[#D8D3E8]">Prompt copies: {formatMetricNumber(item.promptCopies)}</p>
+                        </article>
+                      ))
+                    ) : (
+                      <p className="text-sm text-[#D8D3E8]">No AI topic activity recorded yet.</p>
+                    )}
+                  </div>
+                </section>
+
+                <section className="rounded-2xl border border-white/20 bg-[#312051] p-4 sm:p-5">
+                  <h2 className="text-lg font-semibold text-[#F4F1FF]">PDF Engagement</h2>
+                  <p className="mt-1 text-sm text-[#D8D3E8]">PDF opens, lesson-level distribution, and page navigation events.</p>
+
+                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <StatCard
+                      label="Total PDF Opens"
+                      value={formatMetricNumber(studyMePdfEngagement?.totalPdfOpens)}
+                      subtitle="All embedded StudyMe PDF opens"
+                      tone="default"
+                    />
+                    <StatCard
+                      label="Page Next"
+                      value={formatMetricNumber(studyMePdfEngagement?.pageNextCount)}
+                      subtitle="Tracked next-page actions"
+                      tone="default"
+                    />
+                    <StatCard
+                      label="Page Prev"
+                      value={formatMetricNumber(studyMePdfEngagement?.pagePrevCount)}
+                      subtitle="Tracked previous-page actions"
+                      tone="default"
+                    />
+                  </div>
+
+                  <div className="mt-4 space-y-2">
+                    {Array.isArray(studyMePdfEngagement?.pdfOpensPerLesson) && studyMePdfEngagement.pdfOpensPerLesson.length ? (
+                      studyMePdfEngagement.pdfOpensPerLesson.map((item) => (
+                        <article key={item.lessonName} className="rounded-xl border border-white/10 bg-[#3A315D] p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-sm font-semibold text-[#F4F1FF]">{item.lessonName}</p>
+                            <span className="text-sm font-semibold text-[#E2BC8B]">{formatMetricNumber(item.count)}</span>
+                          </div>
+                        </article>
+                      ))
+                    ) : (
+                      <p className="text-sm text-[#D8D3E8]">No lesson-level PDF activity recorded yet.</p>
+                    )}
+                  </div>
+                </section>
+              </div>
+
+              <section className="rounded-2xl border border-white/20 bg-[#312051] p-4 sm:p-5">
+                <h2 className="text-lg font-semibold text-[#F4F1FF]">Demand & Feedback Insights</h2>
+                <p className="mt-1 text-sm text-[#D8D3E8]">Simple heuristics over feedback to surface requested subjects and recurring suggestion themes.</p>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-3">
+                  <StatCard
+                    label="StudyMe Feedback Sent"
+                    value={formatMetricNumber(studyMeDemandInsights?.studyMeFeedbackCount)}
+                    subtitle="Tracked StudyMe-related feedback submissions"
+                    tone="default"
+                  />
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
+                  <div className="rounded-xl border border-white/10 bg-[#3A315D] p-3">
+                    <h3 className="text-sm font-semibold text-[#F4F1FF]">Requested Subjects</h3>
+                    <div className="mt-3 space-y-2">
+                      {Array.isArray(studyMeDemandInsights?.requestedSubjects) && studyMeDemandInsights.requestedSubjects.length ? (
+                        studyMeDemandInsights.requestedSubjects.map((item) => (
+                          <article key={item.subjectName} className="rounded-lg border border-white/10 bg-[#312051] p-3">
+                            <p className="text-sm font-semibold text-[#F4F1FF]">{item.subjectName}</p>
+                            <p className="mt-1 text-xs text-[#D8D3E8]">Requests: {formatMetricNumber(item.count)}</p>
+                            <p className="mt-1 text-xs text-[#D8D3E8]">Semester: {item.semester || '--'}</p>
+                          </article>
+                        ))
+                      ) : (
+                        <p className="text-sm text-[#D8D3E8]">No requested subject patterns detected yet.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-white/10 bg-[#3A315D] p-3">
+                    <h3 className="text-sm font-semibold text-[#F4F1FF]">Common Suggestions</h3>
+                    <div className="mt-3 space-y-2">
+                      {Array.isArray(studyMeDemandInsights?.commonSuggestions) && studyMeDemandInsights.commonSuggestions.length ? (
+                        studyMeDemandInsights.commonSuggestions.map((item, index) => (
+                          <article key={`${item.suggestion}-${index}`} className="rounded-lg border border-white/10 bg-[#312051] p-3">
+                            <p className="text-xs text-[#F4F1FF]">{item.suggestion}</p>
+                            <p className="mt-1 text-[11px] text-[#D8D3E8]">Mentions: {formatMetricNumber(item.count)}</p>
+                          </article>
+                        ))
+                      ) : (
+                        <p className="text-sm text-[#D8D3E8]">No repeated suggestion patterns detected yet.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-white/10 bg-[#3A315D] p-3">
+                    <h3 className="text-sm font-semibold text-[#F4F1FF]">Feedback Categories</h3>
+                    <div className="mt-3 space-y-2">
+                      {Array.isArray(studyMeDemandInsights?.feedbackCategories) && studyMeDemandInsights.feedbackCategories.length ? (
+                        studyMeDemandInsights.feedbackCategories.map((item) => (
+                          <article key={item.category} className="rounded-lg border border-white/10 bg-[#312051] p-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm text-[#F4F1FF]">{item.category}</p>
+                              <span className="text-sm font-semibold text-[#E2BC8B]">{formatMetricNumber(item.count)}</span>
+                            </div>
+                          </article>
+                        ))
+                      ) : (
+                        <p className="text-sm text-[#D8D3E8]">No category distribution available yet.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </section>
+          ) : null}
+
           {!isLoading && !error && isFeedbackManagement ? (
             <section className="space-y-3">
               <section className="rounded-2xl border border-white/20 bg-[#312051] p-4 sm:p-5">
@@ -1110,7 +1462,7 @@ function AdminDashboard() {
             />
           ) : null}
 
-          {!isLoading && !error && !isHomepage && !isHealthStatus && !isUserAnalytics && !isScraperPerformance && !isFeatureUsage && !isFeedbackManagement ? (
+          {!isLoading && !error && !isHomepage && !isHealthStatus && !isUserAnalytics && !isScraperPerformance && !isFeatureUsage && !isStudyMeAnalytics && !isFeedbackManagement ? (
             <section className="rounded-2xl border border-white/20 bg-[#312051] p-4 sm:p-5">
               <h2 className="text-lg font-semibold text-[#F4F1FF]">{sectionTitle}</h2>
               <p className="mt-1 text-sm text-[#D8D3E8]">Coming next. We will implement this module after Homepage.</p>

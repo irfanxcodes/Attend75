@@ -6,6 +6,8 @@ import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
 import StudyBackButton from '../components/common/StudyBackButton'
 import { getStudyLessonById, getStudySubjectById } from '../constants/studyMe/content'
+import useAppStore from '../hooks/useAppStore'
+import { fireAndForgetStudyMeEvent } from '../services/studyMeAnalytics'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
@@ -18,7 +20,11 @@ function StudyPdfViewer() {
   const navigate = useNavigate()
   const { subjectId, lessonId } = useParams()
   const [searchParams] = useSearchParams()
+  const hasTrackedPdfOpenRef = useRef('')
   const topicId = searchParams.get('topic') || ''
+  const {
+    state: { user, session },
+  } = useAppStore()
 
   const subject = getStudySubjectById(subjectId)
   const lesson = getStudyLessonById(subjectId, lessonId)
@@ -71,6 +77,27 @@ function StudyPdfViewer() {
   useEffect(() => {
     setPdfError('')
   }, [resolvedPdfPath])
+
+  useEffect(() => {
+    if (!subject || !lesson || !resolvedPdfPath) {
+      return
+    }
+
+    const trackingKey = `${subject.id}:${lesson.id}:${selectedTopic?.id || 'lesson'}`
+    if (hasTrackedPdfOpenRef.current === trackingKey) {
+      return
+    }
+
+    hasTrackedPdfOpenRef.current = trackingKey
+    fireAndForgetStudyMeEvent({
+      eventType: 'studyme_pdf_opened',
+      token: session.token,
+      userName: user.portalName || user.name || user.rollNumber || user.id,
+      subjectName: subject.title,
+      lessonName: lesson.title,
+      topicName: selectedTopic?.title || null,
+    })
+  }, [lesson, resolvedPdfPath, selectedTopic, session.token, subject, user.id, user.name, user.portalName, user.rollNumber])
 
   useEffect(() => {
     if (!resolvedPdfPath) {
@@ -149,10 +176,26 @@ function StudyPdfViewer() {
   const canGoNext = numPages ? pageNumber < numPages : false
 
   const goToPrevPage = () => {
+    fireAndForgetStudyMeEvent({
+      eventType: 'studyme_pdf_page_prev',
+      token: session.token,
+      userName: user.portalName || user.name || user.rollNumber || user.id,
+      subjectName: subject?.title || null,
+      lessonName: lesson?.title || null,
+      topicName: selectedTopic?.title || null,
+    })
     setPageNumber((current) => clamp(current - 1, 1, numPages || 1))
   }
 
   const goToNextPage = () => {
+    fireAndForgetStudyMeEvent({
+      eventType: 'studyme_pdf_page_next',
+      token: session.token,
+      userName: user.portalName || user.name || user.rollNumber || user.id,
+      subjectName: subject?.title || null,
+      lessonName: lesson?.title || null,
+      topicName: selectedTopic?.title || null,
+    })
     setPageNumber((current) => clamp(current + 1, 1, numPages || 1))
   }
 

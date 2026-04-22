@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { InlineMath } from 'react-katex'
 import CollapsibleSection from '../components/common/CollapsibleSection'
 import MathFormula from '../components/common/MathFormula'
 import StudyBackButton from '../components/common/StudyBackButton'
 import { getStudyLessonById, getStudySubjectById } from '../constants/studyMe/content'
+import useAppStore from '../hooks/useAppStore'
 import { getLessonState, markLessonOpened, setLessonStatus, toggleLessonImportant } from '../services/studyProgress'
+import { fireAndForgetStudyMeEvent } from '../services/studyMeAnalytics'
 
 function getFormulaSections(lesson) {
   if (Array.isArray(lesson?.formulaSections) && lesson.formulaSections.length) {
@@ -163,6 +165,10 @@ function buildTopicPrompt(subject, lesson, topic) {
 function StudyLessonDetail() {
   const navigate = useNavigate()
   const { subjectId, lessonId } = useParams()
+  const hasTrackedLessonOpenRef = useRef(false)
+  const {
+    state: { user, session },
+  } = useAppStore()
   const subject = getStudySubjectById(subjectId)
   const lesson = getStudyLessonById(subjectId, lessonId)
 
@@ -177,13 +183,21 @@ function StudyLessonDetail() {
   const [mobileNotationOpenById, setMobileNotationOpenById] = useState({})
 
   useEffect(() => {
-    if (!subject || !lesson) {
+    if (!subject || !lesson || hasTrackedLessonOpenRef.current) {
       return
     }
 
+    hasTrackedLessonOpenRef.current = true
     const updated = markLessonOpened(subject.id, lesson.id)
     setLessonState(updated)
-  }, [subject, lesson])
+    fireAndForgetStudyMeEvent({
+      eventType: 'studyme_lesson_opened',
+      token: session.token,
+      userName: user.portalName || user.name || user.rollNumber || user.id,
+      subjectName: subject.title,
+      lessonName: lesson.title,
+    })
+  }, [lesson, session.token, subject, user.id, user.name, user.portalName, user.rollNumber])
 
   const aiPrompt = useMemo(() => {
     if (!subject || !lesson) {
@@ -226,6 +240,13 @@ function StudyLessonDetail() {
     try {
       await window.navigator.clipboard.writeText(aiPrompt)
       setCopyMessage('Prompt copied')
+      fireAndForgetStudyMeEvent({
+        eventType: 'studyme_lesson_ai_copied',
+        token: session.token,
+        userName: user.portalName || user.name || user.rollNumber || user.id,
+        subjectName: subject?.title || null,
+        lessonName: lesson?.title || null,
+      })
     } catch {
       setCopyMessage('Unable to copy prompt')
     }
@@ -239,6 +260,14 @@ function StudyLessonDetail() {
     try {
       await window.navigator.clipboard.writeText(prompt)
       setTopicCopyFeedback({ id: topic.id, message: 'Copied' })
+      fireAndForgetStudyMeEvent({
+        eventType: 'studyme_topic_prompt_copied',
+        token: session.token,
+        userName: user.portalName || user.name || user.rollNumber || user.id,
+        subjectName: subject?.title || null,
+        lessonName: lesson?.title || null,
+        topicName: topic.title,
+      })
     } catch {
       setTopicCopyFeedback({ id: topic.id, message: 'Unable to copy' })
     }
@@ -260,6 +289,63 @@ function StudyLessonDetail() {
     }))
   }
 
+  const openLessonAi = () => {
+    setAiSheetOpen(true)
+    fireAndForgetStudyMeEvent({
+      eventType: 'studyme_lesson_ai_opened',
+      token: session.token,
+      userName: user.portalName || user.name || user.rollNumber || user.id,
+      subjectName: subject?.title || null,
+      lessonName: lesson?.title || null,
+    })
+  }
+
+  const handleLessonCompleted = () => {
+    setLessonState(setLessonStatus(subject.id, lesson.id, 'completed'))
+    fireAndForgetStudyMeEvent({
+      eventType: 'studyme_lesson_completed',
+      token: session.token,
+      userName: user.portalName || user.name || user.rollNumber || user.id,
+      subjectName: subject.title,
+      lessonName: lesson.title,
+    })
+  }
+
+  const handleLessonImportantToggle = () => {
+    setLessonState(toggleLessonImportant(subject.id, lesson.id))
+    fireAndForgetStudyMeEvent({
+      eventType: 'studyme_lesson_important_toggled',
+      token: session.token,
+      userName: user.portalName || user.name || user.rollNumber || user.id,
+      subjectName: subject.title,
+      lessonName: lesson.title,
+    })
+  }
+
+  const openTopicPdf = (topic) => {
+    fireAndForgetStudyMeEvent({
+      eventType: 'studyme_topic_opened',
+      token: session.token,
+      userName: user.portalName || user.name || user.rollNumber || user.id,
+      subjectName: subject.title,
+      lessonName: lesson.title,
+      topicName: topic.title,
+    })
+    navigate(`/study/${subject.id}/${lesson.id}/pdf?topic=${topic.id}`)
+  }
+
+  const openTopicPractice = (topic) => {
+    fireAndForgetStudyMeEvent({
+      eventType: 'studyme_topic_opened',
+      token: session.token,
+      userName: user.portalName || user.name || user.rollNumber || user.id,
+      subjectName: subject.title,
+      lessonName: lesson.title,
+      topicName: topic.title,
+    })
+    navigate(`/study/${subject.id}/${lesson.id}/practice/${topic.id}`)
+  }
+
   return (
     <section className="space-y-3 pb-2 sm:space-y-4">
       <header className="rounded-3xl bg-[#4F487A] p-4 ring-1 ring-white/10 sm:p-5">
@@ -279,14 +365,14 @@ function StudyLessonDetail() {
         <div className="mt-4 flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => setLessonState(setLessonStatus(subject.id, lesson.id, 'completed'))}
+            onClick={handleLessonCompleted}
             className="rounded-full bg-[#E2BC8B] px-4 py-2 text-sm font-semibold text-[#1D183E] hover:bg-[#D9AA6F]"
           >
             Mark as Complete
           </button>
           <button
             type="button"
-            onClick={() => setLessonState(toggleLessonImportant(subject.id, lesson.id))}
+            onClick={handleLessonImportantToggle}
             className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
               lessonState.important
                 ? 'border-[#E2BC8B]/70 bg-[#E2BC8B]/20 text-[#F2CA98]'
@@ -297,7 +383,7 @@ function StudyLessonDetail() {
           </button>
           <button
             type="button"
-            onClick={() => setAiSheetOpen(true)}
+            onClick={openLessonAi}
             className="rounded-full border border-[#A8D8FF]/50 bg-[#3A315D] px-4 py-2 text-sm font-semibold text-[#CFE8FF] hover:bg-[#4A3E73]"
           >
             Study this lesson with AI
@@ -394,7 +480,7 @@ function StudyLessonDetail() {
                     <div className="mt-3 flex flex-wrap gap-2">
                       <button
                         type="button"
-                        onClick={() => navigate(`/study/${subject.id}/${lesson.id}/pdf?topic=${topic.id}`)}
+                        onClick={() => openTopicPdf(topic)}
                         className="rounded-full border border-[#A8D8FF]/50 bg-[#312051] px-3 py-1.5 text-xs font-semibold text-[#CFE8FF] hover:bg-[#4A3E73]"
                       >
                         Open in PDF
@@ -409,7 +495,7 @@ function StudyLessonDetail() {
                       {hasPracticeProblems ? (
                         <button
                           type="button"
-                          onClick={() => navigate(`/study/${subject.id}/${lesson.id}/practice/${topic.id}`)}
+                          onClick={() => openTopicPractice(topic)}
                           className="rounded-full border border-[#E2BC8B]/45 bg-[#E2BC8B]/12 px-3 py-1.5 text-xs font-semibold text-[#F2CA98] hover:bg-[#E2BC8B]/20"
                         >
                           Practice Problems

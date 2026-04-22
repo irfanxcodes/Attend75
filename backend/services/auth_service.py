@@ -101,7 +101,8 @@ def login_user(roll_number: str, password: str) -> dict:
     scraper = PortalScraper()
     try:
         data = _run_with_network_retry(lambda: scraper.login(roll_number=roll_number, password=password))
-        record = session_store.create(roll_number=roll_number, scraper=scraper)
+        resolved_user_name = str(data.get("student_name") or roll_number).strip() or roll_number.strip().upper()
+        record = session_store.create(roll_number=roll_number, scraper=scraper, user_name=resolved_user_name)
         if _prefetch_marks_after_login_enabled():
             threading.Thread(
                 target=_prefetch_marks_after_login,
