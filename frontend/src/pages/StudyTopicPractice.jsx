@@ -6,7 +6,7 @@ import StudyBackButton from '../components/common/StudyBackButton'
 import { getStudyLessonById, getStudySubjectById } from '../constants/studyMe/content'
 import useAppStore from '../hooks/useAppStore'
 import { fireAndForgetStudyMeEvent } from '../services/studyMeAnalytics'
-import { latexFallbackText, normalizeLatex } from '../utils/mathLatex'
+import { latexFallbackText, normalizeLatex, shouldRenderAsMath } from '../utils/mathLatex'
 
 const MODES = [
   { id: 'learn', label: 'Learn' },
@@ -119,10 +119,14 @@ function FormulaPanel({ formula }) {
           {notationEntries.map(([symbol, meaning]) => (
             <div key={symbol} className="rounded-md bg-white/5 px-2 py-1.5">
               <dt className="font-semibold text-[#F2CA98]">
-                <InlineMath
-                  math={normalizeLatex(symbol)}
-                  renderError={() => <span>{latexFallbackText(symbol, symbol)}</span>}
-                />
+                {shouldRenderAsMath(symbol) ? (
+                  <InlineMath
+                    math={normalizeLatex(symbol)}
+                    renderError={() => <span>{latexFallbackText(symbol, symbol)}</span>}
+                  />
+                ) : (
+                  <span>{symbol}</span>
+                )}
               </dt>
               <dd className="mt-0.5 leading-relaxed">{meaning}</dd>
             </div>

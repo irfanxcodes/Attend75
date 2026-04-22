@@ -56,7 +56,7 @@ export const STUDYME_SUBJECTS = [
           {
             name: 'Future Value',
             formula: 'FV = PV(1 + r)^n',
-            latex: 'FV = PV(1 + r)^n',
+            latex: latex`FV = PV(1 + r)^n`,
             notation: {
               FV: 'Future Value of money',
               PV: 'Present Value (today\'s amount)',
@@ -67,7 +67,7 @@ export const STUDYME_SUBJECTS = [
           {
             name: 'Present Value',
             formula: 'PV = FV / (1 + r)^n',
-            latex: 'PV = \\frac{FV}{(1 + r)^n}',
+            latex: latex`PV = \frac{FV}{(1 + r)^n}`,
             notation: {
               PV: 'Present Value (today\'s amount)',
               FV: 'Future Value',
@@ -78,7 +78,7 @@ export const STUDYME_SUBJECTS = [
           {
             name: 'Future Value of Annuity',
             formula: 'FVA = A[((1 + r)^n - 1) / r]',
-            latex: 'FVA = A\\left(\\frac{(1 + r)^n - 1}{r}\\right)',
+            latex: latex`FVA = A\left(\frac{(1 + r)^n - 1}{r}\right)`,
             notation: {
               FVA: 'Future Value of Annuity',
               A: 'Equal payment made each period',
@@ -89,7 +89,7 @@ export const STUDYME_SUBJECTS = [
           {
             name: 'Present Value of Annuity',
             formula: 'PVA = A[(1 - (1 + r)^-n) / r]',
-            latex: 'PVA = A\\left(\\frac{1 - (1 + r)^{-n}}{r}\\right)',
+            latex: latex`PVA = A\left(\frac{1 - (1 + r)^{-n}}{r}\right)`,
             notation: {
               PVA: 'Present Value of Annuity',
               A: 'Equal payment each period',
@@ -100,7 +100,7 @@ export const STUDYME_SUBJECTS = [
           {
             name: 'EMI',
             formula: 'EMI= P * r * (1 + r)^n / (1+r)^n -1 ',
-            latex: 'EMI = \\frac{P \\cdot r \\cdot (1 + r)^n}{(1 + r)^n - 1}',
+            latex: latex`EMI = \frac{P \cdot r \cdot (1 + r)^n}{(1 + r)^n - 1}`,
             notation: {
               EMI: 'Equal Monthly Installment',
               P: 'Principal loan amount',
@@ -666,7 +666,7 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'Bond Value',
                 formula: 'V = Σ [C / (1+r)^t] + FV / (1+r)^n',
-                latex: 'V = \\sum_{t=1}^{n} \\frac{C}{(1 + r)^t} + \\frac{FV}{(1 + r)^n}',
+                latex: latex`V = \sum_{t=1}^{n} \frac{C}{(1 + r)^t} + \frac{FV}{(1 + r)^n}`,
                 notation: {
                   V: 'Value of bond',
                   C: 'Annual coupon payment',
@@ -679,7 +679,7 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'Bond Value (Shortcut / PV Form)',
                 formula: 'V = C × PVIFA(r,n) + FV × PVIF(r,n)',
-                latex: 'V = C \\cdot PVIFA(r,n) + FV \\cdot PVIF(r,n)',
+                latex: latex`V = C \cdot PVIFA(r,n) + FV \cdot PVIF(r,n)`,
                 notation: {
                   V: 'Value of bond',
                   C: 'Annual coupon payment',
@@ -693,7 +693,7 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'Yield to Maturity (YTM)',
                 formula: 'Approx YTM = [C + (FV - P)/n] / [(FV + P)/2]',
-                latex: '\\text{YTM} \\approx \\frac{C + \\frac{FV - P}{n}}{\\frac{FV + P}{2}}',
+                latex: latex`\text{YTM} \approx \frac{C + \frac{FV - P}{n}}{\frac{FV + P}{2}}`,
                 notation: {
                   YTM: 'Yield to maturity',
                   C: 'Coupon payment',
@@ -711,7 +711,7 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'Dividend Discount Model (DDM)',
                 formula: 'P0 = D1 / (r - g)',
-                latex: 'P_0 = \\frac{D_1}{r - g}',
+                latex: latex`P_0 = \frac{D_1}{r - g}`,
                 notation: {
                   P_0: 'Current share price',
                   D_1: 'Expected dividend next year',
@@ -722,7 +722,7 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'Zero Growth Model',
                 formula: 'P0 = D / r',
-                latex: 'P_0 = \\frac{D}{r}',
+                latex: latex`P_0 = \frac{D}{r}`,
                 notation: {
                   P_0: 'Share price',
                   D: 'Constant dividend',
@@ -732,7 +732,7 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'Single Period Valuation Model',
                 formula: 'P₀ = (D₁ + P₁) / (1 + k)',
-                latex: 'P_0 = \\frac{D_1 + P_1}{1 + k}',
+                latex: latex`P_0 = \frac{D_1 + P_1}{1 + k}`,
                 notation: {
                   'P_0': 'Current price of the share',
                   'D_1': 'Dividend expected at the end of the period',
@@ -793,7 +793,7 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'Cost of Debt',
                 formula: 'r_D = [I + (F - P₀) / n] / [0.6P₀ + 0.4F]',
-                latex: 'r_D = \\frac{I + \\frac{F - P_0}{n}}{0.6P_0 + 0.4F}',
+                latex: latex`r_D = \frac{I + \frac{F - P_0}{n}}{0.6P_0 + 0.4F}`,
                 notation: {
                   "r_D": "Cost of debt",
                   "I": "Annual interest payment",
@@ -805,7 +805,7 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'Cost of Preference Shares',
                 formula: 'K_p = [D + (F - P₀) / n] / [0.6P₀ + 0.4F]',
-                latex: 'K_p = \\frac{D + \\frac{F - P_0}{n}}{0.6P_0 + 0.4F}',
+                latex: latex`K_p = \frac{D + \frac{F - P_0}{n}}{0.6P_0 + 0.4F}`,
                 notation: {
                   "K_p": "Cost of preference capital",
                   "D": "Annual preference dividend",
@@ -817,7 +817,7 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'Cost of Equity (Dividend Growth Model)',
                 formula: 'Ke = (D1 / P0) + g',
-                latex: 'K_e = \\frac{D_1}{P_0} + g',
+                latex: latex`K_e = \frac{D_1}{P_0} + g`,
                 notation: {
                   K_e: 'Cost of equity',
                   D_1: 'Expected dividend next year',
@@ -834,7 +834,7 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'WACC',
                 formula: 'WACC = W_E × R_E + W_P × R_P + W_D × R_D (1 - t_c)',
-                latex: 'WACC = W_E R_E + W_P R_P + W_D R_D (1 - t_c)',
+                latex: latex`WACC = W_E \times R_E + W_P \times R_P + W_D \times R_D (1 - t_c)`,
                 notation: {
                   "WACC": "Weighted average cost of capital",
                   "W_E": "Weight of equity",
@@ -927,7 +927,7 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'EPS under Financing Plan',
                 formula: 'EPS = [(EBIT - Interest)(1 - t)] / Number of Equity Shares',
-                latex: 'EPS = \\frac{(EBIT - \\text{Interest})(1 - t)}{\\text{Number of Equity Shares}}',
+                latex: latex`EPS = \frac{(EBIT - \text{Interest})(1 - t)}{\text{Number of Equity Shares}}`,
                 notation: {
                   EPS: 'Earnings per share',
                   EBIT: 'Earnings before interest and tax',
@@ -1000,7 +1000,7 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'Net Present Value (NPV)',
                 formula: 'NPV = Sum of Present Value of Cash Inflows − Sum of Present Value of Cash Outflows',
-                latex: 'NPV = \\sum \\text{PV of Cash Inflows} - \\sum \\text{PV of Cash Outflows}',
+                latex: latex`NPV = \sum \text{PV of Cash Inflows} - \sum \text{PV of Cash Outflows}`,
                 notation: {
                   "NPV": "Net present value",
                   "PV of Cash Inflows": "Present value of all future cash inflows",
@@ -1010,7 +1010,7 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'Profitability Index (PI)',
                 formula: 'PI = Sum of Present Value of Cash Inflows / Sum of Present Value of Cash Outflows',
-                latex: '\\frac{\\sum \\text{PV of Cash Inflows}}{\\sum \\text{PV of Cash Outflows}}',
+                latex: latex`PI = \frac{\sum \text{PV of Cash Inflows}}{\sum \text{PV of Cash Outflows}}`,
                 notation: {
                   "PI": "Profitability index",
                   "PV of Cash Inflows": "Present value of all future cash inflows",
@@ -1020,7 +1020,7 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'Internal Rate of Return (IRR)',
                 formula: 'IRR = L + [(P1 / (P1 − P2)) × D]',
-                latex: 'IRR = L + \\left( \\frac{P_1}{P_1 - P_2} \\right) \\times D',
+                latex: latex`IRR = L + \left(\frac{P_1}{P_1 - P_2}\right) \times D`,
                 notation: {
                   "IRR": "Internal rate of return",
                   "L": "Lower discount rate",
@@ -1038,7 +1038,7 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'Payback Period (PBP)-Equal Inflows',
                 formula: 'PBP = Initial Investment / Annual Cash Inflows',
-                latex: 'PBP = \\frac{\\text{Initial Investment}}{\\text{Annual Cash Inflow}} \\quad',
+                latex: latex`PBP = \frac{\text{Initial Investment}}{\text{Annual Cash Inflow}}`,
                 notation: {
                   PBP: 'Payback period',
                 },
@@ -1046,7 +1046,7 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'Payback Period (PBP)- UnEqual Inflows',
                 formula: 'PBP = Base Year + (Remaining Amount / Next Year Cash Inflow)',
-                latex: 'PBP = \\text{Base Year} + \\frac{\\text{Remaining Amount}}{\\text{Next Year Cash Inflow}} ',
+                latex: latex`PBP = \text{Base Year} + \frac{\text{Remaining Amount}}{\text{Next Year Cash Inflow}}`,
                 notation: {
                   PBP: 'Payback period',
                   "Base Year": "Last year before full recovery of investment",
@@ -1056,7 +1056,7 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'Accounting Rate of Return (ARR)',
                 formula: 'ARR = Average Profit / Average Investment × 100',
-                latex: 'ARR = \\frac{\\text{Average Profit After Tax}}{\\text{Average Investment}} \\times 100',
+                latex: latex`ARR = \frac{\text{Average Profit After Tax}}{\text{Average Investment}} \times 100`,
                 notation: {
                   "ARR": "Accounting rate of return",
                   "Average Profit After Tax": "Mean annual profit after tax over the project life",
@@ -1131,7 +1131,7 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'Walter Model',
                 formula: 'P = [D + (r / Ke)(E - D)] / Ke',
-                latex: 'P = \\frac{D + \\left(\\frac{r}{K_e}\\right)(E - D)}{K_e}',
+                latex: latex`P = \frac{D + \left(\frac{r}{K_e}\right)(E - D)}{K_e}`,
                 notation: {
                   P: 'Market price per share',
                   D: 'Dividend per share',
@@ -1143,7 +1143,7 @@ export const STUDYME_SUBJECTS = [
               {
                 name: 'Gordon Model',
                 formula: 'P = E(1 - b) / (K_e - br)',
-                latex: 'P = \\frac{E(1 - b)}{K_e - b_r}',
+                latex: latex`P = \frac{E(1 - b)}{K_e - br}`,
                 notation: {
                    "P": "Market price per share",
                     "E": "Earnings per share (EPS)",

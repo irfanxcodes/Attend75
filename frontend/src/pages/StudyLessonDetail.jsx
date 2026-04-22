@@ -8,7 +8,7 @@ import { getStudyLessonById, getStudySubjectById } from '../constants/studyMe/co
 import useAppStore from '../hooks/useAppStore'
 import { getLessonState, markLessonOpened, setLessonStatus, toggleLessonImportant } from '../services/studyProgress'
 import { fireAndForgetStudyMeEvent } from '../services/studyMeAnalytics'
-import { latexFallbackText, normalizeLatex } from '../utils/mathLatex'
+import { latexFallbackText, normalizeLatex, shouldRenderAsMath } from '../utils/mathLatex'
 
 function getFormulaSections(lesson) {
   if (Array.isArray(lesson?.formulaSections) && lesson.formulaSections.length) {
@@ -56,10 +56,14 @@ function NotationList({ entries }) {
       {entries.map(([symbol, meaning]) => (
         <div key={symbol} className="grid grid-cols-[auto,1fr] items-start gap-2">
           <dt className="pt-0.5 text-[#F2CA98]">
-            <InlineMath
-              math={normalizeLatex(symbol)}
-              renderError={() => <span className="font-semibold">{latexFallbackText(symbol, symbol)}</span>}
-            />
+            {shouldRenderAsMath(symbol) ? (
+              <InlineMath
+                math={normalizeLatex(symbol)}
+                renderError={() => <span className="font-semibold">{latexFallbackText(symbol, symbol)}</span>}
+              />
+            ) : (
+              <span className="font-semibold">{symbol}</span>
+            )}
           </dt>
           <dd className="leading-relaxed">{meaning}</dd>
         </div>

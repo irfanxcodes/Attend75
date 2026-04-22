@@ -18,3 +18,20 @@ export function latexFallbackText(latex, fallbackText = '') {
 
   return fallbackText || normalized.replace(/\\/g, '')
 }
+
+export function shouldRenderAsMath(value) {
+  const normalized = String(value || '').trim()
+  if (!normalized) {
+    return false
+  }
+
+  if (/[\\_^{}]/.test(normalized)) {
+    return true
+  }
+
+  if (/\s/.test(normalized)) {
+    return false
+  }
+
+  return /^[A-Za-z0-9()[\].,+\-=%]+$/.test(normalized)
+}
