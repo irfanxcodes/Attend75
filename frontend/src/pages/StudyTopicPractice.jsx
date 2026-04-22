@@ -54,7 +54,7 @@ function resolveItemFormula(item, formulaLookup) {
     return {
       source: 'lesson',
       label: item.formulaRef,
-      latex: referenced.latex || referenced.formula,
+      latex: referenced.latex,
       fallbackText: referenced.formula || referenced.latex,
       notation: referenced.notation,
     }

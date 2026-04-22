@@ -421,7 +421,7 @@ function StudyLessonDetail() {
                       return (
                       <div key={formula.name} className="rounded-xl bg-[#3A315D]/80 p-2.5 ring-1 ring-white/10 sm:p-4">
                         <p className="text-sm font-semibold tracking-wide text-[#F4F1FF]">{formula.name}</p>
-                        <MathFormula latex={formula.latex || formula.formula} fallbackText={formula.formula} className="mt-2" />
+                        <MathFormula latex={formula.latex} fallbackText={formula.formula} className="mt-2" />
 
                         {notationEntries.length ? (
                           <div className="mt-2">
