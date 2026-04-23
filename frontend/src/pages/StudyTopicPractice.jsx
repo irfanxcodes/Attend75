@@ -1,12 +1,11 @@
-import { InlineMath } from 'react-katex'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import MathFormula from '../components/common/MathFormula'
+import MathFormula, { MathInline } from '../components/common/MathFormula'
 import StudyBackButton from '../components/common/StudyBackButton'
 import { getStudyLessonById, getStudySubjectById } from '../constants/studyMe/content'
 import useAppStore from '../hooks/useAppStore'
 import { fireAndForgetStudyMeEvent } from '../services/studyMeAnalytics'
-import { latexFallbackText, normalizeLatex, shouldRenderAsMath } from '../utils/mathLatex'
+import { shouldRenderAsMath } from '../utils/mathLatex'
 
 const MODES = [
   { id: 'learn', label: 'Learn' },
@@ -116,7 +115,6 @@ function FormulaPanel({ formula }) {
         latex={formula.latex}
         fallbackText={formula.fallbackText}
         className="mt-2"
-        debugId={`practice:${subjectId}:${lessonId}:${topicId}:${formula.label || 'formula'}`}
       />
 
       {notationEntries.length ? (
@@ -125,10 +123,7 @@ function FormulaPanel({ formula }) {
             <div key={symbol} className="rounded-md bg-white/5 px-2 py-1.5">
               <dt className="font-semibold text-[#F2CA98]">
                 {shouldRenderAsMath(symbol) ? (
-                  <InlineMath
-                    math={normalizeLatex(symbol)}
-                    renderError={() => <span>{latexFallbackText(symbol, symbol)}</span>}
-                  />
+                  <MathInline latex={symbol} fallbackText={symbol} />
                 ) : (
                   <span>{symbol}</span>
                 )}
@@ -208,10 +203,7 @@ function SolutionBody({ item, formula }) {
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Substitution</p>
           <div className="mt-1 rounded-lg bg-white/5 px-3 py-2 text-xs text-[#E7DEDE]">
-            <InlineMath
-              math={normalizeLatex(item.substitution)}
-              renderError={() => <span>{latexFallbackText(item.substitution, item.substitution)}</span>}
-            />
+            <MathInline latex={item.substitution} fallbackText={item.substitution} />
           </div>
         </div>
       ) : null}

@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { InlineMath } from 'react-katex'
 import CollapsibleSection from '../components/common/CollapsibleSection'
-import MathFormula from '../components/common/MathFormula'
+import MathFormula, { MathInline } from '../components/common/MathFormula'
 import StudyBackButton from '../components/common/StudyBackButton'
 import { getStudyLessonById, getStudySubjectById } from '../constants/studyMe/content'
 import useAppStore from '../hooks/useAppStore'
 import { getLessonState, markLessonOpened, setLessonStatus, toggleLessonImportant } from '../services/studyProgress'
 import { fireAndForgetStudyMeEvent } from '../services/studyMeAnalytics'
-import { latexFallbackText, normalizeLatex, shouldRenderAsMath } from '../utils/mathLatex'
+import { shouldRenderAsMath } from '../utils/mathLatex'
 
 function getFormulaSections(lesson) {
   if (Array.isArray(lesson?.formulaSections) && lesson.formulaSections.length) {
@@ -57,10 +56,7 @@ function NotationList({ entries }) {
         <div key={symbol} className="grid grid-cols-[auto,1fr] items-start gap-2">
           <dt className="pt-0.5 text-[#F2CA98]">
             {shouldRenderAsMath(symbol) ? (
-              <InlineMath
-                math={normalizeLatex(symbol)}
-                renderError={() => <span className="font-semibold">{latexFallbackText(symbol, symbol)}</span>}
-              />
+              <MathInline latex={symbol} fallbackText={symbol} className="font-semibold" />
             ) : (
               <span className="font-semibold">{symbol}</span>
             )}
