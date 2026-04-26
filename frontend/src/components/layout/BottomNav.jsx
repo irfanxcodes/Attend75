@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 
-const STUDYME_BETA_NOTICE_KEY = 'attend75.studyme.betaNotice.v1'
+const STUDYME_BETA_NOTICE_KEY = 'attend75.studyme.betaNotice.v2'
 
 const navItems = [
   { label: 'Dashboard', to: '/dashboard', icon: '/dashboard-icon.png' },
@@ -62,11 +62,6 @@ function BottomNav() {
   const continueToStudyMe = () => {
     closeStudyMeModal()
     navigate(location.pathname.startsWith('/app') ? '/app/study' : '/study')
-  }
-
-  const goToFeedback = () => {
-    closeStudyMeModal()
-    navigate(location.pathname.startsWith('/app') ? '/app/profile#feedback-details' : '/profile#feedback-details')
   }
 
   const handleStudyMeClick = () => {
@@ -156,7 +151,7 @@ function BottomNav() {
               <div>
                 <p className="text-xs uppercase tracking-[0.14em] text-[#CFC5E8]">StudyMe</p>
                 <h2 id="studyme-beta-title" className="mt-1 text-lg font-semibold text-[#F4F1FF]">
-                  Available in beta
+                  StudyMe (Beta)
                 </h2>
               </div>
               <button
@@ -170,14 +165,13 @@ function BottomNav() {
             </div>
 
             <p className="mt-3 text-sm leading-relaxed text-[#D8D3E8]">
-              StudyMe is currently in beta and available only for Financial Management for now.
+              For the best experience, we recommend using StudyMe on a <span className="font-semibold text-[#F4F1FF]">laptop or larger screen</span>.
             </p>
             <p className="mt-2 text-sm leading-relaxed text-[#D8D3E8]">
-              If you would like more subjects to be added, please share your feedback with your semester, subjects, and any suggestions or improvements.
+              This content is designed to help you revise quickly and focus on important concepts. It is based on <span className="font-semibold text-[#F4F1FF]">course PPTs and available study materials</span>, but may not cover every possible exam question.
             </p>
-
-            <p className="mt-3 text-xs leading-relaxed text-[#CFC5E8]">
-              Send feedback via the Feedback section in Profile or through Instagram.
+            <p className="mt-2 text-sm leading-relaxed text-[#D8D3E8]">
+              Use it as a <span className="font-semibold text-[#F4F1FF]">guide to understand topics and prepare efficiently</span>, not as the only source of study.
             </p>
 
             <div className="mt-4 flex flex-col gap-2 sm:flex-row">
@@ -187,13 +181,6 @@ function BottomNav() {
                 className="inline-flex items-center justify-center rounded-full bg-[#E2BC8B] px-4 py-2 text-sm font-semibold text-[#1D183E] transition hover:bg-[#D9AA6F]"
               >
                 Got it
-              </button>
-              <button
-                type="button"
-                onClick={goToFeedback}
-                className="inline-flex items-center justify-center rounded-full border border-white/20 bg-[#3A315D] px-4 py-2 text-sm font-semibold text-[#E7DEDE] transition hover:bg-[#4A3E73]"
-              >
-                Give Feedback
               </button>
             </div>
           </div>

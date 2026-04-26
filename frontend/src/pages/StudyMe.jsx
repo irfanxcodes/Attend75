@@ -1,17 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import StudyBackButton from '../components/common/StudyBackButton'
 import { STUDYME_SUBJECTS } from '../constants/studyMe/content'
 import useAppStore from '../hooks/useAppStore'
 import { getSubjectProgress } from '../services/studyProgress'
 import { fireAndForgetStudyMeEvent } from '../services/studyMeAnalytics'
-
-const STUDYME_DISCLAIMER_STORAGE_PREFIX = 'attend75.studymeDisclaimerSeen'
-
-function getStudyMeDisclaimerStorageKey(user) {
-  const userKey = user?.id || user?.rollNumber || user?.portalName || user?.name || 'guest'
-  return `${STUDYME_DISCLAIMER_STORAGE_PREFIX}.${userKey}`
-}
 
 function StudyMe() {
   const navigate = useNavigate()
@@ -20,14 +13,6 @@ function StudyMe() {
     state: { user, session },
   } = useAppStore()
   const subject = STUDYME_SUBJECTS[0] || null
-  const disclaimerStorageKey = useMemo(() => getStudyMeDisclaimerStorageKey(user), [user])
-  const [showDisclaimer, setShowDisclaimer] = useState(() => {
-    try {
-      return window.localStorage.getItem(getStudyMeDisclaimerStorageKey(user)) !== '1'
-    } catch {
-      return true
-    }
-  })
 
   const progress = useMemo(() => {
     if (!subject) {
@@ -52,14 +37,6 @@ function StudyMe() {
     })
   }, [session.token, subject, user.id, user.name, user.portalName, user.rollNumber])
 
-  useEffect(() => {
-    try {
-      setShowDisclaimer(window.localStorage.getItem(disclaimerStorageKey) !== '1')
-    } catch {
-      setShowDisclaimer(true)
-    }
-  }, [disclaimerStorageKey])
-
   const openSubject = () => {
     if (!subject) {
       return
@@ -67,14 +44,8 @@ function StudyMe() {
     navigate(`/study/${subject.id}`)
   }
 
-  const dismissDisclaimer = () => {
-    setShowDisclaimer(false)
-
-    try {
-      window.localStorage.setItem(disclaimerStorageKey, '1')
-    } catch {
-      // Keep the dismissal responsive even if localStorage is unavailable.
-    }
+  const openFeedback = () => {
+    navigate('/profile#feedback-details')
   }
 
   if (!subject) {
@@ -153,32 +124,30 @@ function StudyMe() {
         </div>
       </article>
 
-      {showDisclaimer ? (
-        <aside className="rounded-3xl border border-white/15 bg-[#2A2149]/90 p-4 text-sm leading-relaxed text-[#D8D3E8] shadow-sm ring-1 ring-white/5 sm:p-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="max-w-3xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#E2BC8B]">StudyMe (Beta)</p>
-              <p className="mt-3">
-                For the best experience, we recommend using StudyMe on a <span className="font-semibold text-[#F4F1FF]">laptop or larger screen</span>.
-              </p>
-              <p className="mt-2">
-                This content is designed to help you revise quickly and focus on important concepts. It is based on <span className="font-semibold text-[#F4F1FF]">course PPTs and available study materials</span>, but may not cover every possible exam question.
-              </p>
-              <p className="mt-2">
-                Use it as a <span className="font-semibold text-[#F4F1FF]">guide to understand topics and prepare efficiently</span>, not as the only source of study.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={dismissDisclaimer}
-              className="self-start rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold text-[#F4F1FF] transition hover:bg-white/10"
-            >
-              Got it
-            </button>
+      <aside className="rounded-3xl border border-white/15 bg-[#2A2149]/90 p-4 text-sm leading-relaxed text-[#D8D3E8] shadow-sm ring-1 ring-white/5 sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#E2BC8B]">Help Shape StudyMe</p>
+            <p className="mt-3">
+              StudyMe is expanding gradually, and your feedback helps decide what should come next.
+            </p>
+            <p className="mt-2">
+              If you want more subjects or improvements, please share your <span className="font-semibold text-[#F4F1FF]">semester, subject name, and suggestions</span> so we can prioritize the right content.
+            </p>
+            <p className="mt-2">
+              You can send feedback from the Profile page, and it helps us improve StudyMe faster.
+            </p>
           </div>
-        </aside>
-      ) : null}
+
+          <button
+            type="button"
+            onClick={openFeedback}
+            className="self-start rounded-full bg-[#E2BC8B] px-4 py-2 text-xs font-semibold text-[#1D183E] transition hover:bg-[#D9AA6F]"
+          >
+            Give Feedback
+          </button>
+        </div>
+      </aside>
     </section>
   )
 }
