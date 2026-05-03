@@ -6,6 +6,7 @@ from datetime import date
 from sqlalchemy import func
 
 from db.models.studyme_event import StudyMeEvent
+from db.models.studyme_important_vote import StudyMeImportantVote
 from db.session import SessionLocal
 from services.feedback_service import list_all_feedback
 from services.session_store import session_store
@@ -222,6 +223,7 @@ def get_studyme_analytics() -> dict:
 
     with SessionLocal() as session:
         events = session.query(StudyMeEvent).order_by(StudyMeEvent.created_at.asc()).all()
+        important_votes = session.query(StudyMeImportantVote).all()
 
         total_users = int(
             session.query(func.count(func.distinct(StudyMeEvent.user_name)))
@@ -302,26 +304,46 @@ def get_studyme_analytics() -> dict:
             elif event.event_type == "studyme_topic_important_toggled":
                 topic_bucket["importantVotes"] = int(topic_bucket["importantVotes"]) + 1
 
+    lesson_vote_counts: dict[str, int] = defaultdict(int)
+    topic_vote_counts: dict[tuple[str, str], int] = defaultdict(int)
+    for vote in important_votes:
+        lesson_name = _normalize_text(vote.lesson_name)
+        topic_name = _normalize_text(vote.topic_name)
+
+        if vote.entity_type == "lesson" and lesson_name:
+            lesson_vote_counts[lesson_name] += 1
+        elif vote.entity_type == "topic" and lesson_name and topic_name:
+            topic_vote_counts[(lesson_name, topic_name)] += 1
+
     lesson_rows = []
     for bucket in lesson_buckets.values():
         total_opens = int(bucket["totalOpens"])
         completions = int(bucket["completionCount"])
+        lesson_name = str(bucket["lessonName"])
         lesson_rows.append(
             {
-                "lessonName": bucket["lessonName"],
+                "lessonName": lesson_name,
                 "totalOpens": total_opens,
                 "uniqueUsers": len(bucket["uniqueUsers"]),
                 "completionCount": completions,
                 "aiPromptUsageCount": int(bucket["aiPromptUsageCount"]),
                 "topicPromptCopyCount": int(bucket["topicPromptCopyCount"]),
                 "pdfOpenCount": int(bucket["pdfOpenCount"]),
-                "importantVotesCount": int(bucket["importantVotesCount"]),
+                "importantVotesCount": int(lesson_vote_counts.get(lesson_name, 0)),
                 "completionRate": round((completions / total_opens) * 100, 2) if total_opens > 0 else 0.0,
             }
         )
     lesson_rows.sort(key=lambda item: (-int(item["totalOpens"]), str(item["lessonName"])))
 
-    topic_rows = list(topic_buckets.values())
+    topic_rows = []
+    for key, bucket in topic_buckets.items():
+        lesson_name, topic_name = key
+        topic_rows.append(
+            {
+                **bucket,
+                "importantVotes": int(topic_vote_counts.get((lesson_name, topic_name), 0)),
+            }
+        )
     topic_rows.sort(key=lambda item: (-int(item["topicOpens"]), str(item["topicName"])))
 
     ai_topic_rows = [row for row in topic_rows if int(row["promptCopies"]) > 0]

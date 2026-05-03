@@ -150,6 +150,81 @@ class StudyMeEventRequest(BaseModel):
         return cleaned or None
 
 
+class StudyMeImportanceQueryRequest(BaseModel):
+    token: str = Field(..., description="Session token from /login")
+    subject_id: str = Field(..., description="StudyMe subject identifier")
+    lesson_ids: list[str] = Field(default_factory=list, description="Lesson ids to include in the response")
+    topic_ids: list[str] = Field(default_factory=list, description="Topic ids to include in the response")
+
+    @field_validator("token", "subject_id")
+    @classmethod
+    def validate_required_studyme_importance_fields(cls, value: str, info: ValidationInfo) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError(f"{info.field_name} must not be empty")
+        return cleaned
+
+    @field_validator("lesson_ids", "topic_ids")
+    @classmethod
+    def normalize_studyme_id_lists(cls, value: list[str]) -> list[str]:
+        normalized: list[str] = []
+        for item in value:
+            cleaned = str(item or "").strip()
+            if cleaned:
+                normalized.append(cleaned)
+        return normalized
+
+
+class StudyMeLessonImportantToggleRequest(BaseModel):
+    token: str = Field(..., description="Session token from /login")
+    subject_id: str = Field(..., description="StudyMe subject identifier")
+    subject_name: str | None = Field(default=None, description="Subject title for analytics/admin summaries")
+    lesson_id: str = Field(..., description="StudyMe lesson identifier")
+    lesson_name: str | None = Field(default=None, description="Lesson title for analytics/admin summaries")
+
+    @field_validator("token", "subject_id", "lesson_id")
+    @classmethod
+    def validate_required_lesson_toggle_fields(cls, value: str, info: ValidationInfo) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError(f"{info.field_name} must not be empty")
+        return cleaned
+
+    @field_validator("subject_name", "lesson_name")
+    @classmethod
+    def normalize_optional_lesson_toggle_fields(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
+
+
+class StudyMeTopicImportantToggleRequest(BaseModel):
+    token: str = Field(..., description="Session token from /login")
+    subject_id: str = Field(..., description="StudyMe subject identifier")
+    subject_name: str | None = Field(default=None, description="Subject title for analytics/admin summaries")
+    lesson_id: str = Field(..., description="Parent lesson identifier")
+    lesson_name: str | None = Field(default=None, description="Parent lesson title for analytics/admin summaries")
+    topic_id: str = Field(..., description="StudyMe topic identifier")
+    topic_name: str | None = Field(default=None, description="Topic title for analytics/admin summaries")
+
+    @field_validator("token", "subject_id", "lesson_id", "topic_id")
+    @classmethod
+    def validate_required_topic_toggle_fields(cls, value: str, info: ValidationInfo) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError(f"{info.field_name} must not be empty")
+        return cleaned
+
+    @field_validator("subject_name", "lesson_name", "topic_name")
+    @classmethod
+    def normalize_optional_topic_toggle_fields(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
+
+
 class AdminFeedbackStatusUpdateRequest(BaseModel):
     status: Literal["new", "reviewed", "resolved"] = Field(..., description="Updated feedback status")
 

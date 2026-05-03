@@ -32,7 +32,10 @@ function StudyPdfViewer() {
   const selectedTopic = lessonTopics.find((topic) => topic.id === topicId) || lessonTopics[0] || null
 
   const resolvedPdfPath = useMemo(() => {
-    const rawPath = subject?.pdfPath
+    const lessonPdfResource = Array.isArray(lesson?.resources)
+      ? lesson.resources.find((resource) => resource?.type === 'pdf' && resource?.path)
+      : null
+    const rawPath = lesson?.pdfPath || lessonPdfResource?.path || subject?.pdfPath
     if (!rawPath) {
       return ''
     }
@@ -45,7 +48,7 @@ function StudyPdfViewer() {
     const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`
     const normalizedPath = rawPath.startsWith('/') ? rawPath.slice(1) : rawPath
     return `${normalizedBase}${normalizedPath}`
-  }, [subject])
+  }, [lesson, subject])
 
   const initialPage = useMemo(() => {
     if (!lesson) {
@@ -63,12 +66,13 @@ function StudyPdfViewer() {
   const [pageNumber, setPageNumber] = useState(initialPage)
   const [pdfError, setPdfError] = useState('')
   const [pdfViewportSize, setPdfViewportSize] = useState({ width: 0, height: 0 })
-  const [pageAspectRatio, setPageAspectRatio] = useState(1 / Math.SQRT2)
+  const [mobileZoom, setMobileZoom] = useState(1)
   const [isViewerFocused, setViewerFocused] = useState(false)
   const [isExpanded, setExpanded] = useState(false)
   const pdfViewportRef = useRef(null)
   const viewerScreenRef = useRef(null)
   const touchStateRef = useRef({ x: 0, y: 0, at: 0 })
+  const pinchStateRef = useRef(null)
 
   useEffect(() => {
     setPageNumber(initialPage)
@@ -200,6 +204,17 @@ function StudyPdfViewer() {
   }
 
   const handleTouchStart = (event) => {
+    const touches = event.touches
+    if (touches?.length === 2) {
+      const dx = touches[0].clientX - touches[1].clientX
+      const dy = touches[0].clientY - touches[1].clientY
+      pinchStateRef.current = {
+        distance: Math.hypot(dx, dy),
+        zoom: mobileZoom,
+      }
+      return
+    }
+
     const touch = event.changedTouches?.[0]
     if (!touch) {
       return
@@ -212,7 +227,29 @@ function StudyPdfViewer() {
     }
   }
 
+  const handleTouchMove = (event) => {
+    const touches = event.touches
+    if (touches?.length !== 2 || !pinchStateRef.current) {
+      return
+    }
+
+    const dx = touches[0].clientX - touches[1].clientX
+    const dy = touches[0].clientY - touches[1].clientY
+    const distance = Math.hypot(dx, dy)
+    const startDistance = pinchStateRef.current.distance || 1
+    const nextZoom = clamp(pinchStateRef.current.zoom * (distance / startDistance), 0.7, 2.5)
+    setMobileZoom(nextZoom)
+    event.preventDefault()
+  }
+
   const handleTouchEnd = (event) => {
+    if (pinchStateRef.current) {
+      if (event.touches?.length < 2) {
+        pinchStateRef.current = null
+      }
+      return
+    }
+
     const touch = event.changedTouches?.[0]
     if (!touch) {
       return
@@ -264,10 +301,11 @@ function StudyPdfViewer() {
     }
   }
 
-  const availableWidth = Math.max(pdfViewportSize.width - (isExpanded ? 12 : 22), 240)
-  const availableHeight = Math.max(pdfViewportSize.height - (isExpanded ? 12 : 22), 280)
-  const heightBoundWidth = Math.max(Math.floor(availableHeight * pageAspectRatio), 240)
-  const renderWidth = Math.min(availableWidth, heightBoundWidth)
+  const availableWidth = Math.max(pdfViewportSize.width - (isExpanded ? 12 : 20), 240)
+  const isDesktop = pdfViewportSize.width >= 768
+  const desktopTargetWidth = Math.min(availableWidth, 900, Math.floor(availableWidth * 0.8))
+  const mobileRenderWidth = Math.max(Math.floor(availableWidth * mobileZoom), 240)
+  const renderWidth = isDesktop ? desktopTargetWidth : mobileRenderWidth
 
   const toggleExpanded = () => {
     setExpanded((current) => !current)
@@ -352,19 +390,38 @@ function StudyPdfViewer() {
         </header>
       ) : null}
 
-      <section className="flex min-h-0 flex-1 flex-col rounded-2xl border border-white/15 bg-[#312051] p-1 sm:p-2">
-        <div className="mb-1 flex shrink-0 items-center justify-between rounded-xl bg-[#3A315D] px-3 py-2 text-xs text-[#D8D3E8] sm:mb-2">
-          <button
-            type="button"
-            disabled={!canGoPrev}
-            onClick={goToPrevPage}
-            className="rounded-full border border-white/20 px-3 py-1 font-semibold text-[#E7DEDE] disabled:opacity-50"
-          >
-            Prev
-          </button>
-          <span>
+      <section className="flex min-h-0 flex-1 flex-col rounded-2xl border border-white/15 bg-[#312051] p-0.5 sm:p-1">
+        <div className="mb-1 flex w-full shrink-0 items-center justify-between gap-3 rounded-xl bg-[#3A315D] px-3 py-2 text-xs text-[#D8D3E8] sm:mb-2">
+          <span className="text-[11px] font-semibold text-[#CFC5E8]">
             Page {pageNumber}{numPages ? ` / ${numPages}` : ''}
           </span>
+
+          {!isDesktop ? (
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setMobileZoom((value) => clamp(value - 0.1, 0.7, 2.5))}
+                className="rounded-full border border-white/20 px-3 py-1 font-semibold text-[#E7DEDE] hover:bg-white/10"
+                aria-label="Zoom out"
+              >
+                -
+              </button>
+              <span className="min-w-[52px] px-2 text-center text-[11px] font-semibold text-[#CFC5E8]">
+                {Math.round(mobileZoom * 100)}%
+              </span>
+              <button
+                type="button"
+                onClick={() => setMobileZoom((value) => clamp(value + 0.1, 0.7, 2.5))}
+                className="rounded-full border border-white/20 px-3 py-1 font-semibold text-[#E7DEDE] hover:bg-white/10"
+                aria-label="Zoom in"
+              >
+                +
+              </button>
+            </div>
+          ) : (
+            <div className="flex-1" />
+          )}
+
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -384,21 +441,32 @@ function StudyPdfViewer() {
               )}
               <span className="hidden sm:inline">{isExpanded ? 'Exit' : 'Full'}</span>
             </button>
-            <button
-              type="button"
-              disabled={!canGoNext}
-              onClick={goToNextPage}
-              className="rounded-full border border-white/20 px-3 py-1 font-semibold text-[#E7DEDE] disabled:opacity-50"
-            >
-              Next
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={!canGoPrev}
+                onClick={goToPrevPage}
+                className="rounded-full border border-white/20 px-3 py-1 font-semibold text-[#E7DEDE] disabled:opacity-50"
+              >
+                Prev
+              </button>
+              <button
+                type="button"
+                disabled={!canGoNext}
+                onClick={goToNextPage}
+                className="rounded-full border border-white/20 px-3 py-1 font-semibold text-[#E7DEDE] disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
           </div>
         </div>
 
         <div
           ref={pdfViewportRef}
-          className="flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-xl bg-[#1D183E] p-1 sm:p-2"
+          className="flex min-h-0 flex-1 items-start justify-center overflow-auto rounded-xl bg-[#1D183E] p-0.5 sm:p-1"
           onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
           <Document
@@ -417,12 +485,6 @@ function StudyPdfViewer() {
             <Page
               pageNumber={pageNumber}
               width={renderWidth || 320}
-              onLoadSuccess={(loadedPage) => {
-                const viewport = loadedPage.getViewport({ scale: 1 })
-                if (viewport?.width && viewport?.height) {
-                  setPageAspectRatio(viewport.width / viewport.height)
-                }
-              }}
               renderTextLayer
               renderAnnotationLayer
             />

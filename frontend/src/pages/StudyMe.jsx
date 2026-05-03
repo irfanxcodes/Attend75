@@ -12,16 +12,17 @@ function StudyMe() {
   const {
     state: { user, session },
   } = useAppStore()
-  const subject = STUDYME_SUBJECTS[0] || null
+  const subjectCards = useMemo(() => {
+    return STUDYME_SUBJECTS.map((subject) => {
+      const lessonIds = Array.isArray(subject.lessons) ? subject.lessons.map((lesson) => lesson.id) : []
+      const progress = getSubjectProgress(subject.id, lessonIds)
 
-  const progress = useMemo(() => {
-    if (!subject) {
-      return { completedCount: 0 }
-    }
-
-    const lessonIds = subject.lessons.map((lesson) => lesson.id)
-    return getSubjectProgress(subject.id, lessonIds)
-  }, [subject])
+      return {
+        subject,
+        progress,
+      }
+    })
+  }, [])
 
   useEffect(() => {
     if (hasTrackedOpenRef.current) {
@@ -33,22 +34,19 @@ function StudyMe() {
       eventType: 'studyme_opened',
       token: session.token,
       userName: user.portalName || user.name || user.rollNumber || user.id,
-      subjectName: subject?.title || null,
+      subjectName: null,
     })
-  }, [session.token, subject, user.id, user.name, user.portalName, user.rollNumber])
+  }, [session.token, user.id, user.name, user.portalName, user.rollNumber])
 
-  const openSubject = () => {
-    if (!subject) {
-      return
-    }
-    navigate(`/study/${subject.id}`)
+  const openSpecificSubject = (subjectId) => {
+    navigate(`/study/${subjectId}`)
   }
 
   const openFeedback = () => {
     navigate('/profile#feedback-details')
   }
 
-  if (!subject) {
+  if (!subjectCards.length) {
     return (
       <section className="space-y-3 pb-2 sm:space-y-4">
         <header>
@@ -76,53 +74,69 @@ function StudyMe() {
         <p className="mt-1 text-xs text-[#CFC5E8] sm:text-sm">Exam-focused lesson roadmap + revision support.</p>
       </header>
 
-      <article
-        role="button"
-        tabIndex={0}
-        onClick={openSubject}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault()
-            openSubject()
-          }
-        }}
-        className="cursor-pointer rounded-3xl border border-white/20 bg-[#312051] p-4 shadow-md transition hover:bg-[#3A315D]"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-[0.14em] text-[#CFC5E8]">Subject</p>
-            <h2 className="mt-1 text-xl font-semibold text-[#F4F1FF]">{subject.title}</h2>
-            <p className="mt-2 text-sm text-[#D8D3E8]">{subject.description}</p>
-          </div>
-          <span className="rounded-full border border-white/20 bg-[#3A315D] px-3 py-1 text-xs font-semibold text-[#E2BC8B]">
-            V1
-          </span>
-        </div>
+      <div className="space-y-3">
+        {subjectCards.map(({ subject, progress }) => {
+          const isComingSoon = subject.status === 'coming-soon'
 
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:max-w-sm">
-          <div className="rounded-xl border border-white/10 bg-[#3A315D] px-3 py-2">
-            <p className="text-[11px] uppercase tracking-wide text-[#CFC5E8]">Total Lessons</p>
-            <p className="mt-1 text-lg font-semibold text-[#F4F1FF]">{subject.lessons.length}</p>
-          </div>
-          <div className="rounded-xl border border-white/10 bg-[#3A315D] px-3 py-2">
-            <p className="text-[11px] uppercase tracking-wide text-[#CFC5E8]">Completed</p>
-            <p className="mt-1 text-lg font-semibold text-[#A8F5C5]">{progress.completedCount}</p>
-          </div>
-        </div>
+          return (
+            <article
+              key={subject.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => {
+                if (!isComingSoon) {
+                  openSpecificSubject(subject.id)
+                }
+              }}
+              onKeyDown={(event) => {
+                if ((event.key === 'Enter' || event.key === ' ') && !isComingSoon) {
+                  event.preventDefault()
+                  openSpecificSubject(subject.id)
+                }
+              }}
+              className={`rounded-3xl border border-white/20 bg-[#312051] p-4 shadow-md transition ${isComingSoon ? 'opacity-95' : 'cursor-pointer hover:bg-[#3A315D]'}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.14em] text-[#CFC5E8]">Subject</p>
+                  <h2 className="mt-1 text-xl font-semibold text-[#F4F1FF]">{subject.title}</h2>
+                  <p className="mt-2 text-sm text-[#D8D3E8]">{subject.description}</p>
+                </div>
+                <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${isComingSoon ? 'border-sky-300/30 bg-sky-500/15 text-sky-100' : 'border-white/20 bg-[#3A315D] text-[#E2BC8B]'}`}>
+                  {isComingSoon ? 'Coming Soon' : 'V1'}
+                </span>
+              </div>
 
-        <div className="mt-4 flex justify-end">
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation()
-              openSubject()
-            }}
-            className="rounded-full bg-[#E2BC8B] px-4 py-2 text-sm font-semibold text-[#1D183E] hover:bg-[#D9AA6F]"
-          >
-            Start Learning
-          </button>
-        </div>
-      </article>
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:max-w-sm">
+                <div className="rounded-xl border border-white/10 bg-[#3A315D] px-3 py-2">
+                  <p className="text-[11px] uppercase tracking-wide text-[#CFC5E8]">Total Lessons</p>
+                  <p className="mt-1 text-lg font-semibold text-[#F4F1FF]">{subject.lessons.length}</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-[#3A315D] px-3 py-2">
+                  <p className="text-[11px] uppercase tracking-wide text-[#CFC5E8]">Completed</p>
+                  <p className="mt-1 text-lg font-semibold text-[#A8F5C5]">{progress.completedCount}</p>
+                </div>
+              </div>
+
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  disabled={isComingSoon}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    if (!isComingSoon) {
+                      openSpecificSubject(subject.id)
+                    }
+                  }}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold ${isComingSoon ? 'cursor-not-allowed border border-white/15 bg-white/5 text-[#CFC5E8]' : 'bg-[#E2BC8B] text-[#1D183E] hover:bg-[#D9AA6F]'}`}
+                >
+                  {isComingSoon ? 'Available Soon' : 'Start Learning'}
+                </button>
+              </div>
+            </article>
+          )
+        })}
+      </div>
 
       <aside className="rounded-3xl border border-white/15 bg-[#2A2149]/90 p-4 text-sm leading-relaxed text-[#D8D3E8] shadow-sm ring-1 ring-white/5 sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

@@ -2,9 +2,29 @@ const STUDY_PROGRESS_STORAGE_KEY = 'attend75.studyme.progress.v1'
 
 const DEFAULT_LESSON_STATE = {
   status: 'not_started',
-  important: false,
   lastOpenedAt: null,
   completedAt: null,
+}
+
+function normalizeSubjects(subjects) {
+  if (!subjects || typeof subjects !== 'object') {
+    return {}
+  }
+
+  return Object.entries(subjects).reduce((accumulator, [subjectId, subjectState]) => {
+    if (!subjectState || typeof subjectState !== 'object') {
+      return accumulator
+    }
+
+    const lessons = subjectState.lessons && typeof subjectState.lessons === 'object' ? { ...subjectState.lessons } : {}
+
+    accumulator[subjectId] = {
+      lessons,
+      lastOpenedLessonId: subjectState.lastOpenedLessonId || null,
+    }
+
+    return accumulator
+  }, {})
 }
 
 function readProgressState() {
@@ -20,7 +40,7 @@ function readProgressState() {
     }
 
     return {
-      subjects: parsed.subjects && typeof parsed.subjects === 'object' ? parsed.subjects : {},
+      subjects: normalizeSubjects(parsed.subjects),
     }
   } catch {
     return { subjects: {} }
@@ -68,7 +88,6 @@ export function getLessonState(subjectId, lessonId) {
 
   return {
     status: lessonState.status || 'not_started',
-    important: Boolean(lessonState.important),
     lastOpenedAt: lessonState.lastOpenedAt || null,
     completedAt: lessonState.completedAt || null,
   }
@@ -122,19 +141,6 @@ export function setLessonStatus(subjectId, lessonId, status) {
   } else {
     lessonState.completedAt = null
   }
-  lessonState.lastOpenedAt = Date.now()
-  subjectState.lastOpenedLessonId = lessonId
-
-  writeProgressState(state)
-  return getLessonState(subjectId, lessonId)
-}
-
-export function toggleLessonImportant(subjectId, lessonId) {
-  const state = readProgressState()
-  const subjectState = ensureSubjectState(state, subjectId)
-  const lessonState = ensureLessonState(subjectState, lessonId)
-
-  lessonState.important = !Boolean(lessonState.important)
   lessonState.lastOpenedAt = Date.now()
   subjectState.lastOpenedLessonId = lessonId
 

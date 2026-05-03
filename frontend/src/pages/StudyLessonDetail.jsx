@@ -5,8 +5,13 @@ import MathFormula, { MathInline } from '../components/common/MathFormula'
 import StudyBackButton from '../components/common/StudyBackButton'
 import { getStudyLessonById, getStudySubjectById } from '../constants/studyMe/content'
 import useAppStore from '../hooks/useAppStore'
-import { getLessonState, markLessonOpened, setLessonStatus, toggleLessonImportant } from '../services/studyProgress'
+import { getLessonState, markLessonOpened, setLessonStatus } from '../services/studyProgress'
 import { fireAndForgetStudyMeEvent } from '../services/studyMeAnalytics'
+import {
+  fetchStudyMeImportance,
+  toggleStudyMeLessonImportant,
+  toggleStudyMeTopicImportant,
+} from '../services/studyMeImportance'
 import { shouldRenderAsMath } from '../utils/mathLatex'
 
 function getFormulaSections(lesson) {
@@ -49,6 +54,166 @@ function getFormulaNotationEntries(formula) {
   return Object.entries(formula.notation).filter(([symbol, meaning]) => String(symbol).trim() && String(meaning).trim())
 }
 
+function normalizeDefinitionEntries(definitions) {
+  if (!Array.isArray(definitions)) {
+    return []
+  }
+
+  return definitions
+    .map((item) => {
+      if (typeof item === 'string') {
+        return { term: '', description: item }
+      }
+
+      return {
+        term: String(item?.term || '').trim(),
+        description: String(item?.description || item?.desc || '').trim(),
+      }
+    })
+    .filter((item) => item.term || item.description)
+}
+
+function normalizeListItems(values) {
+  return Array.isArray(values) ? values.filter((item) => String(item || '').trim()) : []
+}
+
+function TopicStudyGuide({ topic }) {
+  const definitions = normalizeDefinitionEntries(topic?.definitions)
+  const keyConcepts = normalizeListItems(topic?.keyConcepts)
+  const useCases = normalizeListItems(topic?.useCases)
+  const examples = normalizeListItems(topic?.examples)
+  const standardReferences = normalizeListItems(topic?.standardReferences)
+  const comparisonTable = topic?.comparisonTable
+  const hasGuideContent =
+    Boolean(String(topic?.analogy || '').trim()) ||
+    Boolean(String(topic?.standardDefinition || '').trim()) ||
+    definitions.length > 0 ||
+    keyConcepts.length > 0 ||
+    useCases.length > 0 ||
+    examples.length > 0 ||
+    standardReferences.length > 0 ||
+    (Array.isArray(comparisonTable?.headers) && comparisonTable.headers.length && Array.isArray(comparisonTable?.rows) && comparisonTable.rows.length)
+
+  if (!hasGuideContent) {
+    return null
+  }
+
+  return (
+    <div className="mt-3 space-y-3 rounded-2xl border border-[#A8D8FF]/15 bg-[#2C2348]/80 p-3">
+      <div className="flex flex-wrap gap-2">
+        {topic.analogy ? (
+          <div className="rounded-xl border border-[#E2BC8B]/25 bg-[#E2BC8B]/10 px-3 py-2 text-xs leading-relaxed text-[#F5DEBE] break-words">
+            <span className="font-semibold text-[#F2CA98]">Analogy:</span> {topic.analogy}
+          </div>
+        ) : null}
+        {topic.standardDefinition ? (
+          <div className="rounded-xl border border-[#A8F5C5]/25 bg-[#A8F5C5]/10 px-3 py-2 text-xs leading-relaxed text-[#DBFCEA] break-words">
+            <span className="font-semibold text-[#A8F5C5]">Standard Reference:</span> {topic.standardDefinition}
+          </div>
+        ) : null}
+      </div>
+
+      {definitions.length ? (
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Definitions</p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {definitions.map((item, index) => (
+              <div key={`${topic.id}-definition-${index}`} className="rounded-xl bg-white/5 px-3 py-2 text-xs text-[#D8D3E8]">
+                {item.term ? <p className="font-semibold text-[#F4F1FF]">{item.term}</p> : null}
+                <p className={item.term ? 'mt-1 leading-relaxed' : 'leading-relaxed'}>{item.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {keyConcepts.length ? (
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Key Concepts</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {keyConcepts.map((item) => (
+              <span key={`${topic.id}-concept-${item}`} className="rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-xs text-[#E7DEDE]">
+                {item}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {Array.isArray(comparisonTable?.headers) && comparisonTable.headers.length && Array.isArray(comparisonTable?.rows) && comparisonTable.rows.length ? (
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">
+            {comparisonTable.title || 'Comparison'}
+          </p>
+          <div className="mt-2 overflow-x-auto rounded-xl border border-white/10 bg-[#241C45]">
+            <table className="min-w-full text-left text-xs text-[#E7DEDE]">
+              <thead className="bg-[#3A315D] text-[#F4F1FF]">
+                <tr>
+                  {comparisonTable.headers.map((header) => (
+                    <th key={`${topic.id}-header-${header}`} className="px-3 py-2 font-semibold whitespace-normal break-words sm:whitespace-nowrap">
+                      {header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {comparisonTable.rows.map((row, rowIndex) => (
+                  <tr key={`${topic.id}-row-${rowIndex}`} className="border-t border-white/10 even:bg-white/5">
+                    {row.map((cell, cellIndex) => (
+                      <td key={`${topic.id}-${rowIndex}-${cellIndex}`} className="px-3 py-2 whitespace-normal break-words sm:whitespace-nowrap">
+                        {cell}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+
+      {useCases.length ? (
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Use Cases</p>
+          <ul className="mt-2 grid gap-1.5 text-xs text-[#D8D3E8] sm:grid-cols-2">
+            {useCases.map((item) => (
+              <li key={`${topic.id}-use-${item}`} className="rounded-lg bg-white/5 px-3 py-2">
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {examples.length ? (
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Examples</p>
+          <ul className="mt-2 flex flex-wrap gap-2 text-xs text-[#CFE8FF]">
+            {examples.map((item) => (
+              <li key={`${topic.id}-example-${item}`} className="rounded-full border border-[#A8D8FF]/25 bg-[#A8D8FF]/10 px-2.5 py-1">
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {standardReferences.length ? (
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Standard References</p>
+          <ul className="mt-2 space-y-1.5 text-xs text-[#D8D3E8]">
+            {standardReferences.map((item) => (
+              <li key={`${topic.id}-standard-${item}`} className="rounded-lg bg-white/5 px-3 py-2">
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function NotationList({ entries }) {
   return (
     <dl className="space-y-1.5 text-xs text-[#D8D3E8]">
@@ -69,11 +234,49 @@ function NotationList({ entries }) {
 }
 
 function buildAiPrompt(subject, lesson) {
+  const isTheorySubject = subject?.contentType === 'theory'
   const formulas = getFormulaNames(lesson)
   const topics = Array.isArray(lesson.topics) ? lesson.topics.map((topic) => topic.title).filter(Boolean) : []
   const numberedTopics = topics.length
     ? topics.map((topic, index) => `${index + 1}. ${topic}`).join('\n')
     : '1. Explain the lesson in logical exam-relevant sections.'
+
+  if (isTheorySubject) {
+    return [
+      'Act as an exam-focused tutor for a BBA 2nd year student.',
+      '',
+      'Study context:',
+      `- Subject: ${subject.title}`,
+      `- Lesson ${lesson.lessonNumber}: ${lesson.title}`,
+      `- Scope: ${lesson.covers}`,
+      '',
+      'Teach the entire lesson topic-by-topic using this exact topic order:',
+      numberedTopics,
+      '',
+      'For each topic, strictly follow this structure:',
+      '1) Concept explanation',
+      '- Explain the concept in simple words first.',
+      '- Then give a slightly deeper explanation in clear and exam-friendly language.',
+      '2) Definitions and terminology',
+      '- Define important terms properly.',
+      '- Highlight keywords students can use in exam answers.',
+      '3) Key points',
+      '- List the most important points to remember.',
+      '4) Examples and applications',
+      '- Add practical examples wherever relevant.',
+      '- Use student-friendly or real-world examples if possible.',
+      '5) Comparisons/differences',
+      '- Add clear comparisons where concepts are commonly confused, such as model vs model or approach vs approach.',
+      '6) Revision summary',
+      '- End with a compact revision list for last-minute preparation.',
+      '',
+      'Tone and style rules:',
+      '- Keep the tone simple but informative.',
+      '- Focus on concepts, definitions, comparisons, and understanding.',
+      '- Avoid heavy numerical or formula-based teaching unless the lesson explicitly needs it.',
+      '- Use clean headings and readable formatting.',
+    ].join('\n')
+  }
 
   return [
     'Act as an exam-focused tutor for a BBA 2nd year student.',
@@ -114,18 +317,48 @@ function buildAiPrompt(subject, lesson) {
 }
 
 function buildTopicPrompt(subject, lesson, topic) {
+  const isTheorySubject = subject?.contentType === 'theory'
   const subtopics = Array.isArray(topic?.subtopics) ? topic.subtopics.filter(Boolean) : []
   const numberedSubtopics = subtopics.length
     ? subtopics.map((item, index) => `${index + 1}. ${item}`).join('\n')
     : '1. Explain the core ideas from this topic.'
-  const numericalInstruction = topic?.hasNumericals
-    ? 'Include 1 exam-style numerical question based on this topic, then show a step-by-step solution.'
-    : 'If this topic has a numerical angle, include 1 short numerical question with solution; otherwise skip numericals.'
+
+  if (isTheorySubject) {
+    return [
+      'Act as an exam-focused tutor for a BBA 2nd year student.',
+      '',
+      'Goal: Help the student learn this topic quickly and clearly for revision.',
+      '',
+      `Subject: ${subject.title}`,
+      `Lesson: ${lesson.title}`,
+      `Topic: ${topic.title}`,
+      '',
+      'Subtopics to explain in exact order:',
+      numberedSubtopics,
+      '',
+      'Follow this exact output structure:',
+      '1) Topic-wise explanation (subtopic by subtopic)',
+      '- Explain each subtopic one by one in simple words.',
+      '- Keep the explanation short, clear, and exam-focused.',
+      '2) Key definitions',
+      '- Define the most important terms in simple language.',
+      '3) Key points for revision',
+      '- List the most important revision points in short bullets.',
+      '- Add simple examples where helpful.',
+      '- Add comparisons only if they are relevant to understanding the topic.',
+      '',
+      'Tone and style:',
+      '- Simple but informative.',
+      '- Theory-focused and easy to revise quickly.',
+      '- Avoid unnecessary length.',
+      '- Keep formatting clean and readable.',
+    ].join('\n')
+  }
 
   return [
     'Act as an exam-focused tutor for a BBA 2nd year student.',
     '',
-    'Goal: This response should work as a mini tutor, mini test generator, and revision tool in one.',
+    'Goal: Help the student learn this topic quickly and revise it easily.',
     '',
     `Subject: ${subject.title}`,
     `Lesson: ${lesson.title}`,
@@ -137,29 +370,18 @@ function buildTopicPrompt(subject, lesson, topic) {
     'Follow this exact output structure:',
     '1) Topic-wise explanation (subtopic by subtopic)',
     '- Explain each subtopic one by one.',
-    '- For each subtopic, first give a simple explanation, then a slightly detailed explanation.',
-    '- Avoid vague explanations and keep it relevant for exams.',
-    '2) Key concepts and important points',
-    '- Highlight the must-remember concepts, terms, and points for exam writing.',
-    '3) Common mistakes students make',
-    '- List frequent mistakes and how to avoid them.',
-    '4) Comparisons/differences (where relevant)',
-    '- Add clear comparisons in table or bullet form if concepts are commonly confused.',
-    '5) Frequently asked exam questions',
-    '- Generate 4-6 frequently asked exam questions from this topic.',
-    '- Provide concise, scoring-oriented answers for each question.',
-    '6) Tricky conceptual questions',
-    '- Add exactly 2 tricky conceptual questions with answers.',
-    `7) Numerical`,
-    `- ${numericalInstruction}`,
-    '8) Quick revision summary',
-    '- End with crisp bullet points for last-minute revision.',
-    '',
-    'Tone and style:',
-    '- Simple but informative.',
-    '- Exam-focused and structured.',
-    '- Clean formatting with short headings and readable bullets.',
-    '- Do not make the response unnecessarily long.',
+    '- Keep it simple, clear, and exam-focused.',
+    '2) Key definitions',
+    '- Define the most important terms or formula-related words if needed.',
+    '3) Key points for revision',
+    '- List the most important points to remember in short bullets.',
+    '- Add a simple example or comparison only if it helps understanding.',
+      '',
+      'Tone and style:',
+      '- Simple but informative.',
+      '- Exam-focused and quick to revise.',
+      '- Avoid unnecessary length.',
+      '- Keep formatting clean and readable.',
   ].join('\n')
 }
 
@@ -181,7 +403,59 @@ function StudyLessonDetail() {
     formulas: false,
     topics: false,
   })
+  const [openTopicId, setOpenTopicId] = useState(null)
   const [mobileNotationOpenById, setMobileNotationOpenById] = useState({})
+  const [lessonImportance, setLessonImportance] = useState(null)
+  const [topicImportanceById, setTopicImportanceById] = useState({})
+  const [importanceStatus, setImportanceStatus] = useState('idle')
+  const [importanceFeedback, setImportanceFeedback] = useState('')
+  const [isTogglingLessonImportance, setIsTogglingLessonImportance] = useState(false)
+  const [togglingTopicId, setTogglingTopicId] = useState('')
+
+  useEffect(() => {
+    setLessonState(getLessonState(subjectId, lessonId))
+  }, [lessonId, subjectId])
+
+  useEffect(() => {
+    if (!subject?.id || !lesson?.id || !session.token) {
+      setLessonImportance(null)
+      setTopicImportanceById({})
+      setImportanceStatus(session.token ? 'idle' : 'unauthenticated')
+      return
+    }
+
+    let isCancelled = false
+    setImportanceStatus('loading')
+
+    fetchStudyMeImportance({
+      token: session.token,
+      subjectId: subject.id,
+      lessonIds: [lesson.id],
+      topicIds: Array.isArray(lesson.topics) ? lesson.topics.map((topic) => topic.id) : [],
+    })
+      .then((data) => {
+        if (isCancelled) {
+          return
+        }
+
+        setLessonImportance(data?.lessons?.[lesson.id] || { important: false, importantCount: 0, importantBadge: null })
+        setTopicImportanceById(data?.topics && typeof data.topics === 'object' ? data.topics : {})
+        setImportanceStatus('success')
+      })
+      .catch(() => {
+        if (isCancelled) {
+          return
+        }
+
+        setLessonImportance(null)
+        setTopicImportanceById({})
+        setImportanceStatus('error')
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [lesson?.id, lesson?.topics, session.token, subject?.id])
 
   useEffect(() => {
     if (!subject || !lesson || hasTrackedLessonOpenRef.current) {
@@ -209,6 +483,7 @@ function StudyLessonDetail() {
   }, [subject, lesson])
 
   const formulaSections = useMemo(() => getFormulaSections(lesson), [lesson])
+  const shouldShowFormulaSection = subject?.contentType !== 'theory'
   const topicPracticeMap = useMemo(() => {
     const mapped = new Map()
     const numericals = Array.isArray(lesson?.numericals) ? lesson.numericals : []
@@ -312,15 +587,100 @@ function StudyLessonDetail() {
     })
   }
 
-  const handleLessonImportantToggle = () => {
-    setLessonState(toggleLessonImportant(subject.id, lesson.id))
-    fireAndForgetStudyMeEvent({
-      eventType: 'studyme_lesson_important_toggled',
-      token: session.token,
-      userName: user.portalName || user.name || user.rollNumber || user.id,
-      subjectName: subject.title,
-      lessonName: lesson.title,
-    })
+  const handleLessonImportantToggle = async () => {
+    if (!session.token) {
+      setImportanceFeedback('Sign in to use community importance.')
+      window.setTimeout(() => setImportanceFeedback(''), 2200)
+      navigate('/login')
+      return
+    }
+
+    if (isTogglingLessonImportance) {
+      return
+    }
+
+    setIsTogglingLessonImportance(true)
+    setImportanceFeedback('')
+
+    try {
+      const data = await toggleStudyMeLessonImportant({
+        token: session.token,
+        subjectId: subject.id,
+        subjectName: subject.title,
+        lessonId: lesson.id,
+        lessonName: lesson.title,
+      })
+
+      setLessonImportance({
+        important: Boolean(data?.important),
+        importantCount: Number(data?.importantCount || 0),
+        importantBadge: data?.importantBadge || null,
+      })
+
+      fireAndForgetStudyMeEvent({
+        eventType: 'studyme_lesson_important_toggled',
+        token: session.token,
+        userName: user.portalName || user.name || user.rollNumber || user.id,
+        subjectName: subject.title,
+        lessonName: lesson.title,
+      })
+    } catch {
+      setImportanceFeedback('Unable to update importance right now.')
+      window.setTimeout(() => setImportanceFeedback(''), 2200)
+    } finally {
+      setIsTogglingLessonImportance(false)
+    }
+  }
+
+  const handleTopicImportantToggle = async (topic) => {
+    if (!session.token) {
+      setTopicCopyFeedback({ id: topic.id, message: 'Sign in required' })
+      window.setTimeout(() => setTopicCopyFeedback({ id: '', message: '' }), 1800)
+      navigate('/login')
+      return
+    }
+
+    if (togglingTopicId) {
+      return
+    }
+
+    setTogglingTopicId(topic.id)
+    setTopicCopyFeedback({ id: '', message: '' })
+
+    try {
+      const data = await toggleStudyMeTopicImportant({
+        token: session.token,
+        subjectId: subject.id,
+        subjectName: subject.title,
+        lessonId: lesson.id,
+        lessonName: lesson.title,
+        topicId: topic.id,
+        topicName: topic.title,
+      })
+
+      setTopicImportanceById((current) => ({
+        ...current,
+        [topic.id]: {
+          important: Boolean(data?.important),
+          importantCount: Number(data?.importantCount || 0),
+          importantBadge: data?.importantBadge || null,
+        },
+      }))
+
+      fireAndForgetStudyMeEvent({
+        eventType: 'studyme_topic_important_toggled',
+        token: session.token,
+        userName: user.portalName || user.name || user.rollNumber || user.id,
+        subjectName: subject.title,
+        lessonName: lesson.title,
+        topicName: topic.title,
+      })
+    } catch {
+      setTopicCopyFeedback({ id: topic.id, message: 'Importance unavailable' })
+      window.setTimeout(() => setTopicCopyFeedback({ id: '', message: '' }), 1800)
+    } finally {
+      setTogglingTopicId('')
+    }
   }
 
   const openTopicPdf = (topic) => {
@@ -345,6 +705,10 @@ function StudyLessonDetail() {
       topicName: topic.title,
     })
     navigate(`/study/${subject.id}/${lesson.id}/practice/${topic.id}`)
+  }
+
+  const toggleTopicDetails = (topicId) => {
+    setOpenTopicId((current) => (current === topicId ? null : topicId))
   }
 
   return (
@@ -374,14 +738,42 @@ function StudyLessonDetail() {
           <button
             type="button"
             onClick={handleLessonImportantToggle}
+            disabled={(importanceStatus !== 'success' && importanceStatus !== 'unauthenticated') || isTogglingLessonImportance}
             className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
-              lessonState.important
+              lessonImportance?.important
                 ? 'border-[#E2BC8B]/70 bg-[#E2BC8B]/20 text-[#F2CA98]'
                 : 'border-white/20 text-[#E7DEDE] hover:bg-white/10'
             }`}
           >
-            {lessonState.important ? 'Marked Important' : 'Mark as Important'}
+            {importanceStatus === 'unauthenticated'
+              ? 'Sign in to mark important'
+              : importanceStatus === 'loading'
+              ? 'Loading importance...'
+              : isTogglingLessonImportance
+                ? 'Updating...'
+                : lessonImportance?.important
+                  ? 'Marked Important'
+                  : 'Mark as Important'}
           </button>
+          <span
+            className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm ${
+              lessonImportance?.important
+                ? 'border-[#E2BC8B]/45 bg-[#E2BC8B]/12 text-[#F2CA98]'
+                : 'border-white/20 bg-white/5 text-[#D8D3E8]'
+            }`}
+          >
+            <span>
+              {lessonImportance
+                ? `${lessonImportance.importantCount} students marked this`
+                : importanceStatus === 'loading'
+                  ? 'Loading count...'
+                  : importanceStatus === 'unauthenticated'
+                    ? 'Sign in to view community importance'
+                    : 'Importance unavailable'}
+            </span>
+            {lessonImportance?.importantBadge === 'hot' ? <span className="text-[#FFD2C2]">Hot</span> : null}
+          </span>
+          {importanceFeedback ? <span className="self-center text-xs text-[#FFD2C2]">{importanceFeedback}</span> : null}
           <button
             type="button"
             onClick={openLessonAi}
@@ -393,79 +785,81 @@ function StudyLessonDetail() {
       </header>
 
       <section className="space-y-3 rounded-3xl bg-[#4F487A] p-3 shadow-md ring-1 ring-white/5 sm:p-4">
-        <CollapsibleSection
-          title="Formulas"
-          subtitle="Tap to expand key formulas for this lesson."
-          isExpanded={expandedSections.formulas}
-          onToggle={() => toggleSection('formulas')}
-        >
-          {formulaSections.length ? (
-            <div className="mt-2 space-y-3">
-              {formulaSections.map((section) => (
-                <section key={section.title} className="rounded-xl border border-white/10 bg-[#2F2750] p-3 sm:p-4">
-                  <div className="pb-2">
-                    <h3 className="text-sm font-semibold tracking-wide text-[#F4F1FF]">{section.title}</h3>
-                    {section.description ? <p className="mt-1 text-xs text-[#CFC5E8]">{section.description}</p> : null}
-                  </div>
+        {shouldShowFormulaSection ? (
+          <CollapsibleSection
+            title="Formulas"
+            subtitle="Tap to expand key formulas for this lesson."
+            isExpanded={expandedSections.formulas}
+            onToggle={() => toggleSection('formulas')}
+          >
+            {formulaSections.length ? (
+              <div className="mt-2 space-y-3">
+                {formulaSections.map((section) => (
+                  <section key={section.title} className="rounded-xl border border-white/10 bg-[#2F2750] p-3 sm:p-4">
+                    <div className="pb-2">
+                      <h3 className="text-sm font-semibold tracking-wide text-[#F4F1FF]">{section.title}</h3>
+                      {section.description ? <p className="mt-1 text-xs text-[#CFC5E8]">{section.description}</p> : null}
+                    </div>
 
-                  <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {section.formulas.map((formula, formulaIndex) => {
-                      const notationEntries = getFormulaNotationEntries(formula)
-                      const notationKey = `${section.title}-${formula.name}-${formulaIndex}`
-                      const isMobileNotationOpen = Boolean(mobileNotationOpenById[notationKey])
+                    <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {section.formulas.map((formula, formulaIndex) => {
+                        const notationEntries = getFormulaNotationEntries(formula)
+                        const notationKey = `${section.title}-${formula.name}-${formulaIndex}`
+                        const isMobileNotationOpen = Boolean(mobileNotationOpenById[notationKey])
 
-                      return (
-                      <div key={formula.name} className="rounded-xl bg-[#3A315D]/80 p-2.5 ring-1 ring-white/10 sm:p-4">
-                        <p className="text-sm font-semibold tracking-wide text-[#F4F1FF]">{formula.name}</p>
-                        <MathFormula
-                          latex={formula.latex}
-                          fallbackText={formula.formula}
-                          className="mt-2"
-                        />
+                        return (
+                        <div key={formula.name} className="rounded-xl bg-[#3A315D]/80 p-2.5 ring-1 ring-white/10 sm:p-4">
+                          <p className="text-sm font-semibold tracking-wide text-[#F4F1FF]">{formula.name}</p>
+                          <MathFormula
+                            latex={formula.latex}
+                            fallbackText={formula.formula}
+                            className="mt-2"
+                          />
 
-                        {notationEntries.length ? (
-                          <div className="mt-2">
-                            <div className="hidden md:block">
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#CFC5E8]">Notation</p>
-                              <div className="mt-1.5">
-                                <NotationList entries={notationEntries} />
-                              </div>
-                            </div>
-
-                            <div className="md:hidden">
-                              <button
-                                type="button"
-                                onClick={() => toggleMobileNotation(notationKey)}
-                                className="text-xs font-semibold text-[#CFE8FF] hover:text-[#E7F2FF]"
-                                aria-expanded={isMobileNotationOpen}
-                              >
-                                {isMobileNotationOpen ? 'Hide notation' : 'Show notation'}
-                              </button>
-
-                              {isMobileNotationOpen ? (
+                          {notationEntries.length ? (
+                            <div className="mt-2">
+                              <div className="hidden md:block">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#CFC5E8]">Notation</p>
                                 <div className="mt-1.5">
                                   <NotationList entries={notationEntries} />
                                 </div>
-                              ) : null}
+                              </div>
+
+                              <div className="md:hidden">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleMobileNotation(notationKey)}
+                                  className="text-xs font-semibold text-[#CFE8FF] hover:text-[#E7F2FF]"
+                                  aria-expanded={isMobileNotationOpen}
+                                >
+                                  {isMobileNotationOpen ? 'Hide notation' : 'Show notation'}
+                                </button>
+
+                                {isMobileNotationOpen ? (
+                                  <div className="mt-1.5">
+                                    <NotationList entries={notationEntries} />
+                                  </div>
+                                ) : null}
+                              </div>
                             </div>
-                          </div>
-                        ) : (
-                          <p className="mt-2 text-xs leading-relaxed text-[#D8D3E8]">Notation details are not available.</p>
-                        )}
-                      </div>
-                    )})}
-                  </div>
-                </section>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-2 rounded-xl border border-white/10 bg-[#3A315D] p-3 text-sm font-semibold text-[#D8D3E8]">-</p>
-          )}
-        </CollapsibleSection>
+                          ) : (
+                            <p className="mt-2 text-xs leading-relaxed text-[#D8D3E8]">Notation details are not available.</p>
+                          )}
+                        </div>
+                      )})}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 rounded-xl border border-white/10 bg-[#3A315D] p-3 text-sm font-semibold text-[#D8D3E8]">-</p>
+            )}
+          </CollapsibleSection>
+        ) : null}
 
         <CollapsibleSection
           title="Topics in this Lesson"
-          subtitle="Each topic combines explanation and examples as they appear in the PDF."
+          subtitle={subject?.contentType === 'theory' ? 'Each topic is organized like a visual study guide with concepts, comparisons, and use cases.' : 'Each topic combines explanation and examples as they appear in the PDF.'}
           isExpanded={expandedSections.topics}
           onToggle={() => toggleSection('topics')}
         >
@@ -474,42 +868,156 @@ function StudyLessonDetail() {
               {lesson.topics.map((topic) => {
                 const subtopics = Array.isArray(topic.subtopics) ? topic.subtopics : []
                 const hasPracticeProblems = topicPracticeMap.get(topic.id) === true
+                const isExpanded = openTopicId === topic.id
+                const topicImportance = topicImportanceById[topic.id] || null
+                const topicChips = [
+                  topicImportance ? `${topicImportance.importantCount} marked important` : '',
+                  Array.isArray(topic.definitions) && topic.definitions.length ? 'Definitions' : '',
+                  topic.comparisonTable?.rows?.length ? 'Comparison' : '',
+                  Array.isArray(topic.useCases) && topic.useCases.length ? 'Use Cases' : '',
+                  topic.analogy ? 'Analogy' : '',
+                ].filter(Boolean)
 
                 return (
-                  <article key={topic.id} className="rounded-xl border border-white/10 bg-[#3A315D] px-3 py-3">
-                    <p className="text-sm font-semibold text-[#F4F1FF]">{topic.title}</p>
-                    <p className="mt-1 text-xs text-[#D8D3E8]">
-                      {subtopics.length} subtopics • Pages {topic.pageRange?.start || '-'} - {topic.pageRange?.end || '-'}
-                    </p>
+                  <article
+                    key={topic.id}
+                    aria-expanded={isExpanded}
+                    className={`rounded-xl border px-3 py-3 transition ${
+                      topicImportance?.important
+                        ? 'border-[#E2BC8B]/35 bg-[#3D315D]'
+                        : isExpanded
+                          ? 'border-[#A8D8FF]/30 bg-[#352A59] shadow-md'
+                          : 'border-white/10 bg-[#3A315D] hover:bg-[#403668]'
+                    }`}
+                  >
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => toggleTopicDetails(topic.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          toggleTopicDetails(topic.id)
+                        }
+                      }}
+                      className="w-full cursor-pointer text-left"
+                      aria-expanded={isExpanded}
+                    >
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-[#F4F1FF]">{topic.title}</p>
+                          {!isExpanded && topic.summary ? <p className="mt-1 text-xs leading-relaxed text-[#D8D3E8]">{topic.summary}</p> : null}
+                          {!isExpanded ? (
+                            <p className="mt-1 text-xs text-[#D8D3E8]">
+                              {subtopics.length} subtopics • Pages {topic.pageRange?.start || '-'} - {topic.pageRange?.end || '-'}
+                            </p>
+                          ) : null}
+                        </div>
 
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => openTopicPdf(topic)}
-                        className="rounded-full border border-[#A8D8FF]/50 bg-[#312051] px-3 py-1.5 text-xs font-semibold text-[#CFE8FF] hover:bg-[#4A3E73]"
-                      >
-                        Open in PDF
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleCopyTopicPrompt(topic)}
-                        className="rounded-full border border-white/20 bg-[#312051] px-3 py-1.5 text-xs font-semibold text-[#E7DEDE] hover:bg-[#4A3E73]"
-                      >
-                        Copy Topic Prompt
-                      </button>
-                      {hasPracticeProblems ? (
-                        <button
-                          type="button"
-                          onClick={() => openTopicPractice(topic)}
-                          className="rounded-full border border-[#E2BC8B]/45 bg-[#E2BC8B]/12 px-3 py-1.5 text-xs font-semibold text-[#F2CA98] hover:bg-[#E2BC8B]/20"
-                        >
-                          Practice Problems
-                        </button>
-                      ) : null}
-                      {topicCopyFeedback.id === topic.id && topicCopyFeedback.message ? (
-                        <span className="self-center text-xs text-[#A8F5C5]">{topicCopyFeedback.message}</span>
-                      ) : null}
+                        <span className="inline-flex self-start rounded-full border border-white/20 bg-[#312051] px-3 py-1.5 text-[11px] font-semibold text-[#E7DEDE] sm:shrink-0">
+                          {isExpanded ? 'Hide details' : 'View details'}
+                        </span>
+                      </div>
                     </div>
+
+                    {!isExpanded && topicChips.length ? (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {topicChips.map((chip) => (
+                          <span
+                            key={`${topic.id}-chip-${chip}`}
+                            className={`rounded-full border px-2.5 py-1 text-[11px] ${
+                              chip === `${topicImportance?.importantCount} marked important`
+                                ? topicImportance?.important
+                                  ? 'border-[#E2BC8B]/35 bg-[#E2BC8B]/12 text-[#F2CA98]'
+                                  : 'border-white/15 bg-white/5 text-[#E7DEDE]'
+                                : 'border-white/15 bg-white/5 text-[#E7DEDE]'
+                            }`}
+                          >
+                            {chip}
+                          </span>
+                        ))}
+                        {topicImportance?.importantBadge === 'hot' ? (
+                          <span className="rounded-full border border-[#FF8A65]/40 bg-[#FF8A65]/12 px-2.5 py-1 text-[11px] text-[#FFD2C2]">
+                            Hot topic
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {isExpanded ? (
+                      <>
+                        <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              handleTopicImportantToggle(topic)
+                            }}
+                            disabled={(importanceStatus !== 'success' && importanceStatus !== 'unauthenticated') || togglingTopicId === topic.id}
+                            className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                              topicImportance?.important
+                                ? 'border-[#E2BC8B]/70 bg-[#E2BC8B]/20 text-[#F2CA98]'
+                                : 'border-white/20 bg-[#312051] text-[#E7DEDE] hover:bg-[#4A3E73]'
+                            }`}
+                          >
+                            {importanceStatus === 'unauthenticated'
+                              ? 'Sign in to mark important'
+                              : importanceStatus !== 'success'
+                                ? 'Importance unavailable'
+                              : togglingTopicId === topic.id
+                                ? 'Updating...'
+                                : `${topicImportance?.important ? 'Marked Important' : 'Mark as Important'} • ${topicImportance?.importantCount ?? 0}`}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              openTopicPdf(topic)
+                            }}
+                            className="rounded-full border border-[#A8D8FF]/50 bg-[#312051] px-3 py-1.5 text-xs font-semibold text-[#CFE8FF] hover:bg-[#4A3E73]"
+                          >
+                            Open in PDF
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              handleCopyTopicPrompt(topic)
+                            }}
+                            className="rounded-full border border-white/20 bg-[#312051] px-3 py-1.5 text-xs font-semibold text-[#E7DEDE] hover:bg-[#4A3E73]"
+                          >
+                            Copy Topic Prompt
+                          </button>
+                          {hasPracticeProblems ? (
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                openTopicPractice(topic)
+                              }}
+                              className="rounded-full border border-[#E2BC8B]/45 bg-[#E2BC8B]/12 px-3 py-1.5 text-xs font-semibold text-[#F2CA98] hover:bg-[#E2BC8B]/20"
+                            >
+                              Practice Problems
+                            </button>
+                          ) : null}
+                          {topicCopyFeedback.id === topic.id && topicCopyFeedback.message ? (
+                            <span className="text-xs text-[#A8F5C5]">{topicCopyFeedback.message}</span>
+                          ) : null}
+                        </div>
+
+                        {subtopics.length ? (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {subtopics.map((item) => (
+                              <span key={`${topic.id}-${item}`} className="rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] text-[#E7DEDE]">
+                                {item}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        {subject?.contentType === 'theory' ? <TopicStudyGuide topic={topic} /> : null}
+                      </>
+                    ) : null}
                   </article>
                 )
               })}
