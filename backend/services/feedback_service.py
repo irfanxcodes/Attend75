@@ -1,19 +1,12 @@
-import json
 import logging
-import os
 from datetime import date, datetime, timezone
-from pathlib import Path
 from threading import Lock
 from uuid import uuid4
 
+from db.models.feedback_entry import FeedbackEntry
+from db.session import SessionLocal
+
 logger = logging.getLogger(__name__)
-
-
-def _resolve_feedback_file() -> Path:
-    configured_path = os.getenv("FEEDBACK_FILE_PATH", "").strip()
-    if configured_path:
-        return Path(configured_path).expanduser().resolve()
-    return Path(__file__).resolve().parent.parent / "feedback.json"
 
 
 _FEEDBACK_LOCK = Lock()
@@ -36,54 +29,20 @@ def _parse_iso_timestamp(timestamp_value: str | None) -> datetime | None:
         return None
 
 
-def _normalize_feedback_entry(entry: dict) -> dict[str, str]:
-    message = str(entry.get("message") or "").strip()
-    user_name = str(entry.get("user_name") or entry.get("userName") or "").strip() or "Anonymous"
-
-    timestamp = _parse_iso_timestamp(str(entry.get("timestamp") or ""))
-    normalized_timestamp = (timestamp or datetime.now(timezone.utc)).isoformat()
-
-    status_raw = str(entry.get("status") or "new").strip().lower()
-    status = status_raw if status_raw in _ALLOWED_FEEDBACK_STATUSES else "new"
+def _serialize_feedback_entry(entry: FeedbackEntry) -> dict[str, str]:
+    timestamp = entry.timestamp
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    else:
+        timestamp = timestamp.astimezone(timezone.utc)
 
     return {
-        "id": str(entry.get("id") or uuid4()),
-        "message": message,
-        "timestamp": normalized_timestamp,
-        "user_name": user_name,
-        "status": status,
+        "id": entry.id,
+        "message": entry.message,
+        "timestamp": timestamp.isoformat(),
+        "user_name": entry.user_name,
+        "status": entry.status,
     }
-
-
-def _write_feedback_entries(entries: list[dict[str, str]]) -> None:
-    feedback_file = _resolve_feedback_file()
-    feedback_file.parent.mkdir(parents=True, exist_ok=True)
-
-    temp_path = feedback_file.with_suffix(f"{feedback_file.suffix}.tmp")
-    temp_path.write_text(json.dumps(entries, indent=2), encoding="utf-8")
-    temp_path.replace(feedback_file)
-
-
-def _read_feedback_entries() -> list[dict[str, str]]:
-    feedback_file = _resolve_feedback_file()
-    if not feedback_file.exists():
-        return []
-
-    try:
-        parsed = json.loads(feedback_file.read_text(encoding="utf-8"))
-        if isinstance(parsed, list):
-            normalized = []
-            for item in parsed:
-                if not isinstance(item, dict):
-                    continue
-                normalized_item = _normalize_feedback_entry(item)
-                if normalized_item["message"]:
-                    normalized.append(normalized_item)
-            return normalized
-    except json.JSONDecodeError:
-        return []
-
-    return []
 
 
 def submit_feedback(message: str, user_name: str | None = None) -> dict[str, str]:
@@ -92,24 +51,25 @@ def submit_feedback(message: str, user_name: str | None = None) -> dict[str, str
         raise ValueError("message must not be empty")
 
     normalized_user_name = (user_name or "").strip() or "Anonymous"
+    current_timestamp = datetime.now(timezone.utc)
 
-    entry = {
-        "id": str(uuid4()),
-        "message": cleaned_message,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "user_name": normalized_user_name,
-        "status": "new",
-    }
+    entry = FeedbackEntry(
+        id=str(uuid4()),
+        message=cleaned_message,
+        timestamp=current_timestamp.replace(tzinfo=None),
+        user_name=normalized_user_name,
+        status="new",
+    )
 
     with _FEEDBACK_LOCK:
-        existing_entries = _read_feedback_entries()
+        with SessionLocal() as session:
+            session.add(entry)
+            session.commit()
+            session.refresh(entry)
+            serialized = _serialize_feedback_entry(entry)
 
-        existing_entries.append(entry)
-        _write_feedback_entries(existing_entries)
-
-    logger.info("Feedback saved [id=%s, user_name=%s, path=%s]", entry["id"], entry["user_name"], _resolve_feedback_file())
-
-    return entry
+    logger.info("Feedback saved [id=%s, user_name=%s]", entry.id, entry.user_name)
+    return serialized
 
 
 def list_feedback(
@@ -121,44 +81,47 @@ def list_feedback(
     sort: str = "latest",
 ) -> list[dict[str, str]]:
     capped_limit = max(1, min(limit, 200))
-    with _FEEDBACK_LOCK:
-        items = _read_feedback_entries()
-
     normalized_query = (query or "").strip().lower()
     normalized_status = (status or "").strip().lower()
     if normalized_status and normalized_status not in _ALLOWED_FEEDBACK_STATUSES:
         normalized_status = ""
 
-    filtered: list[dict[str, str]] = []
-    for item in items:
-        item_timestamp = _parse_iso_timestamp(item.get("timestamp"))
-        item_date = item_timestamp.date() if item_timestamp else None
+    with _FEEDBACK_LOCK:
+        with SessionLocal() as session:
+            query_builder = session.query(FeedbackEntry)
 
-        if start_date and item_date and item_date < start_date:
-            continue
-        if end_date and item_date and item_date > end_date:
-            continue
-        if normalized_status and item.get("status") != normalized_status:
-            continue
+            if normalized_status:
+                query_builder = query_builder.filter(FeedbackEntry.status == normalized_status)
 
-        if normalized_query:
-            haystack = " ".join([
-                str(item.get("message") or ""),
-                str(item.get("user_name") or ""),
-                str(item.get("status") or ""),
-            ]).lower()
-            if normalized_query not in haystack:
-                continue
+            if normalized_query:
+                like_value = f"%{normalized_query}%"
+                query_builder = query_builder.filter(
+                    FeedbackEntry.message.ilike(like_value)
+                    | FeedbackEntry.user_name.ilike(like_value)
+                    | FeedbackEntry.status.ilike(like_value)
+                )
 
-        filtered.append(item)
+            if start_date:
+                query_builder = query_builder.filter(
+                    FeedbackEntry.timestamp >= datetime.combine(start_date, datetime.min.time())
+                )
+            if end_date:
+                query_builder = query_builder.filter(
+                    FeedbackEntry.timestamp < datetime.combine(end_date, datetime.max.time())
+                )
 
-    filtered.sort(key=lambda record: record.get("timestamp") or "", reverse=(sort != "oldest"))
-    return filtered[:capped_limit]
+            order_by = FeedbackEntry.timestamp.asc() if sort == "oldest" else FeedbackEntry.timestamp.desc()
+            rows = query_builder.order_by(order_by).limit(capped_limit).all()
+
+    return [_serialize_feedback_entry(row) for row in rows]
 
 
 def list_all_feedback() -> list[dict[str, str]]:
     with _FEEDBACK_LOCK:
-        return list(_read_feedback_entries())
+        with SessionLocal() as session:
+            rows = session.query(FeedbackEntry).order_by(FeedbackEntry.timestamp.desc()).all()
+
+    return [_serialize_feedback_entry(row) for row in rows]
 
 
 def update_feedback_status(feedback_id: str, status: str) -> dict[str, str] | None:
@@ -171,22 +134,18 @@ def update_feedback_status(feedback_id: str, status: str) -> dict[str, str] | No
         raise ValueError("status must be one of: new, reviewed, resolved")
 
     with _FEEDBACK_LOCK:
-        items = _read_feedback_entries()
-        updated_item: dict[str, str] | None = None
+        with SessionLocal() as session:
+            row = session.query(FeedbackEntry).filter(FeedbackEntry.id == normalized_id).one_or_none()
+            if row is None:
+                return None
 
-        for item in items:
-            if item.get("id") == normalized_id:
-                item["status"] = normalized_status
-                updated_item = item
-                break
-
-        if updated_item is None:
-            return None
-
-        _write_feedback_entries(items)
-        return updated_item
+            row.status = normalized_status
+            session.commit()
+            session.refresh(row)
+            return _serialize_feedback_entry(row)
 
 
 def feedback_count() -> int:
     with _FEEDBACK_LOCK:
-        return len(_read_feedback_entries())
+        with SessionLocal() as session:
+            return int(session.query(FeedbackEntry).count() or 0)

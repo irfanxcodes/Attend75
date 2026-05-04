@@ -7,6 +7,10 @@ from db.session import SessionLocal
 MAIL_FACULTY_FEATURE = "mail_faculty"
 ACTION_COMPOSE_OPENED = "compose_opened"
 ACTION_SEND_CONFIRMED = "send_confirmed"
+SYNC_ATTENDANCE_FEATURE = "sync_attendance"
+ATTENDANCE_HISTORY_FEATURE = "attendance_history"
+CONSOLIDATED_MARKS_FEATURE = "consolidated_marks"
+ACTION_VIEWED = "viewed"
 
 
 def record_feature_usage_event(
@@ -16,6 +20,8 @@ def record_feature_usage_event(
     user_identifier: str | None = None,
     subject_code: str | None = None,
     subject_name: str | None = None,
+    semester_id: str | None = None,
+    semester_label: str | None = None,
     attendance_date: str | None = None,
 ) -> None:
     normalized_feature_name = str(feature_name or "").strip().lower()
@@ -26,6 +32,8 @@ def record_feature_usage_event(
     normalized_user_identifier = str(user_identifier or "").strip().upper() or None
     normalized_subject_code = str(subject_code or "").strip().upper() or None
     normalized_subject_name = str(subject_name or "").strip() or None
+    normalized_semester_id = str(semester_id or "").strip() or None
+    normalized_semester_label = str(semester_label or "").strip() or None
     normalized_attendance_date = str(attendance_date or "").strip() or None
 
     with SessionLocal() as session:
@@ -35,10 +43,74 @@ def record_feature_usage_event(
             user_identifier=normalized_user_identifier,
             subject_code=normalized_subject_code,
             subject_name=normalized_subject_name,
+            semester_id=normalized_semester_id,
+            semester_label=normalized_semester_label,
             attendance_date=normalized_attendance_date,
         )
         session.add(event)
         session.commit()
+
+
+def get_core_feature_usage_summary() -> dict[str, int | str | None]:
+    with SessionLocal() as session:
+        sync_attendance_count = int(
+            session.query(func.count(FeatureUsageEvent.id))
+            .filter(FeatureUsageEvent.feature_name == SYNC_ATTENDANCE_FEATURE)
+            .filter(FeatureUsageEvent.action_type == ACTION_VIEWED)
+            .scalar()
+            or 0
+        )
+        history_open_count = int(
+            session.query(func.count(FeatureUsageEvent.id))
+            .filter(FeatureUsageEvent.feature_name == ATTENDANCE_HISTORY_FEATURE)
+            .filter(FeatureUsageEvent.action_type == ACTION_VIEWED)
+            .scalar()
+            or 0
+        )
+        marks_open_count = int(
+            session.query(func.count(FeatureUsageEvent.id))
+            .filter(FeatureUsageEvent.feature_name == CONSOLIDATED_MARKS_FEATURE)
+            .filter(FeatureUsageEvent.action_type == ACTION_VIEWED)
+            .scalar()
+            or 0
+        )
+
+        semester_rows = (
+            session.query(
+                func.nullif(FeatureUsageEvent.semester_id, "").label("semester_id"),
+                func.nullif(FeatureUsageEvent.semester_label, "").label("semester_label"),
+                func.count(FeatureUsageEvent.id).label("count"),
+            )
+            .filter(FeatureUsageEvent.feature_name.in_([
+                SYNC_ATTENDANCE_FEATURE,
+                ATTENDANCE_HISTORY_FEATURE,
+                CONSOLIDATED_MARKS_FEATURE,
+            ]))
+            .filter(FeatureUsageEvent.action_type == ACTION_VIEWED)
+            .filter(FeatureUsageEvent.semester_id.isnot(None))
+            .group_by("semester_id", "semester_label")
+            .order_by(desc("count"), "semester_label", "semester_id")
+            .all()
+        )
+
+    most_viewed_semester = None
+    most_viewed_semester_label = None
+    most_viewed_semester_count = 0
+    if semester_rows:
+        row = semester_rows[0]
+        most_viewed_semester = str(row.semester_id or "").strip() or None
+        most_viewed_semester_label = str(row.semester_label or "").strip() or None
+        most_viewed_semester_count = int(row.count or 0)
+
+    return {
+        "syncAttendanceCount": sync_attendance_count,
+        "historyOpenCount": history_open_count,
+        "marksOpenCount": marks_open_count,
+        "mostViewedSemester": most_viewed_semester,
+        "mostViewedSemesterLabel": most_viewed_semester_label,
+        "mostViewedSemesterCount": most_viewed_semester_count,
+        "totalSemesterInteractions": sync_attendance_count + history_open_count + marks_open_count,
+    }
 
 
 def get_mail_faculty_usage_summary(limit_subjects: int = 5) -> dict[str, int | list[dict[str, int | str | None]]]:

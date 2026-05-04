@@ -195,8 +195,8 @@ def fetch_subject_history(token: str, semester_id: str | None, date: str | None)
             ),
         )
         observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
-        resolved_id, _ = _resolve_semester_usage_context(payload, semester_id)
-        observe_history_open(semester_id=resolved_id)
+        resolved_id, resolved_label = _resolve_semester_usage_context(payload, semester_id)
+        observe_history_open(semester_id=resolved_id, semester_label=resolved_label)
         return payload
     except PortalNetworkError as exc:
         observe_scrape(

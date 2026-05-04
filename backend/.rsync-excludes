@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+attend75.db
+attend75_migration_test.db
+feedback.json
+.env.production
+firebase-admin.json
+backups/

@@ -15,5 +15,7 @@ class FeatureUsageEvent(Base):
     user_identifier: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     subject_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     subject_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    semester_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    semester_label: Mapped[str | None] = mapped_column(String(255), nullable=True)
     attendance_date: Mapped[str | None] = mapped_column(String(16), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
