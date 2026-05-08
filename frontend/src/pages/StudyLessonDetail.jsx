@@ -77,17 +77,99 @@ function normalizeListItems(values) {
   return Array.isArray(values) ? values.filter((item) => String(item || '').trim()) : []
 }
 
+function DefinitionGrid({ title, topicId, entries }) {
+  if (!entries.length) {
+    return null
+  }
+
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">{title}</p>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        {entries.map((item, index) => (
+          <div key={`${topicId}-${title}-definition-${index}`} className="min-w-0 rounded-xl bg-white/5 px-3 py-2 text-xs text-[#D8D3E8]">
+            {item.term ? <p className="font-semibold text-[#F4F1FF]">{item.term}</p> : null}
+            <p className={item.term ? 'mt-1 break-words leading-relaxed' : 'break-words leading-relaxed'}>{item.description}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ResponsiveComparisonTable({ topicId, comparisonTable }) {
+  if (!Array.isArray(comparisonTable?.headers) || !comparisonTable.headers.length || !Array.isArray(comparisonTable?.rows) || !comparisonTable.rows.length) {
+    return null
+  }
+
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">
+        {comparisonTable.title || 'Comparison'}
+      </p>
+
+      <div className="mt-2 space-y-2 sm:hidden">
+        {comparisonTable.rows.map((row, rowIndex) => (
+          <div key={`${topicId}-mobile-row-${rowIndex}`} className="min-w-0 overflow-hidden rounded-xl border border-white/10 bg-[#241C45] p-3 text-xs text-[#E7DEDE]">
+            <dl className="space-y-2">
+              {comparisonTable.headers.map((header, cellIndex) => (
+                <div key={`${topicId}-mobile-cell-${rowIndex}-${cellIndex}`}>
+                  <dt className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#CFC5E8]">{header}</dt>
+                  <dd className="mt-0.5 whitespace-normal break-words leading-relaxed text-[#E7DEDE]">{row[cellIndex] || '-'}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-2 hidden max-w-full overflow-x-auto rounded-xl border border-white/10 bg-[#241C45] sm:block">
+        <table className="min-w-full text-left text-xs text-[#E7DEDE]">
+          <thead className="bg-[#3A315D] text-[#F4F1FF]">
+            <tr>
+              {comparisonTable.headers.map((header) => (
+                <th key={`${topicId}-header-${header}`} className="px-3 py-2 font-semibold whitespace-normal break-words">
+                  {header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {comparisonTable.rows.map((row, rowIndex) => (
+              <tr key={`${topicId}-row-${rowIndex}`} className="border-t border-white/10 even:bg-white/5">
+                {row.map((cell, cellIndex) => (
+                  <td key={`${topicId}-${rowIndex}-${cellIndex}`} className="px-3 py-2 align-top whitespace-normal break-words">
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 function TopicStudyGuide({ topic }) {
+  const summary = String(topic?.summary || '').trim()
+  const details = String(topic?.details || '').trim()
+  const asciiDiagram = String(topic?.asciiDiagram || '').trim()
   const definitions = normalizeDefinitionEntries(topic?.definitions)
+  const majorJobAttitudes = normalizeDefinitionEntries(topic?.majorJobAttitudes)
   const keyConcepts = normalizeListItems(topic?.keyConcepts)
   const useCases = normalizeListItems(topic?.useCases)
   const examples = normalizeListItems(topic?.examples)
   const standardReferences = normalizeListItems(topic?.standardReferences)
   const comparisonTable = topic?.comparisonTable
   const hasGuideContent =
+    Boolean(summary) ||
+    Boolean(details) ||
+    Boolean(asciiDiagram) ||
     Boolean(String(topic?.analogy || '').trim()) ||
     Boolean(String(topic?.standardDefinition || '').trim()) ||
     definitions.length > 0 ||
+    majorJobAttitudes.length > 0 ||
     keyConcepts.length > 0 ||
     useCases.length > 0 ||
     examples.length > 0 ||
@@ -99,40 +181,53 @@ function TopicStudyGuide({ topic }) {
   }
 
   return (
-    <div className="mt-3 space-y-3 rounded-2xl border border-[#A8D8FF]/15 bg-[#2C2348]/80 p-3">
-      <div className="flex flex-wrap gap-2">
+    <div className="mt-3 min-w-0 max-w-full space-y-3 rounded-2xl border border-[#A8D8FF]/15 bg-[#2C2348]/80 p-2.5 sm:p-4">
+      {summary ? (
+        <div className="min-w-0 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Summary</p>
+          <p className="mt-1 break-words text-xs leading-relaxed text-[#E7DEDE]">{summary}</p>
+        </div>
+      ) : null}
+
+      {details ? (
+        <div className="min-w-0 rounded-xl border border-white/10 bg-[#241C45] px-3 py-2.5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Detailed Explanation</p>
+          <p className="mt-1 whitespace-pre-line break-words text-xs leading-relaxed text-[#D8D3E8]">{details}</p>
+        </div>
+      ) : null}
+
+      {asciiDiagram ? (
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Diagram</p>
+          <pre className="mt-2 block w-full max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-xl border border-[#A8D8FF]/20 bg-[#1F183B] px-2.5 py-3 text-[9px] leading-relaxed text-[#CFE8FF] sm:px-3 sm:text-[11px]">
+            <code className="block min-w-max whitespace-pre">{asciiDiagram}</code>
+          </pre>
+        </div>
+      ) : null}
+
+      <div className="min-w-0 flex flex-wrap gap-2">
         {topic.analogy ? (
-          <div className="rounded-xl border border-[#E2BC8B]/25 bg-[#E2BC8B]/10 px-3 py-2 text-xs leading-relaxed text-[#F5DEBE] break-words">
+          <div className="min-w-0 rounded-xl border border-[#E2BC8B]/25 bg-[#E2BC8B]/10 px-3 py-2 text-xs leading-relaxed text-[#F5DEBE] break-words">
             <span className="font-semibold text-[#F2CA98]">Analogy:</span> {topic.analogy}
           </div>
         ) : null}
         {topic.standardDefinition ? (
-          <div className="rounded-xl border border-[#A8F5C5]/25 bg-[#A8F5C5]/10 px-3 py-2 text-xs leading-relaxed text-[#DBFCEA] break-words">
+          <div className="min-w-0 rounded-xl border border-[#A8F5C5]/25 bg-[#A8F5C5]/10 px-3 py-2 text-xs leading-relaxed text-[#DBFCEA] break-words">
             <span className="font-semibold text-[#A8F5C5]">Standard Reference:</span> {topic.standardDefinition}
           </div>
         ) : null}
       </div>
 
-      {definitions.length ? (
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Definitions</p>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            {definitions.map((item, index) => (
-              <div key={`${topic.id}-definition-${index}`} className="rounded-xl bg-white/5 px-3 py-2 text-xs text-[#D8D3E8]">
-                {item.term ? <p className="font-semibold text-[#F4F1FF]">{item.term}</p> : null}
-                <p className={item.term ? 'mt-1 leading-relaxed' : 'leading-relaxed'}>{item.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
+      <DefinitionGrid title="Definitions" topicId={topic.id} entries={definitions} />
+
+      <DefinitionGrid title="Structured Points" topicId={topic.id} entries={majorJobAttitudes} />
 
       {keyConcepts.length ? (
-        <div>
+        <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Key Concepts</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {keyConcepts.map((item) => (
-              <span key={`${topic.id}-concept-${item}`} className="rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-xs text-[#E7DEDE]">
+              <span key={`${topic.id}-concept-${item}`} className="max-w-full break-words rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-xs text-[#E7DEDE]">
                 {item}
               </span>
             ))}
@@ -140,44 +235,14 @@ function TopicStudyGuide({ topic }) {
         </div>
       ) : null}
 
-      {Array.isArray(comparisonTable?.headers) && comparisonTable.headers.length && Array.isArray(comparisonTable?.rows) && comparisonTable.rows.length ? (
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">
-            {comparisonTable.title || 'Comparison'}
-          </p>
-          <div className="mt-2 overflow-x-auto rounded-xl border border-white/10 bg-[#241C45]">
-            <table className="min-w-full text-left text-xs text-[#E7DEDE]">
-              <thead className="bg-[#3A315D] text-[#F4F1FF]">
-                <tr>
-                  {comparisonTable.headers.map((header) => (
-                    <th key={`${topic.id}-header-${header}`} className="px-3 py-2 font-semibold whitespace-normal break-words sm:whitespace-nowrap">
-                      {header}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {comparisonTable.rows.map((row, rowIndex) => (
-                  <tr key={`${topic.id}-row-${rowIndex}`} className="border-t border-white/10 even:bg-white/5">
-                    {row.map((cell, cellIndex) => (
-                      <td key={`${topic.id}-${rowIndex}-${cellIndex}`} className="px-3 py-2 whitespace-normal break-words sm:whitespace-nowrap">
-                        {cell}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : null}
+      <ResponsiveComparisonTable topicId={topic.id} comparisonTable={comparisonTable} />
 
       {useCases.length ? (
-        <div>
+        <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Use Cases</p>
           <ul className="mt-2 grid gap-1.5 text-xs text-[#D8D3E8] sm:grid-cols-2">
             {useCases.map((item) => (
-              <li key={`${topic.id}-use-${item}`} className="rounded-lg bg-white/5 px-3 py-2">
+              <li key={`${topic.id}-use-${item}`} className="min-w-0 break-words rounded-lg bg-white/5 px-3 py-2">
                 {item}
               </li>
             ))}
@@ -186,11 +251,11 @@ function TopicStudyGuide({ topic }) {
       ) : null}
 
       {examples.length ? (
-        <div>
+        <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Examples</p>
           <ul className="mt-2 flex flex-wrap gap-2 text-xs text-[#CFE8FF]">
             {examples.map((item) => (
-              <li key={`${topic.id}-example-${item}`} className="rounded-full border border-[#A8D8FF]/25 bg-[#A8D8FF]/10 px-2.5 py-1">
+              <li key={`${topic.id}-example-${item}`} className="max-w-full break-words rounded-full border border-[#A8D8FF]/25 bg-[#A8D8FF]/10 px-2.5 py-1">
                 {item}
               </li>
             ))}
@@ -199,11 +264,11 @@ function TopicStudyGuide({ topic }) {
       ) : null}
 
       {standardReferences.length ? (
-        <div>
+        <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Standard References</p>
           <ul className="mt-2 space-y-1.5 text-xs text-[#D8D3E8]">
             {standardReferences.map((item) => (
-              <li key={`${topic.id}-standard-${item}`} className="rounded-lg bg-white/5 px-3 py-2">
+              <li key={`${topic.id}-standard-${item}`} className="min-w-0 break-words rounded-lg bg-white/5 px-3 py-2">
                 {item}
               </li>
             ))}
@@ -872,7 +937,10 @@ function StudyLessonDetail() {
                 const topicImportance = topicImportanceById[topic.id] || null
                 const topicChips = [
                   topicImportance ? `${topicImportance.importantCount} marked important` : '',
+                  topic.summary ? 'Summary' : '',
+                  topic.details ? 'Detailed Explanation' : '',
                   Array.isArray(topic.definitions) && topic.definitions.length ? 'Definitions' : '',
+                  topic.asciiDiagram ? 'Diagram' : '',
                   topic.comparisonTable?.rows?.length ? 'Comparison' : '',
                   Array.isArray(topic.useCases) && topic.useCases.length ? 'Use Cases' : '',
                   topic.analogy ? 'Analogy' : '',
@@ -882,7 +950,7 @@ function StudyLessonDetail() {
                   <article
                     key={topic.id}
                     aria-expanded={isExpanded}
-                    className={`rounded-xl border px-3 py-3 transition ${
+                    className={`min-w-0 rounded-xl border px-2.5 py-3 sm:px-3 transition ${
                       topicImportance?.important
                         ? 'border-[#E2BC8B]/35 bg-[#3D315D]'
                         : isExpanded
@@ -900,15 +968,15 @@ function StudyLessonDetail() {
                           toggleTopicDetails(topic.id)
                         }
                       }}
-                      className="w-full cursor-pointer text-left"
+                      className="w-full min-w-0 cursor-pointer text-left"
                       aria-expanded={isExpanded}
                     >
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold text-[#F4F1FF]">{topic.title}</p>
-                          {!isExpanded && topic.summary ? <p className="mt-1 text-xs leading-relaxed text-[#D8D3E8]">{topic.summary}</p> : null}
+                          {!isExpanded && topic.summary ? <p className="mt-1 break-words text-xs leading-relaxed text-[#D8D3E8]">{topic.summary}</p> : null}
                           {!isExpanded ? (
-                            <p className="mt-1 text-xs text-[#D8D3E8]">
+                            <p className="mt-1 break-words text-xs text-[#D8D3E8]">
                               {subtopics.length} subtopics • Pages {topic.pageRange?.start || '-'} - {topic.pageRange?.end || '-'}
                             </p>
                           ) : null}
@@ -1006,13 +1074,22 @@ function StudyLessonDetail() {
                         </div>
 
                         {subtopics.length ? (
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            {subtopics.map((item) => (
-                              <span key={`${topic.id}-${item}`} className="rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] text-[#E7DEDE]">
-                                {item}
-                              </span>
-                            ))}
-                          </div>
+                          <>
+                            <div className="mt-2 space-y-1.5 sm:hidden">
+                              {subtopics.map((item, index) => (
+                                <div key={`${topic.id}-${item}`} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs leading-relaxed text-[#E7DEDE]">
+                                  <span className="font-semibold text-[#F2CA98]">{index + 1}.</span> {item}
+                                </div>
+                              ))}
+                            </div>
+                            <div className="mt-2 hidden flex-wrap gap-1.5 sm:flex">
+                              {subtopics.map((item) => (
+                                <span key={`${topic.id}-${item}`} className="max-w-full break-words rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] text-[#E7DEDE]">
+                                  {item}
+                                </span>
+                              ))}
+                            </div>
+                          </>
                         ) : null}
 
                         {subject?.contentType === 'theory' ? <TopicStudyGuide topic={topic} /> : null}

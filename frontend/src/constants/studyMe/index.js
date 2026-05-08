@@ -1,9 +1,11 @@
 import { CCFA_SUBJECT } from './subjects/ccfa'
 import { FINANCIAL_MANAGEMENT_SUBJECT } from './subjects/fm'
+import { ORGANIZATIONAL_BEHAVIOR_SUBJECT } from './subjects/ob'
 
 export const STUDYME_SUBJECTS = [
   FINANCIAL_MANAGEMENT_SUBJECT,
   CCFA_SUBJECT,
+  ORGANIZATIONAL_BEHAVIOR_SUBJECT,
 ]
 
 export function getStudySubjectById(subjectId) {
