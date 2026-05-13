@@ -15,14 +15,83 @@ const MODES = [
 
 function getTopicPracticeItems(lesson, topicId) {
   const numericals = Array.isArray(lesson?.numericals) ? lesson.numericals : []
-  return numericals.filter((item) => item?.topicId === topicId)
+  const scopedNumericals = numericals.filter((item) => item?.topicId === topicId)
+
+  const topic = Array.isArray(lesson?.topics) ? lesson.topics.find((item) => item.id === topicId) || null : null
+  if (!topic) {
+    return scopedNumericals
+  }
+
+  const solvedExamples = Array.isArray(topic?.solvedExamples)
+    ? topic.solvedExamples.filter((item) => !item?.topicId || item.topicId === topicId)
+    : []
+  const practiceQuestions = Array.isArray(topic?.practiceQuestions)
+    ? topic.practiceQuestions.filter((item) => !item?.topicId || item.topicId === topicId)
+    : []
+  const mistakeNotes = Array.isArray(topic?.mistakeNotes)
+    ? topic.mistakeNotes.filter((item) => !item?.topicId || item.topicId === topicId)
+    : []
+
+  const solvedItems = solvedExamples.map((item, index) => ({
+    ...item,
+    id: item?.id || `${topicId}-se-${index}`,
+    topicId,
+    type: 'solved-example',
+  }))
+  const practiceItems = practiceQuestions.map((item, index) => ({
+    ...item,
+    id: item?.id || `${topicId}-pq-${index}`,
+    topicId,
+    type: 'practice-question',
+  }))
+  const mistakeItems = mistakeNotes.map((item, index) => ({
+    ...item,
+    id: item?.id || `${topicId}-mn-${index}`,
+    topicId,
+    type: 'mistake-note',
+  }))
+
+  const merged = new Map()
+  scopedNumericals.forEach((item) => {
+    if (!item) {
+      return
+    }
+
+    const key = item.id || `${topicId}-${item.type || 'item'}-${merged.size}`
+    merged.set(key, item)
+  })
+  ;[...solvedItems, ...practiceItems, ...mistakeItems].forEach((item) => {
+    if (!item) {
+      return
+    }
+
+    const key = item.id || `${topicId}-${item.type || 'item'}-${merged.size}`
+    if (!merged.has(key)) {
+      merged.set(key, item)
+    }
+  })
+
+  return Array.from(merged.values())
+}
+
+function getLessonPracticeGroups(lesson) {
+  if (!lesson || !Array.isArray(lesson.topics)) {
+    return []
+  }
+
+  return lesson.topics
+    .map((topic) => ({
+      topic,
+      items: getTopicPracticeItems(lesson, topic.id),
+    }))
+    .filter((group) => group.items.length)
 }
 
 function normalizeLookupKey(value) {
   return String(value || '').trim().toLowerCase()
 }
 
-function getLessonFormulaLookup(lesson) {
+function getLessonFormulaLookup(lesson, topic) {
   const formulas = []
 
   if (Array.isArray(lesson?.formulaSections)) {
@@ -35,6 +104,10 @@ function getLessonFormulaLookup(lesson) {
 
   if (Array.isArray(lesson?.formulas)) {
     formulas.push(...lesson.formulas)
+  }
+
+  if (Array.isArray(topic?.formulas)) {
+    formulas.push(...topic.formulas)
   }
 
   return formulas.reduce((map, formula) => {
@@ -170,6 +243,9 @@ function AmortizationTable({ table }) {
 }
 
 function SolutionBody({ item, formula }) {
+  const elaborativeText = String(item.elaborativeSteps || '').trim()
+  const hasAsciiTable = /[┌┐└┘├┤┬┴┼│]/.test(elaborativeText)
+
   return (
     <div className="space-y-3">
       {item.asksFor ? (
@@ -217,6 +293,19 @@ function SolutionBody({ item, formula }) {
             ))}
           </ol>
         </div>
+      ) : elaborativeText ? (
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Step-by-Step Calculation</p>
+          {hasAsciiTable ? (
+            <pre className="mt-1 max-w-full overflow-x-auto overscroll-x-contain rounded-lg bg-white/5 px-3 py-2 font-mono text-xs leading-[1.4] text-[#D8D3E8]">
+              <code className="block min-w-max whitespace-pre font-mono">{elaborativeText}</code>
+            </pre>
+          ) : (
+            <pre className="mt-1 whitespace-pre-line rounded-lg bg-white/5 px-3 py-2 text-xs leading-relaxed text-[#D8D3E8]">
+              {elaborativeText}
+            </pre>
+          )}
+        </div>
       ) : null}
 
       <AmortizationTable table={item.amortizationTable} />
@@ -227,12 +316,31 @@ function SolutionBody({ item, formula }) {
         </div>
       ) : null}
 
+      {item.conclusion ? (
+        <div className="rounded-xl border border-[#A8D8FF]/30 bg-[#A8D8FF]/10 px-3 py-2 text-xs leading-relaxed text-[#DBEFFF]">
+          Conclusion: {item.conclusion}
+        </div>
+      ) : null}
+
       {item.examTip ? (
         <div className="rounded-xl border border-[#F2CA98]/30 bg-[#F2CA98]/10 px-3 py-2 text-xs leading-relaxed text-[#F5DEBE]">
           Quick Exam Tip: {item.examTip}
         </div>
       ) : null}
     </div>
+  )
+}
+
+function QuestionTable({ value }) {
+  const tableText = String(value || '').trim()
+  if (!tableText) {
+    return null
+  }
+
+  return (
+    <pre className="mt-2 w-full max-w-full overflow-x-auto overscroll-x-contain rounded-xl border border-white/10 bg-[#241C45] px-3 py-2 font-mono text-[11px] leading-[1.4] text-[#E7DEDE]">
+      <code className="block min-w-max whitespace-pre font-mono">{tableText}</code>
+    </pre>
   )
 }
 
@@ -258,6 +366,7 @@ function SolvedExampleCard({ item, formula }) {
       </div>
 
       {item.question ? <p className="mt-2 text-xs leading-relaxed text-[#D8D3E8]">{item.question}</p> : null}
+      <QuestionTable value={item.questionTable} />
       {item.asksFor ? <p className="mt-2 text-xs text-[#CFE8FF]"><span className="font-semibold">Asks for:</span> {item.asksFor}</p> : null}
 
       <button
@@ -295,6 +404,7 @@ function PracticeQuestionCard({ item, formula }) {
       </div>
 
       {item.question ? <p className="mt-2 text-xs leading-relaxed text-[#D8D3E8]">{item.question}</p> : null}
+      <QuestionTable value={item.questionTable} />
 
       {!revealed ? (
         <div className="mt-3 space-y-2 rounded-xl border border-white/10 bg-[#3A315D]/60 p-3">
@@ -359,17 +469,35 @@ function StudyTopicPractice() {
   const subject = getStudySubjectById(subjectId)
   const lesson = getStudyLessonById(subjectId, lessonId)
   const topic = Array.isArray(lesson?.topics) ? lesson.topics.find((item) => item.id === topicId) || null : null
+  const isLessonWide = !topicId
 
   const [activeMode, setActiveMode] = useState('learn')
   const [difficultyFilter, setDifficultyFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
 
-  const topicPracticeItems = useMemo(() => getTopicPracticeItems(lesson, topicId), [lesson, topicId])
-  const formulaLookup = useMemo(() => getLessonFormulaLookup(lesson), [lesson])
+  const lessonGroups = useMemo(() => {
+    if (!isLessonWide) {
+      return []
+    }
 
-  const solvedExamples = topicPracticeItems.filter((item) => item.type === 'solved-example')
-  const practiceQuestions = topicPracticeItems.filter((item) => item.type === 'practice-question')
-  const mistakeNotes = topicPracticeItems.filter((item) => item.type === 'mistake-note')
+    return getLessonPracticeGroups(lesson).map((group) => ({
+      ...group,
+      formulaLookup: getLessonFormulaLookup(lesson, group.topic),
+    }))
+  }, [isLessonWide, lesson])
+
+  const topicPracticeItems = useMemo(() => (
+    isLessonWide ? [] : getTopicPracticeItems(lesson, topicId)
+  ), [isLessonWide, lesson, topicId])
+  const formulaLookup = useMemo(() => getLessonFormulaLookup(lesson, topic), [lesson, topic])
+
+  const allLessonItems = useMemo(() => (
+    isLessonWide ? lessonGroups.flatMap((group) => group.items) : topicPracticeItems
+  ), [isLessonWide, lessonGroups, topicPracticeItems])
+
+  const solvedExamples = allLessonItems.filter((item) => item.type === 'solved-example')
+  const practiceQuestions = allLessonItems.filter((item) => item.type === 'practice-question')
+  const mistakeNotes = allLessonItems.filter((item) => item.type === 'mistake-note')
 
   const modeItems = activeMode === 'learn'
     ? solvedExamples
@@ -386,23 +514,53 @@ function StudyTopicPractice() {
     return matchedDifficulty && matchedType
   })
 
+  const filteredItemsByTopic = useMemo(() => {
+    if (!isLessonWide) {
+      return null
+    }
+
+    const filteredMap = new Map()
+
+    lessonGroups.forEach((group) => {
+      const itemsForMode = group.items.filter((item) => (
+        activeMode === 'learn'
+          ? item.type === 'solved-example'
+          : activeMode === 'practice'
+            ? item.type === 'practice-question'
+            : item.type === 'mistake-note'
+      ))
+
+      const filteredForGroup = itemsForMode.filter((item) => {
+        const matchedDifficulty = difficultyFilter === 'all' || item.difficulty === difficultyFilter
+        const matchedType = typeFilter === 'all' || item.questionType === typeFilter
+        return matchedDifficulty && matchedType
+      })
+
+      if (filteredForGroup.length) {
+        filteredMap.set(group.topic.id, filteredForGroup)
+      }
+    })
+
+    return filteredMap
+  }, [activeMode, difficultyFilter, isLessonWide, lessonGroups, typeFilter])
+
   const hasAnyFilters = difficultyOptions.length > 1 || typeOptions.length > 1
 
   useEffect(() => {
-    if (!subject || !lesson || !topic || hasTrackedTopicOpenRef.current) {
+    if (!subject || !lesson || (!isLessonWide && !topic) || hasTrackedTopicOpenRef.current) {
       return
     }
 
     hasTrackedTopicOpenRef.current = true
     fireAndForgetStudyMeEvent({
-      eventType: 'studyme_topic_opened',
+      eventType: isLessonWide ? 'studyme_lesson_practice_opened' : 'studyme_topic_opened',
       token: session.token,
       userName: user.portalName || user.name || user.rollNumber || user.id,
       subjectName: subject.title,
       lessonName: lesson.title,
-      topicName: topic.title,
+      topicName: isLessonWide ? null : topic.title,
     })
-  }, [lesson, session.token, subject, topic, user.id, user.name, user.portalName, user.rollNumber])
+  }, [isLessonWide, lesson, session.token, subject, topic, user.id, user.name, user.portalName, user.rollNumber])
 
   const changeMode = (modeId) => {
     setActiveMode(modeId)
@@ -410,7 +568,7 @@ function StudyTopicPractice() {
     setTypeFilter('all')
   }
 
-  if (!subject || !lesson || !topic) {
+  if (!subject || !lesson || (!isLessonWide && !topic)) {
     return (
       <section className="space-y-3 pb-2 sm:space-y-4">
         <header className="rounded-3xl bg-[#4F487A] p-4 ring-1 ring-white/10 sm:p-5">
@@ -418,7 +576,9 @@ function StudyTopicPractice() {
             <StudyBackButton fallbackTo={subjectId && lessonId ? `/study/${subjectId}/${lessonId}` : '/study'} label="Go back" iconOnly />
             <p className="text-xs uppercase tracking-[0.14em] text-[#CFC5E8]">Practice Problems</p>
           </div>
-          <h1 className="mt-2 text-2xl font-bold text-[#F4F1FF] sm:text-3xl">Topic not found</h1>
+          <h1 className="mt-2 text-2xl font-bold text-[#F4F1FF] sm:text-3xl">
+            {isLessonWide ? 'Lesson not found' : 'Topic not found'}
+          </h1>
         </header>
       </section>
     )
@@ -431,6 +591,13 @@ function StudyTopicPractice() {
           <StudyBackButton fallbackTo={`/study/${subject.id}/${lesson.id}`} label="Go back" iconOnly />
           <p className="text-xs uppercase tracking-[0.14em] text-[#CFC5E8]">Practice Problems</p>
         </div>
+
+        {isLessonWide ? (
+          <div className="mt-2">
+            <h1 className="text-xl font-semibold text-[#F4F1FF] sm:text-2xl">{lesson.title}</h1>
+            <p className="mt-1 text-xs text-[#CFC5E8]">All topics combined</p>
+          </div>
+        ) : null}
 
         <div className="mt-3 grid grid-cols-3 gap-2 text-center">
           <div className="rounded-xl border border-white/15 bg-[#312051]/70 px-2 py-2">
@@ -518,47 +685,105 @@ function StudyTopicPractice() {
       ) : null}
 
       <section className="space-y-3 rounded-3xl bg-[#4F487A] p-3 shadow-md ring-1 ring-white/5 sm:p-4">
-        {activeMode === 'learn' ? (
-          <>
-            {filteredItems.length ? (
-              <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-                {filteredItems.map((item) => (
-                  <SolvedExampleCard key={item.id} item={item} formula={resolveItemFormula(item, formulaLookup)} />
-                ))}
-              </div>
-            ) : (
-              <p className="rounded-xl border border-white/10 bg-[#312051] p-3 text-xs text-[#D8D3E8]">No solved examples match the selected filters.</p>
-            )}
-          </>
-        ) : null}
+        {isLessonWide ? (
+          filteredItemsByTopic && filteredItemsByTopic.size ? (
+            <div className="space-y-3">
+              {lessonGroups.map((group) => {
+                const groupItems = filteredItemsByTopic.get(group.topic.id) || []
 
-        {activeMode === 'practice' ? (
-          <>
-            {filteredItems.length ? (
-              <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-                {filteredItems.map((item) => (
-                  <PracticeQuestionCard key={item.id} item={item} formula={resolveItemFormula(item, formulaLookup)} />
-                ))}
-              </div>
-            ) : (
-              <p className="rounded-xl border border-white/10 bg-[#312051] p-3 text-xs text-[#D8D3E8]">No practice questions match the selected filters.</p>
-            )}
-          </>
-        ) : null}
+                if (!groupItems.length) {
+                  return null
+                }
 
-        {activeMode === 'mistakes' ? (
+                return (
+                  <section key={group.topic.id} className="rounded-2xl border border-white/15 bg-[#352A59] p-3 sm:p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-[#F4F1FF]">{group.topic.title}</p>
+                        {group.topic.summary ? (
+                          <p className="mt-1 text-xs text-[#CFC5E8]">{group.topic.summary}</p>
+                        ) : null}
+                      </div>
+                      <span className="rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-[#E7DEDE]">
+                        {groupItems.length} items
+                      </span>
+                    </div>
+
+                    {activeMode === 'learn' ? (
+                      <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
+                        {groupItems.map((item) => (
+                          <SolvedExampleCard key={item.id} item={item} formula={resolveItemFormula(item, group.formulaLookup)} />
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {activeMode === 'practice' ? (
+                      <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
+                        {groupItems.map((item) => (
+                          <PracticeQuestionCard key={item.id} item={item} formula={resolveItemFormula(item, group.formulaLookup)} />
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {activeMode === 'mistakes' ? (
+                      <div className="mt-3 grid grid-cols-1 gap-3">
+                        {groupItems.map((item) => (
+                          <MistakeCard key={item.id} item={item} />
+                        ))}
+                      </div>
+                    ) : null}
+                  </section>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="rounded-xl border border-white/10 bg-[#312051] p-3 text-xs text-[#D8D3E8]">No items match the selected filters.</p>
+          )
+        ) : (
           <>
-            {filteredItems.length ? (
-              <div className="grid grid-cols-1 gap-3">
-                {filteredItems.map((item) => (
-                  <MistakeCard key={item.id} item={item} />
-                ))}
-              </div>
-            ) : (
-              <p className="rounded-xl border border-white/10 bg-[#312051] p-3 text-xs text-[#D8D3E8]">No mistakes match the selected filters.</p>
-            )}
+            {activeMode === 'learn' ? (
+              <>
+                {filteredItems.length ? (
+                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                    {filteredItems.map((item) => (
+                      <SolvedExampleCard key={item.id} item={item} formula={resolveItemFormula(item, formulaLookup)} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="rounded-xl border border-white/10 bg-[#312051] p-3 text-xs text-[#D8D3E8]">No solved examples match the selected filters.</p>
+                )}
+              </>
+            ) : null}
+
+            {activeMode === 'practice' ? (
+              <>
+                {filteredItems.length ? (
+                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                    {filteredItems.map((item) => (
+                      <PracticeQuestionCard key={item.id} item={item} formula={resolveItemFormula(item, formulaLookup)} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="rounded-xl border border-white/10 bg-[#312051] p-3 text-xs text-[#D8D3E8]">No practice questions match the selected filters.</p>
+                )}
+              </>
+            ) : null}
+
+            {activeMode === 'mistakes' ? (
+              <>
+                {filteredItems.length ? (
+                  <div className="grid grid-cols-1 gap-3">
+                    {filteredItems.map((item) => (
+                      <MistakeCard key={item.id} item={item} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="rounded-xl border border-white/10 bg-[#312051] p-3 text-xs text-[#D8D3E8]">No mistakes match the selected filters.</p>
+                )}
+              </>
+            ) : null}
           </>
-        ) : null}
+        )}
       </section>
     </section>
   )

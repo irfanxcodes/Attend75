@@ -4,6 +4,7 @@ import CollapsibleSection from '../components/common/CollapsibleSection'
 import MathFormula, { MathInline } from '../components/common/MathFormula'
 import StudyBackButton from '../components/common/StudyBackButton'
 import { getStudyLessonById, getStudySubjectById } from '../constants/studyMe/content'
+import { hasLessonYoutubeLearning } from '../constants/studyMe/youtubeLearning'
 import useAppStore from '../hooks/useAppStore'
 import { getLessonState, markLessonOpened, setLessonStatus } from '../services/studyProgress'
 import { fireAndForgetStudyMeEvent } from '../services/studyMeAnalytics'
@@ -73,8 +74,175 @@ function normalizeDefinitionEntries(definitions) {
     .filter((item) => item.term || item.description)
 }
 
+function normalizeConceptEntries(concepts) {
+  if (!Array.isArray(concepts)) {
+    return []
+  }
+
+  return concepts
+    .map((item) => {
+      if (typeof item === 'string') {
+        return { title: '', explanation: item }
+      }
+
+      return {
+        title: String(item?.title || item?.name || '').trim(),
+        explanation: String(item?.explanation || item?.description || '').trim(),
+      }
+    })
+    .filter((item) => item.title || item.explanation)
+}
+
 function normalizeListItems(values) {
   return Array.isArray(values) ? values.filter((item) => String(item || '').trim()) : []
+}
+
+function normalizeKeyedList(values, key, labelKey) {
+  if (!Array.isArray(values)) {
+    return []
+  }
+
+  return values
+    .map((item) => {
+      if (!item || typeof item !== 'object') {
+        return null
+      }
+
+      return {
+        key: String(item[key] || item[labelKey] || '').trim(),
+        description: String(item.explanation || item.description || item.purpose || '').trim(),
+      }
+    })
+    .filter((item) => item?.key && item?.description)
+}
+
+function normalizeStudyGuideSections(sections) {
+  if (!Array.isArray(sections)) {
+    return []
+  }
+
+  return sections
+    .map((section) => {
+      if (!section || typeof section !== 'object') {
+        return null
+      }
+
+      const title = String(section.title || '').trim()
+      const description = String(section.description || '').trim()
+      const layout = String(section.layout || '').trim()
+      const items = Array.isArray(section.items) ? section.items : []
+      const fields = Array.isArray(section.fields) ? section.fields : []
+
+      const hasItems = items.some((item) => item && Object.values(item).some((value) => String(value || '').trim()))
+      if (!title && !description && !hasItems) {
+        return null
+      }
+
+      return {
+        id: String(section.id || '').trim(),
+        title,
+        description,
+        layout,
+        items,
+        fields,
+      }
+    })
+    .filter(Boolean)
+}
+
+function buildLegacyStudyGuideSections(topic) {
+  const legacySections = []
+
+  const stepsInDecision = topic?.stepsInDecisionAnalysis
+  const stepsTitle = String(stepsInDecision?.title || '').trim()
+  const stepsDescription = String(stepsInDecision?.description || '').trim()
+  const stepsItems = Array.isArray(stepsInDecision?.steps) ? stepsInDecision.steps : []
+  if (stepsTitle || stepsDescription || stepsItems.length) {
+    legacySections.push({
+      id: 'legacy-steps-in-decision-analysis',
+      layout: 'step-cards',
+      title: stepsTitle || 'Steps In Decision Analysis',
+      description: stepsDescription,
+      items: stepsItems.map((step) => ({
+        title: step?.step,
+        description: step?.explanation,
+        example: step?.example,
+      })),
+    })
+  }
+
+  const decisionEnvironments = topic?.decisionEnvironments
+  const decisionTitle = String(decisionEnvironments?.title || '').trim()
+  const decisionDescription = String(decisionEnvironments?.description || '').trim()
+  const decisionItems = Array.isArray(decisionEnvironments?.types) ? decisionEnvironments.types : []
+  if (decisionTitle || decisionDescription || decisionItems.length) {
+    legacySections.push({
+      id: 'legacy-decision-environments',
+      layout: 'type-grid',
+      title: decisionTitle || 'Decision Environments',
+      description: decisionDescription,
+      items: decisionItems.map((item) => ({
+        label: item?.type || item?.title,
+        description: item?.explanation || item?.description,
+      })),
+    })
+  }
+
+  const uncertaintyModels = topic?.uncertaintyModels
+  const uncertaintyTitle = String(uncertaintyModels?.title || '').trim()
+  const uncertaintyDescription = String(uncertaintyModels?.description || '').trim()
+  const uncertaintyItems = Array.isArray(uncertaintyModels?.models) ? uncertaintyModels.models : []
+  if (uncertaintyTitle || uncertaintyDescription || uncertaintyItems.length) {
+    legacySections.push({
+      id: 'legacy-uncertainty-models',
+      layout: 'model-cards',
+      title: uncertaintyTitle || 'Decision Models Under Uncertainty',
+      description: uncertaintyDescription,
+      fields: [
+        { key: 'rule', label: 'Rule' },
+        { key: 'logic', label: 'Logic' },
+        { key: 'exampleTable', label: 'Example' },
+        { key: 'example', label: 'Example' },
+        { key: 'decision', label: 'Decision', tone: 'accent' },
+      ],
+      items: uncertaintyItems.map((model) => ({
+        title: model?.name,
+        rule: model?.rule,
+        logic: model?.logic,
+        exampleTable: model?.exampleTable,
+        example: model?.example,
+        decision: model?.decision,
+      })),
+    })
+  }
+
+  const riskModels = topic?.riskModels
+  const riskTitle = String(riskModels?.title || '').trim()
+  const riskDescription = String(riskModels?.description || '').trim()
+  const riskItems = Array.isArray(riskModels?.models) ? riskModels.models : []
+  if (riskTitle || riskDescription || riskItems.length) {
+    legacySections.push({
+      id: 'legacy-risk-models',
+      layout: 'model-cards',
+      title: riskTitle || 'Decision Models Under Risk',
+      description: riskDescription,
+      fields: [
+        { key: 'explanation', label: '' },
+        { key: 'formula', label: 'Formula' },
+        { key: 'logic', label: 'Logic' },
+        { key: 'example', label: 'Example', tone: 'accent' },
+      ],
+      items: riskItems.map((model) => ({
+        title: model?.name,
+        explanation: model?.explanation,
+        formula: model?.formula,
+        logic: model?.logic,
+        example: model?.example,
+      })),
+    })
+  }
+
+  return legacySections
 }
 
 function DefinitionGrid({ title, topicId, entries }) {
@@ -155,20 +323,49 @@ function TopicStudyGuide({ topic }) {
   const summary = String(topic?.summary || '').trim()
   const details = String(topic?.details || '').trim()
   const asciiDiagram = String(topic?.asciiDiagram || '').trim()
+  const theorySection = topic?.theorySection
+  const theoryBrief = String(theorySection?.brief || '').trim()
+  const theoryAlgorithm = String(theorySection?.hungarianAlgorithm || '').trim()
+  const theorySteps = Array.isArray(theorySection?.executionSteps)
+    ? theorySection.executionSteps.filter((step) => String(step || '').trim())
+    : []
+  const theoryCharacteristics = normalizeListItems(theorySection?.characteristics)
+  const theoryPerformanceMeasures = normalizeListItems(theorySection?.performanceMeasures)
+  const topicSteps = normalizeListItems(topic?.steps)
+  const components = normalizeKeyedList(topic?.components, 'node', 'type')
+  const foldingBackConcept = String(topic?.foldingBack?.concept || '').trim()
+  const foldingBackAction = String(topic?.foldingBack?.action || '').trim()
   const definitions = normalizeDefinitionEntries(topic?.definitions)
+  const notations = normalizeDefinitionEntries(topic?.notations)
+  const concepts = normalizeConceptEntries(topic?.concepts)
   const majorJobAttitudes = normalizeDefinitionEntries(topic?.majorJobAttitudes)
   const keyConcepts = normalizeListItems(topic?.keyConcepts)
   const useCases = normalizeListItems(topic?.useCases)
   const examples = normalizeListItems(topic?.examples)
   const standardReferences = normalizeListItems(topic?.standardReferences)
   const comparisonTable = topic?.comparisonTable
+  const studyGuideSections = normalizeStudyGuideSections(topic?.studyGuideSections)
+  const legacyGuideSections = studyGuideSections.length ? [] : buildLegacyStudyGuideSections(topic)
+  const guideSections = studyGuideSections.length ? studyGuideSections : legacyGuideSections
   const hasGuideContent =
     Boolean(summary) ||
     Boolean(details) ||
     Boolean(asciiDiagram) ||
+    Boolean(theoryBrief) ||
+    Boolean(theoryAlgorithm) ||
+    theorySteps.length > 0 ||
+    theoryCharacteristics.length > 0 ||
+    theoryPerformanceMeasures.length > 0 ||
+    topicSteps.length > 0 ||
+    components.length > 0 ||
+    Boolean(foldingBackConcept) ||
+    Boolean(foldingBackAction) ||
+    guideSections.length > 0 ||
     Boolean(String(topic?.analogy || '').trim()) ||
     Boolean(String(topic?.standardDefinition || '').trim()) ||
     definitions.length > 0 ||
+    notations.length > 0 ||
+    concepts.length > 0 ||
     majorJobAttitudes.length > 0 ||
     keyConcepts.length > 0 ||
     useCases.length > 0 ||
@@ -196,11 +393,51 @@ function TopicStudyGuide({ topic }) {
         </div>
       ) : null}
 
+      {theoryBrief ? (
+        <div className="min-w-0 rounded-xl border border-white/10 bg-[#241C45] px-3 py-2.5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Theory Brief</p>
+          <p className="mt-1 whitespace-pre-line break-words text-xs leading-relaxed text-[#D8D3E8]">{theoryBrief}</p>
+        </div>
+      ) : null}
+
+      {theoryAlgorithm ? (
+        <div className="min-w-0 rounded-xl border border-white/10 bg-[#241C45] px-3 py-2.5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Algorithm Overview</p>
+          <p className="mt-1 whitespace-pre-line break-words text-xs leading-relaxed text-[#D8D3E8]">{theoryAlgorithm}</p>
+        </div>
+      ) : null}
+
+      {theoryCharacteristics.length ? (
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Characteristics</p>
+          <ul className="mt-2 grid gap-1.5 text-xs text-[#D8D3E8] sm:grid-cols-2">
+            {theoryCharacteristics.map((item) => (
+              <li key={`${topic.id}-theory-character-${item}`} className="min-w-0 break-words rounded-lg bg-white/5 px-3 py-2">
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {theoryPerformanceMeasures.length ? (
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Performance Measures</p>
+          <ul className="mt-2 grid gap-1.5 text-xs text-[#D8D3E8] sm:grid-cols-2">
+            {theoryPerformanceMeasures.map((item) => (
+              <li key={`${topic.id}-theory-performance-${item}`} className="min-w-0 break-words rounded-lg bg-white/5 px-3 py-2">
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       {asciiDiagram ? (
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Diagram</p>
-          <pre className="mt-2 block w-full max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-xl border border-[#A8D8FF]/20 bg-[#1F183B] px-2.5 py-3 text-[9px] leading-relaxed text-[#CFE8FF] sm:px-3 sm:text-[11px]">
-            <code className="block min-w-max whitespace-pre">{asciiDiagram}</code>
+          <pre className="mt-2 block w-full max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-xl border border-[#A8D8FF]/20 bg-[#1F183B] px-2.5 py-3 font-mono text-[9px] leading-[1.4] text-[#CFE8FF] sm:px-3 sm:text-[11px]">
+            <code className="block min-w-max whitespace-pre font-mono">{asciiDiagram}</code>
           </pre>
         </div>
       ) : null}
@@ -219,6 +456,195 @@ function TopicStudyGuide({ topic }) {
       </div>
 
       <DefinitionGrid title="Definitions" topicId={topic.id} entries={definitions} />
+
+      <DefinitionGrid title="Notations" topicId={topic.id} entries={notations} />
+
+      {concepts.length ? (
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Concepts</p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {concepts.map((concept, index) => (
+              <div key={`${topic.id}-concept-${index}`} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-[#D8D3E8]">
+                {concept.title ? <p className="font-semibold text-[#F4F1FF]">{concept.title}</p> : null}
+                {concept.explanation ? (
+                  <p className={concept.title ? 'mt-1 break-words leading-relaxed' : 'break-words leading-relaxed'}>
+                    {concept.explanation}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {guideSections.map((section) => {
+        if (section.layout === 'step-cards') {
+          const cards = Array.isArray(section.items)
+            ? section.items
+                .map((item) => ({
+                  title: String(item?.title || '').trim(),
+                  description: String(item?.description || '').trim(),
+                  example: String(item?.example || '').trim(),
+                }))
+                .filter((item) => item.title || item.description || item.example)
+            : []
+
+          if (!section.title && !section.description && !cards.length) {
+            return null
+          }
+
+          return (
+            <div key={`${topic.id}-guide-${section.id || section.title}`} className="min-w-0 rounded-xl border border-white/10 bg-[#241C45] px-3 py-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">
+                {section.title || 'Steps'}
+              </p>
+              {section.description ? (
+                <p className="mt-1 text-xs leading-relaxed text-[#D8D3E8]">{section.description}</p>
+              ) : null}
+              {cards.length ? (
+                <div className="mt-2 grid gap-2">
+                  {cards.map((item, index) => (
+                    <div key={`${topic.id}-guide-step-${index}`} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-[#D8D3E8]">
+                      {item.title ? <p className="font-semibold text-[#F4F1FF]">{item.title}</p> : null}
+                      {item.description ? <p className="mt-1 leading-relaxed">{item.description}</p> : null}
+                      {item.example ? <p className="mt-1 text-[#CFE8FF]">Example: {item.example}</p> : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          )
+        }
+
+        if (section.layout === 'type-grid') {
+          const gridItems = Array.isArray(section.items)
+            ? section.items
+                .map((item) => ({
+                  label: String(item?.label || '').trim(),
+                  description: String(item?.description || '').trim(),
+                }))
+                .filter((item) => item.label && item.description)
+            : []
+
+          if (!section.title && !section.description && !gridItems.length) {
+            return null
+          }
+
+          return (
+            <div key={`${topic.id}-guide-${section.id || section.title}`} className="min-w-0 rounded-xl border border-white/10 bg-[#241C45] px-3 py-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">
+                {section.title || 'Environments'}
+              </p>
+              {section.description ? (
+                <p className="mt-1 text-xs leading-relaxed text-[#D8D3E8]">{section.description}</p>
+              ) : null}
+              {gridItems.length ? (
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  {gridItems.map((item, index) => (
+                    <div key={`${topic.id}-guide-env-${index}`} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-[#D8D3E8]">
+                      <p className="font-semibold text-[#F4F1FF]">{item.label}</p>
+                      <p className="mt-1 leading-relaxed">{item.description}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          )
+        }
+
+        if (section.layout === 'model-cards') {
+          const modelItems = Array.isArray(section.items) ? section.items : []
+          const fields = Array.isArray(section.fields) ? section.fields : []
+
+          if (!section.title && !section.description && !modelItems.length) {
+            return null
+          }
+
+          return (
+            <div key={`${topic.id}-guide-${section.id || section.title}`} className="min-w-0 rounded-xl border border-white/10 bg-[#241C45] px-3 py-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">
+                {section.title || 'Models'}
+              </p>
+              {section.description ? (
+                <p className="mt-1 text-xs leading-relaxed text-[#D8D3E8]">{section.description}</p>
+              ) : null}
+              {modelItems.length ? (
+                <div className="mt-2 grid gap-2">
+                  {modelItems.map((model, index) => (
+                    <div key={`${topic.id}-guide-model-${index}`} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-[#D8D3E8]">
+                      {model.title ? <p className="font-semibold text-[#F4F1FF]">{String(model.title).trim()}</p> : null}
+                      {fields.length
+                        ? fields.map((field) => {
+                            const value = String(model?.[field.key] || '').trim()
+                            if (!value) {
+                              return null
+                            }
+                            const isAccent = field.tone === 'accent'
+                            const className = isAccent ? 'mt-1 text-[#CFE8FF]' : 'mt-1 leading-relaxed'
+                            return (
+                              <p key={`${topic.id}-guide-field-${index}-${field.key}`} className={className}>
+                                {field.label ? `${field.label}: ` : ''}{value}
+                              </p>
+                            )
+                          })
+                        : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          )
+        }
+
+        return null
+      })}
+
+      {components.length ? (
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Decision Tree Components</p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {components.map((item, index) => (
+              <div key={`${topic.id}-component-${index}`} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-[#D8D3E8]">
+                <p className="font-semibold text-[#F4F1FF]">{item.key}</p>
+                <p className="mt-1 leading-relaxed">{item.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {topicSteps.length ? (
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Process Steps</p>
+          <ol className="mt-2 list-decimal space-y-1.5 pl-4 text-xs leading-relaxed text-[#D8D3E8]">
+            {topicSteps.map((step, index) => (
+              <li key={`${topic.id}-topic-step-${index}`}>{step}</li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
+
+      {foldingBackConcept || foldingBackAction ? (
+        <div className="min-w-0 rounded-xl border border-white/10 bg-[#241C45] px-3 py-2.5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Folding Back</p>
+          {foldingBackConcept ? (
+            <p className="mt-1 text-xs leading-relaxed text-[#D8D3E8]">{foldingBackConcept}</p>
+          ) : null}
+          {foldingBackAction ? (
+            <p className="mt-2 text-xs leading-relaxed text-[#CFE8FF]">{foldingBackAction}</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {theorySteps.length ? (
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#CFC5E8]">Execution Steps</p>
+          <ol className="mt-2 list-decimal space-y-1.5 pl-4 text-xs leading-relaxed text-[#D8D3E8]">
+            {theorySteps.map((step, index) => (
+              <li key={`${topic.id}-theory-step-${index}`}>{step}</li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
 
       <DefinitionGrid title="Structured Points" topicId={topic.id} entries={majorJobAttitudes} />
 
@@ -344,40 +770,53 @@ function buildAiPrompt(subject, lesson) {
   }
 
   return [
-    'Act as an exam-focused tutor for a BBA 2nd year student.',
-    '',
-    'Study context:',
-    `- Subject: ${subject.title}`,
-    `- Lesson ${lesson.lessonNumber}: ${lesson.title}`,
-    `- Scope: ${lesson.covers}`,
-    formulas.length ? `- Important formulas (if relevant): ${formulas.join(', ')}` : '- Important formulas: Include only if relevant to this lesson.',
-    '',
-    'Teach the entire lesson topic-by-topic using this exact topic order:',
-    numberedTopics,
-    '',
-    'For each topic, strictly follow this structure:',
-    '1) Topic-wise explanation',
-    '- Start with a simple explanation (easy words).',
-    '- Then add a slightly detailed explanation (still clear and concise).',
-    '- Keep it exam-focused and practical, not overly theoretical.',
-    '2) Key points',
-    '- List the most important concepts, terms, and memory points.',
-    '3) Practice questions',
-    '- Generate 1-3 exam-style questions from the full lesson.',
-    '4) Answers',
-    '- Provide clear, scoring-oriented answers for every practice question.',
-    '5) Tricky conceptual questions',
-    '- Add 3-5 conceptual/tricky questions that test deep understanding.',
-    '- Provide concise answers for these too.',
-    '6) Revision summary',
-    '- Give a compact final revision list for last-minute exam prep.',
-    '',
-    'Tone and style rules:',
-    '- Simple but informative language.',
-    '- Exam-focused and structured.',
-    '- Avoid vague or very short explanations.',
-    '- Avoid unnecessary long theory.',
-    '- Use clear headings and consistent formatting.',
+   'Act as an exam-focused tutor for a BBA 2nd year student studying a numerical/practical subject.',
+
+'Study context:',
+`- Subject: ${subject.title}`,
+`- Lesson ${lesson.lessonNumber}: ${lesson.title}`,
+`- Scope: ${lesson.covers}`,
+formulas.length
+? `- Important formulas: ${formulas.join(', ')}`
+: '- Include formulas only when relevant.',
+
+'Teach the lesson topic-by-topic in this exact order:',
+numberedTopics,
+
+'For EACH topic, strictly follow this structure:',
+
+'1) Concept Explanation',
+'- Start with a simple but slightly detailed explanation.',
+'- Keep explanations exam-focused and practical.',
+'- Explain WHY the concept is used in business/numerical problems.',
+
+'2) Definitions and Notations',
+'- Include important definitions, symbols, and notation meanings if relevant.',
+
+'3) Formula Section',
+'- Show formulas clearly using proper mathematical formatting.',
+'- Explain when to use each formula.',
+'- Explain meaning of variables/symbols.',
+
+'4) ASCII Diagram / Flow Structure (if useful)',
+'- Generate simple ASCII diagrams, process flows, or structure blocks when concepts are process-based.',
+
+'5) Solved Example',
+'- Generate at least 1 fully solved exam-style problem.',
+'- Include:',
+'  • question',
+'  • identified values',
+'  • formula selection',
+'  • substitution',
+'  • step-by-step solution',
+'  • final answer',
+
+'Tone and formatting rules:',
+'- Use clean headings and structured formatting.',
+'- Avoid long theory paragraphs.',
+'- Keep answers practical and step-by-step.',
+'- Use tables where comparison/data is involved.',
+'- Use concise but informative language.',
   ].join('\n')
 }
 
@@ -548,6 +987,11 @@ function StudyLessonDetail() {
   }, [subject, lesson])
 
   const formulaSections = useMemo(() => getFormulaSections(lesson), [lesson])
+  const topicsSubtitle = subject?.contentType === 'theory'
+    ? 'Each topic is organized like a visual study guide with concepts, comparisons, and use cases.'
+    : subject?.contentType === 'hybrid'
+      ? 'Each topic blends theory notes with formulas, solved examples, and practice.'
+      : 'Each topic combines explanation and examples as they appear in the PDF.'
   const shouldShowFormulaSection = subject?.contentType !== 'theory'
   const topicPracticeMap = useMemo(() => {
     const mapped = new Map()
@@ -564,6 +1008,31 @@ function StudyLessonDetail() {
 
     return mapped
   }, [lesson])
+
+  const hasLessonPractice = useMemo(() => {
+    if (!lesson) {
+      return false
+    }
+
+    const numericals = Array.isArray(lesson.numericals) ? lesson.numericals : []
+    if (numericals.length) {
+      return true
+    }
+
+    if (!Array.isArray(lesson.topics)) {
+      return false
+    }
+
+    return lesson.topics.some((topic) => (
+      (Array.isArray(topic?.solvedExamples) && topic.solvedExamples.length) ||
+      (Array.isArray(topic?.practiceQuestions) && topic.practiceQuestions.length) ||
+      (Array.isArray(topic?.mistakeNotes) && topic.mistakeNotes.length)
+    ))
+  }, [lesson])
+
+  const hasLessonYoutube = useMemo(() => (
+    Boolean(subject?.id && lesson?.id && hasLessonYoutubeLearning(subject.id, lesson.id))
+  ), [lesson?.id, subject?.id])
 
   if (!subject || !lesson) {
     return (
@@ -772,6 +1241,28 @@ function StudyLessonDetail() {
     navigate(`/study/${subject.id}/${lesson.id}/practice/${topic.id}`)
   }
 
+  const openLessonPractice = () => {
+    fireAndForgetStudyMeEvent({
+      eventType: 'studyme_lesson_practice_opened',
+      token: session.token,
+      userName: user.portalName || user.name || user.rollNumber || user.id,
+      subjectName: subject.title,
+      lessonName: lesson.title,
+    })
+    navigate(`/study/${subject.id}/${lesson.id}/practice`)
+  }
+
+  const openLessonYoutube = () => {
+    fireAndForgetStudyMeEvent({
+      eventType: 'studyme_lesson_youtube_opened',
+      token: session.token,
+      userName: user.portalName || user.name || user.rollNumber || user.id,
+      subjectName: subject.title,
+      lessonName: lesson.title,
+    })
+    navigate(`/study/${subject.id}/${lesson.id}/youtube`)
+  }
+
   const toggleTopicDetails = (topicId) => {
     setOpenTopicId((current) => (current === topicId ? null : topicId))
   }
@@ -846,6 +1337,24 @@ function StudyLessonDetail() {
           >
             Study this lesson with AI
           </button>
+          {hasLessonPractice ? (
+            <button
+              type="button"
+              onClick={openLessonPractice}
+              className="rounded-full border border-[#E2BC8B]/45 bg-[#E2BC8B]/12 px-4 py-2 text-sm font-semibold text-[#F2CA98] hover:bg-[#E2BC8B]/20"
+            >
+              Practice Questions
+            </button>
+          ) : null}
+          {hasLessonYoutube ? (
+            <button
+              type="button"
+              onClick={openLessonYoutube}
+              className="rounded-full border border-[#A8D8FF]/45 bg-[#A8D8FF]/12 px-4 py-2 text-sm font-semibold text-[#CFE8FF] hover:bg-[#A8D8FF]/20"
+            >
+              Learn with YouTube
+            </button>
+          ) : null}
         </div>
       </header>
 
@@ -866,14 +1375,14 @@ function StudyLessonDetail() {
                       {section.description ? <p className="mt-1 text-xs text-[#CFC5E8]">{section.description}</p> : null}
                     </div>
 
-                    <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                       {section.formulas.map((formula, formulaIndex) => {
                         const notationEntries = getFormulaNotationEntries(formula)
                         const notationKey = `${section.title}-${formula.name}-${formulaIndex}`
                         const isMobileNotationOpen = Boolean(mobileNotationOpenById[notationKey])
 
                         return (
-                        <div key={formula.name} className="rounded-xl bg-[#3A315D]/80 p-2.5 ring-1 ring-white/10 sm:p-4">
+                        <div key={formula.name} className="rounded-xl bg-[#3A315D]/80 p-2.5 ring-1 ring-white/10 sm:p-3">
                           <p className="text-sm font-semibold tracking-wide text-[#F4F1FF]">{formula.name}</p>
                           <MathFormula
                             latex={formula.latex}
@@ -885,7 +1394,7 @@ function StudyLessonDetail() {
                             <div className="mt-2">
                               <div className="hidden md:block">
                                 <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#CFC5E8]">Notation</p>
-                                <div className="mt-1.5">
+                                <div className="mt-1">
                                   <NotationList entries={notationEntries} />
                                 </div>
                               </div>
@@ -924,7 +1433,7 @@ function StudyLessonDetail() {
 
         <CollapsibleSection
           title="Topics in this Lesson"
-          subtitle={subject?.contentType === 'theory' ? 'Each topic is organized like a visual study guide with concepts, comparisons, and use cases.' : 'Each topic combines explanation and examples as they appear in the PDF.'}
+          subtitle={topicsSubtitle}
           isExpanded={expandedSections.topics}
           onToggle={() => toggleSection('topics')}
         >
@@ -940,6 +1449,8 @@ function StudyLessonDetail() {
                   topic.summary ? 'Summary' : '',
                   topic.details ? 'Detailed Explanation' : '',
                   Array.isArray(topic.definitions) && topic.definitions.length ? 'Definitions' : '',
+                  Array.isArray(topic.notations) && topic.notations.length ? 'Notations' : '',
+                  Array.isArray(topic.concepts) && topic.concepts.length ? 'Concepts' : '',
                   topic.asciiDiagram ? 'Diagram' : '',
                   topic.comparisonTable?.rows?.length ? 'Comparison' : '',
                   Array.isArray(topic.useCases) && topic.useCases.length ? 'Use Cases' : '',
@@ -1092,7 +1603,7 @@ function StudyLessonDetail() {
                           </>
                         ) : null}
 
-                        {subject?.contentType === 'theory' ? <TopicStudyGuide topic={topic} /> : null}
+                        <TopicStudyGuide topic={topic} />
                       </>
                     ) : null}
                   </article>
