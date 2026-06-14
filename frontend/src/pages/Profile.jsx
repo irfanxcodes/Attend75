@@ -227,7 +227,7 @@ function Profile() {
       {/* Install / App Status */}
       {isInstalled ? (
         <div className="flex items-center gap-3 rounded-2xl bg-[#4EF0A0]/10 px-4 py-3 ring-1 ring-[#4EF0A0]/20">
-          <svg viewBox="0 0 24 24" className="h-4.5 w-4.5 shrink-0 text-[#4EF0A0]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[#4EF0A0]" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20 6 9 17 4 12" />
           </svg>
           <p className="text-xs font-semibold text-[#4EF0A0]">Running as installed app</p>
