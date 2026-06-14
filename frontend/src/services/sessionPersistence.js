@@ -13,6 +13,7 @@
 
 const SESSION_KEY = 'attend75.persistedSession'
 const ATTENDANCE_CACHE_KEY = 'attend75.cachedAttendance'
+const MARKS_CACHE_KEY = 'attend75.cachedMarks'
 
 // Session expires client-side after 12 hours (matches server TTL)
 const SESSION_MAX_AGE_MS = 12 * 60 * 60 * 1000
@@ -143,4 +144,75 @@ export function clearAttendanceSnapshot() {
   } catch {
     // Ignore
   }
+}
+
+/**
+ * Cache marks data snapshot for offline viewing.
+ */
+export function persistMarksSnapshot(marksData) {
+  if (!marksData) return
+
+  try {
+    const payload = {
+      subjects: marksData.subjects || [],
+      semesters: marksData.semesters || [],
+      selectedSemester: marksData.selected_semester || marksData.selectedSemester || null,
+      cachedAt: Date.now(),
+    }
+    window.localStorage.setItem(MARKS_CACHE_KEY, JSON.stringify(payload))
+  } catch {
+    // Storage full — silent fail
+  }
+}
+
+/**
+ * Load cached marks snapshot.
+ * Returns null if no cache exists.
+ */
+export function loadMarksSnapshot() {
+  try {
+    const raw = window.localStorage.getItem(MARKS_CACHE_KEY)
+    if (!raw) return null
+
+    const payload = JSON.parse(raw)
+    if (!payload?.subjects) return null
+
+    return {
+      subjects: payload.subjects,
+      semesters: payload.semesters || [],
+      selectedSemester: payload.selectedSemester || null,
+      cachedAt: payload.cachedAt || null,
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Clear all cached data (attendance + marks).
+ * Called on logout.
+ */
+export function clearAllCachedData() {
+  clearAttendanceSnapshot()
+  try {
+    window.localStorage.removeItem(MARKS_CACHE_KEY)
+  } catch {
+    // Ignore
+  }
+}
+
+/**
+ * Get a human-readable "time ago" string from a timestamp.
+ * Used for "Last updated X ago" display.
+ */
+export function formatTimeAgo(timestamp) {
+  if (!timestamp) return null
+
+  const seconds = Math.floor((Date.now() - timestamp) / 1000)
+
+  if (seconds < 30) return 'just now'
+  if (seconds < 60) return `${seconds}s ago`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
+  return `${Math.floor(seconds / 86400)}d ago`
 }

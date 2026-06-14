@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { signOutFirebaseUser } from '../services/firebaseAuth'
 import { useAppDispatch, useAppState } from '../store/AppStateProvider'
 import {
-  clearAttendanceSnapshot,
+  clearAllCachedData,
   clearPersistedSession,
   persistAttendanceSnapshot,
   persistSession,
@@ -42,7 +42,7 @@ function useAppStore() {
 
           // Clear persisted PWA session and cached data
           clearPersistedSession()
-          clearAttendanceSnapshot()
+          clearAllCachedData()
 
           dispatch({ type: 'LOGOUT' })
         }

@@ -5,6 +5,7 @@ import MarksRadarChart from '../components/marks/MarksRadarChart'
 import SubjectSelectorGrid from '../components/marks/SubjectSelectorGrid'
 import useAppStore from '../hooks/useAppStore'
 import { fetchConsolidatedMarks, isSessionExpiredError } from '../services/attendanceApi'
+import { loadMarksSnapshot, persistMarksSnapshot } from '../services/sessionPersistence'
 
 function normalizeCode(value) {
   return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
@@ -168,6 +169,9 @@ function Marks() {
       const response = await fetchConsolidatedMarks({ token: session.token, semesterId: session.selectedSemester, forceRefresh })
       const marksRows = Array.isArray(response?.subjects) ? response.subjects : []
 
+      // Cache marks for offline access
+      persistMarksSnapshot(response)
+
       const normalizedByCode = marksRows.reduce((acc, row) => {
         const n = normalizeMarksSubject(row)
         const key = normalizeCode(n.subjectCode)
@@ -193,6 +197,34 @@ function Marks() {
       return true
     } catch (error) {
       if (isSessionExpiredError(error)) { actions.logout(); navigate('/login', { replace: true }); return false }
+
+      // Try to show cached marks if available
+      const cachedMarks = loadMarksSnapshot()
+      if (cachedMarks && Array.isArray(cachedMarks.subjects) && cachedMarks.subjects.length > 0) {
+        const marksRows = cachedMarks.subjects
+        const normalizedByCode = marksRows.reduce((acc, row) => {
+          const n = normalizeMarksSubject(row)
+          const key = normalizeCode(n.subjectCode)
+          if (!key) return acc
+          return { ...acc, [n.subjectCode]: n, [key]: n }
+        }, {})
+        const normalizedByName = marksRows.reduce((acc, row) => {
+          const n = normalizeMarksSubject(row)
+          const nameKey = normalizeSubjectName(n.subjectName)
+          if (!nameKey) return acc
+          return { ...acc, [nameKey]: n }
+        }, {})
+        const mapped = subjectOptions.reduce((acc, s) => {
+          const key = normalizeCode(s.subjectCode)
+          const value = normalizedByCode[s.backendCode] || normalizedByCode[s.subjectCode] || normalizedByCode[key] || normalizedByName[s.nameKey] || null
+          return { ...acc, [s.subjectCode]: value }
+        }, {})
+        setMarksByCode(mapped)
+        setHasFetchedMarks(true)
+        setMarksError(`${error?.message || 'Unable to load marks.'} Showing previously cached data.`)
+        return true
+      }
+
       setMarksError(error?.message || 'Unable to load marks right now.')
       return false
     } finally {

@@ -12,6 +12,8 @@ import useAppStore from '../hooks/useAppStore'
 import { fetchAttendance, fetchMailsSentCount, isSessionExpiredError } from '../services/attendanceApi'
 import { calculatePrediction } from '../utils/calculations'
 import { calculateTotalAbsents } from '../utils/dashboardMetrics'
+import { loadAttendanceSnapshot } from '../services/sessionPersistence'
+import StaleDataBadge from '../components/common/StaleDataBadge'
 
 function formatPercentage(value) {
   const num = Number(value) || 0
@@ -330,7 +332,7 @@ function Dashboard() {
         <div className="flex items-end justify-between">
           <div>
             <h1 className="text-2xl font-extrabold text-[#F7F4FF]">Dashboard</h1>
-            <p className="text-[10px] text-[#9F9AB5]">Synced 8:42 AM</p>
+            <p className="text-[10px] text-[#9F9AB5]"><StaleDataBadge cachedAt={loadAttendanceSnapshot()?.cachedAt} isRefreshing={ui.isLoading} /></p>
           </div>
           {session.semesters.length > 0 ? (
             <div data-walkthrough="semester-selector" className="flex items-center gap-1.5 rounded-full border border-[#FF916C]/30 bg-[#FF916C]/10 px-2.5 py-1">
