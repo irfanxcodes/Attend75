@@ -333,7 +333,7 @@ function Dashboard() {
             <p className="text-[10px] text-[#9F9AB5]">Synced 8:42 AM</p>
           </div>
           {session.semesters.length > 0 ? (
-            <div className="flex items-center gap-1.5 rounded-full border border-[#FF916C]/30 bg-[#FF916C]/10 px-2.5 py-1">
+            <div data-walkthrough="semester-selector" className="flex items-center gap-1.5 rounded-full border border-[#FF916C]/30 bg-[#FF916C]/10 px-2.5 py-1">
               <span className="h-1.5 w-1.5 rounded-full bg-[#FF916C]" />
               <select
                 value={session.selectedSemester || ''}
@@ -524,7 +524,7 @@ function Dashboard() {
         ) : null}
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-[#4A466A] px-3 py-2 shadow-sm">
+          <div data-walkthrough="desktop-semester-selector" className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-[#4A466A] px-3 py-2 shadow-sm">
             <label htmlFor="semester-select-desktop" className="text-[11px] font-semibold text-[#9F9AB5]">Semester</label>
             <select
               id="semester-select-desktop"

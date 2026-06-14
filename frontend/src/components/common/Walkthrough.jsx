@@ -5,6 +5,12 @@ const WALKTHROUGH_STORAGE_KEY = 'attend75.walkthrough.completed'
 
 const STEPS_MOBILE = [
   {
+    target: '[data-walkthrough="semester-selector"]',
+    title: 'Switch Semester',
+    description: 'Tap here to toggle between semesters. Your attendance, marks, and study subjects update instantly.',
+    position: 'bottom',
+  },
+  {
     target: '[data-walkthrough="attendance-ring"]',
     title: 'Your Attendance',
     description: 'This shows your overall attendance percentage. Stay above 75% to be safe.',
@@ -49,6 +55,12 @@ const STEPS_MOBILE = [
 ]
 
 const STEPS_DESKTOP = [
+  {
+    target: '[data-walkthrough="desktop-semester-selector"]',
+    title: 'Switch Semester',
+    description: 'Select a semester to view different attendance, marks, and study subjects. Everything updates in real-time.',
+    position: 'bottom',
+  },
   {
     target: '[data-walkthrough="desktop-attendance-ring"]',
     title: 'Your Attendance',
