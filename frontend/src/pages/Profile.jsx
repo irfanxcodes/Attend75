@@ -3,6 +3,7 @@ import { LogOut, Share2, Star, MessageSquare } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import useAppStore from '../hooks/useAppStore'
 import { fetchSessionStatus, fetchUserRating, submitFeedback, submitRating } from '../services/attendanceApi'
+import { useInstallPrompt } from '../pwa/useInstallPrompt'
 
 function getInitials(name) {
   if (!name) return 'A'
@@ -32,6 +33,8 @@ function Profile() {
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false)
   const [feedbackStatus, setFeedbackStatus] = useState('')
   const [feedbackError, setFeedbackError] = useState('')
+
+  const { canInstall, isInstalled, promptInstall, isIOS } = useInstallPrompt()
 
   // Fetch existing rating
   useEffect(() => {
@@ -220,6 +223,44 @@ function Profile() {
           </button>
         </form>
       </div>
+
+      {/* Install / App Status */}
+      {isInstalled ? (
+        <div className="flex items-center gap-3 rounded-2xl bg-[#4EF0A0]/10 px-4 py-3 ring-1 ring-[#4EF0A0]/20">
+          <svg viewBox="0 0 24 24" className="h-4.5 w-4.5 shrink-0 text-[#4EF0A0]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          <p className="text-xs font-semibold text-[#4EF0A0]">Running as installed app</p>
+        </div>
+      ) : canInstall ? (
+        <button
+          type="button"
+          onClick={promptInstall}
+          className="flex w-full items-center gap-3 rounded-2xl bg-[#4A466A] px-4 py-4 ring-1 ring-white/5 transition active:scale-[0.99] hover:bg-[#565275]"
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FF916C]/15">
+            <svg viewBox="0 0 24 24" className="h-5 w-5 text-[#FF916C]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+          </div>
+          <div className="min-w-0 flex-1 text-left">
+            <p className="text-sm font-bold text-[#F7F4FF]">Install Attend75</p>
+            <p className="text-[10px] text-[#9F9AB5]">Add to home screen for quick access</p>
+          </div>
+          <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[#9F9AB5]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+      ) : isIOS ? (
+        <div className="rounded-2xl bg-[#4A466A] px-4 py-3 ring-1 ring-white/5">
+          <p className="text-xs font-semibold text-[#F7F4FF]">Install Attend75</p>
+          <p className="mt-1 text-[10px] leading-relaxed text-[#9F9AB5]">
+            Tap <span className="font-semibold text-[#6CB4FF]">Share</span> → <span className="font-semibold text-[#4EF0A0]">Add to Home Screen</span> in Safari to install.
+          </p>
+        </div>
+      ) : null}
 
       {/* Logout */}
       <button
