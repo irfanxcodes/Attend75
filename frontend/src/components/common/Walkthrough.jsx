@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 
 const WALKTHROUGH_STORAGE_KEY = 'attend75.walkthrough.completed'
 
@@ -52,6 +53,13 @@ const STEPS_MOBILE = [
     description: 'Lessons, formulas, practice questions, and AI-powered study for your subjects.',
     position: 'top',
   },
+  {
+    target: '[data-walkthrough="profile-rate"]',
+    title: 'Rate & Feedback',
+    description: 'Rate the app and share feedback to help us improve. Your voice shapes what we build next!',
+    position: 'top',
+    navigateTo: '/app/profile',
+  },
 ]
 
 const STEPS_DESKTOP = [
@@ -97,6 +105,13 @@ const STEPS_DESKTOP = [
     description: 'Lessons, formulas, practice questions, and AI-powered study for your subjects.',
     position: 'right',
   },
+  {
+    target: '[data-walkthrough="profile-rate"]',
+    title: 'Rate & Feedback',
+    description: 'Rate the app and share your feedback to help us improve. Your voice shapes what we build next!',
+    position: 'bottom',
+    navigateTo: '/app/profile',
+  },
 ]
 
 function isDesktopViewport() {
@@ -136,7 +151,9 @@ function Walkthrough({ onComplete }) {
   const [targetRect, setTargetRect] = useState(null)
   const [isVisible, setIsVisible] = useState(false)
   const [isDesktop, setIsDesktop] = useState(isDesktopViewport)
+  const [waitingForTarget, setWaitingForTarget] = useState(false)
   const timeoutRef = useRef(null)
+  const navigate = useNavigate()
 
   const steps = isDesktop ? STEPS_DESKTOP : STEPS_MOBILE
   const step = steps[currentStep]
@@ -159,6 +176,38 @@ function Walkthrough({ onComplete }) {
   useEffect(() => {
     setCurrentStep(0)
   }, [isDesktop])
+
+  // Handle navigation for steps that require a different page
+  useEffect(() => {
+    if (!step || !step.navigateTo) {
+      setWaitingForTarget(false)
+      return
+    }
+
+    // Navigate to the target page
+    navigate(step.navigateTo)
+    setWaitingForTarget(true)
+
+    // Poll for the target element to appear after navigation
+    let attempts = 0
+    const maxAttempts = 20
+    const pollInterval = setInterval(() => {
+      attempts++
+      const rect = getElementRect(step.target)
+      if (rect) {
+        setWaitingForTarget(false)
+        clearInterval(pollInterval)
+        scrollTargetIntoView(step.target)
+        setTimeout(() => updatePosition(), 150)
+      } else if (attempts >= maxAttempts) {
+        setWaitingForTarget(false)
+        clearInterval(pollInterval)
+        updatePosition()
+      }
+    }, 150)
+
+    return () => clearInterval(pollInterval)
+  }, [currentStep, step, navigate, updatePosition])
 
   useEffect(() => {
     // Delay first step slightly to let the page render
@@ -204,6 +253,16 @@ function Walkthrough({ onComplete }) {
   }
 
   if (!isVisible || !step) return null
+  if (waitingForTarget) {
+    return createPortal(
+      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60">
+        <div className="rounded-2xl border border-white/10 bg-[#2D2845] px-6 py-4 text-center shadow-2xl">
+          <p className="text-sm font-semibold text-[#F7F4FF]">Loading...</p>
+        </div>
+      </div>,
+      document.body,
+    )
+  }
 
   // Calculate tooltip position relative to the target element
   const padding = 8
