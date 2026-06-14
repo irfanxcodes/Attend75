@@ -5,21 +5,14 @@ const DISMISS_KEY = 'attend75.installBanner.dismissedAt'
 const DISMISS_COOLDOWN_MS = 5 * 24 * 60 * 60 * 1000 // 5 days
 
 /**
- * Smart install banner for Android/Desktop.
- *
- * Shows when:
- * - The browser supports install (canInstall === true)
- * - User has spent 45+ seconds in the app OR navigated 2+ pages
- * - Banner wasn't dismissed in the last 5 days
- *
- * "Not now" hides for 5 days (not permanently).
+ * Smart install banner for Android/Desktop (Chrome, Edge, Firefox).
+ * Shows benefits + one-tap install button.
  */
 function InstallBanner() {
   const { canInstall, isInstalled, promptInstall } = useInstallPrompt()
   const [show, setShow] = useState(false)
   const [engagementMet, setEngagementMet] = useState(false)
 
-  // Track engagement: 45 seconds on page OR 2+ route changes
   useEffect(() => {
     if (isInstalled || !canInstall) return
 
@@ -28,7 +21,6 @@ function InstallBanner() {
       setEngagementMet(true)
     }, 15000)
 
-    // Count route changes via popstate
     function handleNavigation() {
       pageViews++
       if (pageViews >= 2) {
@@ -37,8 +29,6 @@ function InstallBanner() {
     }
 
     window.addEventListener('popstate', handleNavigation)
-
-    // Also listen to pushState (React Router uses this)
     const originalPushState = history.pushState
     history.pushState = function (...args) {
       originalPushState.apply(this, args)
@@ -52,18 +42,15 @@ function InstallBanner() {
     }
   }, [canInstall, isInstalled])
 
-  // Show banner when engagement is met and not recently dismissed
   useEffect(() => {
     if (!engagementMet || !canInstall || isInstalled) return
 
     try {
       const dismissedAt = Number(window.localStorage.getItem(DISMISS_KEY) || 0)
       if (dismissedAt && Date.now() - dismissedAt < DISMISS_COOLDOWN_MS) {
-        return // Still in cooldown
+        return
       }
-    } catch {
-      // Ignore storage errors
-    }
+    } catch { /* */ }
 
     setShow(true)
   }, [engagementMet, canInstall, isInstalled])
@@ -72,24 +59,20 @@ function InstallBanner() {
     const accepted = await promptInstall()
     setShow(false)
     if (!accepted) {
-      // User dismissed the native prompt — still set the cooldown
-      try {
-        window.localStorage.setItem(DISMISS_KEY, String(Date.now()))
-      } catch { /* */ }
+      try { window.localStorage.setItem(DISMISS_KEY, String(Date.now())) } catch { /* */ }
     }
   }
 
   const handleDismiss = () => {
     setShow(false)
-    try {
-      window.localStorage.setItem(DISMISS_KEY, String(Date.now()))
-    } catch { /* */ }
+    try { window.localStorage.setItem(DISMISS_KEY, String(Date.now())) } catch { /* */ }
   }
 
   if (!show) return null
 
   return (
-    <div className="fixed inset-x-3 bottom-[88px] z-[100] mx-auto max-w-md animate-[slideUp_0.3s_ease-out] rounded-2xl border border-[#FF916C]/30 bg-[#2D2845]/95 p-3.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-lg md:bottom-6 md:left-auto md:right-6 md:inset-x-auto md:w-80">
+    <div className="fixed inset-x-3 bottom-[88px] z-[100] mx-auto max-w-md animate-[slideUp_0.3s_ease-out] rounded-2xl border border-[#FF916C]/30 bg-[#2D2845]/95 p-4 shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-lg md:bottom-6 md:left-auto md:right-6 md:inset-x-auto md:w-96">
+      {/* Header */}
       <div className="flex items-start gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FF916C]/15">
           <svg viewBox="0 0 24 24" className="h-5 w-5 text-[#FF916C]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -100,9 +83,38 @@ function InstallBanner() {
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-bold text-[#F7F4FF]">Install Attend75</p>
-          <p className="mt-0.5 text-[11px] leading-relaxed text-[#9F9AB5]">Add to home screen for quick access. Works offline too.</p>
+          <p className="mt-0.5 text-[11px] text-[#9F9AB5]">Get the full app experience</p>
         </div>
       </div>
+
+      {/* Benefits */}
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="rounded-lg bg-white/5 px-2 py-2 text-center">
+          <svg viewBox="0 0 24 24" className="mx-auto h-4 w-4 text-[#4EF0A0]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+          <p className="mt-1 text-[9px] font-semibold text-[#D8D4E7]">Notifications</p>
+        </div>
+        <div className="rounded-lg bg-white/5 px-2 py-2 text-center">
+          <svg viewBox="0 0 24 24" className="mx-auto h-4 w-4 text-[#6CB4FF]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+            <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+            <line x1="12" y1="20" x2="12.01" y2="20" />
+          </svg>
+          <p className="mt-1 text-[9px] font-semibold text-[#D8D4E7]">Works Offline</p>
+        </div>
+        <div className="rounded-lg bg-white/5 px-2 py-2 text-center">
+          <svg viewBox="0 0 24 24" className="mx-auto h-4 w-4 text-[#FF916C]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+          <p className="mt-1 text-[9px] font-semibold text-[#D8D4E7]">Instant Launch</p>
+        </div>
+      </div>
+
+      {/* Actions */}
       <div className="mt-3 flex items-center justify-end gap-2">
         <button
           type="button"
@@ -114,7 +126,7 @@ function InstallBanner() {
         <button
           type="button"
           onClick={handleInstall}
-          className="rounded-full bg-[#FF916C] px-4 py-1.5 text-[11px] font-bold text-[#1D183E] transition active:scale-95 hover:bg-[#FFAA8D]"
+          className="rounded-full bg-[#FF916C] px-5 py-2 text-[11px] font-bold text-[#1D183E] transition active:scale-95 hover:bg-[#FFAA8D]"
         >
           Install
         </button>
