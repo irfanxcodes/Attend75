@@ -50,25 +50,19 @@ const STEPS_MOBILE = [
 
 const STEPS_DESKTOP = [
   {
-    target: '[data-walkthrough="attendance-ring"]',
+    target: '[data-walkthrough="desktop-attendance-ring"]',
     title: 'Your Attendance',
     description: 'This shows your overall attendance percentage. Stay above 75% to be safe.',
     position: 'bottom',
   },
   {
-    target: '[data-walkthrough="quick-stats"]',
+    target: '[data-walkthrough="desktop-quick-stats"]',
     title: 'Quick Stats',
     description: 'See subjects at risk, total absences, and emails sent at a glance.',
     position: 'bottom',
   },
   {
-    target: '[data-walkthrough="target-card"]',
-    title: 'Set Your Target',
-    description: 'Click to expand and change your attendance target. The app recalculates everything in real-time.',
-    position: 'bottom',
-  },
-  {
-    target: '[data-walkthrough="subjects-list"]',
+    target: '[data-walkthrough="desktop-subjects-list"]',
     title: 'Your Subjects',
     description: 'Ranked by risk. Click any subject to see details, or use Mail Faculty for at-risk ones.',
     position: 'top',
@@ -100,6 +94,8 @@ function isDesktopViewport() {
 function getElementRect(selector) {
   const el = document.querySelector(selector)
   if (!el) return null
+  // Check if element or a parent is hidden
+  if (el.offsetParent === null && el.style.position !== 'fixed') return null
   const rect = el.getBoundingClientRect()
   // Return null if element is hidden (display: none gives all-zero rect)
   if (rect.width === 0 && rect.height === 0) return null
@@ -110,6 +106,16 @@ function getElementRect(selector) {
     height: rect.height,
     bottom: rect.bottom,
     right: rect.right,
+  }
+}
+
+function scrollTargetIntoView(selector) {
+  const el = document.querySelector(selector)
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  // If element is not in viewport, scroll it into view
+  if (rect.top < 0 || rect.bottom > window.innerHeight) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 }
 
@@ -153,14 +159,19 @@ function Walkthrough({ onComplete }) {
   }, [updatePosition])
 
   useEffect(() => {
-    updatePosition()
+    if (step) {
+      scrollTargetIntoView(step.target)
+    }
+    // Small delay after scroll to let position settle, then update
+    const id = setTimeout(() => updatePosition(), 100)
     window.addEventListener('resize', updatePosition)
     window.addEventListener('scroll', updatePosition, true)
     return () => {
+      clearTimeout(id)
       window.removeEventListener('resize', updatePosition)
       window.removeEventListener('scroll', updatePosition, true)
     }
-  }, [currentStep, updatePosition])
+  }, [currentStep, step, updatePosition])
 
   const handleNext = () => {
     if (currentStep >= steps.length - 1) {

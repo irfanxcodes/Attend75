@@ -538,7 +538,7 @@ function Dashboard() {
             </select>
           </div>
 
-          <div className="grid flex-1 grid-cols-3 gap-2.5">
+          <div data-walkthrough="desktop-quick-stats" className="grid flex-1 grid-cols-3 gap-2.5">
             <div className="flex items-center gap-2.5 rounded-xl bg-[#4A466A] px-3 py-2 shadow-sm ring-1 ring-black/5">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#6B4A4A] text-[#FF9E6C]"><AlertTriangle className="h-4 w-4" strokeWidth={2.4} /></span>
               <div className="min-w-0"><p className="text-lg font-extrabold leading-tight text-[#F7F4FF]">{subjectsBelowTarget}</p><p className="truncate text-[10px] font-medium text-[#9F9AB5]">below target</p></div>
@@ -554,7 +554,7 @@ function Dashboard() {
           </div>
         </div>
 
-        <div className="grid gap-2.5 xl:grid-cols-[1fr_340px]">
+        <div data-walkthrough="desktop-attendance-ring" className="grid gap-2.5 xl:grid-cols-[1fr_340px]">
           <AttendanceCircle
             percentage={overallPercentage}
             totalClasses={totals.totalClasses}
@@ -574,7 +574,9 @@ function Dashboard() {
           />
         </div>
 
-        <SubjectList subjects={subjects} />
+        <div data-walkthrough="desktop-subjects-list">
+          <SubjectList subjects={subjects} />
+        </div>
 
         <div className="flex items-center justify-end gap-2 px-1 pb-0.5">
           <span className="text-[10px] text-[#9F9AB5]">Follow us</span>
