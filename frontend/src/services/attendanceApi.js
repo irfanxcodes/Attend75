@@ -54,12 +54,24 @@ function delay(ms) {
 function buildFriendlyMessage(endpoint, code, fallbackMessage) {
   const normalizedCode = (code || '').trim().toUpperCase()
 
+  // Portal down/unreachable — same message regardless of endpoint
+  if (normalizedCode === 'PORTAL_UNREACHABLE') {
+    return 'The college portal is currently down or not responding. This is not an issue with your credentials — please try again later.'
+  }
+  if (normalizedCode === 'PORTAL_TIMEOUT') {
+    return 'The college portal is taking too long to respond. Please try again in a few minutes.'
+  }
+
   if (endpoint === 'login') {
     if (normalizedCode === 'INVALID_USERNAME') {
       return 'Invalid username or roll number. Please check and try again.'
     }
     if (normalizedCode === 'INCORRECT_PASSWORD') {
       return 'Incorrect password. Please try again.'
+    }
+    if (normalizedCode === 'DATA_FETCH_FAILED' || normalizedCode === 'LOGIN_FAILED') {
+      // Check if the HTTP status suggests a server-side issue vs credential issue
+      return 'Login failed. Please verify your credentials and try again.'
     }
     return 'Login failed. Please verify your credentials and try again.'
   }
@@ -71,8 +83,11 @@ function buildFriendlyMessage(endpoint, code, fallbackMessage) {
     if (normalizedCode === 'SEMESTER_SWITCH_MISMATCH') {
       return 'Unable to switch semester on portal. Please try again.'
     }
-    if (normalizedCode.includes('TIMEOUT')) {
-      return 'The portal is taking too long to respond. Please try again shortly.'
+    if (normalizedCode.includes('TIMEOUT') || normalizedCode === 'PORTAL_TIMEOUT') {
+      return 'The college portal is taking too long to respond. Please try again in a few minutes.'
+    }
+    if (normalizedCode === 'DATA_FETCH_FAILED' || normalizedCode === 'PORTAL_UNREACHABLE') {
+      return 'The college portal is currently down or not responding. Please try again later.'
     }
     return 'Unable to load your data. Please try again later.'
   }
@@ -130,8 +145,11 @@ function buildFriendlyMessage(endpoint, code, fallbackMessage) {
     if (normalizedCode === 'MARKS_HTML_STRUCTURE_CHANGED' || normalizedCode === 'MARKS_PARSER_FAILURE') {
       return 'Portal marks format changed. Please try again later.'
     }
-    if (normalizedCode.includes('TIMEOUT')) {
-      return 'The portal is taking too long to load marks. Please try again shortly.'
+    if (normalizedCode.includes('TIMEOUT') || normalizedCode === 'PORTAL_TIMEOUT') {
+      return 'The college portal is taking too long to load marks. Please try again in a few minutes.'
+    }
+    if (normalizedCode === 'DATA_FETCH_FAILED' || normalizedCode === 'PORTAL_UNREACHABLE') {
+      return 'The college portal is currently down or not responding. Please try again later.'
     }
     return 'Unable to load marks right now. Please try again.'
   }
@@ -212,6 +230,12 @@ export function isSessionExpiredError(error) {
   return (error?.code || '').toUpperCase().startsWith('SESSION_EXPIRED')
 }
 
+export function isPortalDownError(error) {
+  if (!error) return false
+  const code = (error?.code || '').toUpperCase()
+  return code === 'PORTAL_UNREACHABLE' || code === 'PORTAL_TIMEOUT' || code === 'DATA_FETCH_FAILED'
+}
+
 export function isFirebaseAuthError(error) {
   if (!error) return false
   const endpoint = (error.endpoint || '').toLowerCase()
@@ -230,11 +254,20 @@ export async function login(credentials) {
     throw new Error('Enter both username and password to continue.')
   }
 
-  const response = await fetch(`${API_BASE_URL}/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ roll_number: username, password }),
-  })
+  let response
+  try {
+    response = await fetch(`${API_BASE_URL}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roll_number: username, password }),
+    })
+  } catch {
+    // Network error — backend or internet is unreachable
+    throw new ApiError(
+      'Unable to reach the server. Please check your internet connection and try again.',
+      { code: 'PORTAL_UNREACHABLE', status: 0, endpoint: 'login' },
+    )
+  }
 
   const data = await parseApiResponse(response, 'login')
   const normalized = normalizeAttendancePayload(data)
@@ -287,11 +320,19 @@ export async function fetchAttendance({ token, semesterId, forceRefresh = false 
 
   const requestKey = `attendance:${token}:${semesterId || ''}:${forceRefresh ? 'fresh' : 'cache'}`
   return withInFlightRequest(requestKey, async () => {
-    const response = await fetch(`${API_BASE_URL}/attendance`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, semester_id: semesterId || null, force_refresh: Boolean(forceRefresh) }),
-    })
+    let response
+    try {
+      response = await fetch(`${API_BASE_URL}/attendance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, semester_id: semesterId || null, force_refresh: Boolean(forceRefresh) }),
+      })
+    } catch {
+      throw new ApiError(
+        'The college portal is currently down or not responding. Please try again later.',
+        { code: 'PORTAL_UNREACHABLE', status: 0, endpoint: 'attendance' },
+      )
+    }
 
     const data = await parseApiResponse(response, 'attendance')
     const normalized = normalizeAttendancePayload(data)

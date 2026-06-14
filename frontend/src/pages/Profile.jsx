@@ -133,7 +133,7 @@ function Profile() {
       </div>
 
       {/* Rate */}
-      <div data-walkthrough="profile-rate" className="rounded-2xl bg-[#4A466A] px-4 py-4 ring-1 ring-white/5">
+      <div className="rounded-2xl bg-[#4A466A] px-4 py-4 ring-1 ring-white/5">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FFB23E]/15">
             <Star className="h-5 w-5 text-[#FFB23E]" strokeWidth={1.8} />
@@ -191,7 +191,7 @@ function Profile() {
       </div>
 
       {/* Feedback */}
-      <div data-walkthrough="profile-feedback" className="rounded-2xl bg-[#4A466A] px-4 py-4 ring-1 ring-white/5">
+      <div className="rounded-2xl bg-[#4A466A] px-4 py-4 ring-1 ring-white/5">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#C77DFF]/15">
             <MessageSquare className="h-5 w-5 text-[#C77DFF]" strokeWidth={1.8} />

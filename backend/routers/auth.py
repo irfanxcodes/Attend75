@@ -27,9 +27,12 @@ def _login_error_response(error_code: str) -> JSONResponse:
         "INVALID_USERNAME": "Invalid username or roll number. Please check and try again.",
         "INCORRECT_PASSWORD": "Incorrect password. Please try again.",
         "LOGIN_FAILED": "Login failed. Please verify your credentials and try again.",
+        "PORTAL_UNREACHABLE": "The college portal is currently down or not responding. Please try again later.",
+        "PORTAL_TIMEOUT": "The college portal is taking too long to respond. Please try again in a few minutes.",
     }
+    status_code = 502 if error_code in ("PORTAL_UNREACHABLE", "PORTAL_TIMEOUT") else 401
     return JSONResponse(
-        status_code=401,
+        status_code=status_code,
         content={
             "status": "error",
             "error_code": error_code,
@@ -42,6 +45,8 @@ def _data_error_response(error_code: str, status_code: int = 502) -> JSONRespons
     message_map = {
         "SESSION_EXPIRED": "Your session has expired. Please log in again.",
         "DATA_FETCH_FAILED": "Unable to load your data. Please try again later.",
+        "PORTAL_UNREACHABLE": "The college portal is currently down or not responding. Please try again later.",
+        "PORTAL_TIMEOUT": "The college portal is taking too long to respond. Please try again in a few minutes.",
         "MARKS_TABLE_NOT_FOUND": "Marks are not available right now for this semester.",
         "MARKS_ROWS_NOT_FOUND": "Marks are not available right now for this semester.",
         "MARKS_EMPTY_RESPONSE": "Portal returned an empty marks response. Please try again.",
@@ -82,11 +87,13 @@ async def login(payload: LoginRequest):
         )
         return _login_error_response(error_code)
     except PortalNetworkError as exc:
-        logger.exception("Guest login portal/network error for roll_number=%s", payload.roll_number)
-        return _login_error_response("LOGIN_FAILED")
+        error_code = getattr(exc, "code", "DATA_FETCH_FAILED")
+        is_timeout = "TIMEOUT" in str(error_code).upper() or "timeout" in str(exc).lower()
+        logger.exception("Guest login portal/network error for roll_number=%s [code=%s]", payload.roll_number, error_code)
+        return _login_error_response("PORTAL_TIMEOUT" if is_timeout else "PORTAL_UNREACHABLE")
     except Exception:
         logger.exception("Unexpected guest login error for roll_number=%s", payload.roll_number)
-        return _login_error_response("LOGIN_FAILED")
+        return _login_error_response("PORTAL_UNREACHABLE")
 
 
 @router.post("/attendance", response_model=ApiResponse)
