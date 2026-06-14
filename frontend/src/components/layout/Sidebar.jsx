@@ -110,7 +110,7 @@ function Sidebar({ isCollapsed, onToggleCollapse }) {
         <nav className="flex-1 px-3 pb-3 pt-3">
           <ul className="space-y-1">
             {navItems.map((item) => (
-              <li key={item.to}>
+              <li key={item.to} data-walkthrough={item.to.endsWith('/history') ? 'sidebar-history' : item.to.endsWith('/study') ? 'sidebar-study' : item.to.endsWith('/marks') ? 'sidebar-marks' : undefined}>
                 {item.to.endsWith('/study') ? (
                   <button
                     type="button"

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 
 const WALKTHROUGH_STORAGE_KEY = 'attend75.walkthrough.completed'
 
-const STEPS = [
+const STEPS_MOBILE = [
   {
     target: '[data-walkthrough="attendance-ring"]',
     title: 'Your Attendance',
@@ -48,10 +48,61 @@ const STEPS = [
   },
 ]
 
+const STEPS_DESKTOP = [
+  {
+    target: '[data-walkthrough="attendance-ring"]',
+    title: 'Your Attendance',
+    description: 'This shows your overall attendance percentage. Stay above 75% to be safe.',
+    position: 'bottom',
+  },
+  {
+    target: '[data-walkthrough="quick-stats"]',
+    title: 'Quick Stats',
+    description: 'See subjects at risk, total absences, and emails sent at a glance.',
+    position: 'bottom',
+  },
+  {
+    target: '[data-walkthrough="target-card"]',
+    title: 'Set Your Target',
+    description: 'Click to expand and change your attendance target. The app recalculates everything in real-time.',
+    position: 'bottom',
+  },
+  {
+    target: '[data-walkthrough="subjects-list"]',
+    title: 'Your Subjects',
+    description: 'Ranked by risk. Click any subject to see details, or use Mail Faculty for at-risk ones.',
+    position: 'top',
+  },
+  {
+    target: '[data-walkthrough="sidebar-history"]',
+    title: 'Attendance History',
+    description: 'View day-by-day attendance, mail faculty about absences, and track your streak.',
+    position: 'right',
+  },
+  {
+    target: '[data-walkthrough="sidebar-marks"]',
+    title: 'Your Marks',
+    description: 'View consolidated internal marks, radar chart comparison, and component-wise breakdown.',
+    position: 'right',
+  },
+  {
+    target: '[data-walkthrough="sidebar-study"]',
+    title: 'StudyMe',
+    description: 'Lessons, formulas, practice questions, and AI-powered study for your subjects.',
+    position: 'right',
+  },
+]
+
+function isDesktopViewport() {
+  return typeof window !== 'undefined' && window.innerWidth >= 768
+}
+
 function getElementRect(selector) {
   const el = document.querySelector(selector)
   if (!el) return null
   const rect = el.getBoundingClientRect()
+  // Return null if element is hidden (display: none gives all-zero rect)
+  if (rect.width === 0 && rect.height === 0) return null
   return {
     top: rect.top,
     left: rect.left,
@@ -66,15 +117,30 @@ function Walkthrough({ onComplete }) {
   const [currentStep, setCurrentStep] = useState(0)
   const [targetRect, setTargetRect] = useState(null)
   const [isVisible, setIsVisible] = useState(false)
+  const [isDesktop, setIsDesktop] = useState(isDesktopViewport)
   const timeoutRef = useRef(null)
 
-  const step = STEPS[currentStep]
+  const steps = isDesktop ? STEPS_DESKTOP : STEPS_MOBILE
+  const step = steps[currentStep]
 
   const updatePosition = useCallback(() => {
     if (!step) return
     const rect = getElementRect(step.target)
     setTargetRect(rect)
   }, [step])
+
+  useEffect(() => {
+    function handleResize() {
+      setIsDesktop(isDesktopViewport())
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  // Reset step index when switching between mobile/desktop step lists
+  useEffect(() => {
+    setCurrentStep(0)
+  }, [isDesktop])
 
   useEffect(() => {
     // Delay first step slightly to let the page render
@@ -97,7 +163,7 @@ function Walkthrough({ onComplete }) {
   }, [currentStep, updatePosition])
 
   const handleNext = () => {
-    if (currentStep >= STEPS.length - 1) {
+    if (currentStep >= steps.length - 1) {
       handleFinish()
       return
     }
@@ -116,26 +182,39 @@ function Walkthrough({ onComplete }) {
 
   if (!isVisible || !step) return null
 
-  // Calculate tooltip position
+  // Calculate tooltip position relative to the target element
   const padding = 8
   const spotlightPadding = 6
+  const tooltipWidth = 288
   let tooltipStyle = {}
 
   if (targetRect) {
     if (step.position === 'bottom') {
+      // Below the target, horizontally centered on it
+      const centerX = targetRect.left + targetRect.width / 2
+      const clampedLeft = Math.max(16, Math.min(centerX - tooltipWidth / 2, window.innerWidth - tooltipWidth - 16))
       tooltipStyle = {
         top: `${targetRect.bottom + padding + spotlightPadding}px`,
-        left: '50%',
-        transform: 'translateX(-50%)',
+        left: `${clampedLeft}px`,
+      }
+    } else if (step.position === 'right') {
+      // To the right of the target (for sidebar items on desktop)
+      const topPos = Math.max(16, targetRect.top + targetRect.height / 2 - 40)
+      tooltipStyle = {
+        top: `${topPos}px`,
+        left: `${targetRect.right + padding + spotlightPadding}px`,
       }
     } else {
+      // Above the target, horizontally centered on it
+      const centerX = targetRect.left + targetRect.width / 2
+      const clampedLeft = Math.max(16, Math.min(centerX - tooltipWidth / 2, window.innerWidth - tooltipWidth - 16))
       tooltipStyle = {
         bottom: `${window.innerHeight - targetRect.top + padding + spotlightPadding}px`,
-        left: '50%',
-        transform: 'translateX(-50%)',
+        left: `${clampedLeft}px`,
       }
     }
   } else {
+    // Fallback: center in viewport if target not found
     tooltipStyle = { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }
   }
 
@@ -185,7 +264,7 @@ function Walkthrough({ onComplete }) {
 
       {/* Tooltip */}
       <div
-        className="absolute w-[85vw] max-w-xs rounded-2xl border border-white/10 bg-[#2D2845] p-4 shadow-2xl"
+        className="absolute w-[85vw] max-w-xs rounded-2xl border border-white/10 bg-[#2D2845] p-4 shadow-2xl md:w-80"
         style={{ ...tooltipStyle, pointerEvents: 'auto' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -194,7 +273,7 @@ function Walkthrough({ onComplete }) {
 
         <div className="mt-4 flex items-center justify-between">
           <div className="flex gap-1">
-            {STEPS.map((_, i) => (
+            {steps.map((_, i) => (
               <span
                 key={i}
                 className={`h-1.5 w-1.5 rounded-full transition-colors ${i === currentStep ? 'bg-[#FF916C]' : 'bg-white/20'}`}
@@ -215,7 +294,7 @@ function Walkthrough({ onComplete }) {
               onClick={handleNext}
               className="rounded-full bg-[#FF916C] px-4 py-1.5 text-[11px] font-bold text-[#1D183E] transition active:scale-95"
             >
-              {currentStep >= STEPS.length - 1 ? 'Done' : 'Next'}
+              {currentStep >= steps.length - 1 ? 'Done' : 'Next'}
             </button>
           </div>
         </div>
