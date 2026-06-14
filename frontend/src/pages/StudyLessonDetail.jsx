@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import CollapsibleSection from '../components/common/CollapsibleSection'
 import MathFormula, { MathInline } from '../components/common/MathFormula'
 import StudyBackButton from '../components/common/StudyBackButton'
@@ -891,6 +891,7 @@ function buildTopicPrompt(subject, lesson, topic) {
 
 function StudyLessonDetail() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { subjectId, lessonId } = useParams()
   const hasTrackedLessonOpenRef = useRef(false)
   const {
@@ -898,6 +899,7 @@ function StudyLessonDetail() {
   } = useAppStore()
   const subject = getStudySubjectById(subjectId)
   const lesson = getStudyLessonById(subjectId, lessonId)
+  const basePath = location.pathname.startsWith('/app/') ? '/app/study' : '/study'
 
   const [lessonState, setLessonState] = useState(() => getLessonState(subjectId, lessonId))
   const [isAiSheetOpen, setAiSheetOpen] = useState(false)
@@ -1226,7 +1228,7 @@ function StudyLessonDetail() {
       lessonName: lesson.title,
       topicName: topic.title,
     })
-    navigate(`/study/${subject.id}/${lesson.id}/pdf?topic=${topic.id}`)
+    navigate(`${basePath}/${subject.id}/${lesson.id}/pdf?topic=${topic.id}`)
   }
 
   const openTopicPractice = (topic) => {
@@ -1238,7 +1240,7 @@ function StudyLessonDetail() {
       lessonName: lesson.title,
       topicName: topic.title,
     })
-    navigate(`/study/${subject.id}/${lesson.id}/practice/${topic.id}`)
+    navigate(`${basePath}/${subject.id}/${lesson.id}/practice/${topic.id}`)
   }
 
   const openLessonPractice = () => {
@@ -1249,7 +1251,7 @@ function StudyLessonDetail() {
       subjectName: subject.title,
       lessonName: lesson.title,
     })
-    navigate(`/study/${subject.id}/${lesson.id}/practice`)
+    navigate(`${basePath}/${subject.id}/${lesson.id}/practice`)
   }
 
   const openLessonYoutube = () => {
@@ -1260,7 +1262,7 @@ function StudyLessonDetail() {
       subjectName: subject.title,
       lessonName: lesson.title,
     })
-    navigate(`/study/${subject.id}/${lesson.id}/youtube`)
+    navigate(`${basePath}/${subject.id}/${lesson.id}/youtube`)
   }
 
   const toggleTopicDetails = (topicId) => {
@@ -1269,93 +1271,79 @@ function StudyLessonDetail() {
 
   return (
     <section className="space-y-3 pb-2 sm:space-y-4">
-      <header className="rounded-3xl bg-[#4F487A] p-4 ring-1 ring-white/10 sm:p-5">
-        <div className="flex items-center gap-2.5">
-          <StudyBackButton
-            fallbackTo={`/study/${subject.id}`}
-            label="Go back"
-            iconOnly
-            className="h-11 w-11 text-xl"
-          />
-          <p className="text-xs uppercase tracking-[0.14em] text-[#CFC5E8]">StudyMe</p>
-        </div>
-        <h1 className="mt-1 text-2xl font-bold text-[#F4F1FF] sm:text-3xl">{lesson.title}</h1>
-        <p className="mt-1 text-xs text-[#CFC5E8]">Lesson {lesson.lessonNumber}</p>
-        <p className="mt-2 text-sm text-[#D8D3E8]">{lesson.covers}</p>
+      {/* Back nav */}
+      <div className="flex items-center gap-3 rounded-2xl bg-[#4A466A] px-4 py-3 ring-1 ring-white/5">
+        <StudyBackButton
+          fallbackTo={`/study/${subject.id}`}
+          label="Go back"
+          iconOnly
+          className="h-8 w-8 text-base"
+        />
+        <span className="text-[11px] font-bold uppercase tracking-widest text-[#9F9AB5]">StudyMe</span>
+      </div>
 
+      {/* Lesson header */}
+      <header>
+        <h1 className="text-2xl font-extrabold text-[#F7F4FF] sm:text-3xl">{lesson.title}</h1>
+        <p className="mt-1 text-xs text-[#9F9AB5]">Lesson {lesson.lessonNumber} · {subject.title}</p>
+        <p className="mt-2 text-sm text-[#D8D4E7]">{lesson.covers}</p>
+
+        {/* Action buttons */}
         <div className="mt-4 flex flex-wrap gap-2">
           <button
             type="button"
             onClick={handleLessonCompleted}
-            className="rounded-full bg-[#E2BC8B] px-4 py-2 text-sm font-semibold text-[#1D183E] hover:bg-[#D9AA6F]"
+            className="flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold text-[#1D183E] transition hover:brightness-110"
+            style={{ background: 'linear-gradient(135deg, #FF916C 0%, #FFAA8D 100%)' }}
           >
-            Mark as Complete
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            Mark complete
           </button>
           <button
             type="button"
             onClick={handleLessonImportantToggle}
             disabled={(importanceStatus !== 'success' && importanceStatus !== 'unauthenticated') || isTogglingLessonImportance}
-            className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+            className={`flex items-center gap-1.5 rounded-full border px-4 py-2 text-xs font-semibold transition ${
               lessonImportance?.important
-                ? 'border-[#E2BC8B]/70 bg-[#E2BC8B]/20 text-[#F2CA98]'
-                : 'border-white/20 text-[#E7DEDE] hover:bg-white/10'
+                ? 'border-[#FFB23E]/50 bg-[#FFB23E]/15 text-[#FFB23E]'
+                : 'border-white/20 text-[#D8D4E7] hover:bg-white/10'
             }`}
           >
-            {importanceStatus === 'unauthenticated'
-              ? 'Sign in to mark important'
-              : importanceStatus === 'loading'
-              ? 'Loading importance...'
-              : isTogglingLessonImportance
-                ? 'Updating...'
-                : lessonImportance?.important
-                  ? 'Marked Important'
-                  : 'Mark as Important'}
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2"><path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2Z" /></svg>
+            {isTogglingLessonImportance ? 'Updating...' : lessonImportance?.important ? 'Marked important' : 'Mark important'}
+            {lessonImportance ? (
+              <span className="ml-1 rounded-full bg-white/10 px-1.5 py-px text-[10px] font-bold">{lessonImportance.importantCount}</span>
+            ) : null}
           </button>
-          <span
-            className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm ${
-              lessonImportance?.important
-                ? 'border-[#E2BC8B]/45 bg-[#E2BC8B]/12 text-[#F2CA98]'
-                : 'border-white/20 bg-white/5 text-[#D8D3E8]'
-            }`}
-          >
-            <span>
-              {lessonImportance
-                ? `${lessonImportance.importantCount} students marked this`
-                : importanceStatus === 'loading'
-                  ? 'Loading count...'
-                  : importanceStatus === 'unauthenticated'
-                    ? 'Sign in to view community importance'
-                    : 'Importance unavailable'}
-            </span>
-            {lessonImportance?.importantBadge === 'hot' ? <span className="text-[#FFD2C2]">Hot</span> : null}
-          </span>
-          {importanceFeedback ? <span className="self-center text-xs text-[#FFD2C2]">{importanceFeedback}</span> : null}
           <button
             type="button"
             onClick={openLessonAi}
-            className="rounded-full border border-[#A8D8FF]/50 bg-[#3A315D] px-4 py-2 text-sm font-semibold text-[#CFE8FF] hover:bg-[#4A3E73]"
+            className="flex items-center gap-1.5 rounded-full border border-[#6CB4FF]/40 bg-[#6CB4FF]/10 px-4 py-2 text-xs font-semibold text-[#6CB4FF] transition hover:bg-[#6CB4FF]/20"
           >
-            Study this lesson with AI
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v1m0 16v1m-8-9H3m18 0h-1m-2.636-6.364-.707.707M6.343 17.657l-.707.707m12.728 0-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" /></svg>
+            Study with AI
           </button>
           {hasLessonPractice ? (
             <button
               type="button"
               onClick={openLessonPractice}
-              className="rounded-full border border-[#E2BC8B]/45 bg-[#E2BC8B]/12 px-4 py-2 text-sm font-semibold text-[#F2CA98] hover:bg-[#E2BC8B]/20"
+              className="flex items-center gap-1.5 rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-[#D8D4E7] transition hover:bg-white/10"
             >
-              Practice Questions
+              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2"><path d="m5 3 14 9-14 9V3Z" /></svg>
+              Practice
             </button>
           ) : null}
           {hasLessonYoutube ? (
             <button
               type="button"
               onClick={openLessonYoutube}
-              className="rounded-full border border-[#A8D8FF]/45 bg-[#A8D8FF]/12 px-4 py-2 text-sm font-semibold text-[#CFE8FF] hover:bg-[#A8D8FF]/20"
+              className="flex items-center gap-1.5 rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-[#D8D4E7] transition hover:bg-white/10"
             >
               Learn with YouTube
             </button>
           ) : null}
         </div>
+        {importanceFeedback ? <span className="mt-2 inline-block text-xs text-[#FFD2C2]">{importanceFeedback}</span> : null}
       </header>
 
       <section className="space-y-3 rounded-3xl bg-[#4F487A] p-3 shadow-md ring-1 ring-white/5 sm:p-4">

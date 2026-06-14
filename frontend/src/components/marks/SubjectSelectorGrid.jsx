@@ -1,14 +1,14 @@
 function SubjectSelectorGrid({ subjects, selectedSubjectCode, disabled, onSelect }) {
   if (!subjects.length) {
     return (
-      <div className="rounded-xl border border-white/15 bg-[#3A315D] p-3 text-sm text-[#D1D1D1]">
+      <div className="rounded-xl border border-white/10 bg-[#3D3660] p-3 text-sm text-[#9F9AB5]">
         No subjects available for this semester.
       </div>
     )
   }
 
   return (
-    <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4">
+    <div className="flex flex-wrap gap-2">
       {subjects.map((subject) => {
         const isSelected = selectedSubjectCode === subject.subjectCode
 
@@ -19,10 +19,10 @@ function SubjectSelectorGrid({ subjects, selectedSubjectCode, disabled, onSelect
             onClick={() => onSelect(subject.subjectCode)}
             disabled={disabled}
             className={[
-              'rounded-xl border px-3 py-2 text-center text-xs font-semibold transition-all duration-200 ease-out sm:text-sm',
+              'rounded-full border px-4 py-2 text-xs font-semibold transition-all duration-200 sm:text-sm',
               isSelected
-                ? 'scale-[1.03] border-[#E8A08C] bg-[#E8A08C] text-[#2F1D4F] shadow-[0_0_14px_rgba(232,160,140,0.35)]'
-                : 'border-[#E2D7CA]/60 bg-[#D8CCBC] text-[#231A36] hover:bg-[#E1D5C6] hover:border-[#E7DED3]',
+                ? 'border-[#FF916C] bg-[#FF916C] text-[#1D183E] shadow-[0_0_12px_rgba(255,145,108,0.3)]'
+                : 'border-[#D8D4E7]/40 bg-[#D8D4E7]/15 text-[#F7F4FF] hover:border-[#D8D4E7]/60 hover:bg-[#D8D4E7]/25',
               disabled ? 'cursor-not-allowed opacity-60' : '',
             ].join(' ')}
             aria-pressed={isSelected}

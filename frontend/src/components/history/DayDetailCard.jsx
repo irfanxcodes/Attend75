@@ -1,3 +1,5 @@
+import { Check, Mail } from 'lucide-react'
+
 function DayDetailCard({
   displayDate,
   attendanceItems,
@@ -9,28 +11,44 @@ function DayDetailCard({
 }) {
   const totalClasses = attendanceItems.length
   const attendedClasses = attendanceItems.filter((entry) => entry.status === 'Present').length
-  const percentage = totalClasses ? Math.round((attendedClasses / totalClasses) * 100) : 0
+
+  // Get day of week
+  const dayOfWeek = (() => {
+    try {
+      const currentYear = new Date().getFullYear()
+      const parsed = new Date(`${displayDate} ${currentYear}`)
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toLocaleDateString('en-US', { weekday: 'long' })
+      }
+    } catch {
+      // fallback
+    }
+    return ''
+  })()
 
   if (!totalClasses) {
     return (
-      <div className="rounded-2xl bg-[#5B5485] p-4 text-center text-sm font-medium text-[#D8D3E8] shadow-sm sm:p-5">
+      <div className="rounded-2xl bg-[#4A466A] p-4 text-center text-sm font-medium text-[#D8D4E7] ring-1 ring-white/5">
         {emptyMessage}
       </div>
     )
   }
 
   return (
-    <div className="rounded-2xl bg-[#5B5485] p-4 text-[#F4F1FF] shadow-sm sm:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-lg font-bold text-white sm:text-xl">{displayDate}</h3>
-          <p className="mt-1 text-xs text-[#D8D3E8] sm:text-sm">
-            {attendedClasses} of {totalClasses} classes attended
-          </p>
+    <div className="rounded-2xl bg-[#4A466A] p-4 ring-1 ring-white/5 sm:p-5">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-baseline gap-2">
+          <h3 className="text-lg font-bold text-[#F7F4FF]">{dayOfWeek}</h3>
+          <span className="text-sm font-medium text-[#9F9AB5]">{displayDate}</span>
         </div>
+        <span className="rounded-full bg-[#4EF0A0]/15 px-2.5 py-1 text-[11px] font-bold text-[#4EF0A0]">
+          {attendedClasses} PRESENT
+        </span>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 items-start gap-2 min-[360px]:grid-cols-2 sm:mt-5 sm:gap-3 md:grid-cols-3">
+      {/* Timeline list */}
+      <div className="mt-4 space-y-2">
         {attendanceItems.map((entry, index) => {
           const isPresent = entry.status === 'Present'
           const mailStatus = !isPresent && typeof getMailFacultyStatus === 'function'
@@ -38,55 +56,73 @@ function DayDetailCard({
             : 'default'
           const isAlreadySent = mailStatus === 'send_confirmed'
           const isPendingConfirmation = mailStatus === 'pending_confirmation'
-          const cardClassName = isPresent
-            ? 'self-start rounded-2xl px-3 py-3 text-xs font-semibold sm:text-sm'
-            : 'self-start rounded-2xl px-3 py-3 text-xs font-semibold sm:text-sm min-h-[104px] sm:min-h-[112px] flex flex-col justify-between'
+
+          const borderColor = isPresent ? 'border-l-[#4EF0A0]' : 'border-l-[#FF5B5B]'
 
           return (
             <article
-              key={`${entry.subject}-${index}`}
-              className={`${cardClassName} ${
-                isPresent ? 'bg-[#38A169] text-[#FFFFFF]' : 'bg-[#C53030] text-[#FFFFFF]'
-              }`}
+              key={`${entry.code || entry.subject}-${index}`}
+              className={`flex items-center gap-4 rounded-xl border-l-[3px] ${borderColor} bg-[#565275] px-4 py-3 transition-all duration-200 hover:bg-[#5D5880]`}
             >
-              <p className="text-center capitalize">{entry.subject}</p>
-
-              {!isPresent && isPendingConfirmation ? (
-                <div className="mt-2 rounded-xl border border-white/30 bg-white/10 p-2">
-                  <p className="text-[11px] text-white">Did you send the email?</p>
-                  <div className="mt-2 flex gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => onConfirmMailSent?.(entry)}
-                      className="flex-1 rounded-full border border-white/40 bg-white/20 px-2 py-1 text-[10px] font-semibold text-white transition hover:bg-white/30"
-                    >
-                      Yes, Mark as Sent
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onMarkMailNotYet?.(entry)}
-                      className="rounded-full border border-white/35 px-2 py-1 text-[10px] font-semibold text-white/90 transition hover:bg-white/10"
-                    >
-                      Not Yet
-                    </button>
-                  </div>
+              {/* Subject info */}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-[#F7F4FF]">
+                    {entry.subject || entry.code || 'Subject'}
+                  </span>
                 </div>
-              ) : null}
+              </div>
 
-              {!isPresent && onMailFaculty && !isPendingConfirmation ? (
-                <button
-                  type="button"
-                  disabled={isAlreadySent}
-                  onClick={() => onMailFaculty(entry)}
-                  className={`mt-2 w-full rounded-full border border-white/40 px-2 py-1 text-[11px] font-semibold text-white transition ${
-                    isAlreadySent
-                      ? 'cursor-not-allowed bg-white/15 opacity-65'
-                      : 'bg-white/20 hover:bg-white/30'
-                  }`}
-                >
-                  {isAlreadySent ? 'Mail Sent' : 'Mail Faculty'}
-                </button>
-              ) : null}
+              {/* Status + Action */}
+              <div className="flex shrink-0 items-center gap-2">
+                {isPresent ? (
+                  <span className="flex items-center gap-1 text-xs font-semibold text-[#4EF0A0]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#4EF0A0]" />
+                    Present
+                  </span>
+                ) : (
+                  <>
+                    <span className="flex items-center gap-1 text-xs font-semibold text-[#FF5B5B]">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#FF5B5B]" />
+                      Absent
+                    </span>
+
+                    {isPendingConfirmation ? (
+                      <div className="flex items-center gap-1 ml-2">
+                        <button
+                          type="button"
+                          onClick={() => onConfirmMailSent?.(entry)}
+                          className="flex items-center gap-1 rounded-full border border-[#4EF0A0]/40 bg-[#4EF0A0]/10 px-2 py-0.5 text-[10px] font-semibold text-[#4EF0A0] transition hover:bg-[#4EF0A0]/20"
+                        >
+                          <Check className="h-3 w-3" strokeWidth={2.5} />
+                          Sent
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onMarkMailNotYet?.(entry)}
+                          className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] font-semibold text-[#9F9AB5] transition hover:bg-white/10"
+                        >
+                          Not yet
+                        </button>
+                      </div>
+                    ) : isAlreadySent ? (
+                      <span className="ml-2 flex items-center gap-1 text-[11px] font-semibold text-[#9F9AB5]">
+                        <Check className="h-3 w-3 text-[#4EF0A0]" strokeWidth={2.5} />
+                        Mailed
+                      </span>
+                    ) : onMailFaculty ? (
+                      <button
+                        type="button"
+                        onClick={() => onMailFaculty(entry)}
+                        className="ml-2 flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-[#D8D4E7] transition hover:border-[#FF916C]/40 hover:bg-[#FF916C]/10 hover:text-[#FF916C]"
+                      >
+                        <Mail className="h-3 w-3" strokeWidth={2} />
+                        Mail
+                      </button>
+                    ) : null}
+                  </>
+                )}
+              </div>
             </article>
           )
         })}

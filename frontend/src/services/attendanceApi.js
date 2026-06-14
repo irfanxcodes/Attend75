@@ -426,6 +426,71 @@ export async function trackFeatureUsageEvent({
   return parseApiResponse(response, 'feature-usage-track')
 }
 
+export async function fetchMailsSentCount(token) {
+  if (!token) {
+    return 0
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/feature-usage/mails-sent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    })
+
+    const data = await parseApiResponse(response, 'feature-usage-mails-sent')
+    return Number(data?.mails_sent) || 0
+  } catch {
+    return 0
+  }
+}
+
+export async function fetchAttendanceStreak({ token, semesterId }) {
+  if (!token) return 0
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/attendance/streak`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, semester_id: semesterId || null }),
+    })
+
+    const data = await parseApiResponse(response, 'attendance-streak')
+    return Number(data?.streak) || 0
+  } catch {
+    return 0
+  }
+}
+
+export async function submitRating(token, rating) {
+  if (!token) return null
+  try {
+    const response = await fetch(`${API_BASE_URL}/rating/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, rating }),
+    })
+    return parseApiResponse(response, 'rating')
+  } catch {
+    return null
+  }
+}
+
+export async function fetchUserRating(token) {
+  if (!token) return null
+  try {
+    const response = await fetch(`${API_BASE_URL}/rating/get`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    })
+    const data = await parseApiResponse(response, 'rating')
+    return data?.rating || null
+  } catch {
+    return null
+  }
+}
+
 export async function submitFeedback(message, userName = null) {
   const cleanedMessage = (message || '').trim()
   const cleanedUserName = String(userName || '').trim()

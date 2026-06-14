@@ -7,43 +7,15 @@ import useAppStore from '../hooks/useAppStore'
 import { fetchConsolidatedMarks, isSessionExpiredError } from '../services/attendanceApi'
 
 function normalizeCode(value) {
-  return String(value || '')
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '')
-}
-
-function RefreshIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 sm:h-5 sm:w-5">
-      <path
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5"
-      />
-    </svg>
-  )
+  return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
 }
 
 function toSubjectCode(subject) {
   const shortName = String(subject?.shortName || '').trim().toUpperCase()
-  if (shortName) {
-    return shortName
-  }
-
+  if (shortName) return shortName
   const name = String(subject?.name || '').trim()
-  if (!name) {
-    return 'SUBJ'
-  }
-
-  const initials = name
-    .split(/\s+/)
-    .map((segment) => segment[0])
-    .join('')
-    .toUpperCase()
-
+  if (!name) return 'SUBJ'
+  const initials = name.split(/\s+/).map((s) => s[0]).join('').toUpperCase()
   return initials || name.slice(0, 6).toUpperCase()
 }
 
@@ -52,63 +24,57 @@ function normalizeSubjectName(value) {
 }
 
 function safeNumber(value) {
-  const numeric = Number(value)
-  return Number.isFinite(numeric) ? numeric : null
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
 }
 
-function normalizeComponentValue(rawComponent) {
-  const componentName = String(rawComponent?.name || rawComponent?.component || '').trim()
-  const fallbackValue = rawComponent?.numericValue ?? rawComponent?.numeric_value ?? rawComponent?.value
-  const displayValue = String(rawComponent?.value ?? rawComponent?.weightage ?? fallbackValue ?? '').trim()
-
+function normalizeComponentValue(raw) {
+  const name = String(raw?.name || raw?.component || '').trim()
+  const fallback = raw?.numericValue ?? raw?.numeric_value ?? raw?.value
+  const display = String(raw?.value ?? raw?.weightage ?? fallback ?? '').trim()
   return {
-    name: componentName,
-    value: displayValue || '-',
-    numericValue: safeNumber(rawComponent?.numericValue ?? rawComponent?.numeric_value),
-    maxValue: safeNumber(rawComponent?.maxValue ?? rawComponent?.max_value),
+    name,
+    value: display || '-',
+    numericValue: safeNumber(raw?.numericValue ?? raw?.numeric_value),
+    maxValue: safeNumber(raw?.maxValue ?? raw?.max_value),
   }
 }
 
-function normalizeComponentList(rawSubject) {
-  if (Array.isArray(rawSubject?.components)) {
-    return rawSubject.components.map((component) => normalizeComponentValue(component)).filter((component) => component.name)
+function normalizeComponentList(raw) {
+  if (Array.isArray(raw?.components)) {
+    return raw.components.map(normalizeComponentValue).filter((c) => c.name)
   }
-
-  if (rawSubject?.components && typeof rawSubject.components === 'object') {
-    return Object.entries(rawSubject.components).map(([name, value]) => ({
+  if (raw?.components && typeof raw.components === 'object') {
+    return Object.entries(raw.components).map(([name, value]) => ({
       name: String(name || '').trim(),
       value: value === null || value === undefined ? '-' : String(value),
       numericValue: safeNumber(value),
       maxValue: null,
     }))
   }
-
   return []
 }
 
-function normalizeMarksSubject(rawSubject) {
-  const components = normalizeComponentList(rawSubject)
-  const explicitTotal = safeNumber(rawSubject?.total)
-  const derivedTotal = components.reduce((sum, component) => sum + (component.numericValue || 0), 0)
-  const derivedMaxTotal = components.reduce((sum, component) => sum + (component.maxValue || 0), 0)
-  const hasNumericComponents = components.some((component) => component.numericValue !== null)
-
+function normalizeMarksSubject(raw) {
+  const components = normalizeComponentList(raw)
+  const explicitTotal = safeNumber(raw?.total)
+  const derivedTotal = components.reduce((sum, c) => sum + (c.numericValue || 0), 0)
+  const derivedMaxTotal = components.reduce((sum, c) => sum + (c.maxValue || 0), 0)
+  const hasNumeric = components.some((c) => c.numericValue !== null)
   return {
-    subjectCode: String(rawSubject?.subjectCode || rawSubject?.subject_code || rawSubject?.code || '').trim().toUpperCase(),
-    subjectName: String(rawSubject?.subjectName || rawSubject?.subject_name || rawSubject?.name || '').trim(),
-    units: String(rawSubject?.units || '').trim() || null,
+    subjectCode: String(raw?.subjectCode || raw?.subject_code || raw?.code || '').trim().toUpperCase(),
+    subjectName: String(raw?.subjectName || raw?.subject_name || raw?.name || '').trim(),
+    units: String(raw?.units || '').trim() || null,
     components,
-    total: hasNumericComponents ? derivedTotal : (explicitTotal ?? 0),
-    maxTotal: safeNumber(rawSubject?.maxTotal ?? rawSubject?.max_total) || derivedMaxTotal || 60,
+    total: hasNumeric ? derivedTotal : (explicitTotal ?? 0),
+    maxTotal: safeNumber(raw?.maxTotal ?? raw?.max_total) || derivedMaxTotal || 60,
   }
 }
 
 function Marks() {
   const navigate = useNavigate()
-  const {
-    state: { attendance, session },
-    actions,
-  } = useAppStore()
+  const { state: { attendance, session, user }, actions } = useAppStore()
+  const isDemo = user.authProvider === 'demo'
 
   const [selectedSubjectCode, setSelectedSubjectCode] = useState('')
   const [marksByCode, setMarksByCode] = useState({})
@@ -130,93 +96,103 @@ function Marks() {
   const selectedMarks = selectedSubjectCode ? marksByCode[selectedSubjectCode] : null
 
   const chartData = useMemo(() => {
-    if (!hasFetchedMarks) {
-      return []
-    }
-
+    if (!hasFetchedMarks) return []
     return subjectOptions
-      .map((subject) => ({
-        subjectCode: subject.subjectCode,
-        total: marksByCode[subject.subjectCode]?.total,
-      }))
-      .filter((entry) => Number.isFinite(Number(entry.total)))
+      .map((s) => ({ subjectCode: s.subjectCode, total: marksByCode[s.subjectCode]?.total }))
+      .filter((e) => Number.isFinite(Number(e.total)))
   }, [hasFetchedMarks, marksByCode, subjectOptions])
 
+  // Compute overview stats
+  const overviewStats = useMemo(() => {
+    if (!hasFetchedMarks || !chartData.length) return null
+
+    const totalCredits = subjectOptions.reduce((sum, s) => {
+      const marks = marksByCode[s.subjectCode]
+      return sum + (Number(marks?.units) || 0)
+    }, 0)
+
+    // Credit-weighted average
+    let weightedSum = 0
+    let creditSum = 0
+    subjectOptions.forEach((s) => {
+      const marks = marksByCode[s.subjectCode]
+      if (!marks) return
+      const credit = Number(marks.units) || 1
+      const pct = marks.maxTotal > 0 ? (marks.total / marks.maxTotal) * 100 : 0
+      weightedSum += pct * credit
+      creditSum += credit
+    })
+    const avg = creditSum > 0 ? weightedSum / creditSum : 0
+
+    // Strongest and weakest
+    let strongest = null
+    let weakest = null
+    let highestPct = -1
+    let lowestPct = 101
+
+    subjectOptions.forEach((s) => {
+      const marks = marksByCode[s.subjectCode]
+      if (!marks || marks.maxTotal <= 0) return
+      const pct = (marks.total / marks.maxTotal) * 100
+      if (pct > highestPct) { highestPct = pct; strongest = { code: s.subjectCode, pct } }
+      if (pct < lowestPct) { lowestPct = pct; weakest = { code: s.subjectCode, pct } }
+    })
+
+    return { avg, totalCredits, strongest, weakest }
+  }, [chartData.length, hasFetchedMarks, marksByCode, subjectOptions])
+
   const loadMarksData = useCallback(async (forceRefresh = false) => {
-    if (hasFetchedMarks && !forceRefresh) {
+    if (hasFetchedMarks && !forceRefresh) return true
+
+    // Demo mode: load demo marks
+    if (isDemo) {
+      const { DEMO_MARKS } = await import('../constants/demoData')
+      const marksRows = Array.isArray(DEMO_MARKS?.subjects) ? DEMO_MARKS.subjects : []
+      const mapped = subjectOptions.reduce((acc, s) => {
+        const match = marksRows.find((r) => normalizeCode(r.subjectCode || r.subject_code) === normalizeCode(s.subjectCode))
+        return { ...acc, [s.subjectCode]: match ? normalizeMarksSubject(match) : null }
+      }, {})
+      setMarksByCode(mapped)
+      setHasFetchedMarks(true)
       return true
     }
 
     if (!session.token) {
       actions.logout()
-      window.localStorage.removeItem('attend75.selectedSemester')
       navigate('/login', { replace: true })
       return false
     }
 
     try {
       setIsLoadingMarks(true)
-      const response = await fetchConsolidatedMarks({
-        token: session.token,
-        semesterId: session.selectedSemester,
-        forceRefresh,
-      })
-
+      const response = await fetchConsolidatedMarks({ token: session.token, semesterId: session.selectedSemester, forceRefresh })
       const marksRows = Array.isArray(response?.subjects) ? response.subjects : []
 
-      const normalizedByCode = marksRows.reduce((accumulator, row) => {
-        const normalized = normalizeMarksSubject(row)
-        const key = normalizeCode(normalized.subjectCode)
-        if (!key) {
-          return accumulator
-        }
-
-        return {
-          ...accumulator,
-          [normalized.subjectCode]: normalized,
-          [key]: normalized,
-        }
+      const normalizedByCode = marksRows.reduce((acc, row) => {
+        const n = normalizeMarksSubject(row)
+        const key = normalizeCode(n.subjectCode)
+        if (!key) return acc
+        return { ...acc, [n.subjectCode]: n, [key]: n }
       }, {})
 
-      const normalizedByName = marksRows.reduce((accumulator, row) => {
-        const normalized = normalizeMarksSubject(row)
-        const nameKey = normalizeSubjectName(normalized.subjectName)
-        if (!nameKey) {
-          return accumulator
-        }
-
-        return {
-          ...accumulator,
-          [nameKey]: normalized,
-        }
+      const normalizedByName = marksRows.reduce((acc, row) => {
+        const n = normalizeMarksSubject(row)
+        const nameKey = normalizeSubjectName(n.subjectName)
+        if (!nameKey) return acc
+        return { ...acc, [nameKey]: n }
       }, {})
 
-      const mappedToSelectorCodes = subjectOptions.reduce((accumulator, subject) => {
-        const key = normalizeCode(subject.subjectCode)
-        const value =
-          normalizedByCode[subject.backendCode] ||
-          normalizedByCode[subject.subjectCode] ||
-          normalizedByCode[key] ||
-          normalizedByName[subject.nameKey] ||
-          null
-
-        return {
-          ...accumulator,
-          [subject.subjectCode]: value,
-        }
+      const mapped = subjectOptions.reduce((acc, s) => {
+        const key = normalizeCode(s.subjectCode)
+        const value = normalizedByCode[s.backendCode] || normalizedByCode[s.subjectCode] || normalizedByCode[key] || normalizedByName[s.nameKey] || null
+        return { ...acc, [s.subjectCode]: value }
       }, {})
 
-      setMarksByCode(mappedToSelectorCodes)
+      setMarksByCode(mapped)
       setHasFetchedMarks(true)
       return true
     } catch (error) {
-      if (isSessionExpiredError(error)) {
-        actions.logout()
-        window.localStorage.removeItem('attend75.selectedSemester')
-        navigate('/login', { replace: true })
-        return false
-      }
-
+      if (isSessionExpiredError(error)) { actions.logout(); navigate('/login', { replace: true }); return false }
       setMarksError(error?.message || 'Unable to load marks right now.')
       return false
     } finally {
@@ -225,44 +201,82 @@ function Marks() {
   }, [actions, hasFetchedMarks, navigate, session.selectedSemester, session.token, subjectOptions])
 
   useEffect(() => {
-    if (isLoadingMarks || hasFetchedMarks) {
-      return
-    }
-
+    if (isLoadingMarks || hasFetchedMarks) return
     void loadMarksData(false)
   }, [hasFetchedMarks, isLoadingMarks, loadMarksData])
 
-  const handleSelectSubject = async (subjectCode) => {
-    setSelectedSubjectCode(subjectCode)
-    setMarksError('')
-  }
-
-  const handleRefreshMarks = async () => {
-    setMarksError('')
-    await loadMarksData(true)
-  }
-
   return (
-    <section className="space-y-6 pb-3">
+    <section className="space-y-3 pb-3">
+      {/* Header */}
       <header>
-        <h1 className="text-3xl font-bold tracking-tight text-[#E7DEDE] sm:text-4xl">Marks</h1>
-        <p className="mt-1 text-xs text-[#CFC5E8] sm:text-sm">Review consolidated internals and compare performance by subject.</p>
+        <h1 className="text-2xl font-extrabold text-[#F7F4FF] sm:text-3xl">Marks</h1>
+        <p className="mt-0.5 text-[11px] text-[#9F9AB5]">Internal assessment across subjects</p>
       </header>
 
-      <MarksRadarChart data={chartData} isLoading={isLoadingMarks && !hasFetchedMarks} />
+      {/* Top section: Stats + Radar */}
+      <div className="grid gap-3 lg:grid-cols-[1fr_1fr]">
+        {/* Stats card */}
+        <div className="rounded-2xl bg-[#4A466A] p-5 ring-1 ring-white/5">
+          {overviewStats ? (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#9F9AB5]">Avg (Credit-Wt.)</p>
+                  <p className="mt-1 text-3xl font-extrabold text-[#4EF0A0]">{overviewStats.avg.toFixed(1)}%</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#9F9AB5]">Credits</p>
+                  <p className="mt-1 text-3xl font-extrabold text-[#F7F4FF]">{overviewStats.totalCredits}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#9F9AB5]">Strongest</p>
+                  <p className="mt-1 text-xl font-extrabold text-[#4EF0A0]">{overviewStats.strongest?.code || '—'}</p>
+                  <p className="text-xs text-[#9F9AB5]">{overviewStats.strongest ? `${overviewStats.strongest.pct.toFixed(0)}%` : ''}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#9F9AB5]">Needs Work</p>
+                  <p className="mt-1 text-xl font-extrabold text-[#FF5B5B]">{overviewStats.weakest?.code || '—'}</p>
+                  <p className="text-xs text-[#9F9AB5]">{overviewStats.weakest ? `${overviewStats.weakest.pct.toFixed(0)}%` : ''}</p>
+                </div>
+              </div>
 
-      <section className="rounded-3xl bg-[#312051] p-5">
+              {overviewStats.weakest ? (
+                <div className="mt-4 border-t border-white/10 pt-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#9F9AB5]">Study Suggestion</p>
+                  <p className="mt-1 text-xs leading-relaxed text-[#D8D4E7]">
+                    Your weakest internal is <span className="font-bold text-[#F7F4FF]">{overviewStats.weakest.code}</span>. Open it in StudyMe to revise before the next assessment.
+                  </p>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <div className="flex h-full items-center justify-center py-8">
+              <p className="text-sm text-[#9F9AB5]">{isLoadingMarks ? 'Loading marks...' : 'No marks data available.'}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Radar chart card */}
+        <div className="rounded-2xl bg-[#4A466A] p-4 ring-1 ring-white/5">
+          <MarksRadarChart data={chartData} isLoading={isLoadingMarks && !hasFetchedMarks} selectedSubjectCode={selectedSubjectCode} />
+        </div>
+      </div>
+
+      {/* Consolidated marks list */}
+      <div className="rounded-2xl bg-[#4A466A] p-5 ring-1 ring-white/5">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold text-[#E7DEDE]">Consolidated Marks List</h2>
+          <div>
+            <h2 className="text-base font-bold text-[#F7F4FF]">Consolidated marks list</h2>
+            <p className="text-[11px] text-[#9F9AB5]">Select a subject to see components</p>
+          </div>
           <button
             type="button"
-            onClick={handleRefreshMarks}
-            disabled={isLoadingMarks || !session.token}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-[#3A315D] text-[#E7DEDE] transition-all duration-200 hover:bg-[#4A3E73] hover:scale-[1.03] disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={() => { setMarksError(''); loadMarksData(true) }}
+            disabled={isLoadingMarks}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 text-[#D8D4E7] transition hover:bg-white/10 disabled:opacity-60"
             aria-label="Refresh marks"
-            title="Refresh marks"
           >
-            <RefreshIcon />
+            <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" /></svg>
           </button>
         </div>
 
@@ -271,52 +285,37 @@ function Marks() {
             subjects={subjectOptions}
             selectedSubjectCode={selectedSubjectCode}
             disabled={isLoadingMarks}
-            onSelect={handleSelectSubject}
+            onSelect={(code) => { setSelectedSubjectCode(code); setMarksError('') }}
           />
         </div>
 
-        {isLoadingMarks ? (
-          <div className="mt-4 rounded-lg border border-white/20 bg-[#3A315D] px-3 py-2 text-sm text-[#D1D1D1]">
-            Loading marks...
-          </div>
-        ) : null}
-
         {marksError ? (
-          <div className="mt-4 rounded-lg border border-[#EF4444]/50 bg-[#7F1D1D]/20 px-3 py-2 text-sm text-[#FECACA]">
+          <div className="mt-4 rounded-xl border border-[#FF5B5B]/40 bg-[#FF5B5B]/10 px-3 py-2 text-xs text-[#FFD4D4]">
             {marksError}
           </div>
         ) : null}
 
-        {!hasFetchedMarks && !isLoadingMarks && !marksError ? (
-          <p className="mt-4 text-sm text-[#D1D1D1]">Marks data is not available right now.</p>
-        ) : null}
-
-        {selectedSubjectCode && isLoadingMarks ? (
-          <div className="mt-6 animate-pulse rounded-3xl bg-[#C9B7A3] p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <div className="h-4 w-20 rounded bg-[#A28E76]/50" />
-              <div className="h-4 w-16 rounded bg-[#A28E76]/50" />
+        {isLoadingMarks && selectedSubjectCode ? (
+          <div className="mt-4 animate-pulse rounded-2xl bg-[#E8DCC8]/20 p-5">
+            <div className="h-4 w-20 rounded bg-white/10" />
+            <div className="mt-3 space-y-2">
+              <div className="h-4 rounded bg-white/10" />
+              <div className="h-4 rounded bg-white/10" />
+              <div className="h-4 rounded bg-white/10" />
             </div>
-            <div className="space-y-2.5">
-              <div className="h-5 rounded bg-[#A28E76]/40" />
-              <div className="h-5 rounded bg-[#A28E76]/40" />
-              <div className="h-5 rounded bg-[#A28E76]/40" />
-            </div>
-            <div className="mt-4 h-px bg-[#5C4B3A]/20" />
-            <div className="mt-3 h-6 w-24 rounded bg-[#A28E76]/50" />
           </div>
         ) : null}
 
         {hasFetchedMarks && selectedSubjectCode && selectedMarks && !isLoadingMarks ? (
-          <div className="mt-6 transition-all duration-200 ease-out">
+          <div className="mt-4">
             <MarksDetailCard marks={selectedMarks} displaySubjectCode={selectedSubjectCode} />
           </div>
         ) : null}
 
         {hasFetchedMarks && selectedSubjectCode && !selectedMarks && !isLoadingMarks ? (
-          <p className="mt-4 text-sm text-[#D1D1D1]">Marks are not available yet for {selectedSubjectCode}.</p>
+          <p className="mt-4 text-sm text-[#9F9AB5]">Marks are not available yet for {selectedSubjectCode}.</p>
         ) : null}
-      </section>
+      </div>
     </section>
   )
 }

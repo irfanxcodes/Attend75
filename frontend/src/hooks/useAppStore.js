@@ -1,6 +1,12 @@
 import { useMemo } from 'react'
 import { signOutFirebaseUser } from '../services/firebaseAuth'
 import { useAppDispatch, useAppState } from '../store/AppStateProvider'
+import {
+  clearAttendanceSnapshot,
+  clearPersistedSession,
+  persistAttendanceSnapshot,
+  persistSession,
+} from '../services/sessionPersistence'
 
 function useAppStore() {
   const state = useAppState()
@@ -8,7 +14,12 @@ function useAppStore() {
 
   const actions = useMemo(
     () => ({
-      setAuthSession: (session) => dispatch({ type: 'SET_AUTH_SESSION', payload: session }),
+      setAuthSession: (session) => {
+        dispatch({ type: 'SET_AUTH_SESSION', payload: session })
+
+        // Persist guest session token for PWA session recovery
+        persistSession(session)
+      },
       setSessionSemesters: (semesters, selectedSemester) =>
         dispatch({
           type: 'SET_SESSION_SEMESTERS',
@@ -28,10 +39,20 @@ function useAppStore() {
             'attend75.authEvent',
             JSON.stringify({ type: 'logout', ts: Date.now() }),
           )
+
+          // Clear persisted PWA session and cached data
+          clearPersistedSession()
+          clearAttendanceSnapshot()
+
           dispatch({ type: 'LOGOUT' })
         }
       },
-      setAttendanceData: (attendanceData) => dispatch({ type: 'SET_ATTENDANCE_DATA', payload: attendanceData }),
+      setAttendanceData: (attendanceData) => {
+        dispatch({ type: 'SET_ATTENDANCE_DATA', payload: attendanceData })
+
+        // Cache attendance snapshot for instant display on next PWA open
+        persistAttendanceSnapshot(attendanceData)
+      },
       setSelectedTarget: (target) => dispatch({ type: 'SET_SELECTED_TARGET', payload: target }),
       setLoading: (isLoading) => dispatch({ type: 'SET_LOADING', payload: isLoading }),
       setError: (errorMessage) => dispatch({ type: 'SET_ERROR', payload: errorMessage }),

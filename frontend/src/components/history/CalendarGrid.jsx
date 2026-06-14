@@ -1,4 +1,4 @@
-const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const WEEKDAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 
 function buildCalendarCells(currentDate) {
   const year = currentDate.getFullYear()
@@ -19,38 +19,79 @@ function buildCalendarCells(currentDate) {
   return [...leadingEmpty, ...monthDays]
 }
 
-function CalendarGrid({ currentDate, selectedDate, onSelectDate }) {
+function CalendarGrid({ currentDate, selectedDate, onSelectDate, dayStatusMap }) {
   const cells = buildCalendarCells(currentDate)
+  const today = new Date()
+  const isCurrentMonth =
+    currentDate.getFullYear() === today.getFullYear() && currentDate.getMonth() === today.getMonth()
+  const todayDay = isCurrentMonth ? today.getDate() : null
 
   return (
-    <div className="rounded-2xl bg-[#E2BC8B] p-3 text-[#15122D] shadow-sm sm:p-4">
-      <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[11px] font-semibold uppercase tracking-wide text-[#3E365F]/80 sm:gap-2 sm:text-xs">
+    <div>
+      {/* Weekday headers */}
+      <div className="mb-2 grid grid-cols-7 text-center">
         {WEEKDAY_LABELS.map((day) => (
-          <span key={day}>{day}</span>
+          <span key={day} className="text-[10px] font-bold uppercase tracking-wider text-[#9F9AB5]">
+            {day}
+          </span>
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-1 sm:gap-2">
+      {/* Day cells */}
+      <div className="grid grid-cols-7 gap-y-1">
         {cells.map((cell) => {
           if (!cell.day) {
-            return <span key={cell.id} className="h-9 sm:h-10" aria-hidden="true" />
+            return <span key={cell.id} className="h-10 sm:h-11" aria-hidden="true" />
           }
 
           const isSelected = selectedDate === cell.day
+          const isToday = todayDay === cell.day
+          const status = dayStatusMap?.[cell.day]
+          // status can be: 'all_present', 'some_absent', 'all_absent', 'no_data', undefined
+
+          let dotElements = null
+          if (status === 'all_present') {
+            dotElements = (
+              <div className="mt-0.5 flex justify-center gap-px">
+                <span className="h-1 w-1 rounded-full bg-[#4EF0A0]" />
+                <span className="h-1 w-1 rounded-full bg-[#4EF0A0]" />
+                <span className="h-1 w-1 rounded-full bg-[#4EF0A0]" />
+              </div>
+            )
+          } else if (status === 'some_absent') {
+            dotElements = (
+              <div className="mt-0.5 flex justify-center gap-px">
+                <span className="h-1 w-1 rounded-full bg-[#4EF0A0]" />
+                <span className="h-1 w-1 rounded-full bg-[#FF5B5B]" />
+                <span className="h-1 w-1 rounded-full bg-[#4EF0A0]" />
+              </div>
+            )
+          } else if (status === 'all_absent') {
+            dotElements = (
+              <div className="mt-0.5 flex justify-center gap-px">
+                <span className="h-1 w-1 rounded-full bg-[#FF5B5B]" />
+                <span className="h-1 w-1 rounded-full bg-[#FF5B5B]" />
+                <span className="h-1 w-1 rounded-full bg-[#FF5B5B]" />
+              </div>
+            )
+          }
 
           return (
             <button
               key={cell.id}
               type="button"
               onClick={() => onSelectDate(cell.day)}
-              className={`h-9 rounded-full text-xs font-medium transition duration-200 sm:h-10 sm:text-sm ${
+              className={`flex h-10 flex-col items-center justify-center rounded-lg text-xs font-medium transition-all duration-200 sm:h-11 sm:text-sm ${
                 isSelected
-                  ? 'bg-[#5B5485] text-white shadow-sm'
-                  : 'text-[#1D1738] hover:bg-[#D2A56C] hover:text-[#121021]'
+                  ? 'bg-[#FF916C] font-bold text-[#1D183E] shadow-md'
+                  : isToday
+                    ? 'font-bold text-[#FF916C]'
+                    : 'text-[#D8D4E7] hover:bg-white/5'
               }`}
               aria-pressed={isSelected}
             >
-              {cell.day}
+              <span>{cell.day}</span>
+              {dotElements}
             </button>
           )
         })}

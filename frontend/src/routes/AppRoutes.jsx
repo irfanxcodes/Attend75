@@ -2,8 +2,13 @@ import { lazy, Suspense, useEffect, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import useAppStore from '../hooks/useAppStore'
 import { parseAdminSession } from '../services/adminApi'
-import { loginWithFirebase } from '../services/attendanceApi'
+import { fetchSessionStatus, loginWithFirebase } from '../services/attendanceApi'
 import { subscribeToFirebaseAuthState } from '../services/firebaseAuth'
+import {
+  clearPersistedSession,
+  loadAttendanceSnapshot,
+  loadPersistedSession,
+} from '../services/sessionPersistence'
 
 const AppLayout = lazy(() => import('../components/layout/AppLayout'))
 const Dashboard = lazy(() => import('../pages/Dashboard'))
@@ -24,9 +29,9 @@ const AdminDashboard = lazy(() => import('../pages/admin/AdminDashboard'))
 
 function RouteFallback({ message = 'Loading page...' }) {
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-[#48426D] px-4 sm:px-6">
-      <div className="w-full max-w-sm rounded-2xl border border-white/20 bg-[#5B5485] p-5 text-center shadow-md">
-        <p className="text-sm font-medium text-[#F4F1FF]">{message}</p>
+    <div className="flex min-h-dvh items-center justify-center bg-[#5B5878] px-4 sm:px-6">
+      <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#4A466A] p-5 text-center shadow-md">
+        <p className="text-sm font-medium text-[#F7F4FF]">{message}</p>
       </div>
     </div>
   )
@@ -124,51 +129,119 @@ function AppRoutes() {
       }
     }, 10000)
 
-    const unsubscribe = subscribeToFirebaseAuthState(async (firebaseUser) => {
-      if (!isActive) {
-        return
-      }
+    // Fast path: try to restore a persisted guest session first
+    const persistedSession = loadPersistedSession()
+    const cleanupRef = { current: null }
 
-      if (!firebaseUser) {
-        setAuthBootstrapComplete(true)
-        return
-      }
+    if (persistedSession && persistedSession.token) {
+      // Validate the token with the server in the background
+      fetchSessionStatus(persistedSession.token)
+        .then((status) => {
+          if (!isActive) return
 
-      if (user.isAuthenticated) {
-        setAuthBootstrapComplete(true)
-        return
-      }
+          if (status === 'linked' || status === 'unknown') {
+            // Token is still valid — restore session immediately
+            const cachedAttendance = loadAttendanceSnapshot()
 
-      try {
-        const result = await Promise.race([
-          (async () => {
-            const idToken = await firebaseUser.getIdToken(true)
-            return loginWithFirebase(idToken)
-          })(),
-          new Promise((_, reject) => {
-            window.setTimeout(() => {
-              reject(new Error('Firebase bootstrap timed out'))
-            }, 7000)
-          }),
-        ])
+            actions.setAuthSession({
+              id: persistedSession.rollNumber,
+              name: persistedSession.name,
+              portalName: persistedSession.portalName,
+              rollNumber: persistedSession.rollNumber,
+              authProvider: persistedSession.authProvider,
+              token: persistedSession.token,
+              semesters: persistedSession.semesters,
+              selectedSemester: persistedSession.selectedSemester,
+            })
 
-        if (result.linked && result.session) {
-          actions.setAuthSession(result.session)
-          actions.setAttendanceData(result.session.attendanceData)
+            if (cachedAttendance) {
+              actions.setAttendanceData(cachedAttendance)
+            }
+
+            setAuthBootstrapComplete(true)
+          } else {
+            // Token expired — clear and fall through to Firebase check
+            clearPersistedSession()
+            startFirebaseBootstrap()
+          }
+        })
+        .catch(() => {
+          if (!isActive) return
+          // Network error — still try to show cached data if available
+          const cachedAttendance = loadAttendanceSnapshot()
+          if (cachedAttendance && persistedSession.token) {
+            actions.setAuthSession({
+              id: persistedSession.rollNumber,
+              name: persistedSession.name,
+              portalName: persistedSession.portalName,
+              rollNumber: persistedSession.rollNumber,
+              authProvider: persistedSession.authProvider,
+              token: persistedSession.token,
+              semesters: persistedSession.semesters,
+              selectedSemester: persistedSession.selectedSemester,
+            })
+            actions.setAttendanceData(cachedAttendance)
+            setAuthBootstrapComplete(true)
+          } else {
+            startFirebaseBootstrap()
+          }
+        })
+    } else {
+      startFirebaseBootstrap()
+    }
+
+    function startFirebaseBootstrap() {
+      const unsubscribe = subscribeToFirebaseAuthState(async (firebaseUser) => {
+        if (!isActive) {
+          return
         }
-      } catch {
-        // Keep guest path unaffected when Firebase auto-login fails.
-      } finally {
-        if (isActive) {
+
+        if (!firebaseUser) {
           setAuthBootstrapComplete(true)
+          return
         }
-      }
-    })
+
+        if (user.isAuthenticated) {
+          setAuthBootstrapComplete(true)
+          return
+        }
+
+        try {
+          const result = await Promise.race([
+            (async () => {
+              const idToken = await firebaseUser.getIdToken(true)
+              return loginWithFirebase(idToken)
+            })(),
+            new Promise((_, reject) => {
+              window.setTimeout(() => {
+                reject(new Error('Firebase bootstrap timed out'))
+              }, 7000)
+            }),
+          ])
+
+          if (result.linked && result.session) {
+            actions.setAuthSession(result.session)
+            actions.setAttendanceData(result.session.attendanceData)
+          }
+        } catch {
+          // Keep guest path unaffected when Firebase auto-login fails.
+        } finally {
+          if (isActive) {
+            setAuthBootstrapComplete(true)
+          }
+        }
+      })
+
+      // Store unsubscribe for cleanup
+      cleanupRef.current = unsubscribe
+    }
 
     return () => {
       isActive = false
       window.clearTimeout(bootstrapTimeoutId)
-      unsubscribe()
+      if (cleanupRef.current) {
+        cleanupRef.current()
+      }
     }
   }, [actions, isAuthBootstrapComplete, user.isAuthenticated])
 

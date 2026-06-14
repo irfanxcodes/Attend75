@@ -1,0 +1,30 @@
+{
+  "name": "Attend75 — Attendance Tracker",
+  "short_name": "Attend75",
+  "description": "Track your college attendance and stay above 75%",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#5B5878",
+  "theme_color": "#5B5878",
+  "orientation": "portrait-primary",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -3,7 +3,7 @@ import os
 import threading
 
 from scrapers.portal_scraper import PortalAuthenticationError, PortalNetworkError, PortalScraper
-from services.feature_usage_event_service import record_feature_usage_event
+from services.feature_usage_event_service import get_user_mails_sent_count, record_feature_usage_event
 from services.feature_usage_metrics import observe_history_open, observe_marks_open, observe_sync_attendance
 from services.scraper_metrics import observe_scrape
 from services.session_store import session_store
@@ -363,3 +363,81 @@ def track_feature_usage_event(
     )
 
     return {"tracked": True}
+
+
+def get_mails_sent(token: str) -> dict:
+    record = session_store.get(token)
+    if record is None:
+        raise PortalAuthenticationError("Session token not found while fetching mails sent count", code="SESSION_EXPIRED")
+
+    count = get_user_mails_sent_count(record.roll_number)
+    return {"mails_sent": count, "user_identifier": record.roll_number}
+
+
+def calculate_attendance_streak(token: str, semester_id: str | None) -> dict:
+    """Calculate current streak: consecutive academic days with full attendance, counting backwards from most recent."""
+    record = session_store.get(token)
+    if record is None:
+        raise PortalAuthenticationError("Session token not found while calculating streak", code="SESSION_EXPIRED")
+
+    started = time.perf_counter()
+    try:
+        # This call fetches and caches the full history (or reads from cache if already loaded)
+        payload = _run_with_session_lock(
+            record,
+            lambda: _run_with_network_retry(
+                lambda: record.scraper.fetch_subject_attendance_history(semester_id=semester_id, date=None)
+            ),
+        )
+        observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
+
+        history_by_date = payload.get("history_by_date", {})
+        if not history_by_date:
+            return {"streak": 0, "selected_semester": payload.get("selected_semester")}
+
+        # Sort dates in reverse chronological order
+        sorted_dates = sorted(history_by_date.keys(), reverse=True)
+        streak = 0
+
+        for date_key in sorted_dates:
+            entries = history_by_date[date_key]
+            if not isinstance(entries, list) or len(entries) == 0:
+                continue
+
+            # Check if ALL classes on this day were attended
+            all_present = all(
+                entry.get("attended") is True
+                for entry in entries
+                if isinstance(entry, dict)
+            )
+
+            if all_present:
+                streak += 1
+            else:
+                break
+
+        return {
+            "streak": streak,
+            "selected_semester": payload.get("selected_semester"),
+        }
+    except PortalNetworkError as exc:
+        observe_scrape(
+            success=False,
+            duration_ms=(time.perf_counter() - started) * 1000,
+            failure_kind="network",
+            failure_code=getattr(exc, "code", None),
+            failure_stage=getattr(exc, "stage", None),
+            retriable=getattr(exc, "retriable", None),
+        )
+        raise
+    except PortalAuthenticationError as exc:
+        observe_scrape(
+            success=False,
+            duration_ms=(time.perf_counter() - started) * 1000,
+            failure_kind="auth",
+            failure_code=getattr(exc, "code", None),
+        )
+        raise
+    except Exception:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000, failure_kind="unknown")
+        raise

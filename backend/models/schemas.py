@@ -278,3 +278,16 @@ class AdminPasswordLoginRequest(BaseModel):
         if not cleaned:
             raise ValueError(f"{info.field_name} must not be empty")
         return cleaned
+
+
+class RatingRequest(BaseModel):
+    token: str = Field(..., description="Session token from /login")
+    rating: int = Field(..., ge=1, le=5, description="Star rating from 1 to 5")
+
+    @field_validator("token")
+    @classmethod
+    def validate_rating_token(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("token must not be empty")
+        return cleaned

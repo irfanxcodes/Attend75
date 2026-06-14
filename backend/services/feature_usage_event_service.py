@@ -13,6 +13,23 @@ CONSOLIDATED_MARKS_FEATURE = "consolidated_marks"
 ACTION_VIEWED = "viewed"
 
 
+def get_user_mails_sent_count(user_identifier: str) -> int:
+    """Count all confirmed mail_faculty sends for a specific user."""
+    normalized = str(user_identifier or "").strip().upper()
+    if not normalized:
+        return 0
+
+    with SessionLocal() as session:
+        count = (
+            session.query(func.count(FeatureUsageEvent.id))
+            .filter(FeatureUsageEvent.feature_name == MAIL_FACULTY_FEATURE)
+            .filter(FeatureUsageEvent.action_type == ACTION_SEND_CONFIRMED)
+            .filter(FeatureUsageEvent.user_identifier == normalized)
+            .scalar()
+        )
+        return int(count or 0)
+
+
 def record_feature_usage_event(
     *,
     feature_name: str,

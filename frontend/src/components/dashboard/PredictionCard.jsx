@@ -1,9 +1,26 @@
-const targets = [60, 65, 75, 80]
+const targets = [60, 65, 70, 75, 80, 85, 90]
 
-function PredictionCard({ selectedTarget, currentAttendance, prediction, feasibility, onChangeTarget }) {
-  const isTargetAchievable = feasibility?.isTargetAchievable ?? true
-  const maxPossiblePercentage = feasibility?.maxPossiblePercentage
-  const fallbackTarget = Math.max(50, Math.min(100, Math.round(currentAttendance || 75)))
+function calculateMaxPossiblePercentage(totalAttended, totalClasses, totalClassesLeft) {
+  const attended = Number(totalAttended) || 0
+  const conducted = Number(totalClasses) || 0
+  const left = Number(totalClassesLeft) || 0
+  const finalConducted = conducted + left
+
+  if (finalConducted <= 0) {
+    return 100
+  }
+
+  return ((attended + left) / finalConducted) * 100
+}
+
+function PredictionCard({ selectedTarget, prediction, totals, onChangeTarget }) {
+  const maxPossiblePercentage = calculateMaxPossiblePercentage(
+    totals.totalAttended,
+    totals.totalClasses,
+    totals.totalClassesLeft,
+  )
+  const isTargetAchievable = selectedTarget <= maxPossiblePercentage
+  const fallbackTarget = Math.max(50, Math.min(100, Math.round(selectedTarget || 75)))
   const sliderValue = Number.isFinite(selectedTarget) ? selectedTarget : fallbackTarget
 
   function handleSliderChange(event) {
@@ -11,54 +28,58 @@ function PredictionCard({ selectedTarget, currentAttendance, prediction, feasibi
   }
 
   return (
-    <section className="rounded-2xl border border-white/20 bg-[#312051] p-4 sm:p-5">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-base font-semibold text-[#E7DEDE]">Prediction</h2>
-        <p className="text-xs text-[#D1D1D1]">Target: {selectedTarget}%</p>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-3">
-        <div className={["rounded-xl p-3", isTargetAchievable ? "bg-[#22C55E]/15" : "bg-[#22C55E]/10"].join(' ')}>
-          <p className="text-xs uppercase tracking-wide text-[#D1D1D1]">To Attend</p>
-          <p className={["mt-1 text-xl font-bold sm:text-2xl", isTargetAchievable ? "text-[#22C55E]" : "text-[#86EFAC]"] .join(' ')}>
-            {prediction.toAttend}
-          </p>
+    <section className="rounded-2xl bg-[#4A466A] p-3 shadow-[0_8px_20px_rgba(40,36,62,0.18)] ring-1 ring-black/5 md:p-4">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-extrabold text-[#F7F4FF]">Prediction</h2>
+          <p className="text-[10px] font-medium text-[#9F9AB5]">Pick your target %</p>
         </div>
-
-        <div className="rounded-xl bg-[#F59E0B]/15 p-3">
-          <p className="text-xs uppercase tracking-wide text-[#D1D1D1]">Can Miss</p>
-          <p className="mt-1 text-xl font-bold text-[#F59E0B] sm:text-2xl">{prediction.canMiss}</p>
+        <div className="text-right">
+          <p className="text-[11px] font-bold text-[#C8C4D8]">Target {selectedTarget}%</p>
+          <p className="text-[10px] font-semibold text-[#9F9AB5]">Max {maxPossiblePercentage.toFixed(1)}%</p>
         </div>
       </div>
 
-      {!isTargetAchievable && maxPossiblePercentage !== null ? (
-        <div className="mt-3 rounded-lg border border-[#F87171]/35 bg-[#7F1D1D]/20 px-3 py-2.5 text-sm text-[#FECACA]">
-          You can attain a maximum of {maxPossiblePercentage.toFixed(2)}% if you attend all remaining classes.
+      {!isTargetAchievable ? (
+        <div className="mt-2 rounded-lg border border-[#FF5B5B]/35 bg-[#FF5B5B]/15 px-2.5 py-1.5 text-[10px] font-medium text-[#FFD4D4]">
+          Max attainable: {maxPossiblePercentage.toFixed(1)}% if you attend all remaining classes.
         </div>
       ) : null}
 
-      <div className="mt-4 flex flex-wrap gap-1.5 sm:gap-2">
-        {targets.map((target) => (
-          <button
-            key={target}
-            type="button"
-            onClick={() => onChangeTarget(target)}
-            className={[
-              'rounded-full px-3 py-1.5 text-xs font-medium transition-colors sm:px-4 sm:text-sm',
-              sliderValue === target
-                ? 'bg-[#E8A08C] text-[#312051]'
-                : 'bg-white/10 text-[#D1D1D1] hover:bg-white/20',
-            ].join(' ')}
-          >
-            {target}%
-          </button>
-        ))}
+      <div className="mt-2.5 flex flex-wrap gap-1.5">
+        {targets.map((target) => {
+          const isImpossible = target > maxPossiblePercentage
+          return (
+            <button
+              key={target}
+              type="button"
+              onClick={() => {
+                if (!isImpossible) {
+                  onChangeTarget(target)
+                }
+              }}
+              disabled={isImpossible}
+              aria-disabled={isImpossible}
+              title={isImpossible ? `Maximum possible is ${maxPossiblePercentage.toFixed(1)}%` : undefined}
+              className={[
+                'rounded-full px-2.5 py-1 text-[11px] font-extrabold transition-colors',
+                sliderValue === target && !isImpossible
+                  ? 'bg-[#FF916C] text-[#201C31]'
+                  : isImpossible
+                    ? 'cursor-not-allowed bg-transparent text-[#8F8AA5] line-through opacity-65 ring-1 ring-white/10'
+                    : 'bg-transparent text-[#D8D4E7] ring-1 ring-white/15 hover:bg-white/10',
+              ].join(' ')}
+            >
+              {target}%
+            </button>
+          )
+        })}
       </div>
 
-      <div className="mt-4 rounded-xl border border-white/15 bg-[#3A315D] p-3">
-        <div className="flex items-center justify-between text-xs text-[#D1D1D1]">
-          <span>Custom target</span>
-          <span className="font-semibold text-[#E7DEDE]">{sliderValue}%</span>
+      <div className="mt-3">
+        <div className="flex items-center justify-between text-[11px] font-bold text-[#C8C4D8]">
+          <span>Custom</span>
+          <span className="text-sm text-[#F7F4FF]">{sliderValue}%</span>
         </div>
         <input
           type="range"
@@ -67,12 +88,25 @@ function PredictionCard({ selectedTarget, currentAttendance, prediction, feasibi
           step={1}
           value={sliderValue}
           onChange={handleSliderChange}
-          className="mt-2 h-2 w-full cursor-pointer appearance-none rounded-lg bg-white/20 accent-[#E8A08C]"
+          className="mt-2 h-1 w-full cursor-pointer appearance-none rounded-lg bg-[#302A52] accent-[#FF916C]"
           aria-label="Select target percentage"
         />
-        <div className="mt-1.5 flex justify-between text-[11px] text-[#BDBDC7]">
+        <div className="mt-1 flex justify-between text-[10px] font-medium text-[#9F9AB5]">
           <span>50%</span>
           <span>100%</span>
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="rounded-lg bg-[#565275] px-2.5 py-2">
+          <p className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-[#BDB8CC]">To Attend</p>
+          <p className={["mt-1 text-xl font-extrabold leading-none", isTargetAchievable ? "text-[#FFB23E]" : "text-[#FF5B5B]"].join(' ')}>
+            {prediction.toAttend}
+          </p>
+        </div>
+        <div className="rounded-lg bg-[#565275] px-2.5 py-2">
+          <p className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-[#BDB8CC]">Can Miss</p>
+          <p className="mt-1 text-xl font-extrabold leading-none text-[#4EF0A0]">{prediction.canMiss}</p>
         </div>
       </div>
     </section>

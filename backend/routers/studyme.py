@@ -138,3 +138,48 @@ async def studyme_importance_topic_toggle(payload: StudyMeTopicImportantToggleRe
             status_code=500,
             content={"status": "error", "message": "Unable to update topic importance"},
         )
+
+
+@router.post("/subject-request", response_model=ApiResponse)
+async def studyme_subject_request(payload: StudyMeEventRequest):
+    from services.session_store import session_store
+    from services.subject_request_service import request_subject
+
+    try:
+        token = (payload.token or "").strip()
+        if not token:
+            return JSONResponse(status_code=401, content={"status": "error", "message": "Authentication required"})
+
+        record = session_store.get(token)
+        if record is None:
+            return JSONResponse(status_code=401, content={"status": "error", "message": "Session expired"})
+
+        subject_code = (payload.subject_name or "").strip().upper()
+        if not subject_code:
+            return JSONResponse(status_code=422, content={"status": "error", "message": "subject_name (used as code) is required"})
+
+        data = await run_in_threadpool(
+            request_subject,
+            record.roll_number,
+            subject_code,
+            payload.lesson_name,  # reuse as subject full name
+            payload.topic_name,   # reuse as abbreviation
+        )
+        return ApiResponse(status="success", message="Subject request recorded", data=data)
+    except ValueError as exc:
+        return JSONResponse(status_code=422, content={"status": "error", "message": str(exc)})
+    except Exception:
+        logger.exception("Failed to record subject request")
+        return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to record request"})
+
+
+@router.post("/subject-request/counts", response_model=ApiResponse)
+async def studyme_subject_request_counts(payload: StudyMeEventRequest):
+    from services.subject_request_service import get_subject_request_counts
+
+    try:
+        data = await run_in_threadpool(get_subject_request_counts)
+        return ApiResponse(status="success", message="Request counts fetched", data={"counts": data})
+    except Exception:
+        logger.exception("Failed to fetch subject request counts")
+        return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to fetch counts"})

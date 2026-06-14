@@ -9,15 +9,76 @@
 
   body {
     font-family: 'Inter', sans-serif;
-    @apply m-0 min-h-dvh bg-[#161424] text-[#E7DEDE] antialiased overflow-x-hidden;
+    @apply m-0 min-h-dvh bg-[#5B5878] text-[#F7F4FF] antialiased overflow-x-hidden;
   }
 
   #root {
-    @apply min-h-dvh bg-[#161424] overflow-x-clip;
+    @apply min-h-dvh bg-[#5B5878] overflow-x-clip;
+    position: relative;
+  }
+
+  #root::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.1;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='800' fill='none'%3E%3Ccircle cx='55' cy='45' r='16' stroke='%239F9AB5' stroke-width='1.5'/%3E%3Ccircle cx='340' cy='130' r='12' stroke='%239F9AB5' stroke-width='1.5'/%3E%3Cpath d='M330 55h14M337 48v14' stroke='%23FFAA8D' stroke-width='1.5'/%3E%3Crect x='320' y='85' width='20' height='18' rx='3' stroke='%239F9AB5' stroke-width='1.5'/%3E%3Cpath d='M320 92h20M325 85v-4M335 85v-4' stroke='%239F9AB5' stroke-width='1.5'/%3E%3Ccircle cx='200' cy='100' r='4' fill='%23FFAA8D'/%3E%3Cpath d='M190 350l5-5M190 350l-5-5M190 350l5 5M190 350l-5 5' stroke='%239F9AB5' stroke-width='2'/%3E%3Cpath d='M80 480l6 6 14-14' stroke='%23FFAA8D' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M130 620l6 6-6 6-6-6z' stroke='%239F9AB5' stroke-width='1.5'/%3E%3Cpath d='M280 680l5-4 5 4 5-4 5 4' stroke='%239F9AB5' stroke-width='1.5' stroke-linecap='round'/%3E%3Cpath d='M280 730h5v14h-5zM290 736h5v8h-5zM300 726h5v18h-5zM310 732h5v12h-5z' stroke='%239F9AB5' stroke-width='1.5'/%3E%3Ccircle cx='55' cy='750' r='14' stroke='%239F9AB5' stroke-width='1.5'/%3E%3Cpath d='M55 740v10l5 3' stroke='%239F9AB5' stroke-width='1.5' stroke-linecap='round'/%3E%3Ccircle cx='310' cy='395' r='2.5' fill='%239F9AB5'/%3E%3Ccircle cx='320' cy='395' r='2.5' fill='%239F9AB5'/%3E%3Ccircle cx='330' cy='395' r='2.5' fill='%239F9AB5'/%3E%3Cpath d='M350 750l-10-7v14z' fill='%239F9AB5' opacity='0.4'/%3E%3Ctext x='15' y='260' font-family='sans-serif' font-size='22' font-weight='700' fill='%239F9AB5'%3E75%3C/text%3E%3C/svg%3E");
+    background-repeat: repeat-y;
+    background-size: 400px 800px;
+    background-position: center top;
   }
 }
 
 @layer components {
+  @keyframes fadeSlideIn {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes streakFireBurst {
+    0% {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+    30% {
+      opacity: 1;
+      transform: scale(1.8) translateY(-12px);
+    }
+    60% {
+      opacity: 0.7;
+      transform: scale(1.4) translateY(-20px);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(0.5) translateY(-32px);
+    }
+  }
+
+  .streak-fire-burst {
+    animation: streakFireBurst 1.5s ease-out forwards;
+    pointer-events: none;
+  }
+
+  .login-doodle {
+    background-color: #4b467c;
+    background-image:
+      radial-gradient(circle at 10% 12%, rgba(255, 255, 255, 0.08), transparent 35%),
+      radial-gradient(circle at 85% 8%, rgba(242, 160, 122, 0.18), transparent 38%),
+      radial-gradient(circle at 75% 80%, rgba(168, 216, 255, 0.12), transparent 40%),
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 220 160'><g fill='none' stroke='%23f0b18f' stroke-width='2' opacity='0.25'><circle cx='24' cy='22' r='10'/><circle cx='200' cy='26' r='12'/><circle cx='48' cy='120' r='12'/><path d='M120 18h12M126 12v12'/><path d='M170 86h16M178 78v16'/><path d='M18 78h14M25 71v14'/><path d='M70 44l6 6-6 6-6-6z'/><path d='M188 130l8 8-8 8-8-8z'/><path d='M110 120l6-10 6 10-6 10z'/><path d='M146 52l10 0M151 47l0 10'/><path d='M88 92a10 10 0 0 0 20 0 10 10 0 0 0-20 0z'/></g></svg>");
+    background-repeat: no-repeat, no-repeat, no-repeat, repeat;
+    background-size: 540px 540px, 520px 520px, 560px 560px, 220px 160px;
+    background-position: top left, top right, bottom right, center;
+  }
+
   .study-formula-block .katex-display {
     margin: 0;
     text-align: center;

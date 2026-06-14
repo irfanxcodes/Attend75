@@ -1,46 +1,47 @@
-function MarksRow({ label, value }) {
-  return (
-    <div className="flex items-center justify-between gap-4 py-0.5">
-      <span className="text-[15px] font-normal text-[#1A1328]">{label}</span>
-      <span className="text-[15px] font-medium text-[#1A1328]">{value ?? '-'}</span>
-    </div>
-  )
-}
-
 function MarksDetailCard({ marks, displaySubjectCode = '' }) {
-  if (!marks) {
-    return null
-  }
+  if (!marks) return null
 
   const components = Array.isArray(marks.components) ? marks.components : []
-  const splitIndex = Math.ceil(components.length / 2)
-  const leftComponents = components.slice(0, splitIndex)
-  const rightComponents = components.slice(splitIndex)
-  const orderedComponents = [...leftComponents, ...rightComponents]
   const subjectLabel = String(displaySubjectCode || marks.subjectCode || '').trim() || 'SUBJ'
 
   return (
-    <article className="rounded-3xl bg-[#C9B7A3] p-5 transition-all duration-200 ease-out">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold uppercase tracking-wide text-[#2E2248]">{subjectLabel}</p>
-        {marks.units ? <p className="text-xs font-medium text-[#2E2248]/80">Credit: {marks.units}</p> : null}
+    <article className="overflow-hidden rounded-2xl bg-[#E8DCC8] transition-all duration-300">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-[#C9B7A3]/50 px-5 py-3">
+        <div className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#FFB23E]" />
+          <span className="text-base font-bold text-[#1A1328]">{subjectLabel}</span>
+        </div>
+        {marks.units ? (
+          <span className="text-xs font-medium text-[#5C4B3A]">Credit: {marks.units}</span>
+        ) : null}
       </div>
 
-      <div className="space-y-2.5">
-        {orderedComponents.map((component) => (
-          <MarksRow key={`${subjectLabel}-${component.name}`} label={component.name} value={component.value} />
-        ))}
+      {/* Component rows */}
+      <div className="px-5 py-2">
+        {components.length > 0 ? (
+          <div className="divide-y divide-[#C9B7A3]/40">
+            {components.map((component) => (
+              <div key={`${subjectLabel}-${component.name}`} className="flex items-center justify-between py-2.5">
+                <span className="text-sm text-[#1A1328]">{component.name}</span>
+                <span className="text-sm font-semibold text-[#1A1328]">{component.value}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="py-3 text-sm text-[#5C4B3A]">No components available for this subject.</p>
+        )}
       </div>
 
-      {!components.length ? (
-        <p className="mt-4 text-sm text-[#2E2248]">No components are available for this subject.</p>
-      ) : null}
-
-      <div className="mt-4 h-px bg-[#5C4B3A]/20" />
-
-      <div className="mt-3 flex items-center justify-between gap-4">
-        <p className="text-[16px] font-semibold text-[#120D20]">Total</p>
-        <p className="text-[18px] font-semibold text-[#120D20]">{marks.total}</p>
+      {/* Total row */}
+      <div className="border-t border-[#C9B7A3]/50 px-5 py-3">
+        <div className="flex items-center justify-between">
+          <span className="text-base font-bold text-[#1A1328]">Total</span>
+          <div className="flex items-baseline gap-1">
+            <span className="text-2xl font-extrabold text-[#1A1328]">{marks.total}</span>
+            <span className="text-sm text-[#5C4B3A]">/ {marks.maxTotal}</span>
+          </div>
+        </div>
       </div>
     </article>
   )

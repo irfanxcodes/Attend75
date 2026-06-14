@@ -4,6 +4,7 @@ import InstagramButton from '../components/common/InstagramButton'
 import useAppStore from '../hooks/useAppStore'
 import { isFirebaseAuthError, isPortalCredentialError, linkFirebaseCredentials, login, loginWithFirebase } from '../services/attendanceApi'
 import { signInWithGoogleAndGetIdToken, signOutFirebaseUser } from '../services/firebaseAuth'
+import { buildDemoSession } from '../constants/demoData'
 
 function UserIcon() {
   return (
@@ -197,45 +198,55 @@ function Login() {
   }
 
   return (
-    <section className="relative min-h-dvh bg-[#4B467C] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pt-6">
-      <form
-        onSubmit={handleSubmit}
-        className={`mx-auto flex min-h-[calc(100dvh-2rem)] w-full max-w-md flex-col justify-between transition duration-200 sm:min-h-[calc(100dvh-3rem)] ${
+    <section className="login-doodle relative min-h-dvh px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-6 sm:px-6">
+      <div
+        className={`mx-auto flex min-h-[calc(100dvh-2rem)] w-full max-w-5xl flex-col items-center justify-center gap-6 sm:min-h-[calc(100dvh-3rem)] ${
           isAuthLoading ? 'pointer-events-none select-none blur-[2px] brightness-75' : ''
         }`}
       >
-        <header className="pt-4 text-center sm:pt-8">
-          <h1 className="text-3xl font-bold text-[#F5F5F5] sm:text-[34px]">Attend75</h1>
+        <header className="text-center">
+          <h1 className="text-3xl font-semibold text-[#F5F5F5] sm:text-4xl">
+            Attend<span className="text-[#F2A07A]">75</span>
+          </h1>
+          <p className="mt-1 text-xs tracking-wide text-[#CFC5E8]">
+            Your attendance & study companion for IBS
+          </p>
         </header>
 
-        <div>
-          <h2 className="text-xl font-semibold text-[#E8A08C] underline decoration-[#E8A08C] underline-offset-[6px] sm:text-[22px]">Sign in</h2>
+        <form
+          onSubmit={handleSubmit}
+          className="w-full max-w-md rounded-3xl border border-white/10 bg-[#4E4670]/90 p-6 shadow-[0_24px_60px_rgba(20,16,44,0.45)] backdrop-blur sm:p-7"
+        >
+          <div className="space-y-1">
+            <h2 className="text-xl font-semibold text-[#F5F5F5]">Sign in</h2>
+            <p className="text-xs text-[#CFC5E8]">We use your portal login only to read your attendance.</p>
+          </div>
 
-          <div className="mt-5 space-y-5">
+          <div className="mt-5 space-y-4">
             <label className="block">
-              <span className="text-xs text-slate-300">Login id</span>
-              <div className="mt-1 flex items-center gap-2 border-b border-white/30 py-2 focus-within:border-white/80">
+              <span className="text-[11px] uppercase tracking-[0.1em] text-[#B7AECF]">Login ID</span>
+              <div className="mt-2 flex items-center gap-2 rounded-xl border border-white/10 bg-[#463E65] px-3 py-2.5 focus-within:border-[#A8D8FF]/60">
                 <UserIcon />
                 <input
                   type="text"
                   value={form.username}
                   onChange={(event) => setForm((current) => ({ ...current, username: event.target.value }))}
                   placeholder="Roll number"
-                  className="w-full bg-transparent text-sm text-white placeholder:text-slate-300 outline-none"
+                  className="w-full bg-transparent text-sm text-white placeholder:text-[#A49CBC] outline-none"
                 />
               </div>
             </label>
 
             <label className="block">
-              <span className="text-xs text-slate-300">Password</span>
-              <div className="mt-1 flex items-center gap-2 border-b border-white/30 py-2 focus-within:border-white/80">
+              <span className="text-[11px] uppercase tracking-[0.1em] text-[#B7AECF]">Password</span>
+              <div className="mt-2 flex items-center gap-2 rounded-xl border border-white/10 bg-[#463E65] px-3 py-2.5 focus-within:border-[#A8D8FF]/60">
                 <LockIcon />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={form.password}
                   onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
-                  placeholder="enter your password"
-                  className="w-full bg-transparent text-sm text-white placeholder:text-slate-300 outline-none"
+                  placeholder="Enter your password"
+                  className="w-full bg-transparent text-sm text-white placeholder:text-[#A49CBC] outline-none"
                 />
                 <button
                   type="button"
@@ -252,47 +263,65 @@ function Login() {
           {error ? (
             <p className="mt-4 rounded-md border border-rose-300/50 bg-rose-500/15 px-3 py-2 text-xs text-rose-100">{error}</p>
           ) : null}
-        </div>
 
-        <div className="pt-6 sm:pt-[30px]">
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="h-[45px] w-full rounded-[10px] bg-[#E8A08C] text-base font-semibold text-[#181818] transition-transform duration-150 hover:brightness-105 active:scale-[0.99] disabled:opacity-60"
-          >
-            {isSubmitting ? 'Logging in...' : 'Login as Guest'}
-          </button>
+          <div className="mt-6 space-y-3">
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="h-[46px] w-full rounded-full bg-[#F59B74] text-sm font-semibold text-[#1D183E] transition hover:brightness-105 active:scale-[0.99] disabled:opacity-60"
+            >
+              {isSubmitting ? 'Signing in...' : 'Sign in'}
+            </button>
 
-          <div className="mb-3 flex items-center gap-2 text-xs text-slate-300">
-            <span className="h-px flex-1 bg-white/30" />
-            <span>OR</span>
-            <span className="h-px flex-1 bg-white/30" />
+            <div className="flex items-center gap-2 text-[11px] text-[#B7AECF]">
+              <span className="h-px flex-1 bg-white/20" />
+              <span>OR</span>
+              <span className="h-px flex-1 bg-white/20" />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={isGoogleSubmitting || isSubmitting || isLinkingSubmitting}
+              className="h-[46px] w-full rounded-full border border-white/30 bg-white text-sm font-semibold text-[#1D183E] transition hover:brightness-105 active:scale-[0.99] disabled:opacity-60"
+            >
+              <span className="inline-flex items-center justify-center gap-2">
+                <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+                  <path fill="#EA4335" d="M12.25 10.2v3.92h5.54c-.24 1.27-.96 2.34-2.04 3.06l3.31 2.57c1.93-1.78 3.04-4.4 3.04-7.5 0-.72-.06-1.41-.18-2.05h-9.67Z" />
+                  <path fill="#34A853" d="M6.5 14.28l-.75.58-2.64 2.05A9.93 9.93 0 0 0 12 22c2.7 0 4.97-.89 6.63-2.43l-3.31-2.57c-.91.61-2.07.98-3.32.98-2.6 0-4.81-1.76-5.6-4.13Z" />
+                  <path fill="#FBBC05" d="M3.11 7.09A9.88 9.88 0 0 0 2.5 10c0 1.06.17 2.08.61 2.91 0 .01 3.39-2.63 3.39-2.63A5.9 5.9 0 0 1 6.4 10c0-.43.07-.86.2-1.25Z" />
+                  <path fill="#4285F4" d="M12 5.98c1.47 0 2.78.5 3.82 1.49l2.86-2.86C16.97 3.03 14.7 2 12 2a9.93 9.93 0 0 0-8.89 5.09L6.4 9.75C7.19 7.74 9.4 5.98 12 5.98Z" />
+                </svg>
+                <span>{isGoogleSubmitting ? 'Signing in with Google...' : 'Continue with Google'}</span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                const demoSession = buildDemoSession()
+                actions.setAuthSession(demoSession)
+                actions.setAttendanceData(demoSession.attendanceData)
+                navigate('/app/dashboard')
+              }}
+              className="h-[42px] w-full rounded-full border border-white/20 bg-transparent text-xs font-semibold text-[#E7DEDE] transition hover:bg-white/10"
+            >
+              Explore as Guest
+            </button>
           </div>
+        </form>
 
-          <button
-            type="button"
-            onClick={handleGoogleSignIn}
-            disabled={isGoogleSubmitting || isSubmitting || isLinkingSubmitting}
-            className="mb-3 h-[45px] w-full rounded-[10px] border border-white/40 bg-white text-sm font-semibold text-[#181818] transition-transform duration-150 hover:brightness-105 active:scale-[0.99] disabled:opacity-60"
-          >
-            <span className="inline-flex items-center justify-center gap-2">
-              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
-                <path fill="#EA4335" d="M12.25 10.2v3.92h5.54c-.24 1.27-.96 2.34-2.04 3.06l3.31 2.57c1.93-1.78 3.04-4.4 3.04-7.5 0-.72-.06-1.41-.18-2.05h-9.67Z" />
-                <path fill="#34A853" d="M6.5 14.28l-.75.58-2.64 2.05A9.93 9.93 0 0 0 12 22c2.7 0 4.97-.89 6.63-2.43l-3.31-2.57c-.91.61-2.07.98-3.32.98-2.6 0-4.81-1.76-5.6-4.13Z" />
-                <path fill="#FBBC05" d="M3.11 7.09A9.88 9.88 0 0 0 2.5 10c0 1.06.17 2.08.61 2.91 0 .01 3.39-2.63 3.39-2.63A5.9 5.9 0 0 1 6.4 10c0-.43.07-.86.2-1.25Z" />
-                <path fill="#4285F4" d="M12 5.98c1.47 0 2.78.5 3.82 1.49l2.86-2.86C16.97 3.03 14.7 2 12 2a9.93 9.93 0 0 0-8.89 5.09L6.4 9.75C7.19 7.74 9.4 5.98 12 5.98Z" />
-              </svg>
-              <span>{isGoogleSubmitting ? 'Signing in with Google...' : 'Sign in with Google'}</span>
-            </span>
-          </button>
-
-          <p className="mt-2.5 text-center text-xs text-slate-300"> Yours crendentials are only used to retrieve your attendance</p>
+        <div className="text-center">
+          <p className="text-[11px] text-[#CFC5E8]">
+            Credentials are used only to retrieve your attendance.
+          </p>
+          <p className="mt-1 text-[11px] text-[#B7AECF]">Made for ICFAI / IBS students.</p>
           <div className="mt-3 flex items-center justify-center gap-2">
-            <span className="text-[11px] text-slate-300">Follow us on</span>
+            <span className="text-[11px] text-[#B7AECF]">Follow us on</span>
             <InstagramButton className="h-7 w-7 bg-[#5B5485]" iconClassName="h-3.5 w-3.5" />
           </div>
         </div>
-      </form>
+      </div>
 
       {showLinkingForm ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/45 px-3 py-4 backdrop-blur-sm sm:px-6">

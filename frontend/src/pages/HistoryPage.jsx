@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import CalendarGrid from '../components/history/CalendarGrid'
 import CalendarHeader from '../components/history/CalendarHeader'
 import DayDetailCard from '../components/history/DayDetailCard'
+import HistorySidebar from '../components/history/HistorySidebar'
+import GuestLoginPrompt, { useGuestPrompt } from '../components/common/GuestLoginPrompt'
 import useAppStore from '../hooks/useAppStore'
-import { fetchAttendanceHistory, fetchFacultyContacts, isSessionExpiredError, trackFeatureUsageEvent } from '../services/attendanceApi'
+import { fetchAttendanceHistory, fetchAttendanceStreak, fetchFacultyContacts, isSessionExpiredError, trackFeatureUsageEvent } from '../services/attendanceApi'
+import { DEMO_HISTORY } from '../constants/demoData'
 
 const REASON_OPTIONS = [
   'Sick / Medical Reason',
@@ -142,6 +145,9 @@ function HistoryPage() {
     actions,
   } = useAppStore()
 
+  const isDemo = user.authProvider === 'demo'
+  const guestPrompt = useGuestPrompt()
+
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(null)
   const [historyBySemesterDate, setHistoryBySemesterDate] = useState({})
@@ -244,6 +250,16 @@ function HistoryPage() {
       return
     }
 
+    // Demo mode: use demo history data
+    if (isDemo) {
+      const demoEntries = DEMO_HISTORY[dateKey] || []
+      setHistoryBySemesterDate((current) => ({
+        ...current,
+        [semesterCacheKey]: { ...current[semesterCacheKey], [dateKey]: demoEntries },
+      }))
+      return
+    }
+
     if (!session.token) {
       actions.logout()
       window.localStorage.removeItem('attend75.selectedSemester')
@@ -327,6 +343,74 @@ function HistoryPage() {
       isFutureSelectedDate: isFutureDateKey(dateKey),
     }
   }, [currentDate, historyBySemesterDate, selectedDate, semesterCacheKey])
+
+  // Build day status map for calendar dot indicators
+  const calendarDayStatus = useMemo(() => {
+    const semesterHistory = historyBySemesterDate[semesterCacheKey] || {}
+    const year = currentDate.getFullYear()
+    const month = currentDate.getMonth()
+    const statusMap = {}
+
+    Object.entries(semesterHistory).forEach(([dateKey, entries]) => {
+      if (!Array.isArray(entries) || entries.length === 0) return
+      // Check if date belongs to current displayed month
+      const [y, m, d] = dateKey.split('-').map(Number)
+      if (y !== year || m !== month + 1) return
+
+      const allPresent = entries.every((e) => e.attended || e.status === 'Present')
+      const allAbsent = entries.every((e) => !e.attended && e.status !== 'Present')
+
+      if (allPresent) statusMap[d] = 'all_present'
+      else if (allAbsent) statusMap[d] = 'all_absent'
+      else statusMap[d] = 'some_absent'
+    })
+
+    return statusMap
+  }, [currentDate, historyBySemesterDate, semesterCacheKey])
+
+  // Compute current streak via backend endpoint (loads full history cache as side effect)
+  const [currentStreak, setCurrentStreak] = useState(null)
+  const [isStreakLoading, setIsStreakLoading] = useState(true)
+  const streakFetchedRef = useRef(false)
+
+  useEffect(() => {
+    if (!session.token || streakFetchedRef.current) {
+      setIsStreakLoading(false)
+      return
+    }
+
+    // Demo mode: set a fake streak, no API call
+    if (isDemo) {
+      setCurrentStreak(6)
+      setIsStreakLoading(false)
+      streakFetchedRef.current = true
+      return
+    }
+
+    // Check localStorage cache (valid for today only)
+    const cacheKey = `attend75.streak.${session.selectedSemester || 'default'}.${new Date().toISOString().slice(0, 10)}`
+    const cached = window.localStorage.getItem(cacheKey)
+    if (cached !== null) {
+      setCurrentStreak(Number(cached) || 0)
+      setIsStreakLoading(false)
+      streakFetchedRef.current = true
+      return
+    }
+
+    streakFetchedRef.current = true
+    void (async () => {
+      try {
+        const streak = await fetchAttendanceStreak({ token: session.token, semesterId: session.selectedSemester })
+        setCurrentStreak(streak)
+        // Cache for today
+        try { window.localStorage.setItem(cacheKey, String(streak)) } catch { /* ignore */ }
+      } catch {
+        setCurrentStreak(0)
+      } finally {
+        setIsStreakLoading(false)
+      }
+    })()
+  }, [session.selectedSemester, session.token])
 
   const emailDraft = useMemo(() => {
     if (!selectedAbsentEntry) {
@@ -414,6 +498,11 @@ function HistoryPage() {
 
   const handleMailFaculty = async (entry) => {
     if (!entry || entry.status !== 'Absent') {
+      return
+    }
+
+    if (isDemo) {
+      guestPrompt.showPrompt('mail your faculty about attendance')
       return
     }
 
@@ -613,182 +702,533 @@ function HistoryPage() {
     navigate('/login', { replace: true })
   }
 
+  // Compute present/absent counts from subjects
+  const presentCount = useMemo(() => {
+    const subjects = Array.isArray(attendance?.subjects) ? attendance.subjects : []
+    return subjects.reduce((sum, s) => sum + (Number(s.attendedClasses) || 0), 0)
+  }, [attendance?.subjects])
+
+  const absentCount = useMemo(() => {
+    const subjects = Array.isArray(attendance?.subjects) ? attendance.subjects : []
+    const total = subjects.reduce((sum, s) => sum + (Number(s.totalClasses) || 0), 0)
+    return Math.max(0, total - presentCount)
+  }, [attendance?.subjects, presentCount])
+
+  // Count unmailed absences for current month from history data
+  const unmailedAbsencesCount = useMemo(() => {
+    const semesterHistory = historyBySemesterDate[semesterCacheKey] || {}
+    const year = currentDate.getFullYear()
+    const month = currentDate.getMonth()
+    let count = 0
+
+    Object.entries(semesterHistory).forEach(([dateKey, entries]) => {
+      if (!Array.isArray(entries)) return
+      const [y, m] = dateKey.split('-').map(Number)
+      if (y !== year || m !== month + 1) return
+
+      entries.forEach((entry) => {
+        if (entry.attended || entry.status === 'Present') return
+        const key = buildMailSendConfirmedStorageKey({ date: dateKey, code: entry.code, subject: entry.subject })
+        if (!key || !mailSendConfirmedKeys.has(key)) count++
+      })
+    })
+    return count
+  }, [currentDate, historyBySemesterDate, mailSendConfirmedKeys, semesterCacheKey])
+
+  // Mobile view mode state
+  const [mobileViewMode, setMobileViewMode] = useState('calendar') // 'calendar' | 'timeline'
+
+  // Timeline view: recent days (last 7 days going back)
+  const recentDays = useMemo(() => {
+    const days = []
+    const today = new Date()
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(today)
+      d.setDate(today.getDate() - i)
+      days.push({
+        date: d,
+        day: d.getDate(),
+        month: d.getMonth(),
+        year: d.getFullYear(),
+        weekday: d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase(),
+        dateKey: formatDateKey(d.getFullYear(), d.getMonth(), d.getDate()),
+      })
+    }
+    return days
+  }, [])
+
+  // Timeline selected date
+  const [timelineSelectedKey, setTimelineSelectedKey] = useState(() => {
+    const today = new Date()
+    return formatDateKey(today.getFullYear(), today.getMonth(), today.getDate())
+  })
+
+  const handleTimelineDateSelect = async (dateInfo) => {
+    setTimelineSelectedKey(dateInfo.dateKey)
+    // Also update the calendar selection to stay in sync
+    setCurrentDate(new Date(dateInfo.year, dateInfo.month, 1))
+    setSelectedDate(dateInfo.day)
+    // Fetch history for this date if needed
+    await handleSelectDate(dateInfo.day, dateInfo.date)
+  }
+
+  // Timeline items for selected date
+  const timelineItems = useMemo(() => {
+    const semesterHistory = historyBySemesterDate[semesterCacheKey] || {}
+    return semesterHistory[timelineSelectedKey] || []
+  }, [historyBySemesterDate, semesterCacheKey, timelineSelectedKey])
+
+  const timelineAttendedCount = timelineItems.filter((e) => e.attended || e.status === 'Present').length
+  const timelinePercentage = timelineItems.length > 0 ? Math.round((timelineAttendedCount / timelineItems.length) * 100) : 0
+
+  const timelineDisplayDate = useMemo(() => {
+    const [y, m, d] = timelineSelectedKey.split('-').map(Number)
+    const date = new Date(y, m - 1, d)
+    return {
+      weekday: date.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase(),
+      month: date.toLocaleDateString('en-US', { month: 'short' }),
+      day: d,
+    }
+  }, [timelineSelectedKey])
+
   return (
-    <section className="space-y-3 pb-2 sm:space-y-4">
-      <header>
-        <h1 className="text-3xl font-bold tracking-tight text-[#E7DEDE] sm:text-4xl">History</h1>
-        <p className="mt-1 text-xs text-[#CFC5E8] sm:text-sm">View your day-wise attendance from calendar dates.</p>
-        <p className="mt-1 text-xs text-[#CFC5E8] sm:text-sm">select the semster you want to check.</p>
-      </header>
+    <section className="pb-2">
+      {/* ===== MOBILE LAYOUT ===== */}
+      <div className="space-y-2.5 md:hidden">
+        {/* Header */}
+        <div className="flex items-end justify-between">
+          <div>
+            <h1 className="text-2xl font-extrabold text-[#F7F4FF]">History</h1>
+            <p className="text-[10px] text-[#9F9AB5]">Synced 8:42 AM</p>
+          </div>
+          {/* Month pill */}
+          <span className="rounded-full border border-white/15 bg-[#3D3660] px-2.5 py-1 text-[10px] font-bold text-[#D8D4E7]">
+            {currentDate.toLocaleString('en-US', { month: 'short' }).toUpperCase()} {currentDate.getFullYear()}
+          </span>
+        </div>
 
-      <div className="space-y-3 rounded-3xl bg-[#4F487A] p-3 shadow-md ring-1 ring-white/5 sm:p-4">
-        <CalendarHeader
-          currentDate={currentDate}
-          onPreviousMonth={handlePreviousMonth}
-          onNextMonth={handleNextMonth}
-          onResetToToday={handleResetToToday}
-        />
+        {/* Summary stats - flat row with dividers */}
+        <div className="flex items-center rounded-xl bg-[#4A466A] ring-1 ring-white/5">
+          <div className="flex-1 py-3 text-center">
+            <p className="text-2xl font-extrabold text-[#4EF0A0]">{presentCount}</p>
+            <p className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-[#9F9AB5]">Present</p>
+          </div>
+          <div className="h-10 w-px bg-white/10" />
+          <div className="flex-1 py-3 text-center">
+            <p className="text-2xl font-extrabold text-[#FF5B5B]">{absentCount}</p>
+            <p className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-[#9F9AB5]">Absent</p>
+          </div>
+          <div className="h-10 w-px bg-white/10" />
+          <div className="flex-1 py-3 text-center">
+            {isStreakLoading ? (
+              <p className="text-2xl font-extrabold text-[#FFB23E]"><span className="inline-block h-7 w-10 animate-pulse rounded bg-[#FFB23E]/20" /></p>
+            ) : (
+              <p className="text-2xl font-extrabold text-[#FFB23E]">{currentStreak ?? 0} <span className="text-base">days</span></p>
+            )}
+            <p className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-[#9F9AB5]">Streak</p>
+          </div>
+        </div>
 
-        <CalendarGrid
-          currentDate={currentDate}
-          selectedDate={selectedDate}
-          onSelectDate={handleSelectDate}
-        />
+        {/* View toggle - premium pill switch */}
+        <div className="flex items-center justify-center">
+          <div className="relative flex rounded-full bg-[#2D2845] p-1 ring-1 ring-white/10">
+            <div
+              className="absolute top-1 h-[calc(100%-8px)] w-[calc(50%-4px)] rounded-full bg-[#FF916C] shadow-[0_0_12px_rgba(255,145,108,0.4)] transition-all duration-300 ease-out"
+              style={{ left: mobileViewMode === 'calendar' ? '4px' : 'calc(50%)' }}
+            />
+            <button
+              type="button"
+              onClick={() => setMobileViewMode('calendar')}
+              className={`relative z-10 flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[11px] font-bold transition-colors duration-200 ${
+                mobileViewMode === 'calendar' ? 'text-[#1D183E]' : 'text-[#9F9AB5]'
+              }`}
+            >
+              📅 Calendar
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileViewMode('timeline')}
+              className={`relative z-10 flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[11px] font-bold transition-colors duration-200 ${
+                mobileViewMode === 'timeline' ? 'text-[#1D183E]' : 'text-[#9F9AB5]'
+              }`}
+            >
+              ⚡ Timeline
+            </button>
+          </div>
+        </div>
 
-        {historyError ? (
-          <div className="rounded-lg border border-[#F87171]/40 bg-[#7F1D1D]/20 px-3 py-2 text-sm text-[#FECACA]">
-            {historyError}
+        {/* Unmailed absences banner */}
+        {unmailedAbsencesCount > 0 ? (
+          <div className="flex items-center gap-3 rounded-xl bg-[#3D3660] px-3 py-2.5 ring-1 ring-white/5">
+            <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[#9F9AB5]" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+            </svg>
+            <span className="flex-1 text-xs font-medium text-[#D8D4E7]">
+              <span className="font-bold text-[#F7F4FF]">{unmailedAbsencesCount}</span> absences not mailed
+            </span>
+            <span className="text-[10px] font-semibold text-[#FF916C]">Open ›</span>
           </div>
         ) : null}
 
-        {isLoadingHistory && selectedDateKey ? (
-          <div className="rounded-lg bg-[#5B5485] px-3 py-2 text-sm text-[#D8D3E8]">Loading attendance history...</div>
+        {/* Calendar View */}
+        {mobileViewMode === 'calendar' ? (
+          <div className="space-y-2.5">
+            {/* Calendar */}
+            <div className="rounded-2xl bg-[#4A466A] p-3 ring-1 ring-white/5">
+              <CalendarHeader
+                currentDate={currentDate}
+                onPreviousMonth={handlePreviousMonth}
+                onNextMonth={handleNextMonth}
+                onResetToToday={handleResetToToday}
+              />
+              <div className="mt-3">
+                <CalendarGrid
+                  currentDate={currentDate}
+                  selectedDate={selectedDate}
+                  onSelectDate={handleSelectDate}
+                  dayStatusMap={calendarDayStatus}
+                />
+              </div>
+            </div>
+
+            {/* Day detail */}
+            {historyError ? (
+              <div className="rounded-xl border border-[#FF5B5B]/40 bg-[#FF5B5B]/10 px-3 py-2 text-xs text-[#FFD4D4]">{historyError}</div>
+            ) : null}
+
+            {isLoadingHistory && selectedDateKey ? (
+              <div className="rounded-xl bg-[#3D3660] px-3 py-3 text-xs text-[#9F9AB5]">Loading...</div>
+            ) : null}
+
+            {selectedDateKey && !isLoadingHistory ? (
+              <DayDetailCard
+                displayDate={selectedDisplayDate}
+                attendanceItems={selectedItems}
+                emptyMessage={isFutureSelectedDate ? 'Yet to attend' : 'No classes on this day 🎉'}
+                onMailFaculty={handleMailFaculty}
+                getMailFacultyStatus={getMailFacultyStatus}
+                onConfirmMailSent={handleConfirmMailSentFromCard}
+                onMarkMailNotYet={handleMarkMailNotYet}
+              />
+            ) : null}
+          </div>
         ) : null}
 
-        {selectedDateKey && !isLoadingHistory ? (
-          <DayDetailCard
-            displayDate={selectedDisplayDate}
-            attendanceItems={selectedItems}
-            emptyMessage={isFutureSelectedDate ? 'Yet to attend' : 'No classes on this day 🎉'}
-            onMailFaculty={handleMailFaculty}
-            getMailFacultyStatus={getMailFacultyStatus}
-            onConfirmMailSent={handleConfirmMailSentFromCard}
-            onMarkMailNotYet={handleMarkMailNotYet}
-          />
+        {/* Timeline View */}
+        {mobileViewMode === 'timeline' ? (
+          <div className="space-y-3">
+            {/* Horizontal date selector */}
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {recentDays.map((dayInfo) => {
+                const isActive = timelineSelectedKey === dayInfo.dateKey
+                const semesterHistory = historyBySemesterDate[semesterCacheKey] || {}
+                const dayEntries = semesterHistory[dayInfo.dateKey] || []
+                const hasAbsent = dayEntries.some((e) => !e.attended && e.status !== 'Present')
+                const hasPresent = dayEntries.some((e) => e.attended || e.status === 'Present')
+                const indicatorColor = dayEntries.length === 0 ? '#9F9AB5' : hasAbsent ? '#FFB23E' : '#4EF0A0'
+
+                return (
+                  <button
+                    key={dayInfo.dateKey}
+                    type="button"
+                    onClick={() => handleTimelineDateSelect(dayInfo)}
+                    className={`flex shrink-0 flex-col items-center rounded-xl px-3 py-2 transition-all duration-200 ${
+                      isActive
+                        ? 'bg-[#FF916C] shadow-md'
+                        : 'bg-[#3D3660] ring-1 ring-white/5'
+                    }`}
+                    style={{ minWidth: '56px' }}
+                  >
+                    <span className={`text-[9px] font-bold ${isActive ? 'text-[#1D183E]' : 'text-[#9F9AB5]'}`}>{dayInfo.weekday}</span>
+                    <span className={`mt-0.5 text-lg font-extrabold ${isActive ? 'text-[#1D183E]' : 'text-[#F7F4FF]'}`}>{dayInfo.day}</span>
+                    <span className="mt-1 h-1 w-4 rounded-full" style={{ backgroundColor: isActive ? '#1D183E' : indicatorColor }} />
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Day summary */}
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#9F9AB5]">{timelineDisplayDate.weekday}</p>
+                <p className="text-3xl font-extrabold text-[#F7F4FF]">{timelineDisplayDate.month} {timelineDisplayDate.day}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xl font-extrabold text-[#FFB23E]">{isStreakLoading ? '...' : `${currentStreak ?? 0} days`}</p>
+                <p className="text-[10px] text-[#9F9AB5]">{timelineAttendedCount}/{timelineItems.length} attended</p>
+              </div>
+            </div>
+
+            {/* Subject cards */}
+            {isLoadingHistory ? (
+              <div className="rounded-xl bg-[#3D3660] px-3 py-3 text-xs text-[#9F9AB5]">Loading...</div>
+            ) : timelineItems.length === 0 ? (
+              <div className="rounded-xl bg-[#3D3660] px-4 py-4 text-center text-sm text-[#9F9AB5]">No classes on this day</div>
+            ) : (
+              <div className="space-y-2">
+                {timelineItems.map((entry, index) => {
+                  const isPresent = entry.attended || entry.status === 'Present'
+                  const borderColor = isPresent ? '#4EF0A0' : '#FF5B5B'
+                  const mailStatus = !isPresent && typeof getMailFacultyStatus === 'function' ? getMailFacultyStatus(entry) : 'default'
+                  const isAlreadySent = mailStatus === 'send_confirmed'
+
+                  return (
+                    <div
+                      key={`${entry.code || entry.subject}-${index}`}
+                      className="flex items-center gap-3 rounded-xl bg-[#3D3660] px-4 py-3 ring-1 ring-white/5"
+                      style={{ borderLeft: `3px solid ${borderColor}` }}
+                    >
+                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: borderColor }} />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-[#F7F4FF]">{entry.subject || entry.code || 'Subject'}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {isPresent ? (
+                          <span className="text-xs font-semibold text-[#4EF0A0]">PRESENT</span>
+                        ) : (
+                          <>
+                            <span className="text-xs font-semibold text-[#FF5B5B]">ABSENT</span>
+                            {!isAlreadySent ? (
+                              <button
+                                type="button"
+                                onClick={() => handleMailFaculty(entry)}
+                                className="flex items-center gap-1 rounded-md border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-[#D8D4E7] transition active:scale-95"
+                              >
+                                <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8">
+                                  <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                                </svg>
+                                Mail
+                              </button>
+                            ) : (
+                              <span className="text-[10px] font-semibold text-[#9F9AB5]">✓ Mailed</span>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         ) : null}
       </div>
 
+      {/* ===== DESKTOP LAYOUT (unchanged) ===== */}
+      <div className="hidden space-y-3 md:block">
+        {/* Page header */}
+        <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-extrabold text-[#F7F4FF] sm:text-3xl">History</h1>
+            <p className="mt-0.5 text-[11px] text-[#9F9AB5]">Synced today, 8:42 AM</p>
+          </div>
+          {session.semesters.length > 0 ? (
+            <div className="flex items-center gap-2 rounded-full border border-white/15 bg-[#4A466A] px-3 py-1.5">
+              <span className="h-2 w-2 rounded-full bg-[#FFB23E]" />
+              <select
+                value={session.selectedSemester || ''}
+                onChange={(event) => {
+                  const semesterId = event.target.value
+                  actions.setSelectedSemester(semesterId)
+                  window.localStorage.setItem('attend75.selectedSemester', semesterId)
+                }}
+                className="bg-transparent text-xs font-semibold text-[#F7F4FF] outline-none"
+              >
+                {session.semesters.map((sem) => (
+                  <option key={sem.id} value={sem.id}>{sem.label}</option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+        </header>
+
+        {/* Main layout: sidebar + calendar/detail */}
+        <div className="grid gap-3 lg:grid-cols-[280px_1fr]">
+          <div className="hidden lg:block">
+            <HistorySidebar
+              subjects={attendance?.subjects || []}
+              overallPercentage={attendance?.overallPercentage || 0}
+              currentStreak={currentStreak ?? 0}
+            />
+          </div>
+
+          <div className="space-y-3">
+            <div className="rounded-2xl bg-[#4A466A] p-4 ring-1 ring-white/5 sm:p-5">
+              <CalendarHeader
+                currentDate={currentDate}
+                onPreviousMonth={handlePreviousMonth}
+                onNextMonth={handleNextMonth}
+                onResetToToday={handleResetToToday}
+              />
+              <div className="mt-4">
+                <CalendarGrid
+                  currentDate={currentDate}
+                  selectedDate={selectedDate}
+                  onSelectDate={handleSelectDate}
+                  dayStatusMap={calendarDayStatus}
+                />
+              </div>
+            </div>
+
+            {historyError ? (
+              <div className="rounded-xl border border-[#FF5B5B]/40 bg-[#FF5B5B]/10 px-3 py-2 text-xs text-[#FFD4D4]">{historyError}</div>
+            ) : null}
+
+            {isLoadingHistory && selectedDateKey ? (
+              <div className="rounded-xl bg-[#565275] px-4 py-3 text-sm text-[#D8D4E7]">Loading attendance history...</div>
+            ) : null}
+
+            {selectedDateKey && !isLoadingHistory ? (
+              <DayDetailCard
+                displayDate={selectedDisplayDate}
+                attendanceItems={selectedItems}
+                emptyMessage={isFutureSelectedDate ? 'Yet to attend' : 'No classes on this day 🎉'}
+                onMailFaculty={handleMailFaculty}
+                getMailFacultyStatus={getMailFacultyStatus}
+                onConfirmMailSent={handleConfirmMailSentFromCard}
+                onMarkMailNotYet={handleMarkMailNotYet}
+              />
+            ) : null}
+          </div>
+        </div>
+      </div>
+
       {showMailModal && selectedAbsentEntry ? (
-        <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 p-3 backdrop-blur-sm sm:items-center sm:p-6">
-          <div className="max-h-[92dvh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-[#4F487A] p-4 shadow-xl ring-1 ring-white/10 sm:p-5">
+        <div
+          className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 p-3 backdrop-blur-sm sm:items-center sm:p-6"
+          onClick={() => { setShowMailModal(false); setComposeError('') }}
+        >
+          <div
+            className="max-h-[92dvh] w-full max-w-xl overflow-y-auto rounded-2xl border border-white/10 bg-[#2D2845] p-5 shadow-2xl sm:p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-lg font-semibold text-white sm:text-xl">Mail Faculty for Absent Class</h3>
-                <p className="mt-1 text-xs text-[#D8D3E8] sm:text-sm">Create a professional request email and open your mail app instantly.</p>
+                <h3 className="text-lg font-bold text-[#F7F4FF]">Mail Faculty</h3>
+                <p className="mt-0.5 text-xs text-[#9F9AB5]">Compose a professional attendance request email.</p>
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  setShowMailModal(false)
-                  setComposeError('')
-                }}
-                className="rounded-md px-2 py-1 text-sm text-slate-200 hover:bg-white/10"
-                aria-label="Close mail faculty modal"
+                onClick={() => { setShowMailModal(false); setComposeError('') }}
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-[#9F9AB5] transition hover:bg-white/10 hover:text-[#F7F4FF]"
+                aria-label="Close"
               >
                 ✕
               </button>
             </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {/* Top section: class info card + class details */}
+            <div className="mt-5 grid gap-4 sm:grid-cols-[1fr_1fr]">
+              {/* Subject/Date card - solid orange */}
+              <div className="flex items-center gap-3 rounded-xl bg-[#E8875C] px-4 py-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-black/15">
+                  <svg viewBox="0 0 24 24" className="h-5 w-5 text-white/90" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM12 14a7 7 0 0 0-7 7h14a7 7 0 0 0-7-7Z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white">Subject: {selectedAbsentEntry.subject || ''}</p>
+                  <p className="text-xs text-white/80">Date: {selectedAbsentEntry.date || selectedDateKey || ''}</p>
+                </div>
+              </div>
+
+              {/* Class details */}
+              <div className="space-y-2.5">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#9F9AB5]">Class Details</p>
+                <div className="flex items-center gap-3">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[#9F9AB5]" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <rect x="2" y="4" width="20" height="16" rx="2" />
+                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                  </svg>
+                  <input
+                    value={facultyEmail}
+                    onChange={(event) => setFacultyEmail(event.target.value)}
+                    placeholder={isFacultyLoading ? 'Loading...' : 'faculty@college.edu'}
+                    className="w-full rounded-lg border border-white/10 bg-[#3D3660] px-3 py-1.5 text-sm text-[#F7F4FF] placeholder:text-[#6E6A88] outline-none focus:border-[#FF916C]/50"
+                  />
+                </div>
+                <div className="flex items-center gap-3">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[#9F9AB5]" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
+                    <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+                  </svg>
+                  <select
+                    value={reasonType}
+                    onChange={(event) => setReasonType(event.target.value)}
+                    className="w-full rounded-lg border border-[#FF916C]/60 bg-[#3D3660] px-3 py-1.5 text-sm text-[#F7F4FF] outline-none ring-1 ring-[#FF916C]/30 focus:ring-[#FF916C]/60"
+                  >
+                    {REASON_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-3">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[#9F9AB5]" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                  </svg>
+                  <input
+                    value={userName}
+                    readOnly
+                    className="w-full rounded-lg border border-white/10 bg-[#3D3660] px-3 py-1.5 text-sm text-[#F7F4FF]"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {facultyName ? (
+              <p className="mt-2 text-[11px] text-[#9F9AB5]">Faculty: {facultyName}</p>
+            ) : null}
+            {facultyLoadError ? (
+              <p className="mt-2 rounded-lg border border-[#FF5B5B]/40 bg-[#FF5B5B]/10 px-3 py-2 text-xs text-[#FFD4D4]">{facultyLoadError}</p>
+            ) : null}
+
+            {/* Email subject */}
+            <div className="mt-4">
               <label className="block">
-                <span className="text-xs text-[#D8D3E8]">Subject Name</span>
-                <input
-                  value={selectedAbsentEntry.subject || ''}
-                  readOnly
-                  className="mt-1 w-full rounded-xl border border-white/20 bg-[#5B5485] px-3 py-2 text-sm text-[#F4F1FF]"
-                />
-              </label>
-
-              <label className="block">
-                <span className="text-xs text-[#D8D3E8]">Date of class</span>
-                <input
-                  value={selectedAbsentEntry.date || selectedDateKey || ''}
-                  readOnly
-                  className="mt-1 w-full rounded-xl border border-white/20 bg-[#5B5485] px-3 py-2 text-sm text-[#F4F1FF]"
-                />
-              </label>
-
-              <label className="block sm:col-span-2">
-                <span className="text-xs text-[#D8D3E8]">Faculty Email (auto-filled)</span>
-                <input
-                  value={facultyEmail}
-                  onChange={(event) => setFacultyEmail(event.target.value)}
-                  placeholder={isFacultyLoading ? 'Loading faculty email...' : 'faculty@college.edu'}
-                  className="mt-1 w-full rounded-xl border border-white/20 bg-[#5B5485] px-3 py-2 text-sm text-[#F4F1FF] placeholder:text-[#CFC5E8]"
-                />
-              </label>
-
-              {facultyName ? (
-                <p className="sm:col-span-2 text-xs text-[#D8D3E8]">Faculty: {facultyName}</p>
-              ) : null}
-              {facultyLoadError ? (
-                <p className="sm:col-span-2 rounded-lg border border-[#F87171]/40 bg-[#7F1D1D]/20 px-3 py-2 text-xs text-[#FECACA]">{facultyLoadError}</p>
-              ) : null}
-
-              <label className="block">
-                <span className="text-xs text-[#D8D3E8]">Reason Type</span>
-                <select
-                  value={reasonType}
-                  onChange={(event) => setReasonType(event.target.value)}
-                  className="mt-1 w-full rounded-xl border border-white/20 bg-[#5B5485] px-3 py-2 text-sm text-[#F4F1FF]"
-                >
-                  {REASON_OPTIONS.map((reasonOption) => (
-                    <option key={reasonOption} value={reasonOption}>
-                      {reasonOption}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block sm:col-span-2">
-                <span className="text-xs text-[#D8D3E8]">Additional Details</span>
-                <textarea
-                  value={additionalDetails}
-                  onChange={(event) => setAdditionalDetails(event.target.value)}
-                  rows={3}
-                  placeholder="Optional context for faculty"
-                  className="mt-1 w-full rounded-xl border border-white/20 bg-[#5B5485] px-3 py-2 text-sm text-[#F4F1FF] placeholder:text-[#CFC5E8]"
-                />
-              </label>
-
-              <label className="block sm:col-span-2">
-                <span className="text-xs text-[#D8D3E8]">Email Subject</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#9F9AB5]">Subject</span>
                 <input
                   value={composeSubject}
                   onChange={(event) => {
                     setComposeSubject(event.target.value)
                     setIsSubjectEdited(true)
                   }}
-                  className="mt-1 w-full rounded-xl border border-white/20 bg-[#5B5485] px-3 py-2 text-sm text-[#F4F1FF]"
+                  className="mt-1.5 w-full rounded-lg border border-white/10 bg-[#3D3660] px-3 py-2 text-sm text-[#F7F4FF] outline-none focus:border-[#FF916C]/50"
                 />
               </label>
+            </div>
 
-              <label className="block sm:col-span-2">
-                <span className="text-xs text-[#D8D3E8]">Email Body</span>
-                <textarea
-                  value={composeBody}
-                  onChange={(event) => {
-                    setComposeBody(event.target.value)
-                    setIsBodyEdited(true)
-                  }}
-                  rows={8}
-                  className="mt-1 w-full rounded-xl border border-white/20 bg-[#5B5485] px-3 py-2 text-sm text-[#F4F1FF]"
-                />
-              </label>
-
-              <div className="sm:col-span-2 rounded-xl border border-white/15 bg-[#5B5485] p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-[#E2BC8B]">Email Preview</p>
-                <p className="mt-2 text-xs text-[#D8D3E8]">Subject: {composeSubject}</p>
-                <pre className="mt-2 whitespace-pre-wrap text-xs text-[#F4F1FF]">{composeBody}</pre>
-              </div>
+            {/* Email body editor */}
+            <div className="mt-3 rounded-xl border border-white/10 bg-[#3D3660]">
+              <textarea
+                value={composeBody}
+                onChange={(event) => {
+                  setComposeBody(event.target.value)
+                  setIsBodyEdited(true)
+                }}
+                rows={10}
+                className="w-full resize-none rounded-xl bg-transparent px-4 py-3 text-sm leading-relaxed text-[#F7F4FF] placeholder:text-[#6E6A88] outline-none"
+              />
             </div>
 
             {composeError ? (
-              <p className="mt-3 rounded-lg border border-[#F87171]/40 bg-[#7F1D1D]/20 px-3 py-2 text-xs text-[#FECACA]">{composeError}</p>
+              <p className="mt-3 rounded-lg border border-[#FF5B5B]/40 bg-[#FF5B5B]/10 px-3 py-2 text-xs text-[#FFD4D4]">{composeError}</p>
             ) : null}
 
-            <div className="mt-4 flex items-center justify-end gap-2">
+            {/* Footer actions */}
+            <div className="mt-5 flex items-center justify-center gap-3">
               <button
                 type="button"
                 onClick={() => setShowMailModal(false)}
-                className="rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-[#E7DEDE] hover:bg-white/10"
+                className="rounded-full border border-white/15 px-5 py-2.5 text-sm font-semibold text-[#D8D4E7] transition hover:bg-white/10"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleComposeEmail}
-                className="rounded-full bg-[#E2BC8B] px-4 py-2 text-sm font-semibold text-[#1D183E] hover:bg-[#D9AA6F]"
+                className="rounded-full px-6 py-2.5 text-sm font-bold text-[#1D183E] shadow-[0_0_20px_rgba(255,145,108,0.3)] transition hover:brightness-110"
+                style={{ background: 'linear-gradient(135deg, #FF916C 0%, #FFAA8D 100%)' }}
               >
                 Compose Email
               </button>
@@ -799,23 +1239,24 @@ function HistoryPage() {
 
       {showCollegeEmailPrompt ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-[#4F487A] p-5 shadow-xl ring-1 ring-white/10">
+          <div className="w-full max-w-md rounded-2xl bg-[#4A466A] p-5 shadow-xl ring-1 ring-white/10">
             <h3 className="text-lg font-semibold text-white">College Email Required</h3>
-            <p className="mt-2 text-sm text-[#D8D3E8]">
-              Please log in with your college email ID to compose and send emails to faculty. This ensures your request is sent from an official identity.
+            <p className="mt-2 text-sm text-[#D8D4E7]">
+              Please log in with your college email to compose and send emails to faculty.
             </p>
             <div className="mt-4 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setShowCollegeEmailPrompt(false)}
-                className="rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-[#E7DEDE] hover:bg-white/10"
+                className="rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-[#D8D4E7] hover:bg-white/10"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleGoToCollegeLogin}
-                className="rounded-full bg-[#E2BC8B] px-4 py-2 text-sm font-semibold text-[#1D183E] hover:bg-[#D9AA6F]"
+                className="rounded-full px-4 py-2 text-sm font-semibold text-[#1D183E]"
+                style={{ background: 'linear-gradient(135deg, #FF916C 0%, #FFAA8D 100%)' }}
               >
                 Go to Login
               </button>
@@ -823,6 +1264,8 @@ function HistoryPage() {
           </div>
         </div>
       ) : null}
+
+      <GuestLoginPrompt isOpen={guestPrompt.isOpen} onClose={guestPrompt.closePrompt} featureName={guestPrompt.feature} />
     </section>
   )
 }

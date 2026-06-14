@@ -1,173 +1,51 @@
 import { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
-import InstagramButton from '../components/common/InstagramButton'
-import LogoutButton from '../components/profile/LogoutButton'
+import { LogOut, Share2, Star, MessageSquare } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import useAppStore from '../hooks/useAppStore'
-import { fetchSessionStatus, submitFeedback } from '../services/attendanceApi'
-import { fireAndForgetStudyMeEvent } from '../services/studyMeAnalytics'
+import { fetchSessionStatus, fetchUserRating, submitFeedback, submitRating } from '../services/attendanceApi'
 
 function getInitials(name) {
-  if (!name) return 'I'
-
+  if (!name) return 'A'
   const parts = name.trim().split(/\s+/)
-
-  if (parts.length === 1) {
-    return parts[0].charAt(0).toUpperCase()
-  }
-
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase()
   return `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(0)}`.toUpperCase()
 }
 
-function formatLastSynced(date) {
-  const dayMonth = date.toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-  })
-
-  const time = date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  })
-
-  return `${dayMonth}, ${time}`
-}
-
-function looksLikeStudyMeFeedback(message) {
-  const normalized = String(message || '').trim().toLowerCase()
-  if (!normalized) {
-    return false
-  }
-
-  return ['studyme', 'subject', 'lesson', 'topic', 'pdf', 'prompt', 'ai', 'chatgpt'].some((keyword) => normalized.includes(keyword))
-}
-
 function Profile() {
-  const location = useLocation()
+  const navigate = useNavigate()
   const {
-    state: { user, session },
+    state: { user, session, attendance, selectedTarget },
     actions,
   } = useAppStore()
 
   const isFirebaseUser = user.authProvider === 'firebase'
   const userName = isFirebaseUser
-    ? (user.name || user.portalName || user.rollNumber || user.id || 'I')
-    : (user.rollNumber || user.id || user.portalName || user.name || 'I')
-  const userEmail = isFirebaseUser ? String(user.email || '').trim() : ''
+    ? (user.name || user.portalName || user.rollNumber || user.id || 'Student')
+    : (user.portalName || user.name || user.rollNumber || user.id || 'Student')
   const rollNumber = user.rollNumber || user.id || '--'
+  const overallPercentage = attendance?.overallPercentage || 0
+  const initials = getInitials(userName)
+
+  const [rating, setRating] = useState(0)
+  const [hoverRating, setHoverRating] = useState(0)
   const [feedbackMessage, setFeedbackMessage] = useState('')
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false)
   const [feedbackStatus, setFeedbackStatus] = useState('')
   const [feedbackError, setFeedbackError] = useState('')
-  const [shareStatus, setShareStatus] = useState('')
-  const [syncStatus, setSyncStatus] = useState('Checking...')
-  const [lastSynced, setLastSynced] = useState('--')
-  const [isSyncExpanded, setIsSyncExpanded] = useState(false)
-  const [isFeedbackExpanded, setIsFeedbackExpanded] = useState(false)
-  const userInitials = getInitials(userName)
-  const isLinked = syncStatus.toLowerCase() === 'linked'
 
+  // Fetch existing rating
   useEffect(() => {
-    if (location.hash !== '#feedback-details') {
-      return undefined
-    }
-
-    setIsFeedbackExpanded(true)
-
-    const timeoutId = window.setTimeout(() => {
-      document.getElementById('feedback-details')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }, 50)
-
-    return () => {
-      window.clearTimeout(timeoutId)
-    }
-  }, [location.hash])
-
-  useEffect(() => {
-    let isMounted = true
-
-    if (!session.token) {
-      setSyncStatus('Session expired')
-      setLastSynced('--')
-      return () => {
-        isMounted = false
-      }
-    }
-
-    setSyncStatus('Checking...')
-
+    if (!session.token) return
     void (async () => {
-      try {
-        const status = await fetchSessionStatus(session.token)
-        if (!isMounted) {
-          return
-        }
-
-        if (status === 'linked') {
-          setSyncStatus('Linked')
-          setLastSynced(formatLastSynced(new Date()))
-          return
-        }
-
-        if (status === 'expired') {
-          setSyncStatus('Session expired')
-          setLastSynced('--')
-          return
-        }
-
-        setSyncStatus('Status unavailable')
-      } catch {
-        if (!isMounted) {
-          return
-        }
-        setSyncStatus('Status unavailable')
-      }
+      const r = await fetchUserRating(session.token)
+      if (r) setRating(r)
     })()
-
-    return () => {
-      isMounted = false
-    }
   }, [session.token])
 
-  const handleShare = async () => {
-    const appLink = window.location.origin
-    const sharePayload = {
-      title: 'Attend75',
-      text: 'Track your attendance easily',
-      url: appLink,
-    }
-
-    setShareStatus('')
-
-    if (navigator.share) {
-      try {
-        await navigator.share(sharePayload)
-        setShareStatus('Thanks for sharing Attend75!')
-        return
-      } catch (error) {
-        if (error?.name === 'AbortError') {
-          return
-        }
-      }
-    }
-
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(appLink)
-      } else {
-        const tempInput = document.createElement('textarea')
-        tempInput.value = appLink
-        tempInput.setAttribute('readonly', '')
-        tempInput.style.position = 'absolute'
-        tempInput.style.left = '-9999px'
-        document.body.appendChild(tempInput)
-        tempInput.select()
-        document.execCommand('copy')
-        document.body.removeChild(tempInput)
-      }
-      setShareStatus('Sharing is not supported here. Link copied to clipboard.')
-    } catch {
-      setShareStatus(`Copy failed. Please share this link manually: ${appLink}`)
+  const handleRating = async (value) => {
+    setRating(value)
+    if (session.token) {
+      await submitRating(session.token, value)
     }
   }
 
@@ -175,194 +53,188 @@ function Profile() {
     event.preventDefault()
     setFeedbackStatus('')
     setFeedbackError('')
-
-    if (!feedbackMessage.trim()) {
-      setFeedbackError('Feedback cannot be empty.')
-      return
-    }
+    if (!feedbackMessage.trim()) { setFeedbackError('Feedback cannot be empty.'); return }
 
     try {
       setIsSubmittingFeedback(true)
-      const result = await submitFeedback(feedbackMessage, userName)
-      const submittedAt = result?.timestamp ? new Date(result.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null
-      setFeedbackStatus(submittedAt ? `Feedback submitted successfully at ${submittedAt}.` : 'Feedback submitted successfully.')
-      if (looksLikeStudyMeFeedback(feedbackMessage)) {
-        fireAndForgetStudyMeEvent({
-          eventType: 'studyme_feedback_sent',
-          token: session.token,
-          userName,
-        })
-      }
+      await submitFeedback(feedbackMessage, userName)
+      setFeedbackStatus('Sent!')
       setFeedbackMessage('')
     } catch (error) {
-      setFeedbackError(error.message || 'Unable to submit feedback right now.')
+      setFeedbackError(error.message || 'Unable to submit.')
     } finally {
       setIsSubmittingFeedback(false)
     }
   }
 
+  const handleShare = async (platform) => {
+    const url = window.location.origin
+    const text = 'Track your attendance with Attend75'
+
+    if (platform === 'whatsapp') {
+      window.open(`https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`, '_blank')
+    } else if (platform === 'instagram') {
+      try { await navigator.clipboard.writeText(url) } catch { /* */ }
+      window.open('https://instagram.com', '_blank')
+    } else {
+      try {
+        await navigator.clipboard.writeText(url)
+      } catch { /* */ }
+    }
+  }
+
+  const handleLogout = async () => {
+    await actions.logout()
+    navigate('/login', { replace: true })
+  }
+
   return (
-    <section className="space-y-3 pb-2 sm:space-y-4">
-      <section className="rounded-2xl bg-[#5B5485] px-4 py-4 shadow-sm sm:px-5 sm:py-5">
-        <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#E2BC8B] sm:h-16 sm:w-16">
-            <span className="text-xl font-bold text-[#2B2450] sm:text-2xl">{userInitials}</span>
-          </div>
+    <section className="space-y-3 pb-4">
+      {/* Header */}
+      <h1 className="text-2xl font-extrabold text-[#F7F4FF]">Profile</h1>
 
-          <div className="min-w-0">
-            <h1 className="break-words text-xl font-bold text-white sm:text-2xl">{userName}</h1>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setIsSyncExpanded((current) => !current)}
-          className="mt-4 flex w-full items-center justify-between rounded-xl border border-white/15 bg-[#4F487A] px-3 py-2 text-left transition hover:bg-[#4B4472]"
-          aria-expanded={isSyncExpanded}
-          aria-controls="profile-sync-details"
-        >
-          <div>
-            <h2 className="text-sm font-semibold text-[#F4F1FF] sm:text-base">Data Sync</h2>
-            <p className="text-xs text-[#D8D3E8] sm:text-sm">Tap to view session details</p>
-          </div>
-          <svg
-            viewBox="0 0 20 20"
-            className={[
-              'h-5 w-5 flex-shrink-0 text-[#E2BC8B] transition-transform duration-300',
-              isSyncExpanded ? 'rotate-180' : '',
-            ].join(' ')}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-          >
-            <path d="M5 7.5 10 12.5 15 7.5" strokeLinecap="round" strokeLinejoin="round" />
+      {/* User card */}
+      <div
+        className="flex flex-col items-center rounded-2xl px-4 py-6 ring-1 ring-white/5"
+        style={{ background: 'linear-gradient(180deg, #5B5878 0%, #4A466A 40%)' }}
+      >
+        {/* Avatar with attendance ring */}
+        <div className="relative h-[100px] w-[100px]">
+          <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
+            <circle cx="50" cy="50" r="44" stroke="#302A52" strokeWidth="6" fill="none" />
+            <circle
+              cx="50" cy="50" r="44"
+              stroke="#4EF0A0"
+              strokeWidth="6"
+              strokeLinecap="round"
+              fill="none"
+              strokeDasharray={2 * Math.PI * 44}
+              strokeDashoffset={2 * Math.PI * 44 - (Math.min(100, overallPercentage) / 100) * 2 * Math.PI * 44}
+              className="transition-all duration-700"
+            />
           </svg>
-        </button>
-
-        <div
-          id="profile-sync-details"
-          className={[
-            'overflow-hidden transition-all duration-300',
-            isSyncExpanded ? 'mt-3 max-h-44 opacity-100' : 'max-h-0 opacity-0',
-          ].join(' ')}
-        >
-          <div className="rounded-xl bg-[#E2BC8B] p-3 text-[#1A1535] sm:p-4">
-            <div className="space-y-3 text-xs sm:text-sm">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-[#3E365F]">Last Synced</span>
-                <span className="break-all text-right font-semibold">{lastSynced}</span>
-              </div>
-
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-[#3E365F]">Status</span>
-                <span className={`font-semibold ${isLinked ? 'text-[#1F8F3A]' : 'text-[#C53030]'}`}>{syncStatus}</span>
-              </div>
-
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-[#3E365F]">Roll Number</span>
-                <span className="break-all text-right font-semibold">{rollNumber}</span>
-              </div>
-
-              {userEmail ? (
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[#3E365F]">Email</span>
-                  <span className="break-all text-right font-semibold">{userEmail}</span>
-                </div>
-              ) : null}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="flex h-[72px] w-[72px] items-center justify-center rounded-full bg-[#E8A88C] text-xl font-bold text-[#1D183E]">
+              {initials}
             </div>
           </div>
         </div>
-      </section>
 
-      <div className="rounded-3xl bg-[#4F487A] p-3 shadow-md ring-1 ring-white/5 sm:p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-[#F4F1FF] sm:text-lg">Share Attend75</h2>
-            <p className="text-xs text-[#D8D3E8] sm:text-sm">Share the app via WhatsApp, Instagram, and more.</p>
-          </div>
+        {/* Name + details */}
+        <p className="mt-4 text-xl font-bold text-[#F7F4FF]">{userName}</p>
+        <p className="mt-0.5 text-xs text-[#9F9AB5]">{rollNumber}</p>
+        <p className="mt-0.5 text-xs text-[#9F9AB5]">BBA — Sem IV</p>
 
-          <button
-            type="button"
-            onClick={handleShare}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#E2BC8B] text-[#1D183E] transition hover:bg-[#D9AA6F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8D3E8]"
-            aria-label="Share app"
-          >
-            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 16V4" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M8 8l4-4 4 4" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M5 12v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
+        {/* Status badge */}
+        <div className="mt-3 flex items-center gap-1.5 rounded-full border border-[#4EF0A0]/30 px-3 py-1">
+          <span className="h-2 w-2 rounded-full bg-[#4EF0A0]" />
+          <span className="text-xs font-semibold text-[#4EF0A0]">{overallPercentage}% · {overallPercentage > 75 ? 'Safe' : overallPercentage >= 60 ? 'Tight' : 'At Risk'}</span>
         </div>
-
-        {shareStatus ? <p className="mt-3 text-sm text-[#F4F1FF]">{shareStatus}</p> : null}
       </div>
 
-      <div className="rounded-3xl bg-[#4F487A] p-3 shadow-md ring-1 ring-white/5 sm:p-4">
-        <button
-          type="button"
-          onClick={() => setIsFeedbackExpanded((current) => !current)}
-          className="flex w-full items-center justify-between text-left"
-          aria-expanded={isFeedbackExpanded}
-          aria-controls="feedback-details"
-        >
-          <div>
-            <h2 className="text-base font-semibold text-[#F4F1FF] sm:text-lg">Feedback</h2>
-            <p className="mt-1 text-xs text-[#D8D3E8] sm:text-sm">Tell us what we can improve.</p>
+      {/* Rate */}
+      <div className="rounded-2xl bg-[#4A466A] px-4 py-4 ring-1 ring-white/5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FFB23E]/15">
+            <Star className="h-5 w-5 text-[#FFB23E]" strokeWidth={1.8} />
           </div>
-          <svg
-            viewBox="0 0 20 20"
-            className={[
-              'h-5 w-5 flex-shrink-0 text-[#E2BC8B] transition-transform duration-300',
-              isFeedbackExpanded ? 'rotate-180' : '',
-            ].join(' ')}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-          >
-            <path d="M5 7.5 10 12.5 15 7.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-
-        <div
-          id="feedback-details"
-          className={[
-            'overflow-hidden transition-all duration-300',
-            isFeedbackExpanded ? 'mt-3 max-h-96 opacity-100' : 'max-h-0 opacity-0',
-          ].join(' ')}
-        >
-          <form className="space-y-3" onSubmit={handleFeedbackSubmit}>
-            <textarea
-              value={feedbackMessage}
-              onChange={(event) => {
-                setFeedbackMessage(event.target.value)
-                if (feedbackStatus) setFeedbackStatus('')
-                if (feedbackError) setFeedbackError('')
-              }}
-              placeholder="Write your feedback here..."
-              rows={4}
-              className="w-full rounded-2xl border border-[#6D6499] bg-[#5B5485] px-4 py-3 text-sm text-[#F4F1FF] placeholder:text-[#CFC5E8] focus:border-[#E2BC8B] focus:outline-none"
-            />
-
-            {feedbackError ? <p className="text-sm text-[#FECACA]">{feedbackError}</p> : null}
-            {feedbackStatus ? <p className="text-sm text-[#D1FAE5]">{feedbackStatus}</p> : null}
-
+          <div>
+            <p className="text-sm font-bold text-[#F7F4FF]">Rate Attend75</p>
+            <p className="text-[10px] text-[#9F9AB5]">Tap a star to send a quick review</p>
+          </div>
+        </div>
+        <div className="mt-3 flex gap-2">
+          {[1, 2, 3, 4, 5].map((star) => (
             <button
-              type="submit"
-              disabled={isSubmittingFeedback}
-              className="inline-flex items-center rounded-full bg-[#E2BC8B] px-4 py-2 text-sm font-semibold text-[#1D183E] transition hover:bg-[#D9AA6F] disabled:cursor-not-allowed disabled:opacity-70"
+              key={star}
+              type="button"
+              onClick={() => handleRating(star)}
+              onMouseEnter={() => setHoverRating(star)}
+              onMouseLeave={() => setHoverRating(0)}
+              className="transition-transform duration-150 active:scale-90"
+              aria-label={`Rate ${star} star${star > 1 ? 's' : ''}`}
             >
-              {isSubmittingFeedback ? 'Submitting...' : 'Submit Feedback'}
+              <Star
+                className="h-7 w-7"
+                strokeWidth={1.5}
+                fill={(hoverRating || rating) >= star ? '#FFB23E' : 'none'}
+                stroke={(hoverRating || rating) >= star ? '#FFB23E' : '#6E6A88'}
+              />
             </button>
-          </form>
+          ))}
         </div>
       </div>
 
-      <LogoutButton onLogout={actions.logout} />
-      <div className="flex items-center justify-center gap-3 px-2 pb-1">
-        <p className="text-center text-xs text-[#D8D3E8]/65">Attend75 · Made for ICFAI students</p>
-        <InstagramButton />
+      {/* Share */}
+      <div className="rounded-2xl bg-[#4A466A] px-4 py-4 ring-1 ring-white/5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#6CB4FF]/15">
+            <Share2 className="h-5 w-5 text-[#6CB4FF]" strokeWidth={1.8} />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-[#F7F4FF]">Share with classmates</p>
+            <p className="text-[10px] text-[#9F9AB5]">They get the streak. You get the karma.</p>
+          </div>
+        </div>
+        <div className="mt-3 flex gap-2">
+          {['WhatsApp', 'Instagram', 'Copy link'].map((label) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => handleShare(label.toLowerCase().replace(' ', ''))}
+              className="rounded-full border border-white/15 px-3.5 py-1.5 text-[11px] font-semibold text-[#D8D4E7] transition active:scale-95 hover:bg-white/5"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* Feedback */}
+      <div className="rounded-2xl bg-[#4A466A] px-4 py-4 ring-1 ring-white/5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#C77DFF]/15">
+            <MessageSquare className="h-5 w-5 text-[#C77DFF]" strokeWidth={1.8} />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-[#F7F4FF]">Send feedback</p>
+            <p className="text-[10px] text-[#9F9AB5]">What should we build next?</p>
+          </div>
+        </div>
+        <form onSubmit={handleFeedbackSubmit} className="mt-3">
+          <textarea
+            value={feedbackMessage}
+            onChange={(e) => { setFeedbackMessage(e.target.value); setFeedbackStatus(''); setFeedbackError('') }}
+            placeholder="What's missing?"
+            rows={3}
+            className="w-full rounded-xl border border-white/10 bg-[#3D3660] px-3 py-2.5 text-sm text-[#F7F4FF] placeholder:text-[#6E6A88] outline-none focus:border-[#FF916C]/40"
+          />
+          {feedbackError ? <p className="mt-1 text-[10px] text-[#FF5B5B]">{feedbackError}</p> : null}
+          {feedbackStatus ? <p className="mt-1 text-[10px] text-[#4EF0A0]">{feedbackStatus}</p> : null}
+          <button
+            type="submit"
+            disabled={isSubmittingFeedback}
+            className="mt-2 rounded-full bg-[#FF916C] px-4 py-1.5 text-[11px] font-bold text-[#1D183E] transition active:scale-95 disabled:opacity-60"
+          >
+            {isSubmittingFeedback ? 'Sending...' : 'Send'}
+          </button>
+        </form>
+      </div>
+
+      {/* Logout */}
+      <button
+        type="button"
+        onClick={handleLogout}
+        className="flex w-full items-center gap-3 rounded-2xl bg-[#4A466A]/60 px-4 py-4 text-sm font-semibold text-[#FF5B5B] ring-1 ring-[#FF5B5B]/20 transition active:scale-[0.99] hover:bg-[#FF5B5B]/5"
+      >
+        <LogOut className="h-4 w-4" strokeWidth={2} />
+        Log out
+      </button>
+
+      {/* Footer */}
+      <p className="text-center text-[10px] text-[#6E6A88]">
+        Attend<span className="text-[#FF916C]">75</span> · Made for ICFAI / IBS students
+      </p>
     </section>
   )
 }

@@ -58,3 +58,42 @@ export async function trackStudyMeEvent({
 export function fireAndForgetStudyMeEvent(payload) {
   void trackStudyMeEvent(payload).catch(() => {})
 }
+
+
+export async function requestStudyMeSubject({ token, subjectCode, subjectName, abbreviation }) {
+  const response = await fetch(`${API_BASE_URL}/studyme/subject-request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      event_type: 'subject_request',
+      token: String(token || '').trim() || null,
+      subject_name: String(subjectCode || '').trim(),  // code goes here
+      lesson_name: String(subjectName || '').trim() || null,  // full name
+      topic_name: String(abbreviation || '').trim() || null,  // abbreviation
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error('Unable to request subject.')
+  }
+
+  const data = await response.json().catch(() => ({}))
+  return data?.data || {}
+}
+
+
+export async function fetchSubjectRequestCounts(token) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/studyme/subject-request/counts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_type: 'query', token: String(token || '').trim() || null }),
+    })
+
+    if (!response.ok) return {}
+    const data = await response.json().catch(() => ({}))
+    return data?.data?.counts || {}
+  } catch {
+    return {}
+  }
+}

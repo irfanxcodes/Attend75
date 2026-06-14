@@ -4,13 +4,15 @@ from fastapi import APIRouter
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
-from models.schemas import ApiResponse, AttendanceHistoryRequest, AttendanceRequest, FeatureUsageEventRequest, LoginRequest, SessionStatusRequest
+from models.schemas import ApiResponse, AttendanceHistoryRequest, AttendanceRequest, FeatureUsageEventRequest, LoginRequest, RatingRequest, SessionStatusRequest
 from scrapers.portal_scraper import PortalAuthenticationError, PortalNetworkError
 from services.auth_service import (
+    calculate_attendance_streak,
     fetch_attendance_for_semester,
     fetch_consolidated_marks,
     fetch_faculty_contacts,
     fetch_subject_history,
+    get_mails_sent,
     get_session_status,
     login_user,
     track_feature_usage_event,
@@ -257,3 +259,85 @@ async def feature_usage_track(payload: FeatureUsageEventRequest):
     except Exception:
         logger.exception("Unexpected feature usage track error")
         return _data_error_response("FEATURE_USAGE_TRACK_FAILED", status_code=500)
+
+
+@router.post("/feature-usage/mails-sent", response_model=ApiResponse)
+async def feature_usage_mails_sent(payload: SessionStatusRequest):
+    try:
+        data = await run_in_threadpool(
+            get_mails_sent,
+            payload.token,
+        )
+        return ApiResponse(status="success", message="Mails sent count fetched", data=data)
+    except PortalAuthenticationError as exc:
+        error_code = getattr(exc, "code", "SESSION_EXPIRED")
+        logger.warning("Mails sent count auth failure [code=%s, detail=%s]", error_code, str(exc))
+        if str(error_code).strip().upper().startswith("SESSION_EXPIRED"):
+            return _data_error_response(error_code, status_code=401)
+        return _data_error_response(error_code, status_code=502)
+    except Exception:
+        logger.exception("Unexpected mails sent count error")
+        return _data_error_response("DATA_FETCH_FAILED", status_code=500)
+
+
+@router.post("/rating/submit", response_model=ApiResponse)
+async def submit_rating_endpoint(payload: RatingRequest):
+    from services.rating_service import submit_rating
+    from services.session_store import session_store
+
+    try:
+        record = session_store.get(payload.token)
+        if record is None:
+            return _data_error_response("SESSION_EXPIRED", status_code=401)
+
+        data = await run_in_threadpool(submit_rating, record.roll_number, payload.rating)
+        return ApiResponse(status="success", message="Rating submitted", data=data)
+    except ValueError as exc:
+        return JSONResponse(status_code=422, content={"status": "error", "message": str(exc)})
+    except Exception:
+        logger.exception("Unexpected rating submit error")
+        return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to submit rating"})
+
+
+@router.post("/rating/get", response_model=ApiResponse)
+async def get_rating_endpoint(payload: SessionStatusRequest):
+    from services.rating_service import get_user_rating
+    from services.session_store import session_store
+
+    try:
+        record = session_store.get(payload.token)
+        if record is None:
+            return _data_error_response("SESSION_EXPIRED", status_code=401)
+
+        rating = await run_in_threadpool(get_user_rating, record.roll_number)
+        return ApiResponse(status="success", message="Rating fetched", data={"rating": rating})
+    except Exception:
+        logger.exception("Unexpected rating fetch error")
+        return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to fetch rating"})
+
+
+@router.post("/attendance/streak", response_model=ApiResponse)
+async def attendance_streak(payload: AttendanceRequest):
+    try:
+        data = await run_in_threadpool(
+            calculate_attendance_streak,
+            payload.token,
+            payload.semester_id,
+        )
+        return ApiResponse(status="success", message="Streak calculated", data=data)
+    except PortalAuthenticationError as exc:
+        error_code = getattr(exc, "code", "SESSION_EXPIRED")
+        logger.warning("Streak calculation auth failure [code=%s]", error_code)
+        if str(error_code).strip().upper().startswith("SESSION_EXPIRED"):
+            return _data_error_response(error_code, status_code=401)
+        return _data_error_response(error_code, status_code=502)
+    except PortalNetworkError as exc:
+        error_code = getattr(exc, "code", "DATA_FETCH_FAILED")
+        logger.exception("Streak calculation network failure [code=%s]", error_code)
+        status_code = int(getattr(exc, "http_status", 502) or 502)
+        if status_code < 400:
+            status_code = 502
+        return _data_error_response(error_code, status_code=status_code)
+    except Exception:
+        logger.exception("Unexpected streak calculation error")
+        return _data_error_response("DATA_FETCH_FAILED", status_code=500)
