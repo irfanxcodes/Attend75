@@ -5,29 +5,47 @@ const DISMISS_KEY = 'attend75.iosGuide.dismissedAt'
 const DISMISS_COOLDOWN_MS = 5 * 24 * 60 * 60 * 1000 // 5 days
 
 /**
- * iOS-specific install instructions modal.
- *
- * Since iOS doesn't support beforeinstallprompt, we show manual instructions:
- * "Tap Share → Add to Home Screen"
+ * Detect if this is a Safari browser (iOS or macOS) that doesn't support
+ * the native install prompt (beforeinstallprompt).
+ */
+function isSafariBrowser() {
+  const ua = navigator.userAgent || ''
+  // Safari on iOS or macOS — but NOT Chrome/Firefox/Edge on those platforms
+  const isSafari = /Safari/.test(ua) && !/Chrome|CriOS|FxiOS|Edg/.test(ua)
+  return isSafari
+}
+
+function isIOSDevice() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent)
+}
+
+/**
+ * Safari install guide (iOS + macOS).
  *
  * Shows when:
- * - Device is iOS
+ * - Browser is Safari (no native install prompt available)
  * - App is NOT already installed (not standalone)
- * - User has spent 45+ seconds or navigated 2+ pages
+ * - User has spent 15+ seconds or navigated 2+ pages
  * - Not dismissed in last 5 days
  */
 function IOSInstallGuide() {
-  const { isInstalled, isIOS } = useInstallPrompt()
+  const { isInstalled, canInstall } = useInstallPrompt()
   const [show, setShow] = useState(false)
   const [engagementMet, setEngagementMet] = useState(false)
 
+  const isSafari = isSafariBrowser()
+  const isIOS = isIOSDevice()
+
+  // Don't show if: already installed, has native prompt (Chrome/Edge), or not Safari
+  const shouldTrackEngagement = isSafari && !isInstalled && !canInstall
+
   useEffect(() => {
-    if (!isIOS || isInstalled) return
+    if (!shouldTrackEngagement) return
 
     let pageViews = 0
     const timer = setTimeout(() => {
       setEngagementMet(true)
-    }, 45000)
+    }, 15000)
 
     function handleNavigation() {
       pageViews++
@@ -48,10 +66,10 @@ function IOSInstallGuide() {
       window.removeEventListener('popstate', handleNavigation)
       history.pushState = originalPushState
     }
-  }, [isIOS, isInstalled])
+  }, [shouldTrackEngagement])
 
   useEffect(() => {
-    if (!engagementMet || !isIOS || isInstalled) return
+    if (!engagementMet || !shouldTrackEngagement) return
 
     try {
       const dismissedAt = Number(window.localStorage.getItem(DISMISS_KEY) || 0)
@@ -61,7 +79,7 @@ function IOSInstallGuide() {
     } catch { /* */ }
 
     setShow(true)
-  }, [engagementMet, isIOS, isInstalled])
+  }, [engagementMet, shouldTrackEngagement])
 
   const handleDismiss = () => {
     setShow(false)
@@ -72,9 +90,14 @@ function IOSInstallGuide() {
 
   if (!show) return null
 
+  // Adapt instructions for iOS vs macOS Safari
+  const shareDescription = isIOS
+    ? 'The square with an arrow at the bottom of Safari'
+    : 'In the menu bar or the share icon in the address bar'
+
   return (
     <div
-      className="fixed inset-0 z-[150] flex items-end justify-center bg-black/60 px-4 pb-6 pt-10 backdrop-blur-sm"
+      className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm sm:items-center"
       onClick={handleDismiss}
     >
       <div
@@ -91,7 +114,7 @@ function IOSInstallGuide() {
           </div>
           <div>
             <p className="text-sm font-bold text-[#F7F4FF]">Install Attend75</p>
-            <p className="text-[10px] text-[#9F9AB5]">Add to your home screen</p>
+            <p className="text-[10px] text-[#9F9AB5]">Add to your {isIOS ? 'home screen' : 'dock'}</p>
           </div>
         </div>
 
@@ -100,8 +123,8 @@ function IOSInstallGuide() {
           <div className="flex items-center gap-3 rounded-xl bg-white/5 px-3 py-2.5">
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#FF916C]/20 text-xs font-bold text-[#FF916C]">1</span>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-[#F7F4FF]">Tap the Share button</p>
-              <p className="mt-0.5 text-[10px] text-[#9F9AB5]">The square with an arrow at the bottom of Safari</p>
+              <p className="text-xs font-semibold text-[#F7F4FF]">{isIOS ? 'Tap' : 'Click'} the Share button</p>
+              <p className="mt-0.5 text-[10px] text-[#9F9AB5]">{shareDescription}</p>
             </div>
             <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-[#6CB4FF]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
@@ -114,7 +137,7 @@ function IOSInstallGuide() {
           <div className="flex items-center gap-3 rounded-xl bg-white/5 px-3 py-2.5">
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#FF916C]/20 text-xs font-bold text-[#FF916C]">2</span>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-[#F7F4FF]">Scroll down and tap &quot;Add to Home Screen&quot;</p>
+              <p className="text-xs font-semibold text-[#F7F4FF]">{isIOS ? 'Scroll down and tap' : 'Click'} &quot;Add to {isIOS ? 'Home Screen' : 'Dock'}&quot;</p>
               <p className="mt-0.5 text-[10px] text-[#9F9AB5]">It has a + icon next to it</p>
             </div>
             <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-[#4EF0A0]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -128,8 +151,8 @@ function IOSInstallGuide() {
           <div className="flex items-center gap-3 rounded-xl bg-white/5 px-3 py-2.5">
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#FF916C]/20 text-xs font-bold text-[#FF916C]">3</span>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-[#F7F4FF]">Tap &quot;Add&quot; to confirm</p>
-              <p className="mt-0.5 text-[10px] text-[#9F9AB5]">Attend75 will appear on your home screen</p>
+              <p className="text-xs font-semibold text-[#F7F4FF]">{isIOS ? 'Tap' : 'Click'} &quot;Add&quot; to confirm</p>
+              <p className="mt-0.5 text-[10px] text-[#9F9AB5]">Attend75 will appear on your {isIOS ? 'home screen' : 'dock'}</p>
             </div>
             <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-[#4EF0A0]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="20 6 9 17 4 12" />

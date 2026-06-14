@@ -26,7 +26,7 @@ function InstallBanner() {
     let pageViews = 0
     const timer = setTimeout(() => {
       setEngagementMet(true)
-    }, 45000)
+    }, 15000)
 
     // Count route changes via popstate
     function handleNavigation() {
