@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { notifyWalkthroughDone } from '../../pwa/installCoordinator'
 
 const WALKTHROUGH_STORAGE_KEY = 'attend75.walkthrough.completed'
 
@@ -200,6 +201,7 @@ function Walkthrough({ onComplete }) {
   const handleFinish = () => {
     setIsVisible(false)
     try { window.localStorage.setItem(WALKTHROUGH_STORAGE_KEY, 'true') } catch { /* */ }
+    notifyWalkthroughDone()
     if (onComplete) onComplete()
   }
 

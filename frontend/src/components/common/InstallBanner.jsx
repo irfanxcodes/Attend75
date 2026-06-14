@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useInstallPrompt } from '../../pwa/useInstallPrompt'
+import { onWalkthroughDone } from '../../pwa/installCoordinator'
 
 const DISMISS_KEY = 'attend75.installBanner.dismissedAt'
 const DISMISS_COOLDOWN_MS = 5 * 24 * 60 * 60 * 1000 // 5 days
@@ -16,29 +17,40 @@ function InstallBanner() {
   useEffect(() => {
     if (isInstalled || !canInstall) return
 
-    let pageViews = 0
-    const timer = setTimeout(() => {
-      setEngagementMet(true)
-    }, 15000)
-
-    function handleNavigation() {
-      pageViews++
-      if (pageViews >= 2) {
+    // Wait for walkthrough to complete before starting engagement timer
+    const cleanupWalkthrough = onWalkthroughDone(() => {
+      let pageViews = 0
+      const timer = setTimeout(() => {
         setEngagementMet(true)
-      }
-    }
+      }, 15000)
 
-    window.addEventListener('popstate', handleNavigation)
-    const originalPushState = history.pushState
-    history.pushState = function (...args) {
-      originalPushState.apply(this, args)
-      handleNavigation()
-    }
+      function handleNavigation() {
+        pageViews++
+        if (pageViews >= 2) {
+          setEngagementMet(true)
+        }
+      }
+
+      window.addEventListener('popstate', handleNavigation)
+      const originalPushState = history.pushState
+      history.pushState = function (...args) {
+        originalPushState.apply(this, args)
+        handleNavigation()
+      }
+
+      // Store cleanup for this inner scope
+      innerCleanupRef.current = () => {
+        clearTimeout(timer)
+        window.removeEventListener('popstate', handleNavigation)
+        history.pushState = originalPushState
+      }
+    })
+
+    const innerCleanupRef = { current: null }
 
     return () => {
-      clearTimeout(timer)
-      window.removeEventListener('popstate', handleNavigation)
-      history.pushState = originalPushState
+      cleanupWalkthrough()
+      if (innerCleanupRef.current) innerCleanupRef.current()
     }
   }, [canInstall, isInstalled])
 
