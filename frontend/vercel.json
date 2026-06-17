@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "http://168.144.112.202:8000/:path*"
+      "destination": "https://api.attend75.xyz/:path*"
     },
     {
       "source": "/:path*",
