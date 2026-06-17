@@ -14,6 +14,7 @@ from services.admin_service import (
 	logout_admin_session,
 	require_admin_user,
 )
+from services.admin_analytics_service import get_full_admin_analytics
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 logger = logging.getLogger(__name__)
@@ -115,3 +116,16 @@ async def admin_feedback_status_update(
 			content={"status": "error", "message": "Unable to update feedback status"},
 		)
 
+
+@router.get("/analytics", response_model=ApiResponse)
+async def admin_analytics(_: dict = Depends(require_admin_user)):
+	"""Expanded analytics: ratings, engagement, retention, feature adoption, subject requests, college interests."""
+	try:
+		data = await run_in_threadpool(get_full_admin_analytics)
+		return ApiResponse(status="success", message="Admin analytics fetched", data=data)
+	except Exception:
+		logger.exception("Failed to fetch admin analytics")
+		return JSONResponse(
+			status_code=500,
+			content={"status": "error", "message": "Unable to fetch analytics"},
+		)

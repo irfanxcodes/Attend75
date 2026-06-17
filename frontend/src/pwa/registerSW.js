@@ -5,12 +5,10 @@
  * The plugin auto-generates the service worker during build and
  * handles registration + update lifecycle.
  *
- * In development mode, the service worker is not active.
+ * In development mode, the service worker may not be active.
  * In production, it precaches static assets and handles
  * runtime caching for fonts.
  */
-
-import { registerSW } from 'virtual:pwa-register'
 
 let updateSW = null
 
@@ -18,41 +16,52 @@ let updateSW = null
  * Initialize service worker registration.
  * Call once at app startup (main.jsx).
  */
-export function initServiceWorker() {
+export async function initServiceWorker() {
   if (typeof window === 'undefined') return
 
-  updateSW = registerSW({
-    immediate: true,
+  try {
+    const { registerSW } = await import('virtual:pwa-register')
 
-    onRegisteredSW(swUrl, registration) {
-      if (import.meta.env.DEV) {
-        console.log('[PWA] Service worker registered (dev mode):', swUrl)
-      }
+    updateSW = registerSW({
+      immediate: true,
 
-      // Check for updates every hour in production
-      if (registration && !import.meta.env.DEV) {
-        setInterval(() => {
-          registration.update()
-        }, 60 * 60 * 1000)
-      }
-    },
+      onRegisteredSW(swUrl, registration) {
+        if (import.meta.env.DEV) {
+          console.log('[PWA] Service worker registered (dev mode):', swUrl)
+        }
 
-    onOfflineReady() {
-      if (import.meta.env.DEV) {
-        console.log('[PWA] App is ready to work offline')
-      }
-    },
+        // Check for updates every hour in production
+        if (registration && !import.meta.env.DEV) {
+          setInterval(() => {
+            registration.update()
+          }, 60 * 60 * 1000)
+        }
+      },
 
-    onNeedRefresh() {
-      // Dispatch a custom event that UI components can listen to
-      // for showing an "Update available" toast
-      window.dispatchEvent(new CustomEvent('attend75:sw-update-available'))
-    },
+      onOfflineReady() {
+        if (import.meta.env.DEV) {
+          console.log('[PWA] App is ready to work offline')
+        }
+      },
 
-    onRegisterError(error) {
-      console.error('[PWA] Service worker registration failed:', error)
-    },
-  })
+      onNeedRefresh() {
+        // Dispatch a custom event that UI components can listen to
+        // for showing an "Update available" toast
+        window.dispatchEvent(new CustomEvent('attend75:sw-update-available'))
+      },
+
+      onRegisterError(error) {
+        console.error('[PWA] Service worker registration failed:', error)
+      },
+    })
+  } catch (error) {
+    // In dev mode or if PWA plugin isn't ready, the app should still work
+    if (import.meta.env.DEV) {
+      console.log('[PWA] Service worker not available in dev mode')
+    } else {
+      console.error('[PWA] Failed to initialize service worker:', error)
+    }
+  }
 }
 
 /**

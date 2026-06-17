@@ -190,6 +190,13 @@ export async function logoutAdminSession(sessionToken) {
   }
 }
 
+export async function fetchAdminAnalytics(sessionToken) {
+  return requestAdminJson(`${API_BASE_URL}/admin/analytics`, {
+    method: 'GET',
+    headers: authHeaders(sessionToken),
+  })
+}
+
 export {
   ADMIN_STORAGE_KEY,
   AdminApiError,

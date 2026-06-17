@@ -57,9 +57,15 @@ export function useInstallPrompt() {
 
     const { outcome } = await prompt.userChoice
     deferredPromptRef.current = null
-    setCanInstall(false)
 
-    return outcome === 'accepted'
+    if (outcome === 'accepted') {
+      setCanInstall(false)
+      return true
+    }
+
+    // User dismissed — keep canInstall true so banner stays visible,
+    // but the prompt is consumed. A page reload will get a new one.
+    return false
   }, [])
 
   return {

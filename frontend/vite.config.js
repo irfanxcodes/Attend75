@@ -8,6 +8,9 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      devOptions: {
+        enabled: false,
+      },
       includeAssets: ['favicon.svg', 'icons/*.png', '*.svg', '*.png'],
       manifest: false, // Use public/manifest.json directly
       workbox: {

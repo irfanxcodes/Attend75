@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import useAppStore from '../hooks/useAppStore'
 import { parseAdminSession } from '../services/adminApi'
 import { fetchSessionStatus, loginWithFirebase } from '../services/attendanceApi'
@@ -62,7 +62,8 @@ function PublicLoginRoute({ isAuthBootstrapComplete }) {
     return <RouteFallback message="Restoring session..." />
   }
 
-  if (user.isAuthenticated) {
+  // Allow access to login even in demo mode (demo users should be able to login for real)
+  if (user.isAuthenticated && user.authProvider !== 'demo') {
     return <Navigate to="/app/dashboard" replace />
   }
 
@@ -85,6 +86,35 @@ function AdminPublicRoute() {
   }
 
   return <AdminLogin />
+}
+
+function StudyRedirectOrPublic() {
+  const {
+    state: { user },
+  } = useAppStore()
+  const location = useLocation()
+
+  // If user is logged in, redirect to /app/study/... so they get the nav
+  if (user.isAuthenticated) {
+    const appPath = `/app${location.pathname}${location.search}`
+    return <Navigate to={appPath} replace />
+  }
+
+  return <StudyMe />
+}
+
+function StudySubRouteOrPublic({ element }) {
+  const {
+    state: { user },
+  } = useAppStore()
+  const location = useLocation()
+
+  if (user.isAuthenticated) {
+    const appPath = `/app${location.pathname}${location.search}`
+    return <Navigate to={appPath} replace />
+  }
+
+  return element
 }
 
 function AppRoutes() {
@@ -256,13 +286,13 @@ function AppRoutes() {
         <Route path="/dashboard" element={<Navigate to="/app/dashboard" replace />} />
         <Route path="/history" element={<Navigate to="/app/history" replace />} />
         <Route path="/marks" element={<Navigate to="/app/marks" replace />} />
-        <Route path="/study" element={<StudyMe />} />
-        <Route path="/study/:subjectId" element={<StudyLessons />} />
-        <Route path="/study/:subjectId/:lessonId" element={<StudyLessonDetail />} />
-        <Route path="/study/:subjectId/:lessonId/youtube" element={<StudyLessonYoutube />} />
-        <Route path="/study/:subjectId/:lessonId/pdf" element={<StudyPdfViewer />} />
-        <Route path="/study/:subjectId/:lessonId/practice" element={<StudyTopicPractice />} />
-        <Route path="/study/:subjectId/:lessonId/practice/:topicId" element={<StudyTopicPractice />} />
+        <Route path="/study" element={<StudyRedirectOrPublic />} />
+        <Route path="/study/:subjectId" element={<StudySubRouteOrPublic element={<StudyLessons />} />} />
+        <Route path="/study/:subjectId/:lessonId" element={<StudySubRouteOrPublic element={<StudyLessonDetail />} />} />
+        <Route path="/study/:subjectId/:lessonId/youtube" element={<StudySubRouteOrPublic element={<StudyLessonYoutube />} />} />
+        <Route path="/study/:subjectId/:lessonId/pdf" element={<StudySubRouteOrPublic element={<StudyPdfViewer />} />} />
+        <Route path="/study/:subjectId/:lessonId/practice" element={<StudySubRouteOrPublic element={<StudyTopicPractice />} />} />
+        <Route path="/study/:subjectId/:lessonId/practice/:topicId" element={<StudySubRouteOrPublic element={<StudyTopicPractice />} />} />
         <Route path="/profile" element={<Navigate to="/app/profile" replace />} />
         <Route path="/app" element={<ProtectedAppRoutes isAuthBootstrapComplete={isAuthBootstrapComplete} />}>
           <Route index element={<Navigate to="dashboard" replace />} />

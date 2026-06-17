@@ -126,6 +126,10 @@ function Login() {
       setIsGoogleSubmitting(true)
 
       const googleResult = await signInWithGoogleAndGetIdToken()
+      if (!googleResult) {
+        // Redirect flow (iOS PWA) — page will reload with the result
+        return
+      }
       const token = googleResult.idToken
       setFirebaseToken(token)
 

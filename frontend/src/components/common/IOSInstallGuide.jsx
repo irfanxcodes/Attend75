@@ -3,7 +3,7 @@ import { useInstallPrompt } from '../../pwa/useInstallPrompt'
 import { onWalkthroughDone } from '../../pwa/installCoordinator'
 
 const DISMISS_KEY = 'attend75.iosGuide.dismissedAt'
-const DISMISS_COOLDOWN_MS = 5 * 24 * 60 * 60 * 1000 // 5 days
+const DISMISS_COOLDOWN_MS = 2 * 24 * 60 * 60 * 1000 // 2 days
 
 function isSafariBrowser() {
   const ua = navigator.userAgent || ''
@@ -34,11 +34,13 @@ function IOSInstallGuide() {
     if (!shouldTrackEngagement) return
 
     // Wait for walkthrough to complete before starting engagement timer
+    const innerCleanupRef = { current: null }
+
     const cleanupWalkthrough = onWalkthroughDone(() => {
       let pageViews = 0
       const timer = setTimeout(() => {
         setEngagementMet(true)
-      }, 15000)
+      }, 9000)
 
       function handleNavigation() {
         pageViews++
@@ -60,8 +62,6 @@ function IOSInstallGuide() {
         history.pushState = originalPushState
       }
     })
-
-    const innerCleanupRef = { current: null }
 
     return () => {
       cleanupWalkthrough()

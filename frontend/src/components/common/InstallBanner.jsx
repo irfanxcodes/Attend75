@@ -3,7 +3,7 @@ import { useInstallPrompt } from '../../pwa/useInstallPrompt'
 import { onWalkthroughDone } from '../../pwa/installCoordinator'
 
 const DISMISS_KEY = 'attend75.installBanner.dismissedAt'
-const DISMISS_COOLDOWN_MS = 5 * 24 * 60 * 60 * 1000 // 5 days
+const DISMISS_COOLDOWN_MS = 2 * 24 * 60 * 60 * 1000 // 2 days
 
 /**
  * Smart install banner for Android/Desktop (Chrome, Edge, Firefox).
@@ -18,11 +18,13 @@ function InstallBanner() {
     if (isInstalled || !canInstall) return
 
     // Wait for walkthrough to complete before starting engagement timer
+    const innerCleanupRef = { current: null }
+
     const cleanupWalkthrough = onWalkthroughDone(() => {
       let pageViews = 0
       const timer = setTimeout(() => {
         setEngagementMet(true)
-      }, 15000)
+      }, 9000)
 
       function handleNavigation() {
         pageViews++
@@ -38,15 +40,12 @@ function InstallBanner() {
         handleNavigation()
       }
 
-      // Store cleanup for this inner scope
       innerCleanupRef.current = () => {
         clearTimeout(timer)
         window.removeEventListener('popstate', handleNavigation)
         history.pushState = originalPushState
       }
     })
-
-    const innerCleanupRef = { current: null }
 
     return () => {
       cleanupWalkthrough()
@@ -69,10 +68,12 @@ function InstallBanner() {
 
   const handleInstall = async () => {
     const accepted = await promptInstall()
-    setShow(false)
-    if (!accepted) {
-      try { window.localStorage.setItem(DISMISS_KEY, String(Date.now())) } catch { /* */ }
+    if (accepted) {
+      // User accepted — hide banner
+      setShow(false)
     }
+    // If user cancelled the browser dialog, keep our banner visible.
+    // They might want to try again. Don't set any cooldown.
   }
 
   const handleDismiss = () => {

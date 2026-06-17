@@ -130,6 +130,13 @@ function StudyPdfViewer() {
     }
   }, [isExpanded])
 
+  // Safety: always restore body overflow when component unmounts (navigating away)
+  useEffect(() => {
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [])
+
   useEffect(() => {
     viewerScreenRef.current?.focus({ preventScroll: true })
   }, [isExpanded])
@@ -388,7 +395,48 @@ function StudyPdfViewer() {
             </div>
           ) : null}
         </header>
-      ) : null}
+      ) : (
+        <header className="shrink-0 flex items-center gap-2 rounded-xl bg-[#312051] px-3 py-2">
+          <button
+            type="button"
+            onClick={() => {
+              setExpanded(false)
+              navigate(`/study/${subject.id}/${lesson.id}`)
+            }}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/20 text-[#E7DEDE] hover:bg-white/10"
+            aria-label="Exit and go back"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-[#F4F1FF]">{lesson.title}</p>
+            {selectedTopic ? <p className="truncate text-[10px] text-[#CFC5E8]">{selectedTopic.title}</p> : null}
+          </div>
+          {lessonTopics.length > 1 ? (
+            <div className="flex shrink-0 items-center gap-1 overflow-x-auto">
+              {lessonTopics.map((topic) => {
+                const isActive = selectedTopic?.id === topic.id
+                return (
+                  <button
+                    key={topic.id}
+                    type="button"
+                    onClick={() => navigate(`/study/${subject.id}/${lesson.id}/pdf?topic=${topic.id}`)}
+                    className={`whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-semibold transition ${
+                      isActive
+                        ? 'border-[#A8D8FF]/60 bg-[#A8D8FF]/15 text-[#CFE8FF]'
+                        : 'border-white/20 text-[#D8D3E8] hover:bg-white/10'
+                    }`}
+                  >
+                    {topic.title}
+                  </button>
+                )
+              })}
+            </div>
+          ) : null}
+        </header>
+      )}
 
       <section className="flex min-h-0 flex-1 flex-col rounded-2xl border border-white/15 bg-[#312051] p-0.5 sm:p-1">
         <div className="mb-1 flex w-full shrink-0 items-center justify-between gap-3 rounded-xl bg-[#3A315D] px-3 py-2 text-xs text-[#D8D3E8] sm:mb-2">
