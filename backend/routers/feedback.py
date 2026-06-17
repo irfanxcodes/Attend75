@@ -57,3 +57,31 @@ async def college_interest(payload: dict):
     except Exception:
         logger.exception("College interest submission error")
         return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to submit. Please try again."})
+
+
+@router.post("/pwa/install", response_model=ApiResponse)
+async def pwa_install_track(payload: dict):
+    from db.models.pwa_install import PwaInstall
+    from db.session import SessionLocal
+
+    try:
+        platform = str(payload.get("platform") or "unknown").strip().lower()
+        user_agent = str(payload.get("user_agent") or "").strip() or None
+        roll_number = str(payload.get("roll_number") or "").strip().upper() or None
+
+        if platform not in ("android", "ios", "desktop"):
+            platform = "desktop"
+
+        with SessionLocal() as session:
+            entry = PwaInstall(
+                device_platform=platform,
+                user_agent=user_agent,
+                roll_number=roll_number,
+            )
+            session.add(entry)
+            session.commit()
+
+        return ApiResponse(status="success", message="PWA install tracked", data={"tracked": True})
+    except Exception:
+        logger.exception("PWA install tracking error")
+        return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to track install"})

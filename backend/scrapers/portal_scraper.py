@@ -150,6 +150,7 @@ class PortalScraper:
         navigation_payload = self._run_post_login_navigation(login_url)
         attendance_response = navigation_payload["attendance_response"]
         student_name = navigation_payload.get("student_name")
+        student_photo_url = navigation_payload.get("student_photo_url")
 
         if self._looks_like_login_page(attendance_response.text) and not (login_redirected or has_auth_session):
             raise PortalAuthenticationError(
@@ -175,6 +176,7 @@ class PortalScraper:
             "overall": self._build_overall_feasibility(payload.get("attendance", []))
         }
         payload["student_name"] = student_name or normalized_roll
+        payload["student_photo_url"] = student_photo_url
         return payload
 
     def fetch_attendance_for_semester(self, semester_id: str | None = None, force_refresh: bool = False) -> dict:
@@ -994,6 +996,7 @@ class PortalScraper:
             )
             index_response.raise_for_status()
             student_name = self._extract_student_name(index_response.text)
+            student_photo_url = self._extract_student_photo(index_response.text)
 
             sdb_response = self.session.get(
                 sdb_url,
@@ -1011,6 +1014,7 @@ class PortalScraper:
             return {
                 "attendance_response": attendance_response,
                 "student_name": student_name,
+                "student_photo_url": student_photo_url,
             }
         except requests.RequestException as exc:
             raise self._portal_network_error(
@@ -1027,6 +1031,24 @@ class PortalScraper:
 
         name_text = name_label.get_text(" ", strip=True)
         return name_text or None
+
+    def _extract_student_photo(self, html: str) -> str | None:
+        """Extract student profile photo URL from Index.aspx (id='Img', class='img-rounded')."""
+        soup = BeautifulSoup(html, "html.parser")
+        img = soup.find(id="Img")
+        if img is None:
+            img = soup.find("img", class_="img-rounded")
+        if img is None:
+            return None
+
+        src = (img.get("src") or "").strip()
+        if not src:
+            return None
+
+        # If relative, make absolute
+        if src.startswith("http"):
+            return src
+        return urljoin(self.base_url, src)
 
     def _get_student_radio_payload(self, html: str) -> dict[str, str]:
         # Exact field discovered from the portal form.

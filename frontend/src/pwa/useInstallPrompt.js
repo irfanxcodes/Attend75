@@ -38,6 +38,19 @@ export function useInstallPrompt() {
       setIsInstalled(true)
       setCanInstall(false)
       deferredPromptRef.current = null
+
+      // Track the install event on the backend
+      const platform = /iPhone|iPad|iPod/.test(navigator.userAgent) ? 'ios'
+        : /Android/.test(navigator.userAgent) ? 'android' : 'desktop'
+      try {
+        const apiBase = import.meta.env.DEV ? 'http://127.0.0.1:8000' : (import.meta.env.VITE_API_BASE_URL || '/api')
+        fetch(`${apiBase}/pwa/install`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ platform, user_agent: navigator.userAgent }),
+          keepalive: true,
+        }).catch(() => {})
+      } catch { /* best-effort */ }
     }
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)

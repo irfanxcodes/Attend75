@@ -7,6 +7,7 @@ from services.feature_usage_event_service import get_user_mails_sent_count, reco
 from services.feature_usage_metrics import observe_history_open, observe_marks_open, observe_sync_attendance
 from services.scraper_metrics import observe_scrape
 from services.session_store import session_store
+from services.student_registry_service import register_student_login
 
 
 def _portal_operation_retry_attempts() -> int:
@@ -96,13 +97,28 @@ def _resolve_semester_usage_context(payload: dict | None, fallback_semester_id: 
     return resolved_id, resolved_label
 
 
-def login_user(roll_number: str, password: str) -> dict:
+def login_user(roll_number: str, password: str, user_agent: str | None = None) -> dict:
     started = time.perf_counter()
     scraper = PortalScraper()
     try:
         data = _run_with_network_retry(lambda: scraper.login(roll_number=roll_number, password=password))
         resolved_user_name = str(data.get("student_name") or roll_number).strip() or roll_number.strip().upper()
-        record = session_store.create(roll_number=roll_number, scraper=scraper, user_name=resolved_user_name)
+        resolved_photo_url = data.get("student_photo_url")
+
+        # Calculate overall attendance percentage
+        attendance_rows = data.get("attendance") or []
+        total_attended = sum(int(row.get("attended") or 0) for row in attendance_rows)
+        total_sessions = sum(int(row.get("sessions") or 0) for row in attendance_rows)
+        overall_percent = round((total_attended / total_sessions) * 100, 1) if total_sessions > 0 else None
+
+        record = session_store.create(
+            roll_number=roll_number,
+            scraper=scraper,
+            user_name=resolved_user_name,
+            photo_url=resolved_photo_url,
+            attendance_percent=overall_percent,
+            user_agent=user_agent,
+        )
         if _prefetch_marks_after_login_enabled():
             threading.Thread(
                 target=_prefetch_marks_after_login,
@@ -110,6 +126,10 @@ def login_user(roll_number: str, password: str) -> dict:
                 daemon=True,
             ).start()
         observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
+
+        # Register student in the persistent registry
+        register_student_login(roll_number.strip().upper(), "guest" if not user_agent else "guest")
+
         return {
             "token": record.token,
             "roll_number": roll_number.strip().upper(),

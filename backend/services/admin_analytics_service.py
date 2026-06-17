@@ -20,6 +20,7 @@ from db.models.college_interest import CollegeInterest
 from db.models.feature_usage_event import FeatureUsageEvent
 from db.models.portal_credential import PortalCredential
 from db.models.studyme_event import StudyMeEvent
+from db.models.student_registry import StudentRegistry
 from db.models.subject_request import SubjectRequest
 from db.models.user import User
 from db.models.user_rating import UserRating
@@ -34,6 +35,7 @@ def get_rating_analytics() -> dict:
     """Rating distribution (1-5), average, total count, and daily trend (last 14 days)."""
     with SessionLocal() as session:
         total_ratings = int(session.query(func.count(UserRating.id)).scalar() or 0)
+        unique_raters = int(session.query(func.count(distinct(UserRating.user_identifier))).scalar() or 0)
         average_rating = float(session.query(func.avg(UserRating.rating)).scalar() or 0.0)
 
         # Distribution
@@ -71,6 +73,7 @@ def get_rating_analytics() -> dict:
 
     return {
         "totalRatings": total_ratings,
+        "uniqueRaters": unique_raters,
         "averageRating": round(average_rating, 2),
         "npsProxyPercent": nps_proxy,
         "distribution": distribution,
@@ -164,7 +167,7 @@ def get_engagement_metrics() -> dict:
 # ---------------------------------------------------------------------------
 
 def get_subject_request_analytics() -> dict:
-    """Subject requests ranked by demand."""
+    """Subject requests ranked by demand, with requester names."""
     with SessionLocal() as session:
         total_requests = int(session.query(func.count(SubjectRequest.id)).scalar() or 0)
         unique_requesters = int(
@@ -184,6 +187,34 @@ def get_subject_request_analytics() -> dict:
             .all()
         )
 
+        # Get requester roll numbers and names per subject
+        all_requests = session.query(SubjectRequest.subject_code, SubjectRequest.user_identifier).all()
+        requesters_by_code = {}
+        for req in all_requests:
+            code = req.subject_code
+            user = req.user_identifier
+            if code not in requesters_by_code:
+                requesters_by_code[code] = set()
+            if user:
+                requesters_by_code[code].add(user)
+
+        # Resolve roll numbers to names
+        all_roll_numbers = set()
+        for rolls in requesters_by_code.values():
+            all_roll_numbers.update(rolls)
+
+        roll_to_name = {}
+        if all_roll_numbers:
+            name_rows = (
+                session.query(PortalCredential.roll_number, User.display_name)
+                .join(User, User.id == PortalCredential.user_id)
+                .filter(PortalCredential.roll_number.in_(list(all_roll_numbers)))
+                .all()
+            )
+            for row in name_rows:
+                if row.roll_number and row.display_name:
+                    roll_to_name[row.roll_number] = row.display_name
+
         demand_board = [
             {
                 "subjectCode": row.subject_code,
@@ -191,6 +222,9 @@ def get_subject_request_analytics() -> dict:
                 "abbreviation": row.abbreviation,
                 "requestCount": int(row.request_count),
                 "uniqueUsers": int(row.unique_users),
+                "requesters": [
+                    roll_to_name.get(r, r) for r in requesters_by_code.get(row.subject_code, [])
+                ],
             }
             for row in demand_rows
         ]
@@ -456,17 +490,27 @@ def get_peak_usage_hours() -> dict:
 # ---------------------------------------------------------------------------
 
 def get_auth_breakdown() -> dict:
-    """Firebase (linked credentials) vs Guest-only users."""
+    """Firebase (linked credentials) vs Guest-only users — deduplicated by email."""
     with SessionLocal() as session:
-        total_users = int(session.query(func.count(User.id)).scalar() or 0)
-        linked_users = int(session.query(func.count(PortalCredential.id)).scalar() or 0)
-        unlinked_users = max(total_users - linked_users, 0)
+        # Unique humans by distinct email
+        unique_google_users = int(
+            session.query(func.count(distinct(User.email)))
+            .filter(User.email.isnot(None))
+            .scalar() or 0
+        )
+        # Unique roll numbers with linked credentials
+        unique_linked = int(
+            session.query(func.count(distinct(PortalCredential.roll_number)))
+            .scalar() or 0
+        )
+        # Users who signed in with Google but haven't linked portal credentials
+        unlinked_google = max(unique_google_users - unique_linked, 0)
 
     return {
-        "totalRegisteredUsers": total_users,
-        "firebaseLinkedUsers": linked_users,
-        "unlinkedUsers": unlinked_users,
-        "firebasePercent": round((linked_users / total_users) * 100, 1) if total_users > 0 else 0.0,
+        "totalRegisteredUsers": unique_google_users,
+        "firebaseLinkedUsers": unique_linked,
+        "unlinkedUsers": unlinked_google,
+        "firebasePercent": round((unique_linked / unique_google_users) * 100, 1) if unique_google_users > 0 else 0.0,
     }
 
 
@@ -485,4 +529,213 @@ def get_full_admin_analytics() -> dict:
         "retention": get_retention_metrics(),
         "peakHours": get_peak_usage_hours(),
         "authBreakdown": get_auth_breakdown(),
+        "dailyActivity": get_daily_activity(),
+        "studentMetrics": get_student_metrics(),
+        "guestEngagement": get_guest_engagement(),
+        "pwaInstalls": get_pwa_install_metrics(),
+    }
+
+
+def get_student_metrics() -> dict:
+    """Student-centric metrics from the student registry."""
+    today = date.today()
+
+    with SessionLocal() as session:
+        total_students = int(session.query(func.count(StudentRegistry.roll_number)).scalar() or 0)
+        google_linked = int(
+            session.query(func.count(StudentRegistry.roll_number))
+            .filter(StudentRegistry.has_google_linked == True)
+            .scalar() or 0
+        )
+        guest_only = int(
+            session.query(func.count(StudentRegistry.roll_number))
+            .filter(StudentRegistry.has_google_linked == False)
+            .scalar() or 0
+        )
+        new_today = int(
+            session.query(func.count(StudentRegistry.roll_number))
+            .filter(func.date(StudentRegistry.first_seen_at) == today.isoformat())
+            .scalar() or 0
+        )
+        active_today = int(
+            session.query(func.count(StudentRegistry.roll_number))
+            .filter(func.date(StudentRegistry.last_seen_at) == today.isoformat())
+            .scalar() or 0
+        )
+
+        # Data integrity
+        total_user_rows = int(session.query(func.count(User.id)).scalar() or 0)
+        unique_emails = int(
+            session.query(func.count(distinct(User.email)))
+            .filter(User.email.isnot(None))
+            .scalar() or 0
+        )
+        duplicate_rows = total_user_rows - unique_emails
+
+    return {
+        "totalStudents": total_students,
+        "googleLinked": google_linked,
+        "guestOnly": guest_only,
+        "newToday": new_today,
+        "activeToday": active_today,
+        "dataIntegrity": {
+            "totalUserRows": total_user_rows,
+            "uniqueEmails": unique_emails,
+            "duplicateRowsDetected": duplicate_rows,
+        },
+    }
+
+
+def get_daily_activity() -> dict:
+    """Daily platform activity (combined events) for the last 30 days — real data for charts."""
+    today = date.today()
+    start = today - timedelta(days=29)
+
+    with SessionLocal() as session:
+        fue_daily = (
+            session.query(
+                func.date(FeatureUsageEvent.created_at).label("day"),
+                func.count(FeatureUsageEvent.id),
+            )
+            .filter(func.date(FeatureUsageEvent.created_at) >= start.isoformat())
+            .group_by(func.date(FeatureUsageEvent.created_at))
+            .all()
+        )
+        sme_daily = (
+            session.query(
+                StudyMeEvent.event_date.label("day"),
+                func.count(StudyMeEvent.id),
+            )
+            .filter(StudyMeEvent.event_date >= start)
+            .group_by(StudyMeEvent.event_date)
+            .all()
+        )
+
+        # Hourly distribution (for API activity chart)
+        fue_hourly = (
+            session.query(
+                func.strftime("%H", FeatureUsageEvent.created_at).label("hour"),
+                func.count(FeatureUsageEvent.id),
+            )
+            .filter(func.date(FeatureUsageEvent.created_at) >= start.isoformat())
+            .group_by("hour")
+            .all()
+        )
+        sme_hourly = (
+            session.query(
+                func.strftime("%H", StudyMeEvent.created_at).label("hour"),
+                func.count(StudyMeEvent.id),
+            )
+            .filter(StudyMeEvent.event_date >= start)
+            .group_by("hour")
+            .all()
+        )
+
+    # Merge daily
+    daily_map = {}
+    for row in fue_daily:
+        daily_map[str(row[0])] = daily_map.get(str(row[0]), 0) + int(row[1])
+    for row in sme_daily:
+        daily_map[str(row[0])] = daily_map.get(str(row[0]), 0) + int(row[1])
+
+    daily_series = []
+    for offset in range(30):
+        day_key = (start + timedelta(days=offset)).isoformat()
+        daily_series.append({"date": day_key, "events": daily_map.get(day_key, 0)})
+
+    # Merge hourly
+    hourly_map = {str(h).zfill(2): 0 for h in range(24)}
+    for row in fue_hourly:
+        hourly_map[str(row[0] or "00").zfill(2)] += int(row[1])
+    for row in sme_hourly:
+        hourly_map[str(row[0] or "00").zfill(2)] += int(row[1])
+
+    hourly_series = [{"hour": h, "events": hourly_map[h]} for h in sorted(hourly_map.keys())]
+
+    return {
+        "dailySeries": daily_series,
+        "hourlySeries": hourly_series,
+    }
+
+
+def get_guest_engagement() -> dict:
+    """Metrics from guest/demo explore users — measures interest from non-registered visitors."""
+    with SessionLocal() as session:
+        # StudyMe events from demo users (user_name = 'Demo Student')
+        guest_studyme_events = int(
+            session.query(func.count(StudyMeEvent.id))
+            .filter(StudyMeEvent.user_name == "Demo Student")
+            .scalar() or 0
+        )
+
+        # Unique days with demo activity
+        guest_active_days = int(
+            session.query(func.count(distinct(StudyMeEvent.event_date)))
+            .filter(StudyMeEvent.user_name == "Demo Student")
+            .scalar() or 0
+        )
+
+    return {
+        "guestStudyMeEvents": guest_studyme_events,
+        "guestActiveDays": guest_active_days,
+    }
+
+
+def get_pwa_install_metrics() -> dict:
+    """PWA install counts by platform."""
+    from db.models.pwa_install import PwaInstall
+
+    with SessionLocal() as session:
+        total = int(session.query(func.count(PwaInstall.id)).scalar() or 0)
+        android = int(
+            session.query(func.count(PwaInstall.id))
+            .filter(PwaInstall.device_platform == "android")
+            .scalar() or 0
+        )
+        ios = int(
+            session.query(func.count(PwaInstall.id))
+            .filter(PwaInstall.device_platform == "ios")
+            .scalar() or 0
+        )
+        desktop = int(
+            session.query(func.count(PwaInstall.id))
+            .filter(PwaInstall.device_platform == "desktop")
+            .scalar() or 0
+        )
+
+    return {
+        "total": total,
+        "android": android,
+        "ios": ios,
+        "desktop": desktop,
+    }
+
+
+def get_pwa_install_metrics() -> dict:
+    """PWA install counts by platform."""
+    from db.models.pwa_install import PwaInstall
+
+    with SessionLocal() as session:
+        total = int(session.query(func.count(PwaInstall.id)).scalar() or 0)
+        android = int(
+            session.query(func.count(PwaInstall.id))
+            .filter(PwaInstall.device_platform == "android")
+            .scalar() or 0
+        )
+        ios = int(
+            session.query(func.count(PwaInstall.id))
+            .filter(PwaInstall.device_platform == "ios")
+            .scalar() or 0
+        )
+        desktop = int(
+            session.query(func.count(PwaInstall.id))
+            .filter(PwaInstall.device_platform == "desktop")
+            .scalar() or 0
+        )
+
+    return {
+        "total": total,
+        "android": android,
+        "ios": ios,
+        "desktop": desktop,
     }

@@ -319,10 +319,34 @@ def get_admin_overview() -> dict:
         except Exception:
             db_connected = False
 
-        total_users = int(session.query(func.count(User.id)).scalar() or 0)
+        # Deduplicated user counts (unique humans, not repeated firebase UIDs)
+        # Google users: count by distinct email
+        unique_google_users = int(
+            session.query(func.count(func.distinct(User.email)))
+            .filter(User.email.isnot(None))
+            .scalar() or 0
+        )
+        # Unique roll numbers (represents all users who ever linked portal credentials)
+        unique_roll_numbers = int(
+            session.query(func.count(func.distinct(PortalCredential.roll_number)))
+            .scalar() or 0
+        )
+        # Total unique users = unique people who signed in with Google
+        # (roll numbers are a subset of Google users since linking requires Google first)
+        total_users = unique_google_users
+
+        # For backward compat: raw row count
+        total_user_rows = int(session.query(func.count(User.id)).scalar() or 0)
         linked_credentials = int(session.query(func.count(PortalCredential.id)).scalar() or 0)
+        # Unique linked = users who have portal credentials (Google + portal linked)
+        unique_linked = unique_roll_numbers
+        # Anonymous/Guest = those who only use guest login (no Google)
+        # We can't count these from the users table since guest logins don't create user rows
+        # Guest logins only exist in-memory sessions
+
         active_users_today = int(
-            session.query(func.count(User.id))
+            session.query(func.count(func.distinct(User.email)))
+            .filter(User.email.isnot(None))
             .filter(func.date(User.updated_at) == date.today().isoformat())
             .scalar()
             or 0
@@ -360,6 +384,7 @@ def get_admin_overview() -> dict:
     feedback_items = list_feedback(limit=100)
     total_feedback_count = feedback_count()
     session_stats = session_store.stats()
+    active_sessions_list = session_store.active_sessions_list(limit=8)
     request_metrics = get_request_metrics_snapshot()
     scraper_metrics = get_scraper_metrics_snapshot()
     feature_usage = get_feature_usage_snapshot()
@@ -405,6 +430,19 @@ def get_admin_overview() -> dict:
         if email_key and roll_value and email_key not in linked_roll_by_email:
             linked_roll_by_email[email_key] = roll_value
 
+    portal_photo_base = os.getenv("PORTAL_PHOTO_BASE_URL", "http://111.93.16.209/photos")
+
+    # Deduplicate user_rows by email (keep first occurrence with most data)
+    seen_emails = set()
+    deduplicated_rows = []
+    for row in user_rows:
+        email_key = (row.email or "").strip().lower()
+        if email_key and email_key in seen_emails:
+            continue
+        if email_key:
+            seen_emails.add(email_key)
+        deduplicated_rows.append(row)
+
     users_table = [
         {
             "serialNo": index + 1,
@@ -414,8 +452,13 @@ def get_admin_overview() -> dict:
                 str(row.roll_number or "").strip().upper()
                 or linked_roll_by_email.get(str(row.email or "").strip().lower())
             ),
+            "photoUrl": (
+                f"{portal_photo_base}/{str(row.roll_number or '').strip().upper()}.jpg"
+                if row.roll_number
+                else None
+            ),
         }
-        for index, row in enumerate(user_rows)
+        for index, row in enumerate(deduplicated_rows)
     ]
 
     user_analytics = {
@@ -459,10 +502,13 @@ def get_admin_overview() -> dict:
         },
         "users": {
             "total": total_users,
-            "linkedCredentials": linked_credentials,
-            "unlinkedUsers": max(total_users - linked_credentials, 0),
+            "googleUsers": unique_google_users,
+            "linkedCredentials": unique_linked,
+            "unlinkedGoogle": max(unique_google_users - unique_linked, 0),
+            "totalUserRows": total_user_rows,
         },
         "sessions": session_stats,
+        "activeSessions": active_sessions_list,
         "feedback": {
             "totalRecent": len(feedback_items),
             "latest": feedback_items[0] if feedback_items else None,

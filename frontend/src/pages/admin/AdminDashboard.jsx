@@ -10,6 +10,14 @@ import {
 } from '../../services/adminApi'
 import AdminSidebar from '../../components/admin/AdminSidebar'
 import OverviewDashboard from '../../components/admin/OverviewDashboard'
+import SystemHealthPage from '../../components/admin/SystemHealthPage'
+import UsersAnalyticsPage from '../../components/admin/UsersAnalyticsPage'
+import GrowthMetricsPage from '../../components/admin/GrowthMetricsPage'
+import EngagementPage from '../../components/admin/EngagementPage'
+import AppRatingsPage from '../../components/admin/AppRatingsPage'
+import FeedbackPage from '../../components/admin/FeedbackPage'
+import SubjectRequestsPage from '../../components/admin/SubjectRequestsPage'
+import CollegeInterestPage from '../../components/admin/CollegeInterestPage'
 
 function AdminDashboard() {
   const navigate = useNavigate()
@@ -71,7 +79,7 @@ function AdminDashboard() {
   const feedbackCount = feedback?.length || 0
 
   return (
-    <div className="min-h-dvh bg-[#131020]">
+    <div className="min-h-dvh bg-[#1e1932]">
       <AdminSidebar
         activeSection={activeSection}
         onNavigate={handleNavigate}
@@ -82,7 +90,7 @@ function AdminDashboard() {
       {/* Main content */}
       <main className="pl-56">
         {/* Top bar */}
-        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-white/5 bg-[#131020]/80 px-6 py-3 backdrop-blur-lg">
+        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-white/5 bg-[#1e1932]/80 px-6 py-3 backdrop-blur-lg">
           <div className="flex items-center gap-2 text-[11px] text-[#6E6A88]">
             <span>Admin</span>
             <span>/</span>
@@ -114,6 +122,61 @@ function AdminDashboard() {
               onRefresh={fetchAllData}
               isLoading={isLoading}
               onNavigate={handleNavigate}
+            />
+          ) : activeSection === 'system-health' ? (
+            <SystemHealthPage
+              data={data}
+              analytics={analytics}
+              onRefresh={fetchAllData}
+              isLoading={isLoading}
+            />
+          ) : activeSection === 'users-analytics' ? (
+            <UsersAnalyticsPage
+              data={data}
+              analytics={analytics}
+              onRefresh={fetchAllData}
+              isLoading={isLoading}
+            />
+          ) : activeSection === 'growth' ? (
+            <GrowthMetricsPage
+              data={data}
+              analytics={analytics}
+              onRefresh={fetchAllData}
+              isLoading={isLoading}
+            />
+          ) : activeSection === 'engagement' ? (
+            <EngagementPage
+              data={data}
+              analytics={analytics}
+              onRefresh={fetchAllData}
+              isLoading={isLoading}
+            />
+          ) : activeSection === 'app-ratings' ? (
+            <AppRatingsPage
+              data={data}
+              analytics={analytics}
+              feedback={feedback}
+              onRefresh={fetchAllData}
+              isLoading={isLoading}
+            />
+          ) : activeSection === 'feedback' ? (
+            <FeedbackPage
+              feedback={feedback}
+              onRefresh={fetchAllData}
+              isLoading={isLoading}
+            />
+          ) : activeSection === 'subject-requests' ? (
+            <SubjectRequestsPage
+              analytics={analytics}
+              onRefresh={fetchAllData}
+              isLoading={isLoading}
+            />
+          ) : activeSection === 'college-interest' ? (
+            <CollegeInterestPage
+              data={data}
+              analytics={analytics}
+              onRefresh={fetchAllData}
+              isLoading={isLoading}
             />
           ) : (
             <div className="flex h-64 items-center justify-center rounded-xl border border-white/5 bg-[#252136]">

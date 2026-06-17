@@ -13,9 +13,13 @@ class SessionRecord:
     token: str
     roll_number: str
     user_name: str | None
+    photo_url: str | None
     scraper: PortalScraper
     created_at: float
     last_accessed_at: float
+    attendance_percent: float | None = None
+    user_agent: str | None = None
+    event_count: int = 0
     scraper_lock: threading.RLock = field(default_factory=threading.RLock)
 
 
@@ -48,16 +52,20 @@ class SessionStore:
         for token, _ in oldest_tokens:
             self._sessions.pop(token, None)
 
-    def create(self, roll_number: str, scraper: PortalScraper, user_name: str | None = None) -> SessionRecord:
+    def create(self, roll_number: str, scraper: PortalScraper, user_name: str | None = None, photo_url: str | None = None, attendance_percent: float | None = None, user_agent: str | None = None) -> SessionRecord:
         token = secrets.token_urlsafe(24)
         now = time.time()
         record = SessionRecord(
             token=token,
             roll_number=roll_number,
             user_name=(user_name or "").strip() or None,
+            photo_url=(photo_url or "").strip() or None,
             scraper=scraper,
             created_at=now,
             last_accessed_at=now,
+            attendance_percent=attendance_percent,
+            user_agent=(user_agent or "").strip() or None,
+            event_count=0,
         )
         with self._lock:
             self._prune_expired_locked(now)
@@ -72,6 +80,7 @@ class SessionStore:
             record = self._sessions.get(token)
             if record is not None:
                 record.last_accessed_at = now
+                record.event_count += 1
             return record
 
     def stats(self) -> dict[str, int]:
@@ -83,6 +92,32 @@ class SessionStore:
                 "max_sessions": self._max_sessions,
                 "session_ttl_seconds": self._session_ttl_seconds,
             }
+
+    def active_sessions_list(self, limit: int = 8) -> list[dict]:
+        """Return most recent active sessions for admin display."""
+        now = time.time()
+        with self._lock:
+            self._prune_expired_locked(now)
+            sorted_sessions = sorted(
+                self._sessions.values(),
+                key=lambda r: r.last_accessed_at,
+                reverse=True,
+            )[:limit]
+
+        results = []
+        for record in sorted_sessions:
+            started_seconds_ago = int(now - record.created_at)
+            results.append({
+                "rollNumber": record.roll_number,
+                "userName": record.user_name,
+                "photoUrl": record.photo_url,
+                "attendancePercent": record.attendance_percent,
+                "userAgent": record.user_agent,
+                "startedSecondsAgo": started_seconds_ago,
+                "eventCount": record.event_count,
+                "email": getattr(record, 'email', None),
+            })
+        return results
 
 
 session_store = SessionStore()

@@ -8,6 +8,7 @@ import SubjectList from '../components/dashboard/SubjectList'
 import InstagramButton from '../components/common/InstagramButton'
 import GuestLoginPrompt from '../components/common/GuestLoginPrompt'
 import Walkthrough, { hasCompletedWalkthrough } from '../components/common/Walkthrough'
+import DemoWalkthrough, { hasDemoWalkthroughCompleted } from '../components/common/DemoWalkthrough'
 import useAppStore from '../hooks/useAppStore'
 import { fetchAttendance, fetchMailsSentCount, isSessionExpiredError } from '../services/attendanceApi'
 import { calculatePrediction } from '../utils/calculations'
@@ -197,6 +198,9 @@ function Dashboard() {
   const [showWalkthrough, setShowWalkthrough] = useState(() => {
     // Show walkthrough for first-time real users (not demo, not completed before)
     return !hasCompletedWalkthrough() && user.authProvider !== 'demo'
+  })
+  const [showDemoWalkthrough, setShowDemoWalkthrough] = useState(() => {
+    return isDemo && !hasDemoWalkthroughCompleted()
   })
 
   const prediction = useMemo(() => calculatePrediction(subjects, selectedTarget), [subjects, selectedTarget])
@@ -589,6 +593,13 @@ function Dashboard() {
       {/* Interactive walkthrough for first-time users */}
       {showWalkthrough ? (
         <Walkthrough onComplete={() => setShowWalkthrough(false)} />
+      ) : null}
+
+      {/* Demo walkthrough for guest explorers */}
+      {showDemoWalkthrough ? (
+        <DemoWalkthrough onComplete={() => {
+          setShowDemoWalkthrough(false)
+        }} />
       ) : null}
     </section>
   )

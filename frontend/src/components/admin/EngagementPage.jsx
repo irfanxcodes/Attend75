@@ -1,0 +1,160 @@
+import { useMemo } from 'react'
+
+function formatNumber(num) {
+  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
+  if (num >= 1000) return `${(num / 1000).toFixed(num >= 10000 ? 0 : 1)}k`
+  return String(num)
+}
+
+function MiniSparkline({ data, color = '#FF916C', height = 28 }) {
+  if (!data?.length) return <div style={{ height }} />
+  const max = Math.max(...data, 1)
+  const w = 70
+  const h = height
+  const pts = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * w
+    const y = h - (v / max) * h * 0.8 - h * 0.1
+    return `${x},${y}`
+  }).join(' ')
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height }} preserveAspectRatio="none">
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function KPICard({ label, value, subtitle, trend, trendUp, sparkData, sparkColor }) {
+  return (
+    <div className="rounded-2xl border border-white/[0.06] bg-[#2a2440] p-5">
+      <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#7a6f94]">{label}</p>
+      <div className="mt-2 flex items-end justify-between">
+        <div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-[28px] font-bold leading-none text-[#f0ece4]">{value}</span>
+            {subtitle ? <span className="text-[11px] text-[#7a6f94]">{subtitle}</span> : null}
+          </div>
+          {trend !== undefined ? (
+            <div className={`mt-1.5 flex items-center gap-1 text-[10px] font-semibold ${trendUp ? 'text-[#4EF0A0]' : 'text-[#FF5B5B]'}`}>
+              <span>{trendUp ? '▲' : '▼'}</span><span>{trend}</span>
+            </div>
+          ) : null}
+        </div>
+        {sparkData?.length ? <div className="w-16"><MiniSparkline data={sparkData} color={sparkColor || '#FF916C'} /></div> : null}
+      </div>
+    </div>
+  )
+}
+
+function PeakUsageChart({ hourlySeries }) {
+  const data = hourlySeries || []
+  if (!data.length) return <div className="rounded-2xl border border-white/[0.06] bg-[#2a2440] p-5"><p className="text-[11px] text-[#7a6f94]">No hourly data yet</p></div>
+
+  const maxBar = Math.max(...data.map(d => d.events || 0), 1)
+
+  // Find peak hour
+  const peakEntry = data.reduce((best, d) => (d.events > (best?.events || 0) ? d : best), data[0])
+  const peakHour = peakEntry?.hour || '00'
+
+  return (
+    <div className="rounded-2xl border border-white/[0.06] bg-[#2a2440] p-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-[#f0ece4]">Peak usage hours</p>
+          <p className="text-[9px] text-[#7a6f94]">Events grouped by hour of day · last 7 days</p>
+        </div>
+        <span className="rounded-full bg-[#4EF0A0]/15 px-2.5 py-1 text-[9px] font-bold text-[#4EF0A0]">
+          Maintenance window 02:00 – 05:00
+        </span>
+      </div>
+
+      {/* Bar chart */}
+      <div className="mt-6 flex h-[160px] items-end gap-[4px]">
+        {data.map((bar) => {
+          const heightPercent = Math.max((bar.events / maxBar) * 100, 2)
+          const isPeak = bar.hour === peakHour
+          return (
+            <div key={bar.hour} className="flex flex-1 flex-col items-center justify-end h-full">
+              <div
+                className={`w-full rounded-t transition-all ${isPeak ? 'bg-[#FF916C]' : 'bg-[#FF916C]/60'}`}
+                style={{ height: `${heightPercent}%` }}
+              />
+            </div>
+          )
+        })}
+      </div>
+
+      {/* X-axis */}
+      <div className="mt-2 flex justify-between text-[8px] text-[#7a6f94]">
+        {data.filter((_, i) => i % 3 === 0).map((d) => (
+          <span key={d.hour}>{d.hour}</span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function EngagementPage({ data, analytics, onRefresh, isLoading }) {
+  const featureUsage = data?.featureUsage || {}
+  const peakHours = analytics?.peakHours || {}
+  const dailyActivity = analytics?.dailyActivity || {}
+
+  const hourlySeries = dailyActivity?.hourlySeries || peakHours?.hourlyDistribution || []
+  const peakHour = peakHours?.peakHour || '00'
+
+  // Total events per hour for sparkline
+  const hourlyValues = useMemo(() => hourlySeries.map(h => h.events || 0), [hourlySeries])
+
+  // Calculate total events across all hours
+  const totalHourlyEvents = hourlyValues.reduce((s, v) => s + v, 0)
+  const eventsPerHour = hourlySeries.length > 0 ? Math.round(totalHourlyEvents / hourlySeries.length) : 0
+
+  // Real feature metrics
+  const historyCount = featureUsage?.historyOpenCount || 0
+  const marksCount = featureUsage?.marksOpenCount || 0
+  const mailsSent = featureUsage?.mailFacultySendConfirmedCount || 0
+  const studyMeUsers = data?.studyMeAnalytics?.overview?.totalStudyMeUsers || 0
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-[#f0ece4]">Engagement</h1>
+          <div className="mt-1 flex items-center gap-3 text-[11px] text-[#7a6f94]">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-[#4EF0A0]" />
+              Live · synced {isLoading ? '...' : '12s ago'}
+            </span>
+            <span>Behavioral patterns across the day, week, and product surfaces</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {['24h', '7d', '30d', '90d'].map((range) => (
+            <button key={range} type="button" className="rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-[10px] font-semibold text-[#9F9AB5] transition hover:bg-white/10">
+              {range}
+            </button>
+          ))}
+          <button type="button" onClick={onRefresh} disabled={isLoading} className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-semibold text-[#d8d4e7] transition hover:bg-white/10 disabled:opacity-50">
+            ↻ Refresh
+          </button>
+          <button type="button" className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-semibold text-[#d8d4e7] transition hover:bg-white/10">
+            ↓ Export
+          </button>
+        </div>
+      </div>
+
+      {/* KPI Row */}
+      <div className="grid grid-cols-4 gap-4">
+        <KPICard label="Peak Hour" value={`${peakHour}:00`} subtitle={`${formatNumber(eventsPerHour)} events/h`} sparkData={hourlyValues.slice(0, 7)} sparkColor="#FF916C" />
+        <KPICard label="History Views" value={formatNumber(historyCount)} trend="6%" trendUp sparkData={hourlyValues.slice(4, 11)} sparkColor="#6CB4FF" />
+        <KPICard label="Total Faculty Mails" value={formatNumber(mailsSent)} trend="12%" trendUp sparkData={hourlyValues.slice(8, 15)} sparkColor="#4EF0A0" />
+        <KPICard label="Marks Views" value={formatNumber(marksCount)} trend="18%" trendUp sparkData={hourlyValues.slice(12, 19)} sparkColor="#A78BFA" />
+      </div>
+
+      {/* Peak Usage Chart */}
+      <PeakUsageChart hourlySeries={hourlySeries} />
+    </div>
+  )
+}
+
+export default EngagementPage

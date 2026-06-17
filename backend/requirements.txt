@@ -7,3 +7,4 @@ alembic
 cryptography
 psycopg2-binary
 firebase-admin
+python-dotenv

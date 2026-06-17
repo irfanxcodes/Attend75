@@ -56,7 +56,7 @@ function NavIcon({ name, className = 'h-4 w-4' }) {
 
 function AdminSidebar({ activeSection, onNavigate, feedbackCount = 0, onLogout }) {
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 flex w-56 flex-col border-r border-white/5 bg-[#1a1625]">
+    <aside className="fixed inset-y-0 left-0 z-30 flex w-56 flex-col border-r border-white/5 bg-[#241e38]">
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-5 py-5">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#FF916C]/15 text-sm font-bold text-[#FF916C]">A</div>

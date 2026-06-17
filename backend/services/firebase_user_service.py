@@ -10,6 +10,7 @@ from scrapers.portal_scraper import PortalAuthenticationError
 from services.auth_service import login_user
 from services.crypto_service import credential_crypto_service
 from services.firebase_auth_service import FirebaseAuthError, verify_firebase_id_token
+from services.student_registry_service import register_student_login, mark_google_linked
 
 
 @contextmanager
@@ -76,6 +77,9 @@ def firebase_login(id_token: str) -> dict:
                 }
             raise
 
+        # Register in student registry as Google-linked
+        register_student_login(credential.roll_number.strip().upper(), "google")
+
         return {
             "linked": True,
             "relink_required": False,
@@ -109,6 +113,10 @@ def link_firebase_credentials(id_token: str, roll_number: str, password: str) ->
         session.commit()
 
     guest_session = login_user(roll_number=cleaned_roll, password=password)
+
+    # Permanently mark this student as Google-linked in the registry
+    mark_google_linked(cleaned_roll)
+
     return {
         "linked": True,
         "relink_required": False,

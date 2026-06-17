@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
@@ -69,12 +69,14 @@ def _data_error_response(error_code: str, status_code: int = 502) -> JSONRespons
 
 
 @router.post("/login", response_model=ApiResponse)
-async def login(payload: LoginRequest):
+async def login(payload: LoginRequest, request: Request):
     try:
+        ua = request.headers.get("user-agent", "")
         data = await run_in_threadpool(
             login_user,
             payload.roll_number,
             payload.password,
+            ua,
         )
         return ApiResponse(status="success", message="Login successful", data=data)
     except PortalAuthenticationError as exc:
