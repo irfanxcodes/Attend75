@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react'
 import { useInstallPrompt } from '../../pwa/useInstallPrompt'
 import { onWalkthroughDone } from '../../pwa/installCoordinator'
 
-const DISMISS_KEY = 'attend75.installBanner.dismissedAt'
-const DISMISS_COOLDOWN_MS = 2 * 24 * 60 * 60 * 1000 // 2 days
+const DISMISS_KEY = 'attend75.installBanner.dismissed'
 
 /**
  * Smart install banner for Android/Desktop (Chrome, Edge, Firefox).
  * Shows benefits + one-tap install button.
+ * Dismissed per session only — reappears on every new app open.
  */
 function InstallBanner() {
   const { canInstall, isInstalled, promptInstall } = useInstallPrompt()
@@ -57,8 +57,7 @@ function InstallBanner() {
     if (!engagementMet || !canInstall || isInstalled) return
 
     try {
-      const dismissedAt = Number(window.localStorage.getItem(DISMISS_KEY) || 0)
-      if (dismissedAt && Date.now() - dismissedAt < DISMISS_COOLDOWN_MS) {
+      if (window.sessionStorage.getItem(DISMISS_KEY)) {
         return
       }
     } catch { /* */ }
@@ -78,7 +77,7 @@ function InstallBanner() {
 
   const handleDismiss = () => {
     setShow(false)
-    try { window.localStorage.setItem(DISMISS_KEY, String(Date.now())) } catch { /* */ }
+    try { window.sessionStorage.setItem(DISMISS_KEY, '1') } catch { /* */ }
   }
 
   if (!show) return null

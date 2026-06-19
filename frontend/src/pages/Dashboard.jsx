@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Check, ChevronDown, ChevronRight, Flag, Send } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, Flag, Send } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import AttendanceCircle from '../components/dashboard/AttendanceCircle'
 import Header from '../components/dashboard/Header'
@@ -27,7 +27,6 @@ function MobileSubjectRow({ subject, selectedTarget, isDemo }) {
   const [isExpanded, setExpanded] = useState(false)
   const navigate = useNavigate()
   const [showGuestPrompt, setShowGuestPrompt] = useState(false)
-  const [showMailModal, setShowMailModal] = useState(false)
   const percentageColor =
     subject.percentage > 75 ? '#4EF0A0' : subject.percentage >= 60 ? '#FFB23E' : '#FF5B5B'
   const statusLabel = subject.percentage > 75 ? 'Safe' : subject.percentage >= 65 ? 'Tight' : 'At Risk'
@@ -119,7 +118,7 @@ function MobileSubjectRow({ subject, selectedTarget, isDemo }) {
               onClick={(e) => {
                 e.stopPropagation()
                 if (isDemo) { setShowGuestPrompt(true); return }
-                setShowMailModal(true)
+                navigate('/app/history', { state: { autoMailSubjectCode: subject.id, autoMailSubjectName: shortName } })
               }}
               className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-lg border border-[#FF916C]/25 py-2 transition active:scale-[0.98]"
               style={{ background: 'linear-gradient(135deg, rgba(255,145,108,0.08) 0%, rgba(255,145,108,0.02) 100%)' }}
@@ -134,49 +133,6 @@ function MobileSubjectRow({ subject, selectedTarget, isDemo }) {
       ) : null}
 
       <GuestLoginPrompt isOpen={showGuestPrompt} onClose={() => setShowGuestPrompt(false)} featureName="mail your faculty about attendance" />
-
-      {/* Inline mail modal for mobile subjects */}
-      {showMailModal ? (
-        <div
-          className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 p-3 backdrop-blur-sm sm:items-center sm:p-6"
-          onClick={() => setShowMailModal(false)}
-        >
-          <div
-            className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-2xl border border-white/10 bg-[#2D2845] p-5 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-base font-bold text-[#F7F4FF]">Mail Faculty</h3>
-                <p className="mt-0.5 text-[11px] text-[#9F9AB5]">Compose an attendance request for {shortName}</p>
-              </div>
-              <button type="button" onClick={() => setShowMailModal(false)} className="text-[#9F9AB5] hover:text-[#F7F4FF]">✕</button>
-            </div>
-
-            <p className="mt-4 text-xs leading-relaxed text-[#9F9AB5]">
-              To compose and send an attendance request email to your faculty, please use the <span className="font-semibold text-[#F7F4FF]">History page</span> where you can select the specific date and subject.
-            </p>
-
-            <div className="mt-4 flex gap-2">
-              <button
-                type="button"
-                onClick={() => { setShowMailModal(false); navigate('/app/history') }}
-                className="flex-1 rounded-full py-2.5 text-xs font-bold text-[#1D183E] transition active:scale-[0.98]"
-                style={{ background: 'linear-gradient(135deg, #FF916C 0%, #FFAA8D 100%)' }}
-              >
-                Go to History
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowMailModal(false)}
-                className="flex-1 rounded-full border border-white/15 py-2.5 text-xs font-semibold text-[#D8D4E7] transition hover:bg-white/5"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   )
 }
@@ -370,7 +326,6 @@ function Dashboard() {
             </p>
             <p className="text-[10px] text-[#9F9AB5]">{subjectsBelowTarget} below target · {mailsSent} mails sent</p>
           </div>
-          <ChevronRight className="h-4 w-4 text-[#9F9AB5]" strokeWidth={2} />
         </div>
 
         {/* Attendance card with mesh gradient glow */}

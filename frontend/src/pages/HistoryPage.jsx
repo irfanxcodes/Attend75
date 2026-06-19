@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
+import AnimatedDetailSection from '../components/history/AnimatedDetailSection'
 import CalendarGrid from '../components/history/CalendarGrid'
 import CalendarHeader from '../components/history/CalendarHeader'
 import DayDetailCard from '../components/history/DayDetailCard'
@@ -140,6 +141,7 @@ function buildMailSendConfirmedStorageKey({ date, code, subject }) {
 
 function HistoryPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const {
     state: { user, session, attendance },
     actions,
@@ -344,6 +346,130 @@ function HistoryPage() {
     }
   }, [currentDate, historyBySemesterDate, selectedDate, semesterCacheKey])
 
+  // Auto-mail: when navigated from Dashboard with autoMailSubjectCode
+  const autoMailHandledRef = useRef(false)
+  useEffect(() => {
+    if (autoMailHandledRef.current) return
+    const autoMailCode = location.state?.autoMailSubjectCode
+    if (!autoMailCode || !session.token || isDemo) return
+
+    autoMailHandledRef.current = true
+
+    // Clear the location state so refresh doesn't re-trigger
+    window.history.replaceState({}, '')
+
+    // Scroll to top so the modal isn't mispositioned
+    window.scrollTo(0, 0)
+
+    const normalizedTarget = normalizeCode(autoMailCode)
+
+    ;(async () => {
+      // Fetch history for today — backend caches entire semester history on first call
+      const today = new Date()
+      const todayKey = formatDateKey(today.getFullYear(), today.getMonth(), today.getDate())
+
+      try {
+        setIsLoadingHistory(true)
+        const result = await fetchAttendanceHistory({
+          token: session.token,
+          semesterId: session.selectedSemester,
+          date: todayKey,
+        })
+
+        const normalizedEntries = (result.entries || []).map((entry) => {
+          const codeKey = normalizeCode(entry?.code)
+          const abbreviation = subjectAbbreviationByCode[codeKey]
+          return { ...entry, subject: abbreviation || entry.subject }
+        })
+
+        setHistoryBySemesterDate((current) => ({
+          ...current,
+          [semesterCacheKey]: { ...current[semesterCacheKey], [todayKey]: normalizedEntries },
+        }))
+
+        // Now search backwards from today for the last absent date for this subject
+        // First check today's data
+        let foundEntry = normalizedEntries.find(
+          (e) => normalizeCode(e.code) === normalizedTarget && !e.attended
+        )
+        let foundDateKey = todayKey
+
+        if (!foundEntry) {
+          // Search previous days (up to 30 days back)
+          for (let daysBack = 1; daysBack <= 30; daysBack++) {
+            const pastDate = new Date(today)
+            pastDate.setDate(pastDate.getDate() - daysBack)
+            const pastKey = formatDateKey(pastDate.getFullYear(), pastDate.getMonth(), pastDate.getDate())
+
+            try {
+              const pastResult = await fetchAttendanceHistory({
+                token: session.token,
+                semesterId: session.selectedSemester,
+                date: pastKey,
+              })
+
+              const pastEntries = (pastResult.entries || []).map((entry) => {
+                const codeKey = normalizeCode(entry?.code)
+                const abbreviation = subjectAbbreviationByCode[codeKey]
+                return { ...entry, subject: abbreviation || entry.subject }
+              })
+
+              setHistoryBySemesterDate((current) => ({
+                ...current,
+                [semesterCacheKey]: { ...current[semesterCacheKey], [pastKey]: pastEntries },
+              }))
+
+              foundEntry = pastEntries.find(
+                (e) => normalizeCode(e.code) === normalizedTarget && !e.attended
+              )
+              if (foundEntry) {
+                foundDateKey = pastKey
+                break
+              }
+            } catch {
+              // Skip dates that fail to load
+            }
+          }
+        }
+
+        if (foundEntry) {
+          // Set calendar to the correct month/date
+          const [year, month, day] = foundDateKey.split('-').map(Number)
+          setCurrentDate(new Date(year, month - 1, 1))
+          setSelectedDate(day)
+
+          // Trigger mail modal for this entry
+          const selectedEntry = { ...foundEntry, date: foundDateKey }
+          setSelectedAbsentEntry(selectedEntry)
+          setShowMailModal(true)
+          setReasonType(REASON_OPTIONS[0])
+          setAdditionalDetails('')
+          setIsSubjectEdited(false)
+          setIsBodyEdited(false)
+          setComposeError('')
+          setFacultyLoadError('')
+
+          // Load faculty email
+          const code = normalizeCode(selectedEntry.code)
+          if (code) {
+            const loadedMap = await loadFacultyContactsForSemester(false)
+            const loadedContact = loadedMap[code]
+            setFacultyEmail(loadedContact?.facultyEmail || '')
+            setFacultyName(loadedContact?.facultyName || '')
+          }
+        }
+      } catch (error) {
+        if (isSessionExpiredError(error)) {
+          actions.logout()
+          window.localStorage.removeItem('attend75.selectedSemester')
+          navigate('/login', { replace: true })
+        }
+      } finally {
+        setIsLoadingHistory(false)
+      }
+    })()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Build day status map for calendar dot indicators
   const calendarDayStatus = useMemo(() => {
     const semesterHistory = historyBySemesterDate[semesterCacheKey] || {}
@@ -508,7 +634,7 @@ function HistoryPage() {
 
     const selectedEntry = {
       ...entry,
-      date: selectedDateKey || entry.date || '',
+      date: entry.date || selectedDateKey || '',
     }
 
     setSelectedAbsentEntry(selectedEntry)
@@ -735,8 +861,34 @@ function HistoryPage() {
     return count
   }, [currentDate, historyBySemesterDate, mailSendConfirmedKeys, semesterCacheKey])
 
+  const unmailedAbsencesList = useMemo(() => {
+    const semesterHistory = historyBySemesterDate[semesterCacheKey] || {}
+    const year = currentDate.getFullYear()
+    const month = currentDate.getMonth()
+    const list = []
+
+    Object.entries(semesterHistory).forEach(([dateKey, entries]) => {
+      if (!Array.isArray(entries)) return
+      const [y, m] = dateKey.split('-').map(Number)
+      if (y !== year || m !== month + 1) return
+
+      entries.forEach((entry) => {
+        if (entry.attended || entry.status === 'Present') return
+        const key = buildMailSendConfirmedStorageKey({ date: dateKey, code: entry.code, subject: entry.subject })
+        if (!key || !mailSendConfirmedKeys.has(key)) {
+          list.push({ ...entry, date: dateKey })
+        }
+      })
+    })
+
+    // Sort by date descending (most recent first)
+    list.sort((a, b) => b.date.localeCompare(a.date))
+    return list
+  }, [currentDate, historyBySemesterDate, mailSendConfirmedKeys, semesterCacheKey])
+
   // Mobile view mode state
   const [mobileViewMode, setMobileViewMode] = useState('calendar') // 'calendar' | 'timeline'
+  const [unmailedExpanded, setUnmailedExpanded] = useState(false)
 
   // Timeline view: recent days (last 7 days going back)
   const recentDays = useMemo(() => {
@@ -859,14 +1011,59 @@ function HistoryPage() {
 
         {/* Unmailed absences banner */}
         {unmailedAbsencesCount > 0 ? (
-          <div className="flex items-center gap-3 rounded-xl bg-[#3D3660] px-3 py-2.5 ring-1 ring-white/5">
-            <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[#9F9AB5]" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-            </svg>
-            <span className="flex-1 text-xs font-medium text-[#D8D4E7]">
-              <span className="font-bold text-[#F7F4FF]">{unmailedAbsencesCount}</span> absences not mailed
-            </span>
-            <span className="text-[10px] font-semibold text-[#FF916C]">Open ›</span>
+          <div className="rounded-xl bg-[#3D3660] ring-1 ring-white/5 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setUnmailedExpanded((c) => !c)}
+              className="flex w-full items-center gap-3 px-3 py-2.5 text-left active:bg-white/5"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[#FF916C]" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+              </svg>
+              <span className="flex-1 text-xs font-medium text-[#D8D4E7]">
+                <span className="font-bold text-[#F7F4FF]">{unmailedAbsencesCount}</span> absences not mailed
+              </span>
+              <span className={`text-[10px] font-semibold text-[#FF916C] transition-transform duration-200 ${unmailedExpanded ? 'rotate-90' : ''}`}>›</span>
+            </button>
+
+            {unmailedExpanded ? (
+              <div className="border-t border-white/10 px-3 pb-3 pt-2 space-y-1.5 animate-fadeIn">
+                {unmailedAbsencesList.map((entry, idx) => {
+                  const displayDate = (() => {
+                    try {
+                      const [y, m, d] = entry.date.split('-').map(Number)
+                      return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                    } catch { return entry.date }
+                  })()
+
+                  return (
+                    <div
+                      key={`${entry.code || entry.subject}-${entry.date}-${idx}`}
+                      className="flex items-center gap-3 rounded-lg bg-[#4A466A]/60 px-3 py-2"
+                    >
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#FF5B5B]" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] font-bold text-[#F7F4FF] truncate">{entry.subject || entry.code}</p>
+                        <p className="text-[9px] text-[#9F9AB5]">{displayDate}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleMailFaculty({ ...entry, status: 'Absent', attended: false })
+                        }}
+                        className="flex items-center gap-1 rounded-full border border-[#FF916C]/30 bg-[#FF916C]/10 px-2.5 py-1 text-[10px] font-semibold text-[#FF916C] transition active:scale-95"
+                      >
+                        <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8">
+                          <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                        </svg>
+                        Mail
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -892,25 +1089,23 @@ function HistoryPage() {
             </div>
 
             {/* Day detail */}
-            {historyError ? (
-              <div className="rounded-xl border border-[#FF5B5B]/40 bg-[#FF5B5B]/10 px-3 py-2 text-xs text-[#FFD4D4]">{historyError}</div>
-            ) : null}
-
-            {isLoadingHistory && selectedDateKey ? (
-              <div className="rounded-xl bg-[#3D3660] px-3 py-3 text-xs text-[#9F9AB5]">Loading...</div>
-            ) : null}
-
-            {selectedDateKey && !isLoadingHistory ? (
-              <DayDetailCard
-                displayDate={selectedDisplayDate}
-                attendanceItems={selectedItems}
-                emptyMessage={isFutureSelectedDate ? 'Yet to attend' : 'No classes on this day 🎉'}
-                onMailFaculty={handleMailFaculty}
-                getMailFacultyStatus={getMailFacultyStatus}
-                onConfirmMailSent={handleConfirmMailSentFromCard}
-                onMarkMailNotYet={handleMarkMailNotYet}
-              />
-            ) : null}
+            <AnimatedDetailSection contentKey={selectedDateKey || ''} isLoading={isLoadingHistory && !!selectedDateKey}>
+              {selectedDateKey ? (
+                historyError ? (
+                  <div className="rounded-xl border border-[#FF5B5B]/40 bg-[#FF5B5B]/10 px-3 py-2 text-xs text-[#FFD4D4]">{historyError}</div>
+                ) : (
+                  <DayDetailCard
+                    displayDate={selectedDisplayDate}
+                    attendanceItems={selectedItems}
+                    emptyMessage={isFutureSelectedDate ? 'Yet to attend' : 'No classes on this day 🎉'}
+                    onMailFaculty={handleMailFaculty}
+                    getMailFacultyStatus={getMailFacultyStatus}
+                    onConfirmMailSent={handleConfirmMailSentFromCard}
+                    onMarkMailNotYet={handleMarkMailNotYet}
+                  />
+                )
+              ) : null}
+            </AnimatedDetailSection>
           </div>
         ) : null}
 
@@ -1074,32 +1269,30 @@ function HistoryPage() {
               <div className="rounded-xl border border-[#FF5B5B]/40 bg-[#FF5B5B]/10 px-3 py-2 text-xs text-[#FFD4D4]">{historyError}</div>
             ) : null}
 
-            {isLoadingHistory && selectedDateKey ? (
-              <div className="rounded-xl bg-[#565275] px-4 py-3 text-sm text-[#D8D4E7]">Loading attendance history...</div>
-            ) : null}
-
-            {selectedDateKey && !isLoadingHistory ? (
-              <DayDetailCard
-                displayDate={selectedDisplayDate}
-                attendanceItems={selectedItems}
-                emptyMessage={isFutureSelectedDate ? 'Yet to attend' : 'No classes on this day 🎉'}
-                onMailFaculty={handleMailFaculty}
-                getMailFacultyStatus={getMailFacultyStatus}
-                onConfirmMailSent={handleConfirmMailSentFromCard}
-                onMarkMailNotYet={handleMarkMailNotYet}
-              />
-            ) : null}
+            <AnimatedDetailSection contentKey={selectedDateKey || ''} isLoading={isLoadingHistory && !!selectedDateKey}>
+              {selectedDateKey ? (
+                <DayDetailCard
+                  displayDate={selectedDisplayDate}
+                  attendanceItems={selectedItems}
+                  emptyMessage={isFutureSelectedDate ? 'Yet to attend' : 'No classes on this day 🎉'}
+                  onMailFaculty={handleMailFaculty}
+                  getMailFacultyStatus={getMailFacultyStatus}
+                  onConfirmMailSent={handleConfirmMailSentFromCard}
+                  onMarkMailNotYet={handleMarkMailNotYet}
+                />
+              ) : null}
+            </AnimatedDetailSection>
           </div>
         </div>
       </div>
 
       {showMailModal && selectedAbsentEntry ? (
         <div
-          className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 p-3 backdrop-blur-sm sm:items-center sm:p-6"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center sm:p-6"
           onClick={() => { setShowMailModal(false); setComposeError('') }}
         >
           <div
-            className="max-h-[92dvh] w-full max-w-xl overflow-y-auto rounded-2xl border border-white/10 bg-[#2D2845] p-5 shadow-2xl sm:p-6"
+            className="max-h-[85dvh] w-full max-w-xl overflow-y-auto rounded-2xl border border-white/10 bg-[#2D2845] p-5 shadow-2xl sm:max-h-[92dvh] sm:p-6"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}

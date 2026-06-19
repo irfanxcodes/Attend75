@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react'
 import { useInstallPrompt } from '../../pwa/useInstallPrompt'
 import { onWalkthroughDone } from '../../pwa/installCoordinator'
 
-const DISMISS_KEY = 'attend75.iosGuide.dismissedAt'
-const DISMISS_COOLDOWN_MS = 2 * 24 * 60 * 60 * 1000 // 2 days
+const DISMISS_KEY = 'attend75.iosGuide.dismissed'
 
 function isSafariBrowser() {
   const ua = navigator.userAgent || ''
@@ -73,8 +72,7 @@ function IOSInstallGuide() {
     if (!engagementMet || !shouldTrackEngagement) return
 
     try {
-      const dismissedAt = Number(window.localStorage.getItem(DISMISS_KEY) || 0)
-      if (dismissedAt && Date.now() - dismissedAt < DISMISS_COOLDOWN_MS) {
+      if (window.sessionStorage.getItem(DISMISS_KEY)) {
         return
       }
     } catch { /* */ }
@@ -84,7 +82,7 @@ function IOSInstallGuide() {
 
   const handleDismiss = () => {
     setShow(false)
-    try { window.localStorage.setItem(DISMISS_KEY, String(Date.now())) } catch { /* */ }
+    try { window.sessionStorage.setItem(DISMISS_KEY, '1') } catch { /* */ }
   }
 
   if (!show) return null
