@@ -11,6 +11,7 @@ from fastapi import Header, HTTPException
 from sqlalchemy import func, text
 
 from db.models.portal_credential import PortalCredential
+from db.models.student_registry import StudentRegistry
 from db.models.user import User
 from db.session import SessionLocal
 from services.feature_usage_event_service import get_mail_faculty_usage_summary
@@ -319,53 +320,72 @@ def get_admin_overview() -> dict:
         except Exception:
             db_connected = False
 
-        # Deduplicated user counts (unique humans, not repeated firebase UIDs)
-        # Google users: count by distinct email
+        # ===== Student Registry (source of truth for total users) =====
+        # student_registry tracks ALL logins (guest + Google) by unique roll_number
+        total_students = int(
+            session.query(func.count(StudentRegistry.roll_number)).scalar() or 0
+        )
+        google_linked_students = int(
+            session.query(func.count(StudentRegistry.roll_number))
+            .filter(StudentRegistry.has_google_linked == True)
+            .scalar() or 0
+        )
+        guest_only_students = total_students - google_linked_students
+
+        # DAU: students who logged in today
+        active_users_today = int(
+            session.query(func.count(StudentRegistry.roll_number))
+            .filter(func.date(StudentRegistry.last_seen_at) == date.today().isoformat())
+            .scalar() or 0
+        )
+
+        # For backward compat: Firebase users table
+        total_user_rows = int(session.query(func.count(User.id)).scalar() or 0)
         unique_google_users = int(
             session.query(func.count(func.distinct(User.email)))
             .filter(User.email.isnot(None))
             .scalar() or 0
         )
-        # Unique roll numbers (represents all users who ever linked portal credentials)
         unique_roll_numbers = int(
             session.query(func.count(func.distinct(PortalCredential.roll_number)))
             .scalar() or 0
         )
-        # Total unique users = unique people who signed in with Google
-        # (roll numbers are a subset of Google users since linking requires Google first)
-        total_users = unique_google_users
-
-        # For backward compat: raw row count
-        total_user_rows = int(session.query(func.count(User.id)).scalar() or 0)
-        linked_credentials = int(session.query(func.count(PortalCredential.id)).scalar() or 0)
-        # Unique linked = users who have portal credentials (Google + portal linked)
         unique_linked = unique_roll_numbers
-        # Anonymous/Guest = those who only use guest login (no Google)
-        # We can't count these from the users table since guest logins don't create user rows
-        # Guest logins only exist in-memory sessions
 
-        active_users_today = int(
-            session.query(func.count(func.distinct(User.email)))
-            .filter(User.email.isnot(None))
-            .filter(func.date(User.updated_at) == date.today().isoformat())
-            .scalar()
-            or 0
-        )
+        # Use total_students as the primary "total users" metric
+        total_users = total_students if total_students > 0 else unique_google_users
 
-        user_rows = (
-            session.query(User.id, User.display_name, User.email, PortalCredential.roll_number)
-            .outerjoin(PortalCredential, PortalCredential.user_id == User.id)
-            .order_by(User.id.asc())
+        # Student registry rows for the users table
+        student_rows = (
+            session.query(StudentRegistry)
+            .order_by(StudentRegistry.last_seen_at.desc())
             .all()
         )
+
+        # Also get Firebase user info (name, email) for students who have linked Google
+        firebase_info_by_roll = {}
+        if student_rows:
+            firebase_rows = (
+                session.query(PortalCredential.roll_number, User.display_name, User.email, User.id)
+                .join(User, User.id == PortalCredential.user_id)
+                .all()
+            )
+            for row in firebase_rows:
+                roll = str(row.roll_number or "").strip().upper()
+                if roll:
+                    firebase_info_by_roll[roll] = {
+                        "name": row.display_name,
+                        "email": row.email,
+                        "userId": row.id,
+                    }
 
         growth_window_days = 14
         growth_start_date = date.today() - timedelta(days=growth_window_days - 1)
 
         daily_new_user_rows = (
-            session.query(func.date(User.created_at).label("created_day"), func.count(User.id))
-            .filter(func.date(User.created_at) >= growth_start_date.isoformat())
-            .group_by(func.date(User.created_at))
+            session.query(func.date(StudentRegistry.first_seen_at).label("created_day"), func.count(StudentRegistry.roll_number))
+            .filter(func.date(StudentRegistry.first_seen_at) >= growth_start_date.isoformat())
+            .group_by(func.date(StudentRegistry.first_seen_at))
             .all()
         )
 
@@ -375,8 +395,8 @@ def get_admin_overview() -> dict:
         }
 
         users_before_window = int(
-            session.query(func.count(User.id))
-            .filter(func.date(User.created_at) < growth_start_date.isoformat())
+            session.query(func.count(StudentRegistry.roll_number))
+            .filter(func.date(StudentRegistry.first_seen_at) < growth_start_date.isoformat())
             .scalar()
             or 0
         )
@@ -423,44 +443,28 @@ def get_admin_overview() -> dict:
             }
         )
 
-    linked_roll_by_email: dict[str, str] = {}
-    for row in user_rows:
-        email_key = str(row.email or "").strip().lower()
-        roll_value = str(row.roll_number or "").strip().upper()
-        if email_key and roll_value and email_key not in linked_roll_by_email:
-            linked_roll_by_email[email_key] = roll_value
-
     portal_photo_base = os.getenv("PORTAL_PHOTO_BASE_URL", "http://111.93.16.209/photos")
 
-    # Deduplicate user_rows by email (keep first occurrence with most data)
-    seen_emails = set()
-    deduplicated_rows = []
-    for row in user_rows:
-        email_key = (row.email or "").strip().lower()
-        if email_key and email_key in seen_emails:
-            continue
-        if email_key:
-            seen_emails.add(email_key)
-        deduplicated_rows.append(row)
+    # Build users table from student_registry (one row per unique roll number)
+    users_table = []
+    for index, student in enumerate(student_rows):
+        roll = student.roll_number
+        fb_info = firebase_info_by_roll.get(roll, {})
+        name = fb_info.get("name") or roll
+        email = fb_info.get("email") or None
+        user_id = fb_info.get("userId") or None
 
-    users_table = [
-        {
+        users_table.append({
             "serialNo": index + 1,
-            "id": row.id,
-            "name": row.display_name,
-            "emailId": row.email,
-            "rollNumber": (
-                str(row.roll_number or "").strip().upper()
-                or linked_roll_by_email.get(str(row.email or "").strip().lower())
-            ),
-            "photoUrl": (
-                f"{portal_photo_base}/{str(row.roll_number or '').strip().upper()}.jpg"
-                if row.roll_number
-                else None
-            ),
-        }
-        for index, row in enumerate(deduplicated_rows)
-    ]
+            "id": user_id,
+            "name": name,
+            "emailId": email,
+            "rollNumber": roll,
+            "photoUrl": f"{portal_photo_base}/{roll}.jpg" if roll else None,
+            "lastSeen": student.last_seen_at.isoformat() if student.last_seen_at else None,
+            "loginCount": student.login_count,
+            "authMethod": "google" if student.has_google_linked else "guest",
+        })
 
     user_analytics = {
         "totalUsers": total_users,
@@ -503,7 +507,8 @@ def get_admin_overview() -> dict:
         },
         "users": {
             "total": total_users,
-            "googleUsers": unique_google_users,
+            "googleUsers": google_linked_students,
+            "guestOnly": guest_only_students,
             "linkedCredentials": unique_linked,
             "unlinkedGoogle": max(unique_google_users - unique_linked, 0),
             "totalUserRows": total_user_rows,

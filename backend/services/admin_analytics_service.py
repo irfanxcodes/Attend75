@@ -86,64 +86,44 @@ def get_rating_analytics() -> dict:
 # ---------------------------------------------------------------------------
 
 def get_engagement_metrics() -> dict:
-    """Daily, Weekly, Monthly Active Users based on event activity."""
+    """Daily, Weekly, Monthly Active Users based on logins and event activity."""
     today = date.today()
     week_ago = today - timedelta(days=6)
     month_ago = today - timedelta(days=29)
 
     with SessionLocal() as session:
-        # Count distinct users from feature_usage_events
+        # Count active users from student_registry (login-based) + event activity
         def _count_active_users(start_date: date) -> int:
-            fue_users = (
-                session.query(func.count(distinct(FeatureUsageEvent.user_identifier)))
-                .filter(FeatureUsageEvent.user_identifier.isnot(None))
-                .filter(func.date(FeatureUsageEvent.created_at) >= start_date.isoformat())
-                .scalar()
+            # Students who logged in during the period
+            registry_users = int(
+                session.query(func.count(StudentRegistry.roll_number))
+                .filter(func.date(StudentRegistry.last_seen_at) >= start_date.isoformat())
+                .scalar() or 0
             )
-            sme_users = (
-                session.query(func.count(distinct(StudyMeEvent.user_name)))
-                .filter(StudyMeEvent.user_name.isnot(None))
-                .filter(StudyMeEvent.event_date >= start_date)
-                .scalar()
-            )
-            return int(fue_users or 0) + int(sme_users or 0)
+            return registry_users
 
         dau = _count_active_users(today)
         wau = _count_active_users(week_ago)
         mau = _count_active_users(month_ago)
 
-        total_users = int(session.query(func.count(User.id)).scalar() or 0)
+        total_users = int(session.query(func.count(StudentRegistry.roll_number)).scalar() or 0)
 
-        # DAU trend (last 14 days)
+        # DAU trend (last 14 days) from student_registry
         trend_start = today - timedelta(days=13)
-        fue_daily = (
+        registry_daily = (
             session.query(
-                func.date(FeatureUsageEvent.created_at).label("day"),
-                func.count(distinct(FeatureUsageEvent.user_identifier)),
+                func.date(StudentRegistry.last_seen_at).label("day"),
+                func.count(StudentRegistry.roll_number),
             )
-            .filter(FeatureUsageEvent.user_identifier.isnot(None))
-            .filter(func.date(FeatureUsageEvent.created_at) >= trend_start.isoformat())
-            .group_by(func.date(FeatureUsageEvent.created_at))
-            .all()
-        )
-        sme_daily = (
-            session.query(
-                StudyMeEvent.event_date.label("day"),
-                func.count(distinct(StudyMeEvent.user_name)),
-            )
-            .filter(StudyMeEvent.user_name.isnot(None))
-            .filter(StudyMeEvent.event_date >= trend_start)
-            .group_by(StudyMeEvent.event_date)
+            .filter(func.date(StudentRegistry.last_seen_at) >= trend_start.isoformat())
+            .group_by(func.date(StudentRegistry.last_seen_at))
             .all()
         )
 
         daily_map = {}
-        for row in fue_daily:
+        for row in registry_daily:
             day_key = str(row[0])
-            daily_map[day_key] = daily_map.get(day_key, 0) + int(row[1])
-        for row in sme_daily:
-            day_key = str(row[0])
-            daily_map[day_key] = daily_map.get(day_key, 0) + int(row[1])
+            daily_map[day_key] = int(row[1])
 
         dau_trend = []
         for offset in range(14):
@@ -490,27 +470,23 @@ def get_peak_usage_hours() -> dict:
 # ---------------------------------------------------------------------------
 
 def get_auth_breakdown() -> dict:
-    """Firebase (linked credentials) vs Guest-only users — deduplicated by email."""
+    """Google-linked vs Guest-only users from student_registry."""
     with SessionLocal() as session:
-        # Unique humans by distinct email
-        unique_google_users = int(
-            session.query(func.count(distinct(User.email)))
-            .filter(User.email.isnot(None))
+        total_students = int(
+            session.query(func.count(StudentRegistry.roll_number)).scalar() or 0
+        )
+        google_linked = int(
+            session.query(func.count(StudentRegistry.roll_number))
+            .filter(StudentRegistry.has_google_linked == True)
             .scalar() or 0
         )
-        # Unique roll numbers with linked credentials
-        unique_linked = int(
-            session.query(func.count(distinct(PortalCredential.roll_number)))
-            .scalar() or 0
-        )
-        # Users who signed in with Google but haven't linked portal credentials
-        unlinked_google = max(unique_google_users - unique_linked, 0)
+        guest_only = total_students - google_linked
 
     return {
-        "totalRegisteredUsers": unique_google_users,
-        "firebaseLinkedUsers": unique_linked,
-        "unlinkedUsers": unlinked_google,
-        "firebasePercent": round((unique_linked / unique_google_users) * 100, 1) if unique_google_users > 0 else 0.0,
+        "totalRegisteredUsers": total_students,
+        "firebaseLinkedUsers": google_linked,
+        "unlinkedUsers": guest_only,
+        "firebasePercent": round((google_linked / total_students) * 100, 1) if total_students > 0 else 0.0,
     }
 
 

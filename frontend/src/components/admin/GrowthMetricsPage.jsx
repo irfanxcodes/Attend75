@@ -171,7 +171,7 @@ function UsersTable({ usersTable, sessionToken, onRefresh }) {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold text-[#f0ece4]">Registered Users</p>
-          <p className="text-[9px] text-[#7a6f94]">One row per unique student (deduplicated by email, most recent record used)</p>
+          <p className="text-[9px] text-[#7a6f94]">One row per unique student (by roll number)</p>
         </div>
         <span className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] font-semibold text-[#9F9AB5]">
           {users.length} users
@@ -186,7 +186,7 @@ function UsersTable({ usersTable, sessionToken, onRefresh }) {
               <th className="pb-3 pr-4">Student</th>
               <th className="pb-3 pr-4">Email</th>
               <th className="pb-3 pr-4">Roll Number</th>
-              <th className="pb-3 pr-4 text-right">Photo</th>
+              <th className="pb-3 pr-4">Method</th>
               <th className="pb-3 text-right">Action</th>
             </tr>
           </thead>
@@ -207,10 +207,10 @@ function UsersTable({ usersTable, sessionToken, onRefresh }) {
                 </td>
                 <td className="py-3 pr-4 text-[#9F9AB5]">{user.emailId || '-'}</td>
                 <td className="py-3 pr-4 text-[#d8d4e7]">{user.rollNumber || '-'}</td>
-                <td className="py-3 pr-4 text-right">
-                  {user.photoUrl ? (
-                    <img src={user.photoUrl} alt="" className="ml-auto h-7 w-7 rounded object-cover" />
-                  ) : <span className="text-[#7a6f94]">—</span>}
+                <td className="py-3 pr-4">
+                  <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${user.authMethod === 'google' ? 'bg-[#4EF0A0]/15 text-[#4EF0A0]' : 'bg-[#6CB4FF]/15 text-[#6CB4FF]'}`}>
+                    {user.authMethod === 'google' ? 'Google' : 'Guest'}
+                  </span>
                 </td>
                 <td className="py-3 text-right">
                   <button

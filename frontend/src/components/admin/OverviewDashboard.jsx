@@ -434,30 +434,6 @@ function OverviewDashboard({ data, analytics, feedback, onRefresh, isLoading, on
         <AuthProvidersCard authBreakdown={authBreakdown} />
       </div>
 
-      {/* PWA Installs */}
-      <div className="rounded-2xl border border-white/[0.06] bg-[#2a2440] p-5">
-        <p className="text-xs font-semibold text-[#f0ece4]">PWA Installs</p>
-        <p className="mt-0.5 text-[9px] text-[#7a6f94]">Students who installed the app</p>
-        <div className="mt-4 grid grid-cols-4 gap-4">
-          <div className="text-center">
-            <p className="text-2xl font-bold text-[#f0ece4]">{pwaInstalls.total || 0}</p>
-            <p className="mt-1 text-[9px] text-[#7a6f94]">Total</p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-bold text-[#4EF0A0]">{pwaInstalls.android || 0}</p>
-            <p className="mt-1 text-[9px] text-[#7a6f94]">Android</p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-bold text-[#6CB4FF]">{pwaInstalls.ios || 0}</p>
-            <p className="mt-1 text-[9px] text-[#7a6f94]">iOS</p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-bold text-[#A78BFA]">{pwaInstalls.desktop || 0}</p>
-            <p className="mt-1 text-[9px] text-[#7a6f94]">Desktop</p>
-          </div>
-        </div>
-      </div>
-
       {/* Bottom Row - 3 cards */}
       <div className="grid grid-cols-3 gap-4">
         <TopLessonsCard studyMeAnalytics={studyMeAnalytics} />
