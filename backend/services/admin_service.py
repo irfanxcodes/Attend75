@@ -446,6 +446,7 @@ def get_admin_overview() -> dict:
     users_table = [
         {
             "serialNo": index + 1,
+            "id": row.id,
             "name": row.display_name,
             "emailId": row.email,
             "rollNumber": (

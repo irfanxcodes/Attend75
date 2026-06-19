@@ -129,3 +129,29 @@ async def admin_analytics(_: dict = Depends(require_admin_user)):
 			status_code=500,
 			content={"status": "error", "message": "Unable to fetch analytics"},
 		)
+
+
+@router.delete("/users/{user_id}", response_model=ApiResponse)
+async def admin_delete_user(user_id: int, _: dict = Depends(require_admin_user)):
+	"""Delete a registered user and their associated portal credentials."""
+	try:
+		from db.models.user import User
+		from db.session import SessionLocal
+
+		with SessionLocal() as session:
+			user = session.query(User).filter(User.id == user_id).first()
+			if not user:
+				return JSONResponse(
+					status_code=404,
+					content={"status": "error", "message": "User not found"},
+				)
+			session.delete(user)
+			session.commit()
+
+		return ApiResponse(status="success", message="User deleted", data={"deleted_id": user_id})
+	except Exception:
+		logger.exception("Failed to delete user %s", user_id)
+		return JSONResponse(
+			status_code=500,
+			content={"status": "error", "message": "Unable to delete user"},
+		)

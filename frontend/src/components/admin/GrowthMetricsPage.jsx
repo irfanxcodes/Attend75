@@ -136,14 +136,32 @@ function DAUWAUMAUChart({ dauTrend }) {
   )
 }
 
-function UsersTable({ usersTable }) {
+function UsersTable({ usersTable, sessionToken, onRefresh }) {
   const avatarColors = ['#FF5B5B', '#FF916C', '#6CB4FF', '#4EF0A0', '#A78BFA', '#FFB23E', '#F472B6', '#34D399']
   const [lightboxPhoto, setLightboxPhoto] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
 
   function getInitials(name) {
     const parts = (name || 'AN').trim().split(/\s+/)
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  }
+
+  const handleDelete = async (user) => {
+    if (!user.id) return
+    const confirmed = window.confirm(`Delete user "${user.name || user.emailId}"? This will remove their account and linked credentials.`)
+    if (!confirmed) return
+
+    setDeletingId(user.id)
+    try {
+      const { deleteAdminUser } = await import('../../services/adminApi')
+      await deleteAdminUser(sessionToken, user.id)
+      if (onRefresh) onRefresh()
+    } catch (err) {
+      alert(err.message || 'Failed to delete user')
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   const users = usersTable || []
@@ -168,7 +186,8 @@ function UsersTable({ usersTable }) {
               <th className="pb-3 pr-4">Student</th>
               <th className="pb-3 pr-4">Email</th>
               <th className="pb-3 pr-4">Roll Number</th>
-              <th className="pb-3 text-right">Photo</th>
+              <th className="pb-3 pr-4 text-right">Photo</th>
+              <th className="pb-3 text-right">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -188,15 +207,25 @@ function UsersTable({ usersTable }) {
                 </td>
                 <td className="py-3 pr-4 text-[#9F9AB5]">{user.emailId || '-'}</td>
                 <td className="py-3 pr-4 text-[#d8d4e7]">{user.rollNumber || '-'}</td>
-                <td className="py-3 text-right">
+                <td className="py-3 pr-4 text-right">
                   {user.photoUrl ? (
                     <img src={user.photoUrl} alt="" className="ml-auto h-7 w-7 rounded object-cover" />
                   ) : <span className="text-[#7a6f94]">—</span>}
                 </td>
+                <td className="py-3 text-right">
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(user)}
+                    disabled={deletingId === user.id}
+                    className="rounded-md border border-[#FF5B5B]/30 bg-[#FF5B5B]/10 px-2 py-1 text-[9px] font-semibold text-[#FF5B5B] transition hover:bg-[#FF5B5B]/20 disabled:opacity-40"
+                  >
+                    {deletingId === user.id ? '...' : 'Delete'}
+                  </button>
+                </td>
               </tr>
             ))}
             {!users.length ? (
-              <tr><td colSpan={5} className="py-8 text-center text-[#7a6f94]">No registered users yet</td></tr>
+              <tr><td colSpan={6} className="py-8 text-center text-[#7a6f94]">No registered users yet</td></tr>
             ) : null}
           </tbody>
         </table>
@@ -209,7 +238,7 @@ function UsersTable({ usersTable }) {
   )
 }
 
-function GrowthMetricsPage({ data, analytics, onRefresh, isLoading }) {
+function GrowthMetricsPage({ data, analytics, onRefresh, isLoading, sessionToken }) {
   const engagement = analytics?.engagement || {}
   const userAnalytics = data?.userAnalytics || {}
   const usersTable = userAnalytics?.usersTable || []
@@ -275,7 +304,7 @@ function GrowthMetricsPage({ data, analytics, onRefresh, isLoading }) {
       <DAUWAUMAUChart dauTrend={dauTrend} />
 
       {/* Users Table */}
-      <UsersTable usersTable={usersTable} />
+      <UsersTable usersTable={usersTable} sessionToken={sessionToken} onRefresh={onRefresh} />
     </div>
   )
 }

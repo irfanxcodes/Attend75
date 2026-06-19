@@ -197,6 +197,13 @@ export async function fetchAdminAnalytics(sessionToken) {
   })
 }
 
+export async function deleteAdminUser(sessionToken, userId) {
+  return requestAdminJson(`${API_BASE_URL}/admin/users/${userId}`, {
+    method: 'DELETE',
+    headers: authHeaders(sessionToken),
+  })
+}
+
 export {
   ADMIN_STORAGE_KEY,
   AdminApiError,

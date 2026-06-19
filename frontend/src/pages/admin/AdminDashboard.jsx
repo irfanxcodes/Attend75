@@ -143,6 +143,7 @@ function AdminDashboard() {
               analytics={analytics}
               onRefresh={fetchAllData}
               isLoading={isLoading}
+              sessionToken={sessionToken}
             />
           ) : activeSection === 'engagement' ? (
             <EngagementPage
