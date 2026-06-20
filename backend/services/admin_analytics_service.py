@@ -432,7 +432,7 @@ def get_peak_usage_hours() -> dict:
     with SessionLocal() as session:
         fue_hourly = (
             session.query(
-                func.strftime("%H", FeatureUsageEvent.created_at).label("hour"),
+                func.to_char(FeatureUsageEvent.created_at, "HH24").label("hour"),
                 func.count(FeatureUsageEvent.id),
             )
             .group_by("hour")
@@ -441,7 +441,7 @@ def get_peak_usage_hours() -> dict:
 
         sme_hourly = (
             session.query(
-                func.strftime("%H", StudyMeEvent.created_at).label("hour"),
+                func.to_char(StudyMeEvent.created_at, "HH24").label("hour"),
                 func.count(StudyMeEvent.id),
             )
             .group_by("hour")
@@ -590,7 +590,7 @@ def get_daily_activity() -> dict:
         # Hourly distribution (for API activity chart)
         fue_hourly = (
             session.query(
-                func.strftime("%H", FeatureUsageEvent.created_at).label("hour"),
+                func.to_char(FeatureUsageEvent.created_at, "HH24").label("hour"),
                 func.count(FeatureUsageEvent.id),
             )
             .filter(func.date(FeatureUsageEvent.created_at) >= start.isoformat())
@@ -599,7 +599,7 @@ def get_daily_activity() -> dict:
         )
         sme_hourly = (
             session.query(
-                func.strftime("%H", StudyMeEvent.created_at).label("hour"),
+                func.to_char(StudyMeEvent.created_at, "HH24").label("hour"),
                 func.count(StudyMeEvent.id),
             )
             .filter(StudyMeEvent.event_date >= start)
