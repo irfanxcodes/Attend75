@@ -350,3 +350,32 @@ async def attendance_streak(payload: AttendanceRequest):
     except Exception:
         logger.exception("Unexpected streak calculation error")
         return _data_error_response("DATA_FETCH_FAILED", status_code=500)
+
+
+@router.get("/photo/{roll_number}")
+async def proxy_student_photo(roll_number: str):
+    """Proxy student photo from the college portal to avoid mixed-content blocking."""
+    import os
+    import requests as http_requests
+    from fastapi.responses import Response
+
+    normalized_roll = (roll_number or "").strip().upper()
+    if not normalized_roll or len(normalized_roll) > 32:
+        return JSONResponse(status_code=400, content={"status": "error", "message": "Invalid roll number"})
+
+    portal_photo_base = os.getenv("PORTAL_PHOTO_BASE_URL", "http://111.93.16.209/photos")
+    photo_url = f"{portal_photo_base}/{normalized_roll}.jpg"
+
+    try:
+        resp = http_requests.get(photo_url, timeout=10)
+        if resp.status_code != 200:
+            return JSONResponse(status_code=404, content={"status": "error", "message": "Photo not found"})
+
+        content_type = resp.headers.get("Content-Type", "image/jpeg")
+        return Response(
+            content=resp.content,
+            media_type=content_type,
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+    except Exception:
+        return JSONResponse(status_code=502, content={"status": "error", "message": "Unable to fetch photo"})

@@ -443,8 +443,6 @@ def get_admin_overview() -> dict:
             }
         )
 
-    portal_photo_base = os.getenv("PORTAL_PHOTO_BASE_URL", "http://111.93.16.209/photos")
-
     # Build users table from student_registry (one row per unique roll number)
     users_table = []
     for index, student in enumerate(student_rows):
@@ -460,7 +458,7 @@ def get_admin_overview() -> dict:
             "name": name,
             "emailId": email,
             "rollNumber": roll,
-            "photoUrl": f"{portal_photo_base}/{roll}.jpg" if roll else None,
+            "photoUrl": f"/api/photo/{roll}" if roll else None,
             "lastSeen": student.last_seen_at.isoformat() if student.last_seen_at else None,
             "loginCount": student.login_count,
             "authMethod": "google" if student.has_google_linked else "guest",

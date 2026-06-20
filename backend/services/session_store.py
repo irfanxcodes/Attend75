@@ -110,7 +110,7 @@ class SessionStore:
             results.append({
                 "rollNumber": record.roll_number,
                 "userName": record.user_name,
-                "photoUrl": record.photo_url,
+                "photoUrl": f"/api/photo/{record.roll_number}" if record.roll_number else None,
                 "attendancePercent": record.attendance_percent,
                 "userAgent": record.user_agent,
                 "startedSecondsAgo": started_seconds_ago,
