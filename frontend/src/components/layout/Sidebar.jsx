@@ -26,13 +26,13 @@ function Sidebar({ isCollapsed, onToggleCollapse }) {
     )
   }, [location.pathname])
 
-  const hasSeenStudyMeNotice = useMemo(() => {
+  const [hasSeenStudyMeNotice, setHasSeenStudyMeNotice] = useState(() => {
     try {
       return window.localStorage.getItem(STUDYME_BETA_NOTICE_KEY) === 'seen'
     } catch {
       return false
     }
-  }, [])
+  })
 
   useEffect(() => {
     if (!showStudyMeModal) {
@@ -53,6 +53,7 @@ function Sidebar({ isCollapsed, onToggleCollapse }) {
     } catch {
       // Ignore storage failures and keep navigation usable.
     }
+    setHasSeenStudyMeNotice(true)
   }
 
   const closeStudyMeModal = () => {
