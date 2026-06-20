@@ -273,8 +273,10 @@ function Profile() {
         Log out
       </button>
 
-      {/* Follow the creator */}
-      <FollowCreatorSection />
+      {/* Follow the creator - mobile only (desktop has it in sidebar) */}
+      <div className="md:hidden">
+        <FollowCreatorSection />
+      </div>
 
       {/* Footer */}
       <p className="text-center text-[10px] text-[#6E6A88]">

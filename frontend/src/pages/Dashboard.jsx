@@ -5,7 +5,8 @@ import AttendanceCircle from '../components/dashboard/AttendanceCircle'
 import Header from '../components/dashboard/Header'
 import PredictionCard from '../components/dashboard/PredictionCard'
 import SubjectList from '../components/dashboard/SubjectList'
-import { FollowCreatorBanner, FollowCreatorSection } from '../components/common/FollowCreatorBanner'
+import InstagramButton from '../components/common/InstagramButton'
+import { FollowCreatorBanner } from '../components/common/FollowCreatorBanner'
 import GuestLoginPrompt from '../components/common/GuestLoginPrompt'
 import Walkthrough, { hasCompletedWalkthrough } from '../components/common/Walkthrough'
 import DemoWalkthrough, { hasDemoWalkthroughCompleted } from '../components/common/DemoWalkthrough'
@@ -539,7 +540,10 @@ function Dashboard() {
           <SubjectList subjects={subjects} />
         </div>
 
-        <FollowCreatorSection className="mt-2" />
+        <div className="flex items-center justify-end gap-2 px-1 pb-0.5">
+          <span className="text-[10px] text-[#9F9AB5]">Follow us</span>
+          <InstagramButton className="h-6 w-6 bg-[#4A466A]" iconClassName="h-3 w-3" />
+        </div>
       </div>
 
       {/* Follow the creator - mobile popup (first time only) */}
