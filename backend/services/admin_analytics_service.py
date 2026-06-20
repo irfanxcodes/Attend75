@@ -271,9 +271,9 @@ def get_college_interest_analytics() -> dict:
 # ---------------------------------------------------------------------------
 
 def get_feature_adoption_rates() -> dict:
-    """What % of total users have used each feature at least once."""
+    """What % of total students have used each feature at least once."""
     with SessionLocal() as session:
-        total_users = int(session.query(func.count(User.id)).scalar() or 0)
+        total_users = int(session.query(func.count(StudentRegistry.roll_number)).scalar() or 0)
         if total_users == 0:
             return {"totalUsers": 0, "features": []}
 
@@ -456,8 +456,8 @@ def get_peak_usage_hours() -> dict:
         hour_key = str(row[0] or "00").zfill(2)
         hourly_counts[hour_key] = hourly_counts.get(hour_key, 0) + int(row[1])
 
-    hours = [{"hour": h, "count": hourly_counts[h]} for h in sorted(hourly_counts.keys())]
-    peak_hour = max(hours, key=lambda x: x["count"])["hour"] if hours else "00"
+    hours = [{"hour": h, "events": hourly_counts[h]} for h in sorted(hourly_counts.keys())]
+    peak_hour = max(hours, key=lambda x: x["events"])["hour"] if hours else "00"
 
     return {
         "hourlyDistribution": hours,
@@ -687,31 +687,3 @@ def get_pwa_install_metrics() -> dict:
     }
 
 
-def get_pwa_install_metrics() -> dict:
-    """PWA install counts by platform."""
-    from db.models.pwa_install import PwaInstall
-
-    with SessionLocal() as session:
-        total = int(session.query(func.count(PwaInstall.id)).scalar() or 0)
-        android = int(
-            session.query(func.count(PwaInstall.id))
-            .filter(PwaInstall.device_platform == "android")
-            .scalar() or 0
-        )
-        ios = int(
-            session.query(func.count(PwaInstall.id))
-            .filter(PwaInstall.device_platform == "ios")
-            .scalar() or 0
-        )
-        desktop = int(
-            session.query(func.count(PwaInstall.id))
-            .filter(PwaInstall.device_platform == "desktop")
-            .scalar() or 0
-        )
-
-    return {
-        "total": total,
-        "android": android,
-        "ios": ios,
-        "desktop": desktop,
-    }

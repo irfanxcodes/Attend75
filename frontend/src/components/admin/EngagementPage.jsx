@@ -146,9 +146,9 @@ function EngagementPage({ data, analytics, onRefresh, isLoading }) {
       {/* KPI Row */}
       <div className="grid grid-cols-4 gap-4">
         <KPICard label="Peak Hour" value={`${peakHour}:00`} subtitle={`${formatNumber(eventsPerHour)} events/h`} sparkData={hourlyValues.slice(0, 7)} sparkColor="#FF916C" />
-        <KPICard label="History Views" value={formatNumber(historyCount)} trend="6%" trendUp sparkData={hourlyValues.slice(4, 11)} sparkColor="#6CB4FF" />
-        <KPICard label="Total Faculty Mails" value={formatNumber(mailsSent)} trend="12%" trendUp sparkData={hourlyValues.slice(8, 15)} sparkColor="#4EF0A0" />
-        <KPICard label="Marks Views" value={formatNumber(marksCount)} trend="18%" trendUp sparkData={hourlyValues.slice(12, 19)} sparkColor="#A78BFA" />
+        <KPICard label="History Views" value={formatNumber(historyCount)} sparkData={hourlyValues.slice(4, 11)} sparkColor="#6CB4FF" />
+        <KPICard label="Total Faculty Mails" value={formatNumber(mailsSent)} sparkData={hourlyValues.slice(8, 15)} sparkColor="#4EF0A0" />
+        <KPICard label="Marks Views" value={formatNumber(marksCount)} sparkData={hourlyValues.slice(12, 19)} sparkColor="#A78BFA" />
       </div>
 
       {/* Peak Usage Chart */}
