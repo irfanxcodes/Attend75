@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { LogOut, Share2, Star, MessageSquare } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { FollowCreatorSection } from '../components/common/FollowCreatorBanner'
 import useAppStore from '../hooks/useAppStore'
 import { fetchSessionStatus, fetchUserRating, submitFeedback, submitRating } from '../services/attendanceApi'
 import { useInstallPrompt } from '../pwa/useInstallPrompt'
@@ -271,6 +272,9 @@ function Profile() {
         <LogOut className="h-4 w-4" strokeWidth={2} />
         Log out
       </button>
+
+      {/* Follow the creator */}
+      <FollowCreatorSection />
 
       {/* Footer */}
       <p className="text-center text-[10px] text-[#6E6A88]">
