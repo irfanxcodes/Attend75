@@ -448,7 +448,7 @@ def get_admin_overview() -> dict:
     for index, student in enumerate(student_rows):
         roll = student.roll_number
         fb_info = firebase_info_by_roll.get(roll, {})
-        name = fb_info.get("name") or roll
+        name = fb_info.get("name") or student.display_name or roll
         email = fb_info.get("email") or None
         user_id = fb_info.get("userId") or None
 

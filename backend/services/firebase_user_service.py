@@ -78,7 +78,7 @@ def firebase_login(id_token: str) -> dict:
             raise
 
         # Register in student registry as Google-linked
-        register_student_login(credential.roll_number.strip().upper(), "google")
+        register_student_login(credential.roll_number.strip().upper(), "google", display_name=user.display_name)
 
         return {
             "linked": True,

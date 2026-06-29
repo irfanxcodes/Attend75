@@ -10,6 +10,7 @@ class StudentRegistry(Base):
     __tablename__ = "student_registry"
 
     roll_number: Mapped[str] = mapped_column(String(32), primary_key=True)
+    display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     first_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     login_count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
