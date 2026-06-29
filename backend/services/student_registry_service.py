@@ -11,7 +11,7 @@ from db.models.student_registry import StudentRegistry
 from db.session import SessionLocal
 
 
-def register_student_login(roll_number: str, method: str = "guest", display_name: str | None = None) -> None:
+def register_student_login(roll_number: str, method: str = "guest", display_name: str | None = None, attendance_percent: float | None = None, user_agent: str | None = None) -> None:
     """
     Register or update a student's login record.
 
@@ -19,6 +19,8 @@ def register_student_login(roll_number: str, method: str = "guest", display_name
         roll_number: The student's unique college roll number.
         method: 'guest' or 'google' — how they logged in this time.
         display_name: The student's name (from portal scraper or Firebase).
+        attendance_percent: Overall attendance percentage at login time.
+        user_agent: Browser/device user-agent string.
     """
     normalized_roll = (roll_number or "").strip().upper()
     if not normalized_roll:
@@ -26,6 +28,7 @@ def register_student_login(roll_number: str, method: str = "guest", display_name
 
     normalized_method = (method or "guest").strip().lower()
     normalized_name = (display_name or "").strip() or None
+    device = _parse_device(user_agent)
     now = datetime.utcnow()
 
     with SessionLocal() as session:
@@ -45,6 +48,8 @@ def register_student_login(roll_number: str, method: str = "guest", display_name
                 created_via=normalized_method,
                 has_google_linked=(normalized_method == "google"),
                 linked_google_at=now if normalized_method == "google" else None,
+                last_attendance_percent=attendance_percent,
+                last_device=device,
             )
             session.add(record)
         else:
@@ -57,12 +62,35 @@ def register_student_login(roll_number: str, method: str = "guest", display_name
             if normalized_name and (not record.display_name or record.display_name == normalized_roll):
                 record.display_name = normalized_name
 
+            # Update attendance and device
+            if attendance_percent is not None:
+                record.last_attendance_percent = attendance_percent
+            if device:
+                record.last_device = device
+
             # Permanently mark Google-linked (never reverts)
             if normalized_method == "google" and not record.has_google_linked:
                 record.has_google_linked = True
                 record.linked_google_at = now
 
         session.commit()
+
+
+def _parse_device(ua: str | None) -> str | None:
+    """Extract a short device label from user-agent string."""
+    if not ua:
+        return None
+    if 'iPhone' in ua:
+        return 'iOS'
+    if 'Android' in ua:
+        return 'Android'
+    if 'Mac OS' in ua:
+        return 'macOS'
+    if 'Windows' in ua:
+        return 'Windows'
+    if 'Linux' in ua:
+        return 'Linux'
+    return 'Web'
 
 
 def mark_google_linked(roll_number: str) -> None:

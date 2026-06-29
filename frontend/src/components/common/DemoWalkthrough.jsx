@@ -215,7 +215,6 @@ function DemoWalkthrough({ onComplete }) {
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={handleFinish} className="text-[11px] font-medium text-[#9F9AB5] transition hover:text-[#F7F4FF]">Skip</button>
             <button type="button" onClick={handleNext} className="rounded-full bg-[#4EF0A0] px-4 py-1.5 text-[11px] font-bold text-[#1D183E] transition active:scale-95">
               {currentStep >= steps.length - 1 ? 'Done' : 'Next'}
             </button>

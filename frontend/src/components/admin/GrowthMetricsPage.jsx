@@ -186,6 +186,8 @@ function UsersTable({ usersTable, sessionToken, onRefresh }) {
               <th className="pb-3 pr-4">Student</th>
               <th className="pb-3 pr-4">Email</th>
               <th className="pb-3 pr-4">Roll Number</th>
+              <th className="pb-3 pr-4">Attendance</th>
+              <th className="pb-3 pr-4">Device</th>
               <th className="pb-3 pr-4">Method</th>
               <th className="pb-3 text-right">Action</th>
             </tr>
@@ -208,6 +210,14 @@ function UsersTable({ usersTable, sessionToken, onRefresh }) {
                 <td className="py-3 pr-4 text-[#9F9AB5]">{user.emailId || '-'}</td>
                 <td className="py-3 pr-4 text-[#d8d4e7]">{user.rollNumber || '-'}</td>
                 <td className="py-3 pr-4">
+                  {user.attendancePercent != null ? (
+                    <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${user.attendancePercent > 75 ? 'bg-[#4EF0A0]/15 text-[#4EF0A0]' : user.attendancePercent >= 60 ? 'bg-[#FFB23E]/15 text-[#FFB23E]' : 'bg-[#FF5B5B]/15 text-[#FF5B5B]'}`}>
+                      {user.attendancePercent.toFixed(1)}%
+                    </span>
+                  ) : <span className="text-[#7a6f94]">-</span>}
+                </td>
+                <td className="py-3 pr-4 text-[#9F9AB5]">{user.device || '-'}</td>
+                <td className="py-3 pr-4">
                   <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${user.authMethod === 'google' ? 'bg-[#4EF0A0]/15 text-[#4EF0A0]' : 'bg-[#6CB4FF]/15 text-[#6CB4FF]'}`}>
                     {user.authMethod === 'google' ? 'Google' : 'Guest'}
                   </span>
@@ -225,7 +235,7 @@ function UsersTable({ usersTable, sessionToken, onRefresh }) {
               </tr>
             ))}
             {!users.length ? (
-              <tr><td colSpan={6} className="py-8 text-center text-[#7a6f94]">No registered users yet</td></tr>
+              <tr><td colSpan={8} className="py-8 text-center text-[#7a6f94]">No registered users yet</td></tr>
             ) : null}
           </tbody>
         </table>

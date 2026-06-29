@@ -128,7 +128,7 @@ def login_user(roll_number: str, password: str, user_agent: str | None = None) -
         observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
 
         # Register student in the persistent registry
-        register_student_login(roll_number.strip().upper(), "guest", display_name=resolved_user_name)
+        register_student_login(roll_number.strip().upper(), "guest", display_name=resolved_user_name, attendance_percent=overall_percent, user_agent=user_agent)
 
         return {
             "token": record.token,

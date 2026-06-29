@@ -18,3 +18,5 @@ class StudentRegistry(Base):
     created_via: Mapped[str] = mapped_column(String(16), nullable=False)
     has_google_linked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     linked_google_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_attendance_percent: Mapped[float | None] = mapped_column(nullable=True)
+    last_device: Mapped[str | None] = mapped_column(String(64), nullable=True)

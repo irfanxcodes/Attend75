@@ -462,6 +462,8 @@ def get_admin_overview() -> dict:
             "lastSeen": student.last_seen_at.isoformat() if student.last_seen_at else None,
             "loginCount": student.login_count,
             "authMethod": "google" if student.has_google_linked else "guest",
+            "attendancePercent": student.last_attendance_percent,
+            "device": student.last_device,
         })
 
     user_analytics = {
