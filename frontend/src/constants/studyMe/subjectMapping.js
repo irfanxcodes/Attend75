@@ -55,12 +55,22 @@ export const POPULAR_SUBJECT_IDS = ['financial-management', 'qbm', 'ccfa', 'ob']
  */
 export function resolveStudentSubjects(portalSubjects, isAuthenticated = false) {
   // Guest experience: show popular subjects
-  if (!isAuthenticated || !Array.isArray(portalSubjects) || portalSubjects.length === 0) {
+  if (!isAuthenticated) {
     return {
       available: POPULAR_SUBJECT_IDS,
       comingSoon: [],
       allUnavailable: false,
       isGuest: true,
+    }
+  }
+
+  // Authenticated user with no subjects yet (still loading or error)
+  if (!Array.isArray(portalSubjects) || portalSubjects.length === 0) {
+    return {
+      available: [],
+      comingSoon: [],
+      allUnavailable: true,
+      isGuest: false,
     }
   }
 

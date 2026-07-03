@@ -158,7 +158,7 @@ def login_user(roll_number: str, password: str, user_agent: str | None = None) -
         raise
 
 
-def fetch_attendance_for_semester(token: str, semester_id: str | None, force_refresh: bool = False) -> dict:
+def fetch_attendance_for_semester(token: str, semester_id: str | None, program_id: str | None = None, force_refresh: bool = False) -> dict:
     record = session_store.get(token)
     if record is None:
         raise PortalAuthenticationError("Session token not found while fetching attendance", code="SESSION_EXPIRED")
@@ -170,6 +170,7 @@ def fetch_attendance_for_semester(token: str, semester_id: str | None, force_ref
             lambda: _run_with_network_retry(
                 lambda: record.scraper.fetch_attendance_for_semester(
                     semester_id=semester_id,
+                    program_id=program_id,
                     force_refresh=force_refresh,
                 )
             )

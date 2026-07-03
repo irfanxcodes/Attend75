@@ -53,6 +53,7 @@ class ApiResponse(BaseModel):
 class AttendanceRequest(BaseModel):
     token: str = Field(..., description="Session token from /login")
     semester_id: str | None = Field(default=None, description="Semester id from attendance dropdown")
+    program_id: str | None = Field(default=None, description="Program/course id for students with multiple programs")
     force_refresh: bool = Field(default=False, description="Bypass scraper cache and fetch fresh portal data")
 
     @field_validator("token")

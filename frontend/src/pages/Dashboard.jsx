@@ -197,15 +197,16 @@ function Dashboard() {
     if (isDemo) return
     try {
       actions.setLoading(true); actions.setError('')
-      const result = await fetchAttendance({ token: session.token, semesterId: session.selectedSemester, forceRefresh: true })
+      const result = await fetchAttendance({ token: session.token, semesterId: session.selectedSemester, programId: session.selectedProgram, forceRefresh: true })
       actions.setAttendanceData(result.attendanceData)
-      actions.setSessionSemesters(result.semesters, result.selectedSemester)
+      actions.setSessionSemesters(result.semesters, result.selectedSemester, result.programs, result.selectedProgram)
       if (result.selectedSemester) window.localStorage.setItem('attend75.selectedSemester', result.selectedSemester)
+      if (result.selectedProgram) window.localStorage.setItem('attend75.selectedProgram', result.selectedProgram)
     } catch (error) {
-      if (isSessionExpiredError(error)) { actions.logout(); window.localStorage.removeItem('attend75.selectedSemester'); navigate('/login', { replace: true }); return }
+      if (isSessionExpiredError(error)) { actions.logout(); window.localStorage.removeItem('attend75.selectedSemester'); window.localStorage.removeItem('attend75.selectedProgram'); navigate('/login', { replace: true }); return }
       actions.setError(error.message)
     } finally { actions.setLoading(false) }
-  }, [actions, navigate, session.selectedSemester, session.token])
+  }, [actions, isDemo, navigate, session.selectedProgram, session.selectedSemester, session.token])
 
   const handleSemesterChange = useCallback(async (event) => {
     const semesterId = event.target.value
@@ -213,34 +214,53 @@ function Dashboard() {
     window.localStorage.setItem('attend75.selectedSemester', semesterId)
     try {
       actions.setLoading(true); actions.setError('')
-      const result = await fetchAttendance({ token: session.token, semesterId })
+      const result = await fetchAttendance({ token: session.token, semesterId, programId: session.selectedProgram })
       actions.setAttendanceData(result.attendanceData)
-      actions.setSessionSemesters(result.semesters, result.selectedSemester || semesterId)
+      actions.setSessionSemesters(result.semesters, result.selectedSemester || semesterId, result.programs, result.selectedProgram)
     } catch (error) {
-      if (isSessionExpiredError(error)) { actions.logout(); window.localStorage.removeItem('attend75.selectedSemester'); navigate('/login', { replace: true }); return }
+      if (isSessionExpiredError(error)) { actions.logout(); window.localStorage.removeItem('attend75.selectedSemester'); window.localStorage.removeItem('attend75.selectedProgram'); navigate('/login', { replace: true }); return }
       actions.setError(error.message)
     } finally { actions.setLoading(false) }
-  }, [actions, navigate, session.token])
+  }, [actions, navigate, session.selectedProgram, session.token])
+
+  const handleProgramChange = useCallback(async (event) => {
+    const programId = event.target.value
+    actions.setSelectedProgram(programId)
+    window.localStorage.setItem('attend75.selectedProgram', programId)
+    try {
+      actions.setLoading(true); actions.setError('')
+      const result = await fetchAttendance({ token: session.token, semesterId: session.selectedSemester, programId })
+      actions.setAttendanceData(result.attendanceData)
+      actions.setSessionSemesters(result.semesters, result.selectedSemester, result.programs, result.selectedProgram || programId)
+    } catch (error) {
+      if (isSessionExpiredError(error)) { actions.logout(); window.localStorage.removeItem('attend75.selectedSemester'); window.localStorage.removeItem('attend75.selectedProgram'); navigate('/login', { replace: true }); return }
+      actions.setError(error.message)
+    } finally { actions.setLoading(false) }
+  }, [actions, navigate, session.selectedSemester, session.token])
 
   useEffect(() => {
     if (hasSyncedSavedSemester.current) return
     if (!session.token || !session.semesters.length || isDemo) return
     hasSyncedSavedSemester.current = true
-    const saved = window.localStorage.getItem('attend75.selectedSemester')
-    const isValid = session.semesters.some((s) => s.id === saved)
-    if (!isValid || !saved || saved === session.selectedSemester) {
+    const savedSemester = window.localStorage.getItem('attend75.selectedSemester')
+    const savedProgram = window.localStorage.getItem('attend75.selectedProgram')
+    const isSemesterValid = session.semesters.some((s) => s.id === savedSemester)
+    const isProgramValid = !savedProgram || session.programs.some((p) => p.id === savedProgram)
+    if ((!isSemesterValid || !savedSemester || savedSemester === session.selectedSemester) && (!savedProgram || savedProgram === session.selectedProgram)) {
       if (session.selectedSemester) window.localStorage.setItem('attend75.selectedSemester', session.selectedSemester)
+      if (session.selectedProgram) window.localStorage.setItem('attend75.selectedProgram', session.selectedProgram)
       return
     }
-    actions.setSelectedSemester(saved)
+    if (isSemesterValid && savedSemester) actions.setSelectedSemester(savedSemester)
+    if (isProgramValid && savedProgram) actions.setSelectedProgram(savedProgram)
     void (async () => {
       try {
         actions.setLoading(true); actions.setError('')
-        const result = await fetchAttendance({ token: session.token, semesterId: saved })
+        const result = await fetchAttendance({ token: session.token, semesterId: savedSemester || session.selectedSemester, programId: savedProgram || session.selectedProgram })
         actions.setAttendanceData(result.attendanceData)
-        actions.setSessionSemesters(result.semesters, result.selectedSemester || saved)
+        actions.setSessionSemesters(result.semesters, result.selectedSemester || savedSemester, result.programs, result.selectedProgram || savedProgram)
       } catch (error) {
-        if (isSessionExpiredError(error)) { actions.logout(); window.localStorage.removeItem('attend75.selectedSemester'); navigate('/login', { replace: true }); return }
+        if (isSessionExpiredError(error)) { actions.logout(); window.localStorage.removeItem('attend75.selectedSemester'); window.localStorage.removeItem('attend75.selectedProgram'); navigate('/login', { replace: true }); return }
         actions.setError(error.message)
       } finally { actions.setLoading(false) }
     })()
@@ -295,21 +315,40 @@ function Dashboard() {
             <h1 className="text-2xl font-extrabold text-[#F7F4FF]">Dashboard</h1>
             <p className="text-[10px] text-[#9F9AB5]"><StaleDataBadge cachedAt={loadAttendanceSnapshot()?.cachedAt} isRefreshing={ui.isLoading} /></p>
           </div>
-          {session.semesters.length > 0 ? (
-            <div data-walkthrough="semester-selector" className="flex items-center gap-1.5 rounded-full border border-[#FF916C]/30 bg-[#FF916C]/10 px-2.5 py-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#FF916C]" />
-              <select
-                value={session.selectedSemester || ''}
-                onChange={handleSemesterChange}
-                disabled={ui.isLoading}
-                className="bg-transparent text-[10px] font-semibold text-[#FF916C] outline-none disabled:opacity-60"
-              >
-                {session.semesters.map((sem) => (
-                  <option key={sem.id} value={sem.id}>{sem.label}</option>
-                ))}
-              </select>
-            </div>
-          ) : null}
+          <div className="flex items-center gap-2">
+            {/* Program selector (only show if student has multiple programs) */}
+            {session.programs.length > 0 ? (
+              <div className="flex items-center gap-1.5 rounded-full border border-[#6CB4FF]/30 bg-[#6CB4FF]/10 px-2.5 py-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#6CB4FF]" />
+                <select
+                  value={session.selectedProgram || ''}
+                  onChange={handleProgramChange}
+                  disabled={ui.isLoading}
+                  className="bg-transparent text-[10px] font-semibold text-[#6CB4FF] outline-none disabled:opacity-60"
+                >
+                  {session.programs.map((prog) => (
+                    <option key={prog.id} value={prog.id}>{prog.label}</option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+            {/* Semester selector */}
+            {session.semesters.length > 0 ? (
+              <div data-walkthrough="semester-selector" className="flex items-center gap-1.5 rounded-full border border-[#FF916C]/30 bg-[#FF916C]/10 px-2.5 py-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#FF916C]" />
+                <select
+                  value={session.selectedSemester || ''}
+                  onChange={handleSemesterChange}
+                  disabled={ui.isLoading}
+                  className="bg-transparent text-[10px] font-semibold text-[#FF916C] outline-none disabled:opacity-60"
+                >
+                  {session.semesters.map((sem) => (
+                    <option key={sem.id} value={sem.id}>{sem.label}</option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+          </div>
         </div>
 
         {ui.error ? (
@@ -486,6 +525,23 @@ function Dashboard() {
         ) : null}
 
         <div className="flex items-center gap-3">
+          {/* Program selector (desktop) - only show if student has multiple programs */}
+          {session.programs.length > 0 ? (
+            <div className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-[#4A466A] px-3 py-2 shadow-sm">
+              <label htmlFor="program-select-desktop" className="text-[11px] font-semibold text-[#9F9AB5]">Program</label>
+              <select
+                id="program-select-desktop"
+                value={session.selectedProgram || ''}
+                onChange={handleProgramChange}
+                disabled={ui.isLoading}
+                className="min-w-[150px] rounded-lg border border-white/15 bg-[#565275] px-2.5 py-1 text-[11px] font-semibold text-[#F7F4FF] outline-none transition-colors focus:border-[#6CB4FF] disabled:opacity-60"
+              >
+                {session.programs.map((prog) => (<option key={prog.id} value={prog.id}>{prog.label}</option>))}
+              </select>
+            </div>
+          ) : null}
+
+          {/* Semester selector (desktop) */}
           <div data-walkthrough="desktop-semester-selector" className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-[#4A466A] px-3 py-2 shadow-sm">
             <label htmlFor="semester-select-desktop" className="text-[11px] font-semibold text-[#9F9AB5]">Semester</label>
             <select

@@ -151,6 +151,8 @@ class PortalScraper:
         attendance_response = navigation_payload["attendance_response"]
         student_name = navigation_payload.get("student_name")
         student_photo_url = navigation_payload.get("student_photo_url")
+        nav_programs = navigation_payload.get("programs", [])
+        nav_selected_program = navigation_payload.get("selected_program")
 
         if self._looks_like_login_page(attendance_response.text) and not (login_redirected or has_auth_session):
             raise PortalAuthenticationError(
@@ -167,6 +169,24 @@ class PortalScraper:
         payload = self._build_attendance_payload(attendance_response.text)
         if payload.get("attendance") is None:
             payload["attendance"] = []
+
+        # If student has multiple programs, switch to the earliest (default) and re-fetch
+        nav_programs = navigation_payload.get("programs", [])
+        nav_selected_program = navigation_payload.get("selected_program")
+        if nav_programs and nav_selected_program:
+            current_classof = (self.session.cookies.get("ClassofID") or "").strip()
+            if current_classof and current_classof != nav_selected_program:
+                # Portal defaulted to a different program — switch to earliest and re-fetch
+                switched_html = self._switch_program(
+                    attendance_response.text,
+                    self._build_url("CommonS.aspx?qs=ap"),
+                    nav_selected_program,
+                )
+                if switched_html:
+                    payload = self._build_attendance_payload(switched_html, is_dual_program=True)
+                    if payload.get("attendance") is None:
+                        payload["attendance"] = []
+
         courses_map = self._safe_fetch_courses_map(payload.get("selected_semester"))
         payload["attendance"] = self._merge_attendance_with_total_sessions(
             payload.get("attendance", []),
@@ -177,10 +197,16 @@ class PortalScraper:
         }
         payload["student_name"] = student_name or normalized_roll
         payload["student_photo_url"] = student_photo_url
+
+        # Use programs extracted from Index.aspx during navigation (ddlClassof only lives there)
+        if nav_programs:
+            payload["programs"] = nav_programs
+            payload["selected_program"] = nav_selected_program
+
         return payload
 
-    def fetch_attendance_for_semester(self, semester_id: str | None = None, force_refresh: bool = False) -> dict:
-        cache_key = self._semester_cache_key(semester_id)
+    def fetch_attendance_for_semester(self, semester_id: str | None = None, program_id: str | None = None, force_refresh: bool = False) -> dict:
+        cache_key = self._semester_cache_key(semester_id, program_id)
         if not force_refresh:
             cached_payload = self._read_cache(self._attendance_cache, cache_key, self._attendance_cache_ttl_seconds)
             if cached_payload is not None:
@@ -204,6 +230,13 @@ class PortalScraper:
 
         html = attendance_response.text
 
+        # First, switch program if requested
+        if program_id:
+            switched_html = self._switch_program(html, attendance_url, program_id)
+            if switched_html is not None:
+                html = switched_html
+
+        # Then, switch semester if requested
         if semester_id:
             switched_html = self._switch_semester(html, attendance_url, semester_id)
             if switched_html is not None:
@@ -553,16 +586,17 @@ class PortalScraper:
         )
 
     def _prime_marks_navigation_context(self) -> None:
-        # Some portal deployments expose marks routes only after index/menu navigation.
-        for path in ["Index.aspx", "SDB.aspx"]:
-            try:
-                self.session.get(
-                    self._build_url(path),
-                    timeout=self.request_timeout,
-                    headers={"Referer": self._build_url("Index.aspx")},
-                )
-            except requests.RequestException:
-                continue
+        # Navigate to SDB.aspx to prime the session for marks access.
+        # Avoid re-fetching Index.aspx here as it can reset the ClassofID
+        # cookie for dual-program students back to the portal's default.
+        try:
+            self.session.get(
+                self._build_url("SDB.aspx"),
+                timeout=self.request_timeout,
+                headers={"Referer": self._build_url("Index.aspx")},
+            )
+        except requests.RequestException:
+            pass
 
     def _discover_marks_candidate_paths_from_attendance(self) -> list[str]:
         attendance_url = self._build_url("CommonS.aspx?qs=ap")
@@ -998,6 +1032,9 @@ class PortalScraper:
             student_name = self._extract_student_name(index_response.text)
             student_photo_url = self._extract_student_photo(index_response.text)
 
+            # Extract programs from Index.aspx — ddlClassof is only available here
+            programs, selected_program = self._extract_programs(index_response.text)
+
             sdb_response = self.session.get(
                 sdb_url,
                 timeout=self.request_timeout,
@@ -1015,6 +1052,8 @@ class PortalScraper:
                 "attendance_response": attendance_response,
                 "student_name": student_name,
                 "student_photo_url": student_photo_url,
+                "programs": programs,
+                "selected_program": selected_program,
             }
         except requests.RequestException as exc:
             raise self._portal_network_error(
@@ -1204,6 +1243,76 @@ class PortalScraper:
         soup = BeautifulSoup(html, "html.parser")
         return self._find_attendance_table(soup) is not None
 
+    def _switch_program(self, html: str, attendance_url: str, program_id: str) -> str | None:
+        """
+        Switch to a different program/course for dual-program students.
+        ddlClassof lives on Index.aspx — POST the switch there, then re-fetch attendance.
+        """
+        requested_value = (program_id or "").strip()
+        if not requested_value:
+            return html
+
+        # Check if already on the requested program via cookie
+        current_classof = (self.session.cookies.get("ClassofID") or "").strip()
+        if current_classof == requested_value:
+            return html
+
+        # Fetch Index.aspx which hosts the ddlClassof dropdown
+        index_url = self._build_url("Index.aspx")
+        try:
+            index_resp = self.session.get(index_url, timeout=self.request_timeout,
+                                          headers={"Referer": index_url})
+            index_resp.raise_for_status()
+            index_html = index_resp.text
+
+            if "ddlClassof" not in index_html:
+                return None
+
+            soup = BeautifulSoup(index_html, "html.parser")
+            program_dropdown = soup.find("select", {"name": "ddlClassof"})
+            if not program_dropdown:
+                return None
+
+            available_values = {
+                (opt.get("value") or "").strip()
+                for opt in program_dropdown.find_all("option")
+            }
+            if requested_value not in available_values:
+                return html
+
+            switch_payload = self._extract_hidden_form_fields(index_html)
+            event_target = self._resolve_event_target(program_dropdown) or "ddlClassof"
+            switch_payload.update({
+                "__EVENTTARGET": event_target,
+                "__EVENTARGUMENT": "",
+                "ddlClassof": requested_value,
+            })
+            self.session.post(
+                index_url, data=switch_payload, timeout=self.request_timeout,
+                allow_redirects=True, headers={"Referer": index_url},
+            )
+        except requests.RequestException as exc:
+            raise self._portal_network_error(
+                exc,
+                stage="ATTENDANCE_SWITCH_PROGRAM",
+                message_prefix="Unable to switch program on portal",
+            ) from exc
+
+        # Re-fetch the attendance page with the updated program context
+        try:
+            resp = self.session.get(
+                attendance_url, timeout=self.request_timeout,
+                headers={"Referer": index_url},
+            )
+            resp.raise_for_status()
+            return resp.text
+        except requests.RequestException as exc:
+            raise self._portal_network_error(
+                exc,
+                stage="ATTENDANCE_SWITCH_PROGRAM",
+                message_prefix="Unable to fetch attendance after program switch",
+            ) from exc
+
     def _switch_semester(self, html: str, attendance_url: str, semester_id: str) -> str | None:
         soup = BeautifulSoup(html, "html.parser")
         semester_dropdown = soup.find("select", {"name": "ddlSem"})
@@ -1266,7 +1375,45 @@ class PortalScraper:
                 message_prefix="Unable to switch semester",
             ) from exc
 
-    def _extract_semesters(self, html: str) -> tuple[list[dict[str, str]], str | None]:
+    def _extract_programs(self, html: str) -> tuple[list[dict[str, str]], str | None]:
+        """Extract programs/courses dropdown (if exists) for students enrolled in multiple programs."""
+        soup = BeautifulSoup(html, "html.parser")
+        # Look for the class/year dropdown used for dual-program students
+        program_dropdown = soup.find("select", {"name": "ddlClassof"})
+
+        if program_dropdown is None:
+            return [], None
+
+        programs: list[dict[str, str]] = []
+        selected_program: str | None = None
+
+        for option in program_dropdown.find_all("option"):
+            value = (option.get("value") or "").strip()
+            label = option.get_text(" ", strip=True)
+
+            # Skip empty or placeholder options
+            if not value or value == "0" or label.lower() in ["select", "-- select --"]:
+                continue
+
+            programs.append({"id": value, "label": label})
+            if option.has_attr("selected"):
+                selected_program = value
+
+        if not programs:
+            return [], None
+
+        # Always default to the earliest year (lowest number) regardless of
+        # what the portal has selected — the portal defaults to the latest/newest
+        # program which often has no data yet.
+        sorted_programs = sorted(
+            programs,
+            key=lambda p: int(p["id"]) if p["id"].isdigit() else 9999,
+        )
+        selected_program = sorted_programs[0]["id"]
+
+        return programs, selected_program
+
+    def _extract_semesters(self, html: str, is_dual_program: bool = False) -> tuple[list[dict[str, str]], str | None]:
         soup = BeautifulSoup(html, "html.parser")
         semester_dropdown = soup.find("select", {"name": "ddlSem"})
 
@@ -1287,16 +1434,35 @@ class PortalScraper:
             if option.has_attr("selected"):
                 selected_semester = value
 
-        if not selected_semester and semesters:
+        if not semesters:
+            return [], None
+
+        # For dual-program students the portal resets to Semester I after a
+        # program switch. Override: always default to the latest regular semester
+        # (highest numeric id, ignoring Compre/Makeup entries).
+        if is_dual_program or soup.find("select", {"name": "ddlClassof"}) is not None:
+            _skip_keywords = {"compre", "makeup", "back", "ex", "st -", "st-"}
+            regular = [
+                s for s in semesters
+                if not any(kw in s["label"].lower() for kw in _skip_keywords)
+            ]
+            selected_semester = max(
+                regular or semesters,
+                key=lambda s: int(s["id"]),
+            )["id"]
+        elif not selected_semester:
             selected_semester = semesters[-1]["id"]
 
         return semesters, selected_semester
 
-    def _build_attendance_payload(self, html: str) -> dict:
-        semesters, selected_semester = self._extract_semesters(html)
+    def _build_attendance_payload(self, html: str, is_dual_program: bool = False) -> dict:
+        semesters, selected_semester = self._extract_semesters(html, is_dual_program=is_dual_program)
+        programs, selected_program = self._extract_programs(html)
         parsed = self._parse_attendance(html)
         parsed["semesters"] = semesters
         parsed["selected_semester"] = selected_semester
+        parsed["programs"] = programs
+        parsed["selected_program"] = selected_program
         return parsed
 
     def _safe_fetch_courses_map(self, semester_id: str | None) -> dict[str, int]:
@@ -1700,9 +1866,10 @@ class PortalScraper:
                 return index
         return None
 
-    def _semester_cache_key(self, semester_id: str | None) -> str:
-        cleaned = str(semester_id or "").strip()
-        return cleaned or "__active__"
+    def _semester_cache_key(self, semester_id: str | None, program_id: str | None = None) -> str:
+        cleaned_sem = str(semester_id or "").strip() or "__active__"
+        cleaned_prog = str(program_id or "").strip() or "__active__"
+        return f"{cleaned_prog}:{cleaned_sem}"
 
     def _read_cache(self, cache: dict[str, tuple[float, dict]], key: str, ttl_seconds: float) -> dict | None:
         if ttl_seconds <= 0:

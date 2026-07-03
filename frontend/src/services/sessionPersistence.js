@@ -22,7 +22,7 @@ const SESSION_MAX_AGE_MS = 12 * 60 * 60 * 1000
  * Persist a guest session after successful login.
  * Only stores the token + non-sensitive user info.
  */
-export function persistSession({ token, rollNumber, name, portalName, authProvider, semesters, selectedSemester }) {
+export function persistSession({ token, rollNumber, name, portalName, authProvider, semesters, selectedSemester, programs, selectedProgram }) {
   if (!token || authProvider === 'firebase') {
     // Firebase sessions are handled by Firebase SDK — no need to persist here.
     return
@@ -36,6 +36,8 @@ export function persistSession({ token, rollNumber, name, portalName, authProvid
     authProvider: authProvider || 'guest',
     semesters: semesters || [],
     selectedSemester: selectedSemester || null,
+    programs: programs || [],
+    selectedProgram: selectedProgram || null,
     savedAt: Date.now(),
   }
 
@@ -73,6 +75,8 @@ export function loadPersistedSession() {
       authProvider: payload.authProvider || 'guest',
       semesters: payload.semesters || [],
       selectedSemester: payload.selectedSemester || null,
+      programs: payload.programs || [],
+      selectedProgram: payload.selectedProgram || null,
     }
   } catch {
     clearPersistedSession()

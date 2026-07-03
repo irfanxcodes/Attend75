@@ -33,6 +33,8 @@ const initialState = {
     token: null,
     semesters: [],
     selectedSemester: null,
+    programs: [],
+    selectedProgram: null,
   },
   attendance: buildAttendanceState(attendanceSeedData),
   selectedTarget: 75,
@@ -61,6 +63,8 @@ function appStateReducer(state, action) {
           token: action.payload.token,
           semesters: action.payload.semesters || [],
           selectedSemester: action.payload.selectedSemester || null,
+          programs: action.payload.programs || [],
+          selectedProgram: action.payload.selectedProgram || null,
         },
       }
 
@@ -77,6 +81,8 @@ function appStateReducer(state, action) {
           token: null,
           semesters: [],
           selectedSemester: null,
+          programs: [],
+          selectedProgram: null,
         },
       }
 
@@ -87,6 +93,8 @@ function appStateReducer(state, action) {
           ...state.session,
           semesters: action.payload.semesters || [],
           selectedSemester: action.payload.selectedSemester || null,
+          programs: action.payload.programs?.length > 0 ? action.payload.programs : state.session.programs,
+          selectedProgram: action.payload.selectedProgram !== undefined ? action.payload.selectedProgram : state.session.selectedProgram,
         },
       }
 
@@ -96,6 +104,15 @@ function appStateReducer(state, action) {
         session: {
           ...state.session,
           selectedSemester: action.payload,
+        },
+      }
+
+    case 'SET_SELECTED_PROGRAM':
+      return {
+        ...state,
+        session: {
+          ...state.session,
+          selectedProgram: action.payload,
         },
       }
 

@@ -20,12 +20,28 @@ function useAppStore() {
         // Persist guest session token for PWA session recovery
         persistSession(session)
       },
-      setSessionSemesters: (semesters, selectedSemester) =>
+      setSessionSemesters: (semesters, selectedSemester, programs, selectedProgram) => {
         dispatch({
           type: 'SET_SESSION_SEMESTERS',
-          payload: { semesters, selectedSemester },
-        }),
+          payload: { semesters, selectedSemester, programs, selectedProgram },
+        })
+        // Re-persist so programs list survives page reload
+        // Only update programs in persistence if we actually got some back
+        const persistedPrograms = programs?.length > 0 ? programs : state.session.programs
+        persistSession({
+          token: state.session.token,
+          rollNumber: state.user.rollNumber,
+          name: state.user.name,
+          portalName: state.user.portalName,
+          authProvider: state.user.authProvider,
+          semesters: semesters || [],
+          selectedSemester: selectedSemester || null,
+          programs: persistedPrograms || [],
+          selectedProgram: selectedProgram !== undefined ? selectedProgram : (state.session.selectedProgram || null),
+        })
+      },
       setSelectedSemester: (semesterId) => dispatch({ type: 'SET_SELECTED_SEMESTER', payload: semesterId }),
+      setSelectedProgram: (programId) => dispatch({ type: 'SET_SELECTED_PROGRAM', payload: programId }),
       logout: async () => {
         try {
           if (state.user.authProvider === 'firebase') {

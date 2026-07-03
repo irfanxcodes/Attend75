@@ -202,6 +202,8 @@ function normalizeAttendancePayload(data) {
     history: [],
     semesters: Array.isArray(data?.semesters) ? data.semesters : [],
     selectedSemester: data?.selected_semester || null,
+    programs: Array.isArray(data?.programs) ? data.programs : [],
+    selectedProgram: data?.selected_program || null,
     feasibility: data?.feasibility || null,
   }
 }
@@ -283,6 +285,8 @@ export async function login(credentials) {
     token: data.token,
     semesters: normalized.semesters,
     selectedSemester: normalized.selectedSemester,
+    programs: normalized.programs,
+    selectedProgram: normalized.selectedProgram,
     attendanceData: {
       subjects: normalized.subjects,
       history: normalized.history,
@@ -310,7 +314,7 @@ export async function fetchSessionStatus(token) {
   })
 }
 
-export async function fetchAttendance({ token, semesterId, forceRefresh = false }) {
+export async function fetchAttendance({ token, semesterId, programId, forceRefresh = false }) {
   if (!token) {
     throw new ApiError('Your session has expired. Please log in again.', {
       code: 'SESSION_EXPIRED',
@@ -318,14 +322,19 @@ export async function fetchAttendance({ token, semesterId, forceRefresh = false 
     })
   }
 
-  const requestKey = `attendance:${token}:${semesterId || ''}:${forceRefresh ? 'fresh' : 'cache'}`
+  const requestKey = `attendance:${token}:${programId || ''}:${semesterId || ''}:${forceRefresh ? 'fresh' : 'cache'}`
   return withInFlightRequest(requestKey, async () => {
     let response
     try {
       response = await fetch(`${API_BASE_URL}/attendance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, semester_id: semesterId || null, force_refresh: Boolean(forceRefresh) }),
+        body: JSON.stringify({ 
+          token, 
+          semester_id: semesterId || null, 
+          program_id: programId || null,
+          force_refresh: Boolean(forceRefresh) 
+        }),
       })
     } catch {
       throw new ApiError(
@@ -345,6 +354,8 @@ export async function fetchAttendance({ token, semesterId, forceRefresh = false 
       },
       semesters: normalized.semesters,
       selectedSemester: normalized.selectedSemester,
+      programs: normalized.programs,
+      selectedProgram: normalized.selectedProgram,
     }
   })
 }

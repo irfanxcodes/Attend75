@@ -93,8 +93,9 @@ async def login(payload: LoginRequest, request: Request):
         is_timeout = "TIMEOUT" in str(error_code).upper() or "timeout" in str(exc).lower()
         logger.exception("Guest login portal/network error for roll_number=%s [code=%s]", payload.roll_number, error_code)
         return _login_error_response("PORTAL_TIMEOUT" if is_timeout else "PORTAL_UNREACHABLE")
-    except Exception:
-        logger.exception("Unexpected guest login error for roll_number=%s", payload.roll_number)
+    except Exception as exc:
+        # Log full traceback for debugging unexpected errors
+        logger.exception("Unexpected guest login error for roll_number=%s: %s", payload.roll_number, str(exc))
         return _login_error_response("PORTAL_UNREACHABLE")
 
 
@@ -105,6 +106,7 @@ async def attendance(payload: AttendanceRequest):
             fetch_attendance_for_semester,
             payload.token,
             payload.semester_id,
+            payload.program_id,
             payload.force_refresh,
         )
         return ApiResponse(status="success", message="Attendance fetched", data=data)
