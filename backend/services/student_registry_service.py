@@ -11,7 +11,7 @@ from db.models.student_registry import StudentRegistry
 from db.session import SessionLocal
 
 
-def register_student_login(roll_number: str, method: str = "guest", display_name: str | None = None, attendance_percent: float | None = None, user_agent: str | None = None) -> None:
+def register_student_login(roll_number: str, method: str = "guest", display_name: str | None = None, attendance_percent: float | None = None, user_agent: str | None = None, program: str | None = None) -> None:
     """
     Register or update a student's login record.
 
@@ -21,6 +21,7 @@ def register_student_login(roll_number: str, method: str = "guest", display_name
         display_name: The student's name (from portal scraper or Firebase).
         attendance_percent: Overall attendance percentage at login time.
         user_agent: Browser/device user-agent string.
+        program: Full program name from portal (e.g. 'Faculty of Management').
     """
     normalized_roll = (roll_number or "").strip().upper()
     if not normalized_roll:
@@ -28,6 +29,7 @@ def register_student_login(roll_number: str, method: str = "guest", display_name
 
     normalized_method = (method or "guest").strip().lower()
     normalized_name = (display_name or "").strip() or None
+    normalized_program = (program or "").strip() or None
     device = _parse_device(user_agent)
     now = datetime.utcnow()
 
@@ -37,10 +39,10 @@ def register_student_login(roll_number: str, method: str = "guest", display_name
         ).one_or_none()
 
         if record is None:
-            # First time this student has ever used Attend75
             record = StudentRegistry(
                 roll_number=normalized_roll,
                 display_name=normalized_name,
+                program=normalized_program,
                 first_seen_at=now,
                 last_seen_at=now,
                 login_count=1,
@@ -53,22 +55,22 @@ def register_student_login(roll_number: str, method: str = "guest", display_name
             )
             session.add(record)
         else:
-            # Returning student
             record.last_seen_at = now
             record.login_count += 1
             record.last_login_method = normalized_method
 
-            # Update name if we have a better one
             if normalized_name and (not record.display_name or record.display_name == normalized_roll):
                 record.display_name = normalized_name
 
-            # Update attendance and device
+            # Always update program when we have it from the portal
+            if normalized_program:
+                record.program = normalized_program
+
             if attendance_percent is not None:
                 record.last_attendance_percent = attendance_percent
             if device:
                 record.last_device = device
 
-            # Permanently mark Google-linked (never reverts)
             if normalized_method == "google" and not record.has_google_linked:
                 record.has_google_linked = True
                 record.linked_google_at = now

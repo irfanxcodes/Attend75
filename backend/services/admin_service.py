@@ -464,6 +464,7 @@ def get_admin_overview() -> dict:
             "authMethod": "google" if student.has_google_linked else "guest",
             "attendancePercent": student.last_attendance_percent,
             "device": student.last_device,
+            "program": student.program,
         })
 
     user_analytics = {

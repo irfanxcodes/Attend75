@@ -1,21 +1,6 @@
 import { useMemo, useState } from 'react'
 import PhotoLightbox from './PhotoLightbox'
 
-// Parse program from UCHH roll number format (fallback only)
-function parseProgramFromRoll(roll) {
-  if (!roll) return null
-  const r = roll.toUpperCase()
-  const match = r.match(/^\d{2}([A-Z]+)(?:UCHH|CHH)/)
-  if (!match) return null
-  const code = match[1]
-  const programMap = {
-    'FM': 'BBA', 'MBA': 'MBA', 'ST': 'B.Tech', 'BCA': 'BCA',
-    'FSS': 'Social Science', 'FLI': 'Languages', 'LAW': 'Law',
-    'LLB': 'Law', 'ARCH': 'Architecture', 'MB': 'MBA', 'MT': 'M.Tech',
-  }
-  return programMap[code] || code
-}
-
 function formatNumber(num) {
   if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
   if (num >= 1000) return `${(num / 1000).toFixed(num >= 10000 ? 0 : 1)}k`
@@ -243,8 +228,8 @@ function ActiveSessionsTable({ activeSessions, activeSessionsList }) {
             {displaySessions.map((session, i) => {
               const percent = session.attendancePercent
               const percentColor = percent > 75 ? '#4EF0A0' : percent >= 60 ? '#FFB23E' : '#FF5B5B'
-              // Use portal-provided program/semester; fall back to roll number parsing
-              const program = session.programSn || parseProgramFromRoll(session.rollNumber)
+              // Use portal-provided program name directly
+              const program = session.programFull || session.programSn || null
               const semesterLabel = session.semesterLabel || null
               return (
                 <tr key={session.rollNumber || i} className="border-b border-white/[0.04]">

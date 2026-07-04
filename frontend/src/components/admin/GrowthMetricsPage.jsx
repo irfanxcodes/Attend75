@@ -1,33 +1,6 @@
 import { useMemo, useState } from 'react'
 import PhotoLightbox from './PhotoLightbox'
 
-// Parse program from UCHH roll number format
-// Format: YY + PROGRAM_CODE + UCHH/CHH + ...
-// Programs: BBA (FM), MBA, B.Tech (ST), BCA, Social Science (FSS), Languages (FLI), Law, Architecture, M.Tech
-function parseRollInfo(roll) {
-  if (!roll) return { program: null }
-  const r = roll.toUpperCase()
-
-  const match = r.match(/^\d{2}([A-Z]+)(?:UCHH|CHH)/)
-  if (!match) return { program: null }
-
-  const code = match[1]
-  const programMap = {
-    'FM':   'BBA',
-    'MBA':  'MBA',
-    'ST':   'B.Tech',
-    'BCA':  'BCA',
-    'FSS':  'Social Science',
-    'FLI':  'Languages',
-    'LAW':  'Law',
-    'LLB':  'Law',
-    'ARCH': 'Architecture',
-    'MB':   'MBA',
-    'MT':   'M.Tech',
-  }
-  return { program: programMap[code] || code }
-}
-
 function formatNumber(num) {
   if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
   if (num >= 1000) return `${(num / 1000).toFixed(num >= 10000 ? 0 : 1)}k`
@@ -221,7 +194,7 @@ function UsersTable({ usersTable, sessionToken, onRefresh }) {
           </thead>
           <tbody>
             {users.map((user, i) => {
-              const { program } = parseRollInfo(user.rollNumber)
+              const program = user.program || null
               return (
               <tr key={user.serialNo || i} className="border-b border-white/[0.04]">
                 <td className="py-3 pr-4 text-[#7a6f94]">{user.serialNo || i + 1}</td>
