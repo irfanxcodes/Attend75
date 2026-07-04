@@ -198,6 +198,10 @@ class PortalScraper:
         payload["student_name"] = student_name or normalized_roll
         payload["student_photo_url"] = student_photo_url
 
+        # Extract program and semester from portal cookies set at login
+        payload["program_sn"] = (self.session.cookies.get("ProgramSN") or "").strip() or None
+        payload["program_full"] = (self.session.cookies.get("Program") or "").strip() or None
+
         # Use programs extracted from Index.aspx during navigation (ddlClassof only lives there)
         if nav_programs:
             payload["programs"] = nav_programs

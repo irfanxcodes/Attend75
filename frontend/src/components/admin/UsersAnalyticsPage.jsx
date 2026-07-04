@@ -1,33 +1,19 @@
 import { useMemo, useState } from 'react'
 import PhotoLightbox from './PhotoLightbox'
 
-// Parse program name and semester group from UCHH roll number format
-function parseRollInfo(roll) {
-  if (!roll) return { program: null, semester: null }
+// Parse program from UCHH roll number format (fallback only)
+function parseProgramFromRoll(roll) {
+  if (!roll) return null
   const r = roll.toUpperCase()
-
-  let program = null
-  if (r.includes('FMUCHH')) program = 'BBA'
-  else if (r.includes('STUCHH')) program = 'B.Tech'
-  else if (r.includes('FSSUCHH')) program = 'B.Com / BSc'
-  else if (r.includes('BCAHH') || r.includes('BCAUCHH')) program = 'BCA'
-  else if (r.includes('FLICHH')) program = 'Languages'
-  else if (r.includes('LAWUCHH') || r.includes('LLBUCHH')) program = 'Law'
-  else if (r.includes('MBUCHH')) program = 'MBA'
-  else if (r.includes('MTECH') || r.includes('MTUCHH')) program = 'M.Tech'
-
-  let semester = null
-  const batchMatch = r.match(/(?:UCHH|CHH)(\d{3})/)
-  if (batchMatch) {
-    const batch = batchMatch[1]
-    if (batch === '010') semester = 'Sem I–II'
-    else if (batch === '012') semester = 'Sem III–IV'
-    else if (batch === '020') semester = 'Sem V–VI'
-    else if (batch === '030') semester = 'Sem VII–VIII'
-    else if (batch === '014') { semester = 'MBA'; if (!program || program === 'BBA') program = 'MBA' }
+  const match = r.match(/^\d{2}([A-Z]+)(?:UCHH|CHH)/)
+  if (!match) return null
+  const code = match[1]
+  const programMap = {
+    'FM': 'BBA', 'MBA': 'MBA', 'ST': 'B.Tech', 'BCA': 'BCA',
+    'FSS': 'Social Science', 'FLI': 'Languages', 'LAW': 'Law',
+    'LLB': 'Law', 'ARCH': 'Architecture', 'MB': 'MBA', 'MT': 'M.Tech',
   }
-
-  return { program, semester }
+  return programMap[code] || code
 }
 
 function formatNumber(num) {
@@ -257,7 +243,9 @@ function ActiveSessionsTable({ activeSessions, activeSessionsList }) {
             {displaySessions.map((session, i) => {
               const percent = session.attendancePercent
               const percentColor = percent > 75 ? '#4EF0A0' : percent >= 60 ? '#FFB23E' : '#FF5B5B'
-              const { program, semester } = parseRollInfo(session.rollNumber)
+              // Use portal-provided program/semester; fall back to roll number parsing
+              const program = session.programSn || parseProgramFromRoll(session.rollNumber)
+              const semesterLabel = session.semesterLabel || null
               return (
                 <tr key={session.rollNumber || i} className="border-b border-white/[0.04]">
                   <td className="py-3.5 pr-4">
@@ -280,7 +268,7 @@ function ActiveSessionsTable({ activeSessions, activeSessionsList }) {
                       <span className="rounded-full bg-[#6CB4FF]/10 px-2 py-0.5 text-[9px] font-bold text-[#6CB4FF]">{program}</span>
                     ) : <span className="text-[#7a6f94]">-</span>}
                   </td>
-                  <td className="py-3.5 pr-4 text-[10px] text-[#9F9AB5]">{semester || '-'}</td>
+                  <td className="py-3.5 pr-4 text-[10px] text-[#9F9AB5]">{semesterLabel || '-'}</td>
                   <td className="py-3.5 pr-4">
                     {percent !== null && percent !== undefined ? (
                       <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ backgroundColor: `${percentColor}20`, color: percentColor }}>

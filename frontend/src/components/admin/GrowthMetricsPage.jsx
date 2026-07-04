@@ -1,38 +1,31 @@
 import { useMemo, useState } from 'react'
 import PhotoLightbox from './PhotoLightbox'
 
-// Parse program name and semester from UCHH roll number format
-// e.g. 24FMUCHH014059 → { program: 'BBA', semester: 'MBA' }
-// Format: YY + PROGRAM + UCHH + BATCH + ROLL
+// Parse program from UCHH roll number format
+// Format: YY + PROGRAM_CODE + UCHH/CHH + ...
+// Programs: BBA (FM), MBA, B.Tech (ST), BCA, Social Science (FSS), Languages (FLI), Law, Architecture, M.Tech
 function parseRollInfo(roll) {
-  if (!roll) return { program: null, semester: null }
+  if (!roll) return { program: null }
   const r = roll.toUpperCase()
 
-  // Program codes
-  let program = null
-  if (r.includes('FMUCHH')) program = 'BBA'
-  else if (r.includes('STUCHH')) program = 'B.Tech'
-  else if (r.includes('FSSUCHH')) program = 'B.Com / BSc'
-  else if (r.includes('BCAHH') || r.includes('BCAUCHH')) program = 'BCA'
-  else if (r.includes('FLICHH')) program = 'Languages'
-  else if (r.includes('LAWUCHH') || r.includes('LLBUCHH')) program = 'Law'
-  else if (r.includes('MBUCHH')) program = 'MBA'
-  else if (r.includes('MTECH') || r.includes('MTUCHH')) program = 'M.Tech'
+  const match = r.match(/^\d{2}([A-Z]+)(?:UCHH|CHH)/)
+  if (!match) return { program: null }
 
-  // Batch block after UCHH/CHH → 3-digit code encodes semester group
-  // 010 = Sem I-II, 012 = Sem III-IV, 020 = Sem V-VI, 030 = Sem VII-VIII, 014 = MBA
-  let semester = null
-  const batchMatch = r.match(/(?:UCHH|CHH)(\d{3})/)
-  if (batchMatch) {
-    const batch = batchMatch[1]
-    if (batch === '010') semester = 'Sem I–II'
-    else if (batch === '012') semester = 'Sem III–IV'
-    else if (batch === '020') semester = 'Sem V–VI'
-    else if (batch === '030') semester = 'Sem VII–VIII'
-    else if (batch === '014') { semester = 'MBA'; if (!program || program === 'BBA') program = 'MBA' }
+  const code = match[1]
+  const programMap = {
+    'FM':   'BBA',
+    'MBA':  'MBA',
+    'ST':   'B.Tech',
+    'BCA':  'BCA',
+    'FSS':  'Social Science',
+    'FLI':  'Languages',
+    'LAW':  'Law',
+    'LLB':  'Law',
+    'ARCH': 'Architecture',
+    'MB':   'MBA',
+    'MT':   'M.Tech',
   }
-
-  return { program, semester }
+  return { program: programMap[code] || code }
 }
 
 function formatNumber(num) {
@@ -220,7 +213,6 @@ function UsersTable({ usersTable, sessionToken, onRefresh }) {
               <th className="pb-3 pr-4">Student</th>
               <th className="pb-3 pr-4">Email</th>
               <th className="pb-3 pr-4">Program</th>
-              <th className="pb-3 pr-4">Semester</th>
               <th className="pb-3 pr-4">Attendance</th>
               <th className="pb-3 pr-4">Device</th>
               <th className="pb-3 pr-4">Method</th>
@@ -229,7 +221,7 @@ function UsersTable({ usersTable, sessionToken, onRefresh }) {
           </thead>
           <tbody>
             {users.map((user, i) => {
-              const { program, semester } = parseRollInfo(user.rollNumber)
+              const { program } = parseRollInfo(user.rollNumber)
               return (
               <tr key={user.serialNo || i} className="border-b border-white/[0.04]">
                 <td className="py-3 pr-4 text-[#7a6f94]">{user.serialNo || i + 1}</td>
@@ -253,7 +245,6 @@ function UsersTable({ usersTable, sessionToken, onRefresh }) {
                     <span className="rounded-full bg-[#6CB4FF]/10 px-2 py-0.5 text-[9px] font-bold text-[#6CB4FF]">{program}</span>
                   ) : <span className="text-[#7a6f94]">-</span>}
                 </td>
-                <td className="py-3 pr-4 text-[#9F9AB5] text-[10px]">{semester || '-'}</td>
                 <td className="py-3 pr-4">
                   {user.attendancePercent != null ? (
                     <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${user.attendancePercent > 75 ? 'bg-[#4EF0A0]/15 text-[#4EF0A0]' : user.attendancePercent >= 60 ? 'bg-[#FFB23E]/15 text-[#FFB23E]' : 'bg-[#FF5B5B]/15 text-[#FF5B5B]'}`}>
@@ -281,7 +272,7 @@ function UsersTable({ usersTable, sessionToken, onRefresh }) {
               )
             })}
             {!users.length ? (
-              <tr><td colSpan={9} className="py-8 text-center text-[#7a6f94]">No registered users yet</td></tr>
+              <tr><td colSpan={8} className="py-8 text-center text-[#7a6f94]">No registered users yet</td></tr>
             ) : null}
           </tbody>
         </table>

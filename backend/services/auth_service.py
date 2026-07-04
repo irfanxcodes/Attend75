@@ -97,6 +97,16 @@ def _resolve_semester_usage_context(payload: dict | None, fallback_semester_id: 
     return resolved_id, resolved_label
 
 
+def _resolve_semester_label(data: dict) -> str | None:
+    """Find the label for the selected semester from the semesters list."""
+    selected_id = str(data.get("selected_semester") or "").strip()
+    semesters = data.get("semesters") or []
+    for sem in semesters:
+        if str(sem.get("id") or "").strip() == selected_id:
+            return str(sem.get("label") or "").strip() or None
+    return None
+
+
 def login_user(roll_number: str, password: str, user_agent: str | None = None) -> dict:
     started = time.perf_counter()
     scraper = PortalScraper()
@@ -118,6 +128,9 @@ def login_user(roll_number: str, password: str, user_agent: str | None = None) -
             photo_url=resolved_photo_url,
             attendance_percent=overall_percent,
             user_agent=user_agent,
+            program_sn=data.get("program_sn"),
+            program_full=data.get("program_full"),
+            selected_semester_label=_resolve_semester_label(data),
         )
         if _prefetch_marks_after_login_enabled():
             threading.Thread(

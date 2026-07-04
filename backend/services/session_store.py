@@ -20,6 +20,9 @@ class SessionRecord:
     attendance_percent: float | None = None
     user_agent: str | None = None
     event_count: int = 0
+    program_sn: str | None = None
+    program_full: str | None = None
+    selected_semester_label: str | None = None
     scraper_lock: threading.RLock = field(default_factory=threading.RLock)
 
 
@@ -52,7 +55,7 @@ class SessionStore:
         for token, _ in oldest_tokens:
             self._sessions.pop(token, None)
 
-    def create(self, roll_number: str, scraper: PortalScraper, user_name: str | None = None, photo_url: str | None = None, attendance_percent: float | None = None, user_agent: str | None = None) -> SessionRecord:
+    def create(self, roll_number: str, scraper: PortalScraper, user_name: str | None = None, photo_url: str | None = None, attendance_percent: float | None = None, user_agent: str | None = None, program_sn: str | None = None, program_full: str | None = None, selected_semester_label: str | None = None) -> SessionRecord:
         token = secrets.token_urlsafe(24)
         now = time.time()
         record = SessionRecord(
@@ -66,6 +69,9 @@ class SessionStore:
             attendance_percent=attendance_percent,
             user_agent=(user_agent or "").strip() or None,
             event_count=0,
+            program_sn=(program_sn or "").strip() or None,
+            program_full=(program_full or "").strip() or None,
+            selected_semester_label=(selected_semester_label or "").strip() or None,
         )
         with self._lock:
             self._prune_expired_locked(now)
@@ -116,6 +122,9 @@ class SessionStore:
                 "startedSecondsAgo": started_seconds_ago,
                 "eventCount": record.event_count,
                 "email": getattr(record, 'email', None),
+                "programSn": record.program_sn,
+                "programFull": record.program_full,
+                "semesterLabel": record.selected_semester_label,
             })
         return results
 
