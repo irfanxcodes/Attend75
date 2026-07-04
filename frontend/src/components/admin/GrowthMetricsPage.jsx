@@ -1,6 +1,40 @@
 import { useMemo, useState } from 'react'
 import PhotoLightbox from './PhotoLightbox'
 
+// Parse program name and semester from UCHH roll number format
+// e.g. 24FMUCHH014059 → { program: 'BBA', semester: 'MBA' }
+// Format: YY + PROGRAM + UCHH + BATCH + ROLL
+function parseRollInfo(roll) {
+  if (!roll) return { program: null, semester: null }
+  const r = roll.toUpperCase()
+
+  // Program codes
+  let program = null
+  if (r.includes('FMUCHH')) program = 'BBA'
+  else if (r.includes('STUCHH')) program = 'B.Tech'
+  else if (r.includes('FSSUCHH')) program = 'B.Com / BSc'
+  else if (r.includes('BCAHH') || r.includes('BCAUCHH')) program = 'BCA'
+  else if (r.includes('FLICHH')) program = 'Languages'
+  else if (r.includes('LAWUCHH') || r.includes('LLBUCHH')) program = 'Law'
+  else if (r.includes('MBUCHH')) program = 'MBA'
+  else if (r.includes('MTECH') || r.includes('MTUCHH')) program = 'M.Tech'
+
+  // Batch block after UCHH/CHH → 3-digit code encodes semester group
+  // 010 = Sem I-II, 012 = Sem III-IV, 020 = Sem V-VI, 030 = Sem VII-VIII, 014 = MBA
+  let semester = null
+  const batchMatch = r.match(/(?:UCHH|CHH)(\d{3})/)
+  if (batchMatch) {
+    const batch = batchMatch[1]
+    if (batch === '010') semester = 'Sem I–II'
+    else if (batch === '012') semester = 'Sem III–IV'
+    else if (batch === '020') semester = 'Sem V–VI'
+    else if (batch === '030') semester = 'Sem VII–VIII'
+    else if (batch === '014') { semester = 'MBA'; if (!program || program === 'BBA') program = 'MBA' }
+  }
+
+  return { program, semester }
+}
+
 function formatNumber(num) {
   if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
   if (num >= 1000) return `${(num / 1000).toFixed(num >= 10000 ? 0 : 1)}k`
@@ -185,7 +219,8 @@ function UsersTable({ usersTable, sessionToken, onRefresh }) {
               <th className="pb-3 pr-4">#</th>
               <th className="pb-3 pr-4">Student</th>
               <th className="pb-3 pr-4">Email</th>
-              <th className="pb-3 pr-4">Roll Number</th>
+              <th className="pb-3 pr-4">Program</th>
+              <th className="pb-3 pr-4">Semester</th>
               <th className="pb-3 pr-4">Attendance</th>
               <th className="pb-3 pr-4">Device</th>
               <th className="pb-3 pr-4">Method</th>
@@ -193,7 +228,9 @@ function UsersTable({ usersTable, sessionToken, onRefresh }) {
             </tr>
           </thead>
           <tbody>
-            {users.map((user, i) => (
+            {users.map((user, i) => {
+              const { program, semester } = parseRollInfo(user.rollNumber)
+              return (
               <tr key={user.serialNo || i} className="border-b border-white/[0.04]">
                 <td className="py-3 pr-4 text-[#7a6f94]">{user.serialNo || i + 1}</td>
                 <td className="py-3 pr-4">
@@ -204,11 +241,19 @@ function UsersTable({ usersTable, sessionToken, onRefresh }) {
                     <div className={`h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-[#1e1932] ${user.photoUrl ? 'hidden' : 'flex'}`} style={{ backgroundColor: avatarColors[i % avatarColors.length] }}>
                       {getInitials(user.name)}
                     </div>
-                    <span className="font-medium text-[#d8d4e7]">{user.name || 'Unknown'}</span>
+                    <div>
+                      <p className="font-medium text-[#d8d4e7]">{user.name || 'Unknown'}</p>
+                      <p className="text-[9px] text-[#7a6f94]">{user.rollNumber || '-'}</p>
+                    </div>
                   </div>
                 </td>
                 <td className="py-3 pr-4 text-[#9F9AB5]">{user.emailId || '-'}</td>
-                <td className="py-3 pr-4 text-[#d8d4e7]">{user.rollNumber || '-'}</td>
+                <td className="py-3 pr-4">
+                  {program ? (
+                    <span className="rounded-full bg-[#6CB4FF]/10 px-2 py-0.5 text-[9px] font-bold text-[#6CB4FF]">{program}</span>
+                  ) : <span className="text-[#7a6f94]">-</span>}
+                </td>
+                <td className="py-3 pr-4 text-[#9F9AB5] text-[10px]">{semester || '-'}</td>
                 <td className="py-3 pr-4">
                   {user.attendancePercent != null ? (
                     <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${user.attendancePercent > 75 ? 'bg-[#4EF0A0]/15 text-[#4EF0A0]' : user.attendancePercent >= 60 ? 'bg-[#FFB23E]/15 text-[#FFB23E]' : 'bg-[#FF5B5B]/15 text-[#FF5B5B]'}`}>
@@ -233,9 +278,10 @@ function UsersTable({ usersTable, sessionToken, onRefresh }) {
                   </button>
                 </td>
               </tr>
-            ))}
+              )
+            })}
             {!users.length ? (
-              <tr><td colSpan={8} className="py-8 text-center text-[#7a6f94]">No registered users yet</td></tr>
+              <tr><td colSpan={9} className="py-8 text-center text-[#7a6f94]">No registered users yet</td></tr>
             ) : null}
           </tbody>
         </table>

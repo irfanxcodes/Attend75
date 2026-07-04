@@ -1,6 +1,35 @@
 import { useMemo, useState } from 'react'
 import PhotoLightbox from './PhotoLightbox'
 
+// Parse program name and semester group from UCHH roll number format
+function parseRollInfo(roll) {
+  if (!roll) return { program: null, semester: null }
+  const r = roll.toUpperCase()
+
+  let program = null
+  if (r.includes('FMUCHH')) program = 'BBA'
+  else if (r.includes('STUCHH')) program = 'B.Tech'
+  else if (r.includes('FSSUCHH')) program = 'B.Com / BSc'
+  else if (r.includes('BCAHH') || r.includes('BCAUCHH')) program = 'BCA'
+  else if (r.includes('FLICHH')) program = 'Languages'
+  else if (r.includes('LAWUCHH') || r.includes('LLBUCHH')) program = 'Law'
+  else if (r.includes('MBUCHH')) program = 'MBA'
+  else if (r.includes('MTECH') || r.includes('MTUCHH')) program = 'M.Tech'
+
+  let semester = null
+  const batchMatch = r.match(/(?:UCHH|CHH)(\d{3})/)
+  if (batchMatch) {
+    const batch = batchMatch[1]
+    if (batch === '010') semester = 'Sem I–II'
+    else if (batch === '012') semester = 'Sem III–IV'
+    else if (batch === '020') semester = 'Sem V–VI'
+    else if (batch === '030') semester = 'Sem VII–VIII'
+    else if (batch === '014') { semester = 'MBA'; if (!program || program === 'BBA') program = 'MBA' }
+  }
+
+  return { program, semester }
+}
+
 function formatNumber(num) {
   if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
   if (num >= 1000) return `${(num / 1000).toFixed(num >= 10000 ? 0 : 1)}k`
@@ -196,7 +225,7 @@ function ActiveSessionsTable({ activeSessions, activeSessionsList }) {
     return 'Web'
   }
 
-  const displaySessions = (activeSessionsList || []).slice(0, 8)
+  const displaySessions = activeSessionsList || []
 
   return (
     <div className="rounded-2xl border border-white/[0.06] bg-[#2a2440] p-5">
@@ -216,6 +245,8 @@ function ActiveSessionsTable({ activeSessions, activeSessionsList }) {
             <tr className="border-b border-white/[0.06] text-left text-[9px] font-bold uppercase tracking-wider text-[#7a6f94]">
               <th className="pb-3 pr-4">User</th>
               <th className="pb-3 pr-4">Email</th>
+              <th className="pb-3 pr-4">Program</th>
+              <th className="pb-3 pr-4">Semester</th>
               <th className="pb-3 pr-4">Attendance</th>
               <th className="pb-3 pr-4">Started</th>
               <th className="pb-3 pr-4">Device</th>
@@ -226,6 +257,7 @@ function ActiveSessionsTable({ activeSessions, activeSessionsList }) {
             {displaySessions.map((session, i) => {
               const percent = session.attendancePercent
               const percentColor = percent > 75 ? '#4EF0A0' : percent >= 60 ? '#FFB23E' : '#FF5B5B'
+              const { program, semester } = parseRollInfo(session.rollNumber)
               return (
                 <tr key={session.rollNumber || i} className="border-b border-white/[0.04]">
                   <td className="py-3.5 pr-4">
@@ -244,6 +276,12 @@ function ActiveSessionsTable({ activeSessions, activeSessionsList }) {
                   </td>
                   <td className="py-3.5 pr-4 text-[#9F9AB5]">{session.email || 'Anonymous'}</td>
                   <td className="py-3.5 pr-4">
+                    {program ? (
+                      <span className="rounded-full bg-[#6CB4FF]/10 px-2 py-0.5 text-[9px] font-bold text-[#6CB4FF]">{program}</span>
+                    ) : <span className="text-[#7a6f94]">-</span>}
+                  </td>
+                  <td className="py-3.5 pr-4 text-[10px] text-[#9F9AB5]">{semester || '-'}</td>
+                  <td className="py-3.5 pr-4">
                     {percent !== null && percent !== undefined ? (
                       <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ backgroundColor: `${percentColor}20`, color: percentColor }}>
                         {percent.toFixed(1)}%
@@ -257,7 +295,7 @@ function ActiveSessionsTable({ activeSessions, activeSessionsList }) {
               )
             })}
             {!displaySessions.length ? (
-              <tr><td colSpan={6} className="py-8 text-center text-[#7a6f94]">No active sessions</td></tr>
+              <tr><td colSpan={8} className="py-8 text-center text-[#7a6f94]">No active sessions</td></tr>
             ) : null}
           </tbody>
         </table>
