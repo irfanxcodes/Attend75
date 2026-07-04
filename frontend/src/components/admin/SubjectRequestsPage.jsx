@@ -22,11 +22,15 @@ function SubjectRequestsPage({ analytics, onRefresh, isLoading }) {
     return 'Unknown'
   }
 
+  // Group by semester, also track program per semester column
   const semesterGroups = {}
   for (const subject of demandBoard) {
     const sem = getSemester(subject.subjectCode)
-    if (!semesterGroups[sem]) semesterGroups[sem] = []
-    semesterGroups[sem].push(subject)
+    if (!semesterGroups[sem]) semesterGroups[sem] = { subjects: [], programs: [] }
+    semesterGroups[sem].subjects.push(subject)
+    if (subject.program && !semesterGroups[sem].programs.includes(subject.program)) {
+      semesterGroups[sem].programs.push(subject.program)
+    }
   }
 
   const sortedSemesters = Object.keys(semesterGroups).sort()
@@ -74,7 +78,7 @@ function SubjectRequestsPage({ analytics, onRefresh, isLoading }) {
       {/* Kanban columns by semester */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
         {sortedSemesters.map((sem) => {
-          const subjects = semesterGroups[sem]
+          const { subjects, programs } = semesterGroups[sem]
           const semColors = {
             'Semester 1': '#6CB4FF',
             'Semester 2': '#FF916C',
@@ -96,29 +100,43 @@ function SubjectRequestsPage({ analytics, onRefresh, isLoading }) {
                 </div>
                 <span className="flex h-6 w-6 items-center justify-center rounded-full border border-white/10 text-[10px] font-semibold text-[#7a6f94]">{subjects.length}</span>
               </div>
+              {/* Program tags under semester heading */}
+              {programs.length > 0 ? (
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {programs.map((prog) => (
+                    <span key={prog} className="rounded-full bg-[#6CB4FF]/10 px-2 py-0.5 text-[8px] font-semibold text-[#6CB4FF]">{prog}</span>
+                  ))}
+                </div>
+              ) : null}
 
               {/* Subject cards */}
               <div className="mt-4 space-y-3">
                 {subjects.map((subject) => {
-                  // Calculate days old
-                  const daysOld = subject.requesters?.length ? '' : ''
+                  // subjectName in DB currently stores the abbreviation; subjectCode is the portal code
+                  const displayTitle = subject.subjectName || subject.abbreviation || subject.subjectCode
+                  const displayCode = subject.subjectCode
                   return (
                     <div key={subject.subjectCode} className="rounded-xl border border-white/[0.06] bg-[#1e1932] p-3.5">
                       <div className="flex items-start justify-between">
-                        <p className="text-[13px] font-semibold text-[#f0ece4]">{subject.subjectName || subject.subjectCode}</p>
+                        <p className="text-[13px] font-semibold text-[#f0ece4]">{displayTitle}</p>
                         <button type="button" className="text-[#7a6f94] hover:text-[#d8d4e7]">···</button>
                       </div>
                       <div className="mt-2 flex items-center gap-2">
                         <span className="text-[12px] text-[#FFB23E]">★</span>
                         <span className="text-[12px] font-semibold text-[#FFB23E]">{subject.requestCount}</span>
                         <span className="text-[10px] text-[#7a6f94]">·</span>
-                        <span className="text-[10px] text-[#7a6f94]">{subject.subjectCode}</span>
+                        <span className="text-[10px] text-[#7a6f94]">{displayCode}</span>
                       </div>
-                      {/* Requesters */}
+                      {/* Requesters: name above roll number */}
                       {subject.requesters?.length ? (
-                        <div className="mt-2 flex flex-wrap gap-1">
+                        <div className="mt-2 flex flex-wrap gap-1.5">
                           {subject.requesters.map((r, idx) => (
-                            <span key={idx} className="rounded bg-white/5 px-1.5 py-0.5 text-[8px] font-medium text-[#9F9AB5]">{r}</span>
+                            <div key={idx} className="rounded bg-white/5 px-1.5 py-1">
+                              {r.name ? (
+                                <p className="text-[8px] font-semibold text-[#d8d4e7] leading-tight">{r.name}</p>
+                              ) : null}
+                              <p className="text-[7px] text-[#7a6f94] leading-tight">{r.roll || r}</p>
+                            </div>
                           ))}
                         </div>
                       ) : null}

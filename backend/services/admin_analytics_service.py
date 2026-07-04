@@ -178,13 +178,15 @@ def get_subject_request_analytics() -> dict:
             if user:
                 requesters_by_code[code].add(user)
 
-        # Resolve roll numbers to names
+        # Resolve roll numbers to names AND program
         all_roll_numbers = set()
         for rolls in requesters_by_code.values():
             all_roll_numbers.update(rolls)
 
         roll_to_name = {}
+        roll_to_program = {}
         if all_roll_numbers:
+            # Firebase-linked users: get display name
             name_rows = (
                 session.query(PortalCredential.roll_number, User.display_name)
                 .join(User, User.id == PortalCredential.user_id)
@@ -195,19 +197,47 @@ def get_subject_request_analytics() -> dict:
                 if row.roll_number and row.display_name:
                     roll_to_name[row.roll_number] = row.display_name
 
-        demand_board = [
-            {
-                "subjectCode": row.subject_code,
+            # All users: get program from student_registry
+            registry_rows = (
+                session.query(StudentRegistry.roll_number, StudentRegistry.display_name, StudentRegistry.program)
+                .filter(StudentRegistry.roll_number.in_(list(all_roll_numbers)))
+                .all()
+            )
+            for row in registry_rows:
+                if row.roll_number:
+                    # Prefer Firebase display_name, fallback to registry
+                    if row.roll_number not in roll_to_name and row.display_name:
+                        roll_to_name[row.roll_number] = row.display_name
+                    if row.program:
+                        roll_to_program[row.roll_number] = row.program
+
+        demand_board = []
+        for row in demand_rows:
+            code = row.subject_code
+            requester_rolls = list(requesters_by_code.get(code, []))
+            requesters = [roll_to_name.get(r, r) for r in requester_rolls]
+
+            # Derive program for this subject from its requesters' programs
+            programs_for_subject = [
+                roll_to_program[r] for r in requester_rolls if r in roll_to_program
+            ]
+            # Most common program among requesters
+            subject_program = None
+            if programs_for_subject:
+                subject_program = max(set(programs_for_subject), key=programs_for_subject.count)
+
+            demand_board.append({
+                "subjectCode": code,
                 "subjectName": row.subject_name,
                 "abbreviation": row.abbreviation,
                 "requestCount": int(row.request_count),
                 "uniqueUsers": int(row.unique_users),
                 "requesters": [
-                    roll_to_name.get(r, r) for r in requesters_by_code.get(row.subject_code, [])
+                    {"roll": r, "name": roll_to_name.get(r) or None}
+                    for r in requester_rolls
                 ],
-            }
-            for row in demand_rows
-        ]
+                "program": subject_program,
+            })
 
     return {
         "totalRequests": total_requests,
