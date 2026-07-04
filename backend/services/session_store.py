@@ -93,8 +93,8 @@ class SessionStore:
                 "session_ttl_seconds": self._session_ttl_seconds,
             }
 
-    def active_sessions_list(self, limit: int = 8) -> list[dict]:
-        """Return most recent active sessions for admin display."""
+    def active_sessions_list(self) -> list[dict]:
+        """Return all active sessions for admin display."""
         now = time.time()
         with self._lock:
             self._prune_expired_locked(now)
@@ -102,7 +102,7 @@ class SessionStore:
                 self._sessions.values(),
                 key=lambda r: r.last_accessed_at,
                 reverse=True,
-            )[:limit]
+            )
 
         results = []
         for record in sorted_sessions:

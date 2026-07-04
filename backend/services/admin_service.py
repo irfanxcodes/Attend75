@@ -404,7 +404,7 @@ def get_admin_overview() -> dict:
     feedback_items = list_feedback(limit=100)
     total_feedback_count = feedback_count()
     session_stats = session_store.stats()
-    active_sessions_list = session_store.active_sessions_list(limit=8)
+    active_sessions_list = session_store.active_sessions_list()
     request_metrics = get_request_metrics_snapshot()
     scraper_metrics = get_scraper_metrics_snapshot()
     feature_usage = get_feature_usage_snapshot()

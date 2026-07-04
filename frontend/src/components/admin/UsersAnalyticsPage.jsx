@@ -203,7 +203,7 @@ function ActiveSessionsTable({ activeSessions, activeSessionsList }) {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold text-[#f0ece4]">Active sessions · live feed</p>
-          <p className="text-[9px] text-[#7a6f94]">In-memory session store · sample of 8 most recent</p>
+          <p className="text-[9px] text-[#7a6f94]">In-memory session store · all active sessions</p>
         </div>
         <span className="rounded-full bg-[#4EF0A0]/15 px-3 py-1 text-[10px] font-bold text-[#4EF0A0]">
           ● {formatNumber(activeSessions)} active
