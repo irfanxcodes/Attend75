@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "categories": [
+    {
+      "name": "Exam",
+      "color": "#FF5B5B",
+      "priority_rank": 1,
+      "keywords": ["EXAM", "TIMETABLE", "SEATING ARRANGEMENT", "HALL TICKET", "RECHECK", "MIDTERM", "MID-TERM", "END EXAM", "ELIGIBILITY LIST", "NCP-1", "TEST-1", "MAKEUP", "GRADE SHEET", "RESULT", "REVALUATION"]
+    },
+    {
+      "name": "Fee",
+      "color": "#FFB23E",
+      "priority_rank": 2,
+      "keywords": ["FEE", "DEMAND", "INSTALLMENT", "DUES", "LOAN", "PAYMENT"]
+    },
+    {
+      "name": "Academic",
+      "color": "#6CB4FF",
+      "priority_rank": 3,
+      "keywords": ["CLASS", "SUMMER", "REMEDIAL", "HOLIDAY", "ATTENDANCE", "TIME TABLE", "REGISTRATION", "ID CARD", "DIWALI", "DUSSEHRA", "SANKRANTHI", "RAMZAN", "SYLLABUS"]
+    },
+    {
+      "name": "Internship",
+      "color": "#A78BFA",
+      "priority_rank": 4,
+      "keywords": ["INTERNSHIP", "SIP", "TRAINING", "PLACEMENT", "PMIS", "GDPI"]
+    },
+    {
+      "name": "Event",
+      "color": "#4EF0A0",
+      "priority_rank": 5,
+      "keywords": ["SEMINAR", "WORKSHOP", "FEST", "COMPETITION", "ESPERANZA", "THRITI", "TRITHI", "FAREWELL", "FRESHER", "ORIENTATION", "CLUB", "CELEBRATE", "FAIR"]
+    },
+    {
+      "name": "Guest Lecture",
+      "color": "#D97706",
+      "priority_rank": 6,
+      "keywords": ["THRIIVE", "WISDOM", "LEADER", "INNOVATION", "TALK", "GUEST LECTURE", "KEYNOTE", "SPEAKER"]
+    },
+    {
+      "name": "General",
+      "color": "#7a6f94",
+      "priority_rank": 7,
+      "keywords": ["LOST", "FOUND", "BUS", "TRANSPORT", "MESS", "HOSTEL", "ROOM CHANGE", "EMAIL ID", "WISHES", "DRESS CODE", "UNIFORM"]
+    }
+  ]
+}

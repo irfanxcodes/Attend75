@@ -7,6 +7,7 @@ const STUDYME_BETA_NOTICE_KEY = 'attend75.studyme.betaNotice.v2'
 const navItems = [
   { label: 'Dashboard', to: '/app/dashboard', icon: '/dashboard-icon.png' },
   { label: 'History', to: '/app/history', icon: '/history-icon.svg' },
+  { label: 'Notices', to: '/app/notices', icon: '/notices-icon.svg' },
   { label: 'StudyMe', to: '/app/study', icon: '/studyme-icon.svg' },
   { label: 'Marks', to: '/app/marks', icon: '/marks.png' },
   { label: 'Profile', to: '/app/profile', icon: '/profile-icon.svg' },

@@ -7,6 +7,7 @@ const navItems = [
   { label: 'Home', to: '/app/dashboard', icon: '/dashboard-icon.png' },
   { label: 'History', to: '/app/history', icon: '/history-icon.svg' },
   { label: 'Study', to: '/app/study', icon: null, useInlineSvg: 'study' },
+  { label: 'Notices', to: '/app/notices', icon: '/notices-icon.svg' },
   { label: 'Marks', to: '/app/marks', icon: '/marks.png' },
   { label: 'Me', to: '/app/profile', icon: '/profile-icon.svg' },
 ]
@@ -79,7 +80,7 @@ function BottomNav() {
       {/* Floating nav bar */}
       <nav className="fixed inset-x-0 bottom-0 z-20 px-4 pb-[calc(8px+env(safe-area-inset-bottom))] pt-1 md:hidden">
         <div className="mx-auto max-w-md rounded-2xl border border-white/10 bg-[#2D2845]/95 px-2 py-1.5 shadow-[0_-4px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl">
-          <ul className="grid grid-cols-5">
+          <ul className="grid grid-cols-6">
             {navItems.map((item) => (
               <li key={item.to} data-walkthrough={item.to.endsWith('/history') ? 'nav-history' : item.to.endsWith('/study') ? 'nav-study' : item.to.endsWith('/marks') ? 'nav-marks' : undefined}>
                 {item.to.endsWith('/study') ? (

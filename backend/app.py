@@ -16,6 +16,7 @@ from routers.auth import router as auth_router
 from routers.admin import router as admin_router
 from routers.feedback import router as feedback_router
 from routers.firebase_auth import router as firebase_auth_router
+from routers.notices import router as notices_router
 from routers.studyme import router as studyme_router
 from services.request_metrics import observe_request
 
@@ -46,6 +47,15 @@ def _cors_origin_regex() -> str:
 @app.on_event("startup")
 async def startup_event() -> None:
     init_database()
+    # Start the notice scheduler (30-min background refresh)
+    from services.notice_scheduler import notice_scheduler
+    notice_scheduler.start()
+
+
+@app.on_event("shutdown")
+async def shutdown_event() -> None:
+    from services.notice_scheduler import notice_scheduler
+    notice_scheduler.stop()
 
 app.add_middleware(
     CORSMiddleware,
@@ -102,4 +112,5 @@ app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(feedback_router)
 app.include_router(firebase_auth_router)
+app.include_router(notices_router)
 app.include_router(studyme_router)

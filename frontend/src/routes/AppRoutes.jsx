@@ -16,6 +16,7 @@ const History = lazy(() => import('../pages/History'))
 const Loading = lazy(() => import('../pages/Loading'))
 const Login = lazy(() => import('../pages/Login'))
 const Marks = lazy(() => import('../pages/Marks'))
+const Notices = lazy(() => import('../pages/Notices'))
 const Profile = lazy(() => import('../pages/Profile'))
 const Splash = lazy(() => import('../pages/Splash'))
 const StudyMe = lazy(() => import('../pages/StudyMe'))
@@ -303,6 +304,7 @@ function AppRoutes() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="history" element={<History />} />
           <Route path="marks" element={<Marks />} />
+          <Route path="notices" element={<Notices />} />
           <Route path="study" element={<StudyMe />} />
           <Route path="study/:subjectId" element={<StudyLessons />} />
           <Route path="study/:subjectId/:lessonId" element={<StudyLessonDetail />} />
