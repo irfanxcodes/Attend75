@@ -26,6 +26,105 @@ from services.notice_classifier import (
 logger = logging.getLogger(__name__)
 
 
+def _extract_page_with_tables(page) -> str:
+    """
+    Extract text from a pdfplumber page, rendering tables as ASCII tables.
+    Non-table text is extracted normally. Tables get column-aligned formatting.
+    """
+    tables = page.find_tables()
+    if not tables:
+        # No tables on this page — plain extraction
+        return page.extract_text() or ""
+
+    # Collect table bounding boxes so we can exclude them from plain text
+    table_bboxes = []
+    for table in tables:
+        if table.bbox:
+            table_bboxes.append(table.bbox)
+
+    # Extract text outside tables
+    page_without_tables = page
+    for bbox in table_bboxes:
+        page_without_tables = page_without_tables.outside_bbox(bbox)
+
+    non_table_text = page_without_tables.extract_text() or ""
+
+    # Build ASCII tables
+    ascii_tables = []
+    for table in tables:
+        rows = table.extract()
+        if not rows:
+            continue
+        ascii_tables.append(_rows_to_ascii_table(rows))
+
+    # Combine: non-table text first, then tables
+    parts = []
+    if non_table_text.strip():
+        parts.append(non_table_text.strip())
+    for t in ascii_tables:
+        parts.append(t)
+
+    return "\n\n".join(parts)
+
+
+def _rows_to_ascii_table(rows: list[list[str | None]]) -> str:
+    """Convert a list of rows (each row is a list of cell strings) to an ASCII table."""
+    if not rows:
+        return ""
+
+    # Normalize cells: replace None with empty, strip whitespace, collapse newlines within cells
+    cleaned_rows = []
+    for row in rows:
+        cleaned_row = []
+        for cell in row:
+            if cell is None:
+                cleaned_row.append("")
+            else:
+                # Collapse internal newlines to space
+                cleaned_row.append(" ".join(str(cell).split()))
+        cleaned_rows.append(cleaned_row)
+
+    # Determine max columns (some rows may have fewer)
+    max_cols = max(len(r) for r in cleaned_rows)
+
+    # Pad rows to have equal columns
+    for row in cleaned_rows:
+        while len(row) < max_cols:
+            row.append("")
+
+    # Calculate column widths (cap at 40 to keep things readable on mobile)
+    col_widths = []
+    for col_idx in range(max_cols):
+        max_w = max(len(row[col_idx]) for row in cleaned_rows)
+        col_widths.append(min(max_w, 40))
+
+    # Truncate cells that exceed column width
+    for row in cleaned_rows:
+        for i, cell in enumerate(row):
+            if len(cell) > col_widths[i]:
+                row[i] = cell[:col_widths[i] - 1] + "…"
+
+    # Build the table
+    def separator():
+        return "+" + "+".join("-" * (w + 2) for w in col_widths) + "+"
+
+    def format_row(row):
+        cells = []
+        for i, cell in enumerate(row):
+            cells.append(f" {cell:<{col_widths[i]}} ")
+        return "|" + "|".join(cells) + "|"
+
+    lines = [separator()]
+    for idx, row in enumerate(cleaned_rows):
+        lines.append(format_row(row))
+        # Add separator after header row (first row) and at the end
+        if idx == 0:
+            lines.append(separator())
+    lines.append(separator())
+
+    return "\n".join(lines)
+
+
 def process_notice(notice_id: int, title: str, portal_date, pdf_url_path: str, scraper: PortalScraper, source_program: str | None = None) -> bool:
     """
     Full processing pipeline for a single notice.
@@ -43,13 +142,13 @@ def process_notice(notice_id: int, title: str, portal_date, pdf_url_path: str, s
 
         pdf_bytes = io.BytesIO(response.content)
 
-        # Step 2: Extract text via pdfplumber
+        # Step 2: Extract text via pdfplumber (with table detection)
         import pdfplumber
         extracted_text = ""
         try:
             with pdfplumber.open(pdf_bytes) as pdf:
                 for page in pdf.pages:
-                    page_text = page.extract_text()
+                    page_text = _extract_page_with_tables(page)
                     if page_text:
                         extracted_text += page_text + "\n"
         except Exception as exc:

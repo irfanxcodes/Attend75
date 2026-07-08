@@ -58,7 +58,7 @@ class NoticeScheduler:
             self._schedule_next()
 
     def _execute_scrape(self):
-        """Pick an active session and scrape notices."""
+        """Pick one active session per program and scrape notices for each."""
         with self._lock:
             if self._scrape_in_progress:
                 logger.debug("Scrape already in progress, skipping")
@@ -66,48 +66,37 @@ class NoticeScheduler:
             self._scrape_in_progress = True
 
         try:
-            # Pick any active session
-            sessions_list = session_store.active_sessions_list()
-            if not sessions_list:
+            # Group active sessions by program
+            sessions_by_program = {}
+            now = __import__('time').time()
+            with session_store._lock:
+                for r in session_store._sessions.values():
+                    prog = r.program_full or r.program_sn or "unknown"
+                    if prog not in sessions_by_program:
+                        sessions_by_program[prog] = r
+
+            if not sessions_by_program:
                 logger.debug("No active sessions available for notice scraping")
                 return
 
-            # Get the actual session record (not the dict)
-            first_roll = sessions_list[0].get("rollNumber")
-            if not first_roll:
-                return
+            for prog, record in sessions_by_program.items():
+                try:
+                    scraper = record.scraper
+                    source_program = record.program_full or record.program_sn
 
-            # Find the session record by iterating
-            record = None
-            now = time.time()
-            with session_store._lock:
-                for r in session_store._sessions.values():
-                    if r.roll_number == first_roll:
-                        record = r
-                        break
+                    notices = scrape_notice_list(scraper)
+                    if not notices:
+                        continue
 
-            if not record:
-                return
+                    new_notices = _filter_new_notices(notices)
+                    if not new_notices:
+                        continue
 
-            scraper = record.scraper
-            source_program = record.program_full or record.program_sn
-
-            # Scrape notice list
-            notices = scrape_notice_list(scraper)
-            if not notices:
-                return
-
-            # Find new notice IDs
-            new_notices = _filter_new_notices(notices)
-            if not new_notices:
-                logger.debug("No new notices found in scheduled scrape")
-                return
-
-            logger.info("Scheduled scrape found %d new notices, processing...", len(new_notices))
-
-            # Process new notices
-            with record.scraper_lock:
-                process_batch(new_notices, scraper, source_program=source_program)
+                    logger.info("Scheduled scrape found %d new notices for program=%s", len(new_notices), prog)
+                    with record.scraper_lock:
+                        process_batch(new_notices, scraper, source_program=source_program)
+                except Exception as exc:
+                    logger.warning("Scheduled scrape failed for program=%s: %s", prog, exc)
 
         finally:
             self._scrape_in_progress = False

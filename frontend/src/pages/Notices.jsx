@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Bell, RefreshCw } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
 import useAppStore from '../hooks/useAppStore'
 import FilterBar from '../components/notices/FilterBar'
 import NoticeCard from '../components/notices/NoticeCard'
 import NoticeDetail from '../components/notices/NoticeDetail'
+import TimetableView from '../components/notices/TimetableView'
 import {
   bookmarkNotice,
-  dismissNotice,
   fetchNotices,
   fetchNoticeStats,
   refreshNotices,
@@ -15,6 +16,7 @@ import {
 function Notices() {
   const { state: { session } } = useAppStore()
   const token = session.token
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [notices, setNotices] = useState([])
   const [total, setTotal] = useState(0)
@@ -25,9 +27,11 @@ function Notices() {
   const [expandedNotice, setExpandedNotice] = useState(null)
   const [stats, setStats] = useState(null)
   const [activeIndex, setActiveIndex] = useState(0)
+  const [carouselKey, setCarouselKey] = useState(0)
   const carouselRef = useRef(null)
+  const isScrollingProgrammatically = useRef(false)
 
-  const LIMIT = 10
+  const LIMIT = 5
 
   const loadNotices = useCallback(async (resetOffset = false) => {
     if (!token) return
@@ -46,13 +50,29 @@ function Notices() {
         setOffset(LIMIT)
         setActiveIndex(0)
       } else {
+        const prevLength = notices.length
         setNotices((prev) => [...prev, ...(data.notices || [])])
         setOffset(newOffset + LIMIT)
+        setActiveIndex(prevLength)
+        // Suppress scroll listener during programmatic scroll
+        isScrollingProgrammatically.current = true
+        setTimeout(() => {
+          const el = carouselRef.current
+          if (el && prevLength > 0) {
+            // Measure actual position of the target card
+            const targetCard = el.children[prevLength]
+            if (targetCard) {
+              const scrollTarget = targetCard.offsetLeft - (el.offsetWidth - targetCard.offsetWidth) / 2
+              el.scrollTo({ left: scrollTarget, behavior: 'smooth' })
+            }
+          }
+          setTimeout(() => { isScrollingProgrammatically.current = false }, 600)
+        }, 100)
       }
       setTotal(data.total || 0)
     } catch { /* silent */ }
     finally { setIsLoading(false) }
-  }, [token, offset, activeFilter])
+  }, [token, offset, activeFilter, notices.length])
 
   useEffect(() => {
     if (token) {
@@ -60,6 +80,61 @@ function Notices() {
       fetchNoticeStats({ token }).then(setStats).catch(() => {})
     }
   }, [token, activeFilter]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-scrape on first load if no notices exist for this student
+  const hasAutoScraped = useRef(false)
+  useEffect(() => {
+    if (hasAutoScraped.current || !token || isLoading || isRefreshing) return
+    if (notices.length === 0 && !isLoading && total === 0) {
+      hasAutoScraped.current = true
+      handleRefresh()
+    }
+  }, [notices.length, isLoading, total, token]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle deep link: ?open=noticeId
+  useEffect(() => {
+    const openId = searchParams.get('open')
+    if (openId && token && notices.length > 0) {
+      const notice = notices.find((n) => String(n.noticeId) === openId)
+      if (notice) {
+        setExpandedNotice(notice)
+      } else {
+        // Notice not in current list — open modal with minimal data
+        setExpandedNotice({ noticeId: Number(openId), title: 'Loading...', category: 'General' })
+      }
+      // Clear the param so it doesn't re-trigger
+      setSearchParams({}, { replace: true })
+    }
+  }, [notices.length, searchParams, token]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Scroll-based active index detection
+  useEffect(() => {
+    const el = carouselRef.current
+    if (!el) return
+
+    const handleScroll = () => {
+      if (isScrollingProgrammatically.current) return
+      // Measure actual card positions instead of guessing widths
+      const cards = el.children
+      if (!cards.length) return
+      const containerCenter = el.scrollLeft + el.offsetWidth / 2
+      let closestIndex = 0
+      let closestDistance = Infinity
+      for (let i = 0; i < cards.length; i++) {
+        const card = cards[i]
+        const cardCenter = card.offsetLeft + card.offsetWidth / 2
+        const distance = Math.abs(containerCenter - cardCenter)
+        if (distance < closestDistance) {
+          closestDistance = distance
+          closestIndex = i
+        }
+      }
+      setActiveIndex(Math.min(closestIndex, notices.length - 1))
+    }
+
+    el.addEventListener('scroll', handleScroll, { passive: true })
+    return () => el.removeEventListener('scroll', handleScroll)
+  }, [notices.length, carouselKey])
 
   const handleRefresh = async () => {
     if (!token || isRefreshing) return
@@ -86,6 +161,7 @@ function Notices() {
     setActiveFilter(category)
     setOffset(0)
     setActiveIndex(0)
+    setCarouselKey((k) => k + 1)
   }
 
   const handleReadMore = (notice) => {
@@ -94,21 +170,6 @@ function Notices() {
 
   const handleCloseDetail = () => {
     setExpandedNotice(null)
-  }
-
-  // Carousel scroll handler — detect which card is active
-  const handleScroll = () => {
-    const el = carouselRef.current
-    if (!el) return
-    const scrollLeft = el.scrollLeft
-    const cardWidth = el.offsetWidth * 0.85 + 16 // 85% width + gap
-    const index = Math.round(scrollLeft / cardWidth)
-    setActiveIndex(Math.max(0, Math.min(index, notices.length - 1)))
-
-    // Load more when near the end
-    if (index >= notices.length - 3 && notices.length < total && !isLoading) {
-      loadNotices(false)
-    }
   }
 
   const hasMore = notices.length < total
@@ -149,15 +210,15 @@ function Notices() {
           <>
             <div
               ref={carouselRef}
-              onScroll={handleScroll}
-              className="flex snap-x snap-mandatory gap-4 overflow-x-auto px-[7.5%] pb-4 scrollbar-none"
-              style={{ scrollBehavior: 'smooth' }}
+              key={carouselKey}
+              className="flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-4 scrollbar-none"
+              style={{ paddingLeft: '7.5%', paddingRight: '7.5%' }}
             >
               {notices.map((notice, index) => (
                 <div
                   key={notice.noticeId}
                   className="w-[85%] flex-shrink-0 snap-center"
-                  style={{ minHeight: '420px' }}
+                  style={{ minHeight: '440px' }}
                 >
                   <NoticeCard
                     notice={notice}
@@ -170,14 +231,14 @@ function Notices() {
 
               {/* Load more card */}
               {hasMore && (
-                <div className="flex w-[85%] flex-shrink-0 snap-center items-center justify-center rounded-[24px] border border-dashed border-white/15 bg-[#2E2A3A]/50" style={{ minHeight: '420px' }}>
+                <div className="flex w-[85%] flex-shrink-0 snap-center items-center justify-center rounded-[24px] border border-dashed border-white/15 bg-[#2E2A3A]/50" style={{ minHeight: '440px' }}>
                   <button
                     type="button"
                     onClick={() => loadNotices(false)}
                     disabled={isLoading}
                     className="rounded-2xl bg-white/10 px-6 py-3 text-sm font-semibold text-[#F7F4FF] transition hover:bg-white/15 disabled:opacity-50"
                   >
-                    {isLoading ? 'Loading...' : 'Load more'}
+                    {isLoading ? 'Loading...' : `Load more (${notices.length}/${total})`}
                   </button>
                 </div>
               )}
@@ -185,7 +246,7 @@ function Notices() {
 
             {/* Dot indicators */}
             <div className="mt-2 flex items-center justify-center gap-1.5">
-              {notices.slice(0, Math.min(notices.length, 10)).map((_, i) => (
+              {notices.map((_, i) => (
                 <div
                   key={i}
                   className={`rounded-full transition-all duration-300 ${
@@ -195,9 +256,6 @@ function Notices() {
                   }`}
                 />
               ))}
-              {notices.length > 10 && (
-                <span className="ml-1 text-[9px] text-white/30">+{notices.length - 10}</span>
-              )}
             </div>
           </>
         ) : isLoading ? (
@@ -212,6 +270,9 @@ function Notices() {
           </div>
         )}
       </div>
+
+      {/* Timetable section */}
+      <TimetableView token={token} />
 
       {/* Detail modal */}
       {expandedNotice && (

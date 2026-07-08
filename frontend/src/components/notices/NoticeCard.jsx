@@ -1,4 +1,4 @@
-import { Bookmark, Calendar, Building2, FileText } from 'lucide-react'
+import { Bookmark, Calendar, Building2, FileText, Share } from 'lucide-react'
 
 const CATEGORY_COLORS = {
   'Exam': '#FF5B5B',
@@ -72,7 +72,12 @@ function NoticeCard({ notice, isActive, onReadMore, onBookmark }) {
             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: categoryColor }} />
             {notice.category}
           </span>
-          <span className="text-[11px] text-white/50">{relativeDate}</span>
+          <div className="flex items-center gap-2">
+            {notice.isRead && (
+              <span className="rounded-full px-2 py-0.5 text-[9px] font-semibold text-[#4EF0A0]" style={{ background: 'linear-gradient(135deg, rgba(78,240,160,0.2) 0%, rgba(78,240,160,0.08) 100%)' }}>✓ seen</span>
+            )}
+            <span className="text-[11px] text-white/50">{relativeDate}</span>
+          </div>
         </div>
 
         {/* Title */}
@@ -87,6 +92,16 @@ function NoticeCard({ notice, isActive, onReadMore, onBookmark }) {
         {notice.summary && (
           <p className="text-[13px] leading-relaxed text-white/60">{notice.summary}</p>
         )}
+
+        {/* Deadline banner */}
+        {deadlineText && (
+          <div className="mt-3 rounded-lg bg-[#FFB23E]/10 px-3 py-2">
+            <span className="text-[12px] font-semibold text-[#FFB23E]">{deadlineText}</span>
+          </div>
+        )}
+
+        {/* Divider line */}
+        <div className="mt-4 h-px w-full bg-white/10" />
 
         {/* Metadata section */}
         <div className="mt-4 space-y-2.5">
@@ -108,13 +123,6 @@ function NoticeCard({ notice, isActive, onReadMore, onBookmark }) {
           </div>
         </div>
 
-        {/* Deadline banner */}
-        {deadlineText && (
-          <div className="mt-3 rounded-lg bg-[#FFB23E]/10 px-3 py-2">
-            <span className="text-[12px] font-semibold text-[#FFB23E]">{deadlineText}</span>
-          </div>
-        )}
-
         {/* Spacer */}
         <div className="flex-1" />
 
@@ -135,6 +143,19 @@ function NoticeCard({ notice, isActive, onReadMore, onBookmark }) {
             }`}
           >
             <Bookmark className={`h-5 w-5 ${notice.bookmarked ? 'fill-[#6CB4FF] text-[#6CB4FF]' : 'text-white/50'}`} />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              const appUrl = `https://attend75.xyz/app/notices?open=${notice.noticeId}`
+              const text = `📢 *College Notice*\n\n*${notice.title}*\n${notice.summary || ''}\n\n📅 ${actualDate}${deadlineText ? `\n⚠️ ${deadlineText}` : ''}\n\n— via Attend75\n${appUrl}`
+              const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`
+              window.open(whatsappUrl, '_blank')
+            }}
+            className="flex h-[50px] w-[50px] items-center justify-center rounded-2xl border border-white/10 bg-[#2E2A3A] transition active:scale-95"
+          >
+            <Share className="h-5 w-5 text-white/50" />
           </button>
         </div>
       </div>

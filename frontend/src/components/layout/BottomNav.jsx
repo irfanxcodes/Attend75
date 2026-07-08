@@ -82,7 +82,7 @@ function BottomNav() {
         <div className="mx-auto max-w-md rounded-2xl border border-white/10 bg-[#2D2845]/95 px-2 py-1.5 shadow-[0_-4px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl">
           <ul className="grid grid-cols-6">
             {navItems.map((item) => (
-              <li key={item.to} data-walkthrough={item.to.endsWith('/history') ? 'nav-history' : item.to.endsWith('/study') ? 'nav-study' : item.to.endsWith('/marks') ? 'nav-marks' : undefined}>
+              <li key={item.to} data-walkthrough={item.to.endsWith('/history') ? 'nav-history' : item.to.endsWith('/study') ? 'nav-study' : item.to.endsWith('/notices') ? 'nav-notices' : item.to.endsWith('/marks') ? 'nav-marks' : undefined}>
                 {item.to.endsWith('/study') ? (
                   <button
                     type="button"

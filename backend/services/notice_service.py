@@ -43,8 +43,11 @@ def fetch_notices_for_user(
     with SessionLocal() as session:
         query = session.query(Notice).filter(Notice.processing_status == "done")
 
-        # No program filter needed — notices are scraped from the student's
-        # authenticated portal session which already returns only their notices.
+        # Filter by source_program — each student sees notices scraped from their own program's portal
+        if program:
+            query = query.filter(
+                or_(Notice.source_program == program, Notice.source_program == None)
+            )
 
         # Category filter
         if category and category != "All":
@@ -177,7 +180,11 @@ def get_notice_stats(token: str) -> dict:
 
     with SessionLocal() as session:
         base_query = session.query(Notice).filter(Notice.processing_status == "done")
-        # No program filter — portal already shows only relevant notices per student
+        # Filter by source_program
+        if program:
+            base_query = base_query.filter(
+                or_(Notice.source_program == program, Notice.source_program == None)
+            )
 
         total_all = base_query.count()
 

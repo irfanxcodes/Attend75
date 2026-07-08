@@ -79,3 +79,9 @@ export function getNoticePdfUrl(noticeId, token) {
 export function isSessionExpired(error) {
   return error?.status === 401
 }
+
+
+export async function fetchTimetable({ token }) {
+  const params = new URLSearchParams({ token })
+  return request(`${API_BASE_URL}/notices/timetable?${params.toString()}`)
+}

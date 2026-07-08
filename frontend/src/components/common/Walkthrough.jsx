@@ -42,6 +42,12 @@ const STEPS_MOBILE = [
     position: 'top',
   },
   {
+    target: '[data-walkthrough="nav-notices"]',
+    title: 'College Notices',
+    description: 'Never miss an important notice. View timetables, fee deadlines, exam schedules, and more.',
+    position: 'top',
+  },
+  {
     target: '[data-walkthrough="nav-marks"]',
     title: 'Your Marks',
     description: 'View consolidated internal marks, radar chart comparison, and component-wise breakdown.',
@@ -84,6 +90,12 @@ const STEPS_DESKTOP = [
     target: '[data-walkthrough="sidebar-history"]',
     title: 'Attendance History',
     description: 'View day-by-day attendance, mail faculty about absences, and track your streak.',
+    position: 'right',
+  },
+  {
+    target: '[data-walkthrough="sidebar-notices"]',
+    title: 'College Notices',
+    description: 'Never miss an important notice. View timetables, fee deadlines, exam schedules, and more.',
     position: 'right',
   },
   {

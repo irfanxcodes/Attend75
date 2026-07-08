@@ -67,6 +67,24 @@ async def notices_stats(token: str = Query(..., description="Session token")):
         return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to load notice stats"})
 
 
+# GET /notices/timetable?token=...
+@router.get("/timetable", response_model=ApiResponse)
+async def get_timetable(token: str = Query(..., description="Session token")):
+    """Get personalized timetable for the student."""
+    from services.timetable_service import get_personalized_timetable
+
+    try:
+        data = await run_in_threadpool(get_personalized_timetable, token)
+        if data is None:
+            return ApiResponse(status="success", message="No timetable available", data={"schedule": None})
+        return ApiResponse(status="success", message="Timetable fetched", data=data)
+    except PermissionError:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Session expired"})
+    except Exception:
+        logger.exception("Failed to fetch timetable")
+        return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to load timetable"})
+
+
 # GET /notices/{id}?token=...
 @router.get("/{notice_id}", response_model=ApiResponse)
 async def notice_detail(notice_id: int, token: str = Query(..., description="Session token")):
