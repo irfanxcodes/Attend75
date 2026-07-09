@@ -191,6 +191,19 @@ def fetch_attendance_for_semester(token: str, semester_id: str | None, program_i
         observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
         resolved_id, resolved_label = _resolve_semester_usage_context(payload, semester_id)
         observe_sync_attendance(semester_id=resolved_id, semester_label=resolved_label)
+
+        # Cache subjects for timetable service (survives portal session expiry)
+        attendance_items = payload.get("attendance", [])
+        if attendance_items and not record.cached_subjects:
+            subjects = []
+            for item in attendance_items:
+                abbr = str(item.get("course_abbr", "")).strip().upper()
+                section = str(item.get("section", "")).strip().upper()
+                if abbr and section:
+                    subjects.append({"abbr": abbr, "section": section})
+            if subjects:
+                record.cached_subjects = subjects
+
         return payload
     except PortalNetworkError as exc:
         observe_scrape(

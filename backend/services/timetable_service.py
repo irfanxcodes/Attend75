@@ -135,13 +135,23 @@ def get_personalized_timetable(token: str) -> dict | None:
 
 
 def _get_student_subjects(record) -> list[dict]:
-    """Get student's enrolled subjects + sections from attendance scraping."""
+    """Get student's enrolled subjects + sections from attendance data.
+    
+    First tries reading from the scraper's attendance cache (even stale),
+    then falls back to a live portal request.
+    """
+    # Try reading from scraper's cached attendance data first (avoids portal request)
+    subjects = _get_subjects_from_cache(record)
+    if subjects:
+        return subjects
+
+    # Fallback: try live portal request
     try:
         scraper = record.scraper
         attendance_url = scraper._build_url("CommonS.aspx?qs=ap")
 
         with record.scraper_lock:
-            r = scraper.session.get(attendance_url, timeout=15, headers={"Referer": scraper._build_url("Index.aspx")})
+            r = scraper.session.get(attendance_url, timeout=10, headers={"Referer": scraper._build_url("Index.aspx")})
 
         if scraper._looks_like_login_page(r.text):
             logger.warning("Timetable: attendance page returned login (session expired)")
@@ -189,11 +199,39 @@ def _get_student_subjects(record) -> list[dict]:
             if abbr and section:
                 subjects.append({"abbr": abbr, "section": section})
 
-        logger.info("Timetable: found %d subjects for student", len(subjects))
+        logger.info("Timetable: found %d subjects for student (live)", len(subjects))
         return subjects
     except Exception as exc:
         logger.warning("Failed to get student subjects for timetable: %s", exc)
         return []
+
+
+def _get_subjects_from_cache(record) -> list[dict]:
+    """Extract subjects from session record's cached_subjects (populated by attendance fetch)."""
+    try:
+        if record.cached_subjects:
+            logger.info("Timetable: using %d cached subjects from session", len(record.cached_subjects))
+            return record.cached_subjects
+
+        # Fallback: try scraper's attendance cache dict (even if stale/expired)
+        scraper = record.scraper
+        for _key, (timestamp, payload) in list(scraper._attendance_cache.items()):
+            attendance_items = payload.get("attendance", [])
+            if not attendance_items:
+                continue
+            subjects = []
+            for item in attendance_items:
+                abbr = str(item.get("course_abbr", "")).strip().upper()
+                section = str(item.get("section", "")).strip().upper()
+                if abbr and section:
+                    subjects.append({"abbr": abbr, "section": section})
+            if subjects:
+                logger.info("Timetable: found %d subjects from scraper cache", len(subjects))
+                record.cached_subjects = subjects  # persist for future use
+                return subjects
+    except Exception as exc:
+        logger.debug("Failed to read subjects from cache: %s", exc)
+    return []
 
 
 def _find_latest_timetable_notice(semester_id: str) -> Notice | None:

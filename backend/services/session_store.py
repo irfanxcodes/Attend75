@@ -24,6 +24,8 @@ class SessionRecord:
     program_full: str | None = None
     selected_semester_label: str | None = None
     scraper_lock: threading.RLock = field(default_factory=threading.RLock)
+    # Cached subjects for timetable (populated on first attendance fetch)
+    cached_subjects: list[dict] = field(default_factory=list)
 
 
 class SessionStore:
