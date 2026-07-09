@@ -71,13 +71,21 @@ async def notices_stats(token: str = Query(..., description="Session token")):
 @router.get("/timetable", response_model=ApiResponse)
 async def get_timetable(token: str = Query(..., description="Session token")):
     """Get personalized timetable for the student."""
+    import asyncio
     from services.timetable_service import get_personalized_timetable
 
     try:
-        data = await run_in_threadpool(get_personalized_timetable, token)
+        # Timeout after 12 seconds to avoid hanging the frontend
+        data = await asyncio.wait_for(
+            run_in_threadpool(get_personalized_timetable, token),
+            timeout=12.0,
+        )
         if data is None:
             return ApiResponse(status="success", message="No timetable available", data={"schedule": None})
         return ApiResponse(status="success", message="Timetable fetched", data=data)
+    except asyncio.TimeoutError:
+        logger.warning("Timetable request timed out for token=%s...", token[:8])
+        return ApiResponse(status="success", message="No timetable available", data={"schedule": None})
     except PermissionError:
         return JSONResponse(status_code=401, content={"status": "error", "message": "Session expired"})
     except Exception:

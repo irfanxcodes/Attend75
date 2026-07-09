@@ -17,7 +17,10 @@ function TimetableView({ token }) {
   const [activeDay, setActiveDay] = useState(null)
 
   useEffect(() => {
-    if (!token) return
+    if (!token) {
+      setIsLoading(false)
+      return
+    }
     setIsLoading(true)
     fetchTimetable({ token })
       .then((data) => {

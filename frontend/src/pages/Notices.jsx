@@ -10,6 +10,7 @@ import {
   bookmarkNotice,
   fetchNotices,
   fetchNoticeStats,
+  isSessionExpired,
   refreshNotices,
 } from '../services/noticesApi'
 
@@ -70,7 +71,13 @@ function Notices() {
         }, 100)
       }
       setTotal(data.total || 0)
-    } catch { /* silent */ }
+    } catch (err) {
+      // If session expired, don't show spinner forever — just leave empty state
+      if (isSessionExpired(err)) {
+        setNotices([])
+        setTotal(0)
+      }
+    }
     finally { setIsLoading(false) }
   }, [token, offset, activeFilter, notices.length])
 
@@ -87,7 +94,8 @@ function Notices() {
     if (hasAutoScraped.current || !token || isLoading || isRefreshing) return
     if (notices.length === 0 && !isLoading && total === 0) {
       hasAutoScraped.current = true
-      handleRefresh()
+      // Don't auto-refresh — it processes PDFs and is heavy.
+      // User can manually tap refresh.
     }
   }, [notices.length, isLoading, total, token]) // eslint-disable-line react-hooks/exhaustive-deps
 

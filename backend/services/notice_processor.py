@@ -7,7 +7,6 @@ stores in DB, discards PDF bytes. Never writes PDFs to disk.
 
 import io
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
 from db.models.notice import Notice
@@ -140,22 +139,31 @@ def process_notice(notice_id: int, title: str, portal_date, pdf_url_path: str, s
             _mark_failed(notice_id, title, portal_date, pdf_url_path, source_program)
             return False
 
-        pdf_bytes = io.BytesIO(response.content)
+        # Skip PDFs larger than 5MB to avoid OOM on small servers
+        if len(response.content) > 5 * 1024 * 1024:
+            logger.warning("PDF too large for notice %d: %d bytes, skipping extraction", notice_id, len(response.content))
+            extracted_text = ""
+        else:
+            pdf_bytes = io.BytesIO(response.content)
 
-        # Step 2: Extract text via pdfplumber (with table detection)
-        import pdfplumber
-        extracted_text = ""
-        try:
-            with pdfplumber.open(pdf_bytes) as pdf:
-                for page in pdf.pages:
-                    page_text = _extract_page_with_tables(page)
-                    if page_text:
-                        extracted_text += page_text + "\n"
-        except Exception as exc:
-            logger.warning("pdfplumber failed for notice %d: %s", notice_id, exc)
+            # Step 2: Extract text via pdfplumber (with table detection)
+            import pdfplumber
+            extracted_text = ""
+            try:
+                with pdfplumber.open(pdf_bytes) as pdf:
+                    # Limit to first 10 pages to control memory
+                    for page in pdf.pages[:10]:
+                        page_text = _extract_page_with_tables(page)
+                        if page_text:
+                            extracted_text += page_text + "\n"
+            except Exception as exc:
+                logger.warning("pdfplumber failed for notice %d: %s", notice_id, exc)
 
-        # Step 3: Discard PDF bytes
-        del pdf_bytes
+            # Step 3: Discard PDF bytes
+            del pdf_bytes
+
+        # Free the response body
+        del response
 
         # Step 4: Clean text
         cleaned = clean_text(extracted_text)
@@ -208,39 +216,34 @@ def process_notice(notice_id: int, title: str, portal_date, pdf_url_path: str, s
         return False
 
 
-def process_batch(notices: list[dict], scraper: PortalScraper, source_program: str | None = None, max_workers: int = 4) -> int:
+def process_batch(notices: list[dict], scraper: PortalScraper, source_program: str | None = None, max_workers: int = 1, max_notices: int = 15) -> int:
     """
-    Process multiple notices in parallel.
+    Process notices sequentially to avoid OOM on small servers.
+    Caps batch at max_notices to prevent long-running operations.
     Returns count of successfully processed notices.
     """
     if not notices:
         return 0
 
+    # Cap the batch size to avoid OOM and long blocking
+    batch = notices[:max_notices]
     success_count = 0
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {}
-        for n in notices:
-            future = executor.submit(
-                process_notice,
+    for n in batch:
+        try:
+            if process_notice(
                 notice_id=n["notice_id"],
                 title=n["title"],
                 portal_date=n["portal_date"],
                 pdf_url_path=n["pdf_url_path"],
                 scraper=scraper,
                 source_program=source_program,
-            )
-            futures[future] = n["notice_id"]
+            ):
+                success_count += 1
+        except Exception as exc:
+            logger.error("Notice %d processing raised: %s", n["notice_id"], exc)
 
-        for future in as_completed(futures):
-            nid = futures[future]
-            try:
-                if future.result():
-                    success_count += 1
-            except Exception as exc:
-                logger.error("Notice %d processing raised: %s", nid, exc)
-
-    logger.info("Batch processed: %d/%d notices successful", success_count, len(notices))
+    logger.info("Batch processed: %d/%d notices successful (capped at %d)", success_count, len(batch), max_notices)
     return success_count
 
 
