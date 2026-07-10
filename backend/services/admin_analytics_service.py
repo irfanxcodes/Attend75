@@ -521,6 +521,78 @@ def get_auth_breakdown() -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Notice Board Analytics
+# ---------------------------------------------------------------------------
+
+def get_notice_analytics() -> dict:
+    """Notice board metrics: total notices, category breakdown, views, bookmarks."""
+    from db.models.notice import Notice
+    from db.models.user_notice import UserNotice
+
+    with SessionLocal() as session:
+        total_notices = int(session.query(func.count(Notice.notice_id)).filter(Notice.processing_status == "done").scalar() or 0)
+        failed_notices = int(session.query(func.count(Notice.notice_id)).filter(Notice.processing_status == "failed").scalar() or 0)
+
+        # Category breakdown
+        category_rows = (
+            session.query(Notice.category, func.count(Notice.notice_id))
+            .filter(Notice.processing_status == "done")
+            .group_by(Notice.category)
+            .all()
+        )
+        categories = {str(cat): int(count) for cat, count in category_rows}
+
+        # Total views (sum of viewed_count)
+        total_views = int(session.query(func.coalesce(func.sum(Notice.viewed_count), 0)).scalar() or 0)
+
+        # Bookmarks and dismissals
+        total_bookmarks = int(
+            session.query(func.count(UserNotice.id))
+            .filter(UserNotice.bookmarked == True)
+            .scalar() or 0
+        )
+        total_dismissals = int(
+            session.query(func.count(UserNotice.id))
+            .filter(UserNotice.dismissed == True)
+            .scalar() or 0
+        )
+
+        # Unique users who opened at least one notice
+        unique_readers = int(
+            session.query(func.count(distinct(UserNotice.user_id)))
+            .filter(UserNotice.opened_at.isnot(None))
+            .scalar() or 0
+        )
+
+        # Important notices count
+        important_count = int(
+            session.query(func.count(Notice.notice_id))
+            .filter(Notice.processing_status == "done", Notice.is_important == True)
+            .scalar() or 0
+        )
+
+        # Recent notices (last 7 days)
+        week_ago = date.today() - timedelta(days=6)
+        recent_count = int(
+            session.query(func.count(Notice.notice_id))
+            .filter(Notice.processing_status == "done", Notice.portal_date >= week_ago)
+            .scalar() or 0
+        )
+
+    return {
+        "totalNotices": total_notices,
+        "failedNotices": failed_notices,
+        "recentNotices": recent_count,
+        "importantNotices": important_count,
+        "totalViews": total_views,
+        "totalBookmarks": total_bookmarks,
+        "totalDismissals": total_dismissals,
+        "uniqueReaders": unique_readers,
+        "categories": categories,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Combined analytics endpoint
 # ---------------------------------------------------------------------------
 
@@ -539,6 +611,7 @@ def get_full_admin_analytics() -> dict:
         "studentMetrics": get_student_metrics(),
         "guestEngagement": get_guest_engagement(),
         "pwaInstalls": get_pwa_install_metrics(),
+        "notices": get_notice_analytics(),
     }
 
 
