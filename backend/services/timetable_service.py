@@ -266,7 +266,7 @@ def _find_latest_timetable_notice(semester_id: str) -> Notice | None:
 
 
 def _get_parsed_schedule(notice: Notice, record) -> list[dict] | None:
-    """Parse timetable PDF into structured class list. Cached by notice_id."""
+    """Parse timetable into structured class list. Uses stored text first, falls back to PDF download."""
     notice_id = notice.notice_id
 
     # Check cache
@@ -276,7 +276,14 @@ def _get_parsed_schedule(notice: Notice, record) -> list[dict] | None:
         if (datetime.utcnow() - cached["parsed_at"]).seconds < 3600:
             return cached["schedule"]
 
-    # Download PDF
+    # Try parsing from stored text (no network needed)
+    if notice.cleaned_text and len(notice.cleaned_text) > 100:
+        schedule = _parse_timetable_from_text(notice.cleaned_text)
+        if schedule:
+            _timetable_cache[notice_id] = {"parsed_at": datetime.utcnow(), "schedule": schedule}
+            return schedule
+
+    # Fallback: download and parse PDF (requires live portal session)
     try:
         scraper = record.scraper
         pdf_url = f"{scraper.base_url.rstrip('/')}/{notice.pdf_url_path}"
@@ -285,6 +292,7 @@ def _get_parsed_schedule(notice: Notice, record) -> list[dict] | None:
             r = scraper.session.get(pdf_url, timeout=20)
 
         if r.status_code != 200:
+            logger.warning("Timetable PDF download failed (notice %d): HTTP %d", notice_id, r.status_code)
             return None
 
         schedule = _parse_timetable_pdf(io.BytesIO(r.content))
@@ -294,6 +302,138 @@ def _get_parsed_schedule(notice: Notice, record) -> list[dict] | None:
     except Exception as exc:
         logger.warning("Failed to parse timetable PDF (notice %d): %s", notice_id, exc)
         return None
+
+
+def _parse_timetable_from_text(text: str) -> list[dict]:
+    """
+    Parse timetable from the stored extracted text (no PDF download needed).
+    
+    Format: Multiple sections (one per time slot), each starting with a title line
+    and "TIME Course Faculty Name Sem..." header.
+    Each data row has 5 day-columns of "Course-Section Faculty Sem" then Room.
+    """
+    lines = text.strip().split('\n')
+    if len(lines) < 3:
+        return []
+
+    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+    PAGE_TIME_SLOTS = [
+        "9:30 – 10:20 AM",
+        "10:25 – 11:15 AM",
+        "11:20 AM – 12:10 PM",
+        "12:15 – 1:05 PM",
+        "2:00 – 2:50 PM",
+        "2:55 – 3:45 PM",
+        "3:10 – 4:00 PM",
+    ]
+
+    all_classes = []
+    current_slot_idx = -1
+    course_pattern = re.compile(r'\b([A-Z][A-Z0-9]{1,6})-([A-Z0-9]{1,3})\b')
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+
+        line_upper = line.upper()
+
+        # Detect TIME header (marks start of a new time slot section)
+        if line_upper.startswith("TIME ") and "COURSE" in line_upper and "FACULTY" in line_upper:
+            current_slot_idx += 1
+            continue
+
+        # Skip title lines
+        if "TIMETABLE" in line_upper or "TIME TABLE" in line_upper:
+            continue
+
+        # Skip standalone day name lines
+        if line in days or line in [d.upper() for d in days]:
+            continue
+
+        # Skip if we haven't hit the first TIME header yet
+        if current_slot_idx < 0:
+            continue
+
+        # Parse data rows
+        matches = course_pattern.findall(line)
+        if not matches or len(matches) < 2:
+            continue
+
+        # Filter out room-like matches (LT, CR, BB, etc.)
+        room_prefixes = ('LT', 'CR', 'BB', 'CL', 'SH', 'FR', 'SR', 'FEC', 'BEC', 'LH')
+        course_matches = [(c, s) for c, s in matches if not (c in room_prefixes and (s.isdigit() or len(s) == 1))]
+
+        # Extract room from end of line
+        room = ""
+        all_matches_in_line = [(c, s) for c, s in matches]
+        if all_matches_in_line:
+            last_c, last_s = all_matches_in_line[-1]
+            if last_c in room_prefixes:
+                room = f"{last_c}-{last_s}"
+
+        if not course_matches:
+            continue
+
+        time_slot = PAGE_TIME_SLOTS[current_slot_idx] if current_slot_idx < len(PAGE_TIME_SLOTS) else f"Period {current_slot_idx + 1}"
+        time_sort = f"{current_slot_idx:02d}"
+
+        # Each row has 5 course entries (Mon–Fri). If fewer, assign to available days.
+        # The text format repeats: Course-Section FacultyName Sem
+        # We take up to 5 course matches and map them to days
+        for i, (course, section) in enumerate(course_matches[:5]):
+            if i >= len(days):
+                break
+
+            # Extract faculty and semester from the text between matches
+            faculty = _extract_faculty_near(line, course, section)
+            sem = _extract_sem_near(line, course, section)
+
+            all_classes.append({
+                "day": days[i],
+                "time": time_slot,
+                "time_sort": time_sort,
+                "course_key": f"{course}-{section}",
+                "course": course,
+                "section": section,
+                "faculty": faculty,
+                "semester": sem,
+                "room": room,
+            })
+
+    logger.info("Timetable text parser: extracted %d class entries across %d time slots", len(all_classes), current_slot_idx + 1)
+    return all_classes
+
+
+def _extract_faculty_near(line: str, course: str, section: str) -> str:
+    """Extract faculty name after a Course-Section pattern."""
+    pattern = f"{course}-{section}"
+    pos = line.find(pattern)
+    if pos == -1:
+        return ""
+    after = line[pos + len(pattern):].strip()
+    # Faculty: sequence of words (mixed case) before a single digit (semester number)
+    match = re.match(r'^[,\s]*([A-Za-z][A-Za-z .,]+?)(?:\s+\d\b)', after)
+    if match:
+        name = match.group(1).strip().rstrip(',.')
+        # Skip if looks like another course code
+        if len(name) > 2 and not re.match(r'^[A-Z]{2,6}$', name):
+            return name
+    return ""
+
+
+def _extract_sem_near(line: str, course: str, section: str) -> str:
+    """Extract semester number after a Course-Section + Faculty pattern."""
+    pattern = f"{course}-{section}"
+    pos = line.find(pattern)
+    if pos == -1:
+        return ""
+    after = line[pos + len(pattern):].strip()
+    # Find single digit (semester) - usually appears after faculty name
+    match = re.search(r'\b(\d)\b', after[:80])
+    if match:
+        return match.group(1)
+    return ""
 
 
 def _parse_timetable_pdf(pdf_bytes: io.BytesIO) -> list[dict]:
