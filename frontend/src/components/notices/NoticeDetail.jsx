@@ -62,6 +62,29 @@ function renderExtractedText(text, highlightTerms) {
 
   return blocks.map((block, blockIdx) => {
     if (block.type === 'table') {
+      const hasHighlight = highlightTerms.length > 0 && block.lines.some(l => {
+        const upper = l.toUpperCase()
+        return highlightTerms.some(t => upper.includes(t.toUpperCase()))
+      })
+
+      if (hasHighlight) {
+        // Render line-by-line so we can highlight matching lines
+        return (
+          <div key={blockIdx} className="-mx-2 overflow-x-auto rounded-lg bg-[#2E2A3A]/60 p-2">
+            <pre className="text-[11px] leading-snug text-[#D8D4E7] font-mono whitespace-pre">
+              {block.lines.map((line, i) => {
+                const upper = line.toUpperCase()
+                const isMatch = highlightTerms.some(t => upper.includes(t.toUpperCase()))
+                if (isMatch) {
+                  return <span key={i} className="bg-[#4EF0A0]/20 text-[#4EF0A0] font-semibold block">{line}{'\n'}</span>
+                }
+                return <span key={i}>{line}{'\n'}</span>
+              })}
+            </pre>
+          </div>
+        )
+      }
+
       return (
         <div key={blockIdx} className="-mx-2 overflow-x-auto rounded-lg bg-[#2E2A3A]/60 p-2">
           <pre className="text-[11px] leading-snug text-[#D8D4E7] font-mono whitespace-pre">
