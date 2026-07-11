@@ -38,7 +38,10 @@ def get_personalized_timetable(token: str) -> dict | None:
         return None
 
     # 2. Find the latest timetable notice for the student's semester
-    semester_id = record.scraper.session.cookies.get("SemesterID", "")
+    try:
+        semester_id = record.scraper.session.cookies.get("SemesterID", "")
+    except Exception:
+        semester_id = ""
     timetable_notice = _find_latest_timetable_notice(semester_id)
     if not timetable_notice:
         return None
