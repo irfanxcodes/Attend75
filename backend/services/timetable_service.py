@@ -1,8 +1,8 @@
 """
-Timetable Service — Parses timetable PDFs and returns personalized schedules.
+Timetable Service — Parses timetable notices and returns personalized schedules.
 
-Finds the latest timetable notice for the student's semester, parses the PDF
-table, and filters rows matching the student's enrolled subjects + sections.
+Finds the latest timetable notice, parses the stored text into a structured
+schedule, and filters rows matching the student's enrolled subjects.
 """
 
 import io
@@ -11,7 +11,6 @@ import re
 from datetime import datetime
 
 import pdfplumber
-from bs4 import BeautifulSoup
 
 from db.models.notice import Notice
 from db.session import SessionLocal
@@ -32,87 +31,44 @@ def get_personalized_timetable(token: str) -> dict | None:
     if record is None:
         raise PermissionError("Session expired")
 
-    # 1. Get student's enrolled subjects + sections from attendance
-    student_subjects = _get_student_subjects(record)
-    if not student_subjects:
-        return None
-
-    # 2. Find the latest timetable notice for the student's semester
-    try:
-        semester_id = record.scraper.session.cookies.get("SemesterID", "")
-    except Exception:
-        semester_id = ""
-    timetable_notice = _find_latest_timetable_notice(semester_id)
+    # 1. Find the latest timetable notice
+    timetable_notice = _find_latest_timetable_notice()
     if not timetable_notice:
         return None
 
-    # 3. Parse the timetable PDF (with caching)
+    # 2. Parse the timetable from stored text (no network needed)
     schedule = _get_parsed_schedule(timetable_notice, record)
     if not schedule:
         return None
 
-    # 4. Filter schedule for this student's subjects + sections
-    # Primary match: exact ABBR-SECTION (e.g., OB-N, FM-N)
-    lookup = set()
-    for subj in student_subjects:
-        key = f"{subj['abbr']}-{subj['section']}"
-        lookup.add(key.upper())
+    # 3. Get student subjects and filter
+    student_subjects = record.cached_subjects
+    if not student_subjects:
+        # Subjects not cached yet (race condition on first load). Fetch inline.
+        try:
+            data = record.scraper.fetch_attendance_for_semester()
+            attendance_rows = data.get("attendance", [])
+            subjects = []
+            for item in attendance_rows:
+                abbr = str(item.get("course_abbr", "")).strip().upper()
+                section = str(item.get("section", "")).strip().upper()
+                if abbr and section:
+                    subjects.append({"abbr": abbr, "section": section})
+            if subjects:
+                record.cached_subjects = subjects
+                student_subjects = subjects
+        except Exception:
+            pass
 
-    # Get student's semester number from primary matches
-    primary_matches = [cls for cls in schedule if cls.get("course_key", "").upper() in lookup]
-    sem_counts = {}
-    for cls in primary_matches:
-        s = cls.get("semester", "").strip()
-        if s:
-            sem_counts[s] = sem_counts.get(s, 0) + 1
-    student_sem = max(sem_counts, key=sem_counts.get) if sem_counts else ""
+    if not student_subjects:
+        return None
 
-    # For secondary matching, handle LANGUAGE courses.
-    # In attendance, languages appear as generic codes: "IMIL", "FML", etc. with a section.
-    # In the timetable PDF, the SAME class appears with the specific language abbreviation:
-    #   MLH (Hindi), MLT (Telugu), MLS (Sanskrit), MLK (Kannada), MLM (Malayalam), MLE (English)
-    # The SECTION letter is consistent between attendance and timetable.
-    # So: attendance has IMIL-A → timetable has MLH-A (or MLS-A, MLT-A, etc.)
-    # We match timetable entries where:
-    #   1. The course starts with a specific language prefix (MLH, MLT, MLS, etc.)
-    #   2. The section matches the student's language section from attendance
-    #   3. The semester matches
-
-    # Generic language codes that appear in attendance
-    GENERIC_LANGUAGE_CODES = {"IMIL", "FML"}
-    # Specific language abbreviations that appear in timetable PDFs
-    SPECIFIC_LANGUAGE_PREFIXES = ("MLH", "MLT", "MLS", "MLK", "MLM", "MLE")
-
-    # Find the student's language section from their attendance data
-    student_language_section = None
-    for subj in student_subjects:
-        abbr = subj["abbr"].upper()
-        if abbr in GENERIC_LANGUAGE_CODES or any(abbr.startswith(p) for p in SPECIFIC_LANGUAGE_PREFIXES):
-            student_language_section = subj["section"].upper()
-            break
-
-    my_classes = []
-    for cls in schedule:
-        course_key = cls.get("course_key", "").upper()
-        # Primary: exact match on ABBR-SECTION
-        if course_key in lookup:
-            my_classes.append(cls)
-            continue
-        # Secondary: match specific language classes by section from attendance.
-        # e.g., student has IMIL section A → match MLH-A, MLS-A, MLT-A in timetable
-        if student_language_section:
-            sem = cls.get("semester", "").strip()
-            course_abbr = cls.get("course", "").upper()
-            section = cls.get("section", "").upper()
-            if (section == student_language_section
-                    and sem == student_sem
-                    and any(course_abbr.startswith(prefix) for prefix in SPECIFIC_LANGUAGE_PREFIXES)):
-                my_classes.append(cls)
+    my_classes = _match_student_classes(schedule, student_subjects)
 
     if not my_classes:
         return None
 
-    # 5. Organize by day
+    # 4. Organize by day
     days_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
     by_day = {day: [] for day in days_order}
     for cls in my_classes:
@@ -127,6 +83,9 @@ def get_personalized_timetable(token: str) -> dict | None:
     # Remove empty days
     by_day = {day: classes for day, classes in by_day.items() if classes}
 
+    if not by_day:
+        return None
+
     return {
         "noticeTitle": timetable_notice.title,
         "noticeDate": timetable_notice.portal_date.isoformat() if timetable_notice.portal_date else None,
@@ -137,107 +96,55 @@ def get_personalized_timetable(token: str) -> dict | None:
     }
 
 
-def _get_student_subjects(record) -> list[dict]:
-    """Get student's enrolled subjects + sections from attendance data.
-    
-    First tries reading from the scraper's attendance cache (even stale),
-    then falls back to a live portal request.
-    """
-    # Try reading from scraper's cached attendance data first (avoids portal request)
-    subjects = _get_subjects_from_cache(record)
-    if subjects:
-        return subjects
-
-    # Fallback: try live portal request
-    try:
-        scraper = record.scraper
-        attendance_url = scraper._build_url("CommonS.aspx?qs=ap")
-
-        with record.scraper_lock:
-            r = scraper.session.get(attendance_url, timeout=10, headers={"Referer": scraper._build_url("Index.aspx")})
-
-        if scraper._looks_like_login_page(r.text):
-            logger.warning("Timetable: attendance page returned login (session expired)")
-            return []
-
-        soup = BeautifulSoup(r.text, "html.parser")
-        
-        # Try the standard attendance table
-        table = soup.find("table", {"id": "table"})
-        if not table:
-            # Try any table
-            for t in soup.find_all("table"):
-                headers = [th.get_text(strip=True).lower() for th in t.find_all("th")]
-                if any("section" in h for h in headers):
-                    table = t
-                    break
-
-        if not table:
-            logger.warning("Timetable: no attendance table found")
-            return []
-
-        # Find column indices
-        headers = [th.get_text(strip=True).lower() for th in table.find_all("th")]
-        abbr_idx = None
-        section_idx = None
-        for i, h in enumerate(headers):
-            if "abbr" in h or "courseabbr" in h.replace(" ", ""):
-                abbr_idx = i
-            if "section" in h:
-                section_idx = i
-
-        # Fallback to known positions
-        if abbr_idx is None:
-            abbr_idx = 2
-        if section_idx is None:
-            section_idx = 4
-
-        subjects = []
-        for row in table.find_all("tr")[1:]:
-            cells = row.find_all("td")
-            if len(cells) <= max(abbr_idx, section_idx):
-                continue
-            abbr = cells[abbr_idx].get_text(strip=True).strip().upper()
-            section = cells[section_idx].get_text(strip=True).strip().upper()
-            if abbr and section:
-                subjects.append({"abbr": abbr, "section": section})
-
-        logger.info("Timetable: found %d subjects for student (live)", len(subjects))
-        return subjects
-    except Exception as exc:
-        logger.warning("Failed to get student subjects for timetable: %s", exc)
+def _match_student_classes(schedule: list[dict], student_subjects: list[dict]) -> list[dict]:
+    """Match schedule entries to student's enrolled subjects."""
+    if not student_subjects:
         return []
 
+    # Build lookup: exact ABBR-SECTION keys
+    lookup = set()
+    for subj in student_subjects:
+        key = f"{subj['abbr']}-{subj['section']}".upper()
+        lookup.add(key)
 
-def _get_subjects_from_cache(record) -> list[dict]:
-    """Extract subjects from session record's cached_subjects (populated by attendance fetch)."""
-    try:
-        if record.cached_subjects:
-            logger.info("Timetable: using %d cached subjects from session", len(record.cached_subjects))
-            return record.cached_subjects
+    # Primary match
+    my_classes = [cls for cls in schedule if cls.get("course_key", "").upper() in lookup]
 
-        # Fallback: try scraper's attendance cache dict (even if stale/expired)
-        scraper = record.scraper
-        for _key, (timestamp, payload) in list(scraper._attendance_cache.items()):
-            attendance_items = payload.get("attendance", [])
-            if not attendance_items:
-                continue
-            subjects = []
-            for item in attendance_items:
-                abbr = str(item.get("course_abbr", "")).strip().upper()
-                section = str(item.get("section", "")).strip().upper()
-                if abbr and section:
-                    subjects.append({"abbr": abbr, "section": section})
-            if subjects:
-                logger.info("Timetable: found %d subjects from scraper cache", len(subjects))
-                record.cached_subjects = subjects  # persist for future use
-                return subjects
-    except Exception as exc:
-        logger.debug("Failed to read subjects from cache: %s", exc)
-    return []
+    # If primary match works, also try language course matching
+    if my_classes:
+        # Detect student's semester from matched classes
+        sem_counts = {}
+        for cls in my_classes:
+            s = cls.get("semester", "").strip()
+            if s:
+                sem_counts[s] = sem_counts.get(s, 0) + 1
+        student_sem = max(sem_counts, key=sem_counts.get) if sem_counts else ""
 
+        # Language matching: IMIL/FML in attendance → MLH/MLT/MLS etc. in timetable
+        GENERIC_LANGUAGE_CODES = {"IMIL", "FML"}
+        SPECIFIC_LANGUAGE_PREFIXES = ("MLH", "MLT", "MLS", "MLK", "MLM", "MLE")
 
-def _find_latest_timetable_notice(semester_id: str) -> Notice | None:
+        student_language_section = None
+        for subj in student_subjects:
+            if subj["abbr"].upper() in GENERIC_LANGUAGE_CODES:
+                student_language_section = subj["section"].upper()
+                break
+
+        if student_language_section and student_sem:
+            for cls in schedule:
+                if cls.get("course_key", "").upper() in lookup:
+                    continue  # already matched
+                course = cls.get("course", "").upper()
+                section = cls.get("section", "").upper()
+                sem = cls.get("semester", "").strip()
+                if (section == student_language_section
+                        and sem == student_sem
+                        and any(course.startswith(p) for p in SPECIFIC_LANGUAGE_PREFIXES)):
+                    my_classes.append(cls)
+
+    return my_classes
+
+def _find_latest_timetable_notice() -> Notice | None:
     """Find the most recent class timetable notice (not exam schedule, not summer)."""
     with SessionLocal() as session:
         notices = (
