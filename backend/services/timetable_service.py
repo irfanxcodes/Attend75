@@ -145,7 +145,7 @@ def _match_student_classes(schedule: list[dict], student_subjects: list[dict]) -
     return my_classes
 
 def _find_latest_timetable_notice() -> Notice | None:
-    """Find the most recent class timetable notice (not exam schedule, not summer)."""
+    """Find the most recent regular class timetable notice."""
     with SessionLocal() as session:
         notices = (
             session.query(Notice)
@@ -161,13 +161,15 @@ def _find_latest_timetable_notice() -> Notice | None:
             # Must contain TIMETABLE or TIME TABLE
             if "TIMETABLE" not in title_upper and "TIME TABLE" not in title_upper:
                 continue
-            # Skip exam schedules
-            if "EXAM SCHEDULE" in title_upper:
+            # Skip exam timetables
+            if "EXAM TIMETABLE" in title_upper or "EXAM SCHEDULE" in title_upper:
                 continue
-            # Skip summer/special term (not regular class timetable)
-            if "SUMMER" in title_upper and "SPECIAL" in title_upper:
+            # Skip special/summer/remedial timetables
+            if "SPECIAL" in title_upper:
                 continue
-            if "EXAM TIMETABLE" in title_upper:
+            if "SUMMER" in title_upper:
+                continue
+            if "REMEDIAL" in title_upper:
                 continue
             # This looks like a regular class timetable
             return notice
