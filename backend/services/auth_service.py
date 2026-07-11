@@ -132,6 +132,17 @@ def login_user(roll_number: str, password: str, user_agent: str | None = None) -
             program_full=data.get("program_full"),
             selected_semester_label=_resolve_semester_label(data),
         )
+
+        # Cache subjects immediately for timetable (survives portal session expiry)
+        if attendance_rows:
+            subjects = []
+            for item in attendance_rows:
+                abbr = str(item.get("course_abbr", "")).strip().upper()
+                section = str(item.get("section", "")).strip().upper()
+                if abbr and section:
+                    subjects.append({"abbr": abbr, "section": section})
+            if subjects:
+                record.cached_subjects = subjects
         if _prefetch_marks_after_login_enabled():
             threading.Thread(
                 target=_prefetch_marks_after_login,
