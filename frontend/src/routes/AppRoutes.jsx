@@ -27,6 +27,9 @@ const StudyPdfViewer = lazy(() => import('../pages/StudyPdfViewer'))
 const StudyTopicPractice = lazy(() => import('../pages/StudyTopicPractice'))
 const AdminLogin = lazy(() => import('../pages/admin/AdminLogin'))
 const AdminDashboard = lazy(() => import('../pages/admin/AdminDashboard'))
+const NotificationSettings = lazy(() => import('../pages/NotificationSettings'))
+const NotificationHistory = lazy(() => import('../pages/NotificationHistory'))
+const Premium = lazy(() => import('../pages/Premium'))
 
 function RouteFallback({ message = 'Loading page...' }) {
   return (
@@ -313,6 +316,9 @@ function AppRoutes() {
           <Route path="study/:subjectId/:lessonId/practice" element={<StudyTopicPractice />} />
           <Route path="study/:subjectId/:lessonId/practice/:topicId" element={<StudyTopicPractice />} />
           <Route path="profile" element={<Profile />} />
+          <Route path="premium" element={<Premium />} />
+          <Route path="notification-settings" element={<NotificationSettings />} />
+          <Route path="notifications" element={<NotificationHistory />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

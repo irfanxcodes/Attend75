@@ -293,7 +293,7 @@ Convert the design into incremental backend + frontend changes. Foundational DB 
 - [ ] 17. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 18. Implement frontend push subscription flow and service worker integration
+- [x] 18. Implement frontend push subscription flow and service worker integration
   - Switch `frontend/vite.config.js`'s VitePWA plugin to `injectManifest` strategy (or add `importScripts`) so a custom `push` and `notificationclick` listener can run inside the generated service worker
   - Create `frontend/src/pwa/push/push-handlers.js` with the `push` event listener (parse JSON payload, build `Notification` options per category with icon/badge/actions, fallback to a generic notification on parse failure) and `notificationclick` listener (open the app at the payload's deep-link)
   - Create `frontend/src/pwa/push/subscribe.js` wrapping `PushManager.subscribe()` using the VAPID public key from `GET /push/vapid-public-key`
@@ -308,7 +308,7 @@ Convert the design into incremental backend + frontend changes. Foundational DB 
     - Cover with-deep-link and without-deep-link cases with 2-3 concrete examples
     - _Requirements: 9.3_
 
-- [ ] 19. Implement frontend Notification Settings, History, and Premium pages
+- [x] 19. Implement frontend Notification Settings, History, and Premium pages
   - Create `frontend/src/pages/NotificationSettings.jsx` (category toggles, notice sub-category filters, lead-time selector, digest time selector, loading indicator) using `pushApi.js`
   - Create `frontend/src/pages/NotificationHistory.jsx` (last-50 list, empty state, mark-read-on-click) using `pushApi.js`
   - Create `frontend/src/pages/Premium.jsx` (paywall/upsell copy, subscribe button, grace-period banner with remaining days, cancel flow with explicit confirmation) using a new `frontend/src/services/premiumApi.js`
