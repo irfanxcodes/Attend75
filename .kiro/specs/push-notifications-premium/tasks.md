@@ -158,7 +158,7 @@ Convert the design into incremental backend + frontend changes. Foundational DB 
 - [ ] 9. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 10. Implement the Attendance Monitor
+- [x] 10. Implement the Attendance Monitor
   - Create `backend/services/attendance_monitor.py` with `bracket_for`, `evaluate_attendance`, and `classes_to_recover`
   - Wire `evaluate_attendance` into the existing student-login/attendance-refresh code path (call after attendance data is computed) so live logins trigger evaluation
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6_
