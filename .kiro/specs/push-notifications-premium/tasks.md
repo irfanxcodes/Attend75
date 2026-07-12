@@ -171,7 +171,7 @@ Convert the design into incremental backend + frontend changes. Foundational DB 
     - **Property 13: Classes-needed-to-recover formula**
     - **Validates: Requirements 4.3**
 
-- [ ] 11. Implement the Timetable Reminder Engine and daily digest
+- [x] 11. Implement the Timetable Reminder Engine and daily digest
   - Create `backend/services/timetable_reminder_engine.py` with `schedule_reminders_for_today`, `get_todays_classes`, `reevaluate_has_timetable`, and `VALID_LEAD_MINUTES` validation
   - Reuse `timetable_service.get_personalized_timetable` and `_match_student_classes`; add a thin per-day filter
   - Schedule the daily run (early morning) via a `threading.Timer` loop started in `app.py`; jitter digest `scheduled_at` per student to spread across a 15-minute window
@@ -193,7 +193,7 @@ Convert the design into incremental backend + frontend changes. Foundational DB 
     - **Property 30: Daily digest content and empty-day suppression**
     - **Validates: Requirements 11.2, 11.3**
 
-- [ ] 12. Implement the Weekly Summary Service and Nudge Service
+- [x] 12. Implement the Weekly Summary Service and Nudge Service
   - Create `backend/services/weekly_summary_service.py` with `compute_weekly_summary` (guest staleness gate, Firebase-linked fresh-data selection, delta/tone/priority computation via `attendance_monitor.classes_to_recover`)
   - Create `backend/services/nudge_service.py` with `should_nudge` and `run_nudge_evaluation`
   - Schedule weekly summary (Monday 9:00 AM IST, 30-min batch spread) and nudge evaluation (daily 10:00 AM IST) via `threading.Timer` loops started in `app.py`

@@ -60,6 +60,15 @@ async def startup_event() -> None:
     # Start the deadline reminder scheduler (daily 7:00 AM IST)
     from services.deadline_service import deadline_scheduler
     deadline_scheduler.start()
+    # Start the timetable reminder scheduler (daily 5:30 AM IST)
+    from services.timetable_reminder_engine import timetable_reminder_scheduler
+    timetable_reminder_scheduler.start()
+    # Start the weekly summary scheduler (Monday 9:00 AM IST)
+    from services.weekly_summary_service import weekly_summary_scheduler
+    weekly_summary_scheduler.start()
+    # Start the nudge scheduler (daily 10:00 AM IST)
+    from services.nudge_service import nudge_scheduler
+    nudge_scheduler.start()
 
 
 @app.on_event("shutdown")
@@ -72,6 +81,12 @@ async def shutdown_event() -> None:
     push_worker.stop()
     from services.deadline_service import deadline_scheduler
     deadline_scheduler.stop()
+    from services.timetable_reminder_engine import timetable_reminder_scheduler
+    timetable_reminder_scheduler.stop()
+    from services.weekly_summary_service import weekly_summary_scheduler
+    weekly_summary_scheduler.stop()
+    from services.nudge_service import nudge_scheduler
+    nudge_scheduler.stop()
 
 app.add_middleware(
     CORSMiddleware,
