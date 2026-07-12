@@ -32,6 +32,15 @@ def init_database() -> None:
     from db.models import subject_request  # noqa: F401
     from db.models import user  # noqa: F401
     from db.models import user_rating  # noqa: F401
+    from db.models import notice  # noqa: F401
+    from db.models import user_notice  # noqa: F401
+    from db.models import attendance_alert_state  # noqa: F401
+    from db.models import notification_history  # noqa: F401
+    from db.models import notification_job  # noqa: F401
+    from db.models import notification_preference  # noqa: F401
+    from db.models import payment_transaction  # noqa: F401
+    from db.models import premium_subscription  # noqa: F401
+    from db.models import push_subscription  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
 

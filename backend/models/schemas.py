@@ -292,3 +292,83 @@ class RatingRequest(BaseModel):
         if not cleaned:
             raise ValueError("token must not be empty")
         return cleaned
+
+
+class PushSubscribeKeys(BaseModel):
+    p256dh: str = Field(..., description="P256DH public key from PushSubscription")
+    auth: str = Field(..., description="Auth secret from PushSubscription")
+
+    @field_validator("p256dh", "auth")
+    @classmethod
+    def validate_key_fields(cls, value: str, info: ValidationInfo) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError(f"{info.field_name} must not be empty")
+        return cleaned
+
+
+class PushSubscribeRequest(BaseModel):
+    token: str = Field(..., description="Session token from /login")
+    endpoint: str = Field(..., description="Web Push subscription endpoint URL")
+    keys: PushSubscribeKeys = Field(..., description="Subscription encryption keys")
+    device_info: str | None = Field(default=None, description="Optional device/browser label")
+
+    @field_validator("token", "endpoint")
+    @classmethod
+    def validate_required_push_fields(cls, value: str, info: ValidationInfo) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError(f"{info.field_name} must not be empty")
+        return cleaned
+
+
+class PushUnsubscribeRequest(BaseModel):
+    token: str = Field(..., description="Session token from /login")
+    endpoint: str = Field(..., description="Web Push subscription endpoint URL to remove")
+
+    @field_validator("token", "endpoint")
+    @classmethod
+    def validate_required_unsub_fields(cls, value: str, info: ValidationInfo) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError(f"{info.field_name} must not be empty")
+        return cleaned
+
+
+class PushHistoryReadRequest(BaseModel):
+    token: str = Field(..., description="Session token from /login")
+
+    @field_validator("token")
+    @classmethod
+    def validate_history_read_token(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("token must not be empty")
+        return cleaned
+
+
+class NotificationPreferencesUpdateRequest(BaseModel):
+    token: str = Field(..., description="Session token from /login")
+    notices_enabled: bool | None = None
+    attendance_enabled: bool | None = None
+    timetable_enabled: bool | None = None
+    daily_digest_enabled: bool | None = None
+    weekly_summary_enabled: bool | None = None
+    notice_exam: bool | None = None
+    notice_fee: bool | None = None
+    notice_academic: bool | None = None
+    notice_internship: bool | None = None
+    notice_event: bool | None = None
+    notice_guest_lecture: bool | None = None
+    notice_general: bool | None = None
+    reminder_lead_minutes: int | None = Field(default=None, description="10, 15, 30, or 60")
+    daily_digest_hour: int | None = Field(default=None, ge=0, le=23)
+    daily_digest_minute: int | None = Field(default=None, ge=0, le=59)
+
+    @field_validator("token")
+    @classmethod
+    def validate_prefs_token(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("token must not be empty")
+        return cleaned

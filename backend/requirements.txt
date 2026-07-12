@@ -9,3 +9,5 @@ psycopg2-binary
 firebase-admin
 python-dotenv
 pdfplumber
+pywebpush
+py-vapid
