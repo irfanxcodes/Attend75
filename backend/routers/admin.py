@@ -133,10 +133,12 @@ async def admin_analytics(_: dict = Depends(require_admin_user)):
 
 @router.delete("/users/{user_id}", response_model=ApiResponse)
 async def admin_delete_user(user_id: int, _: dict = Depends(require_admin_user)):
-	"""Delete a registered user and their associated portal credentials."""
+	"""Delete a registered user and their associated portal credentials + notification data."""
 	try:
 		from db.models.user import User
+		from db.models.portal_credential import PortalCredential
 		from db.session import SessionLocal
+		from services.account_deletion_service import delete_notification_data_for_student
 
 		with SessionLocal() as session:
 			user = session.query(User).filter(User.id == user_id).first()
@@ -145,8 +147,17 @@ async def admin_delete_user(user_id: int, _: dict = Depends(require_admin_user))
 					status_code=404,
 					content={"status": "error", "message": "User not found"},
 				)
+
+			# Get roll_number before deleting user (for notification data cascade)
+			credential = session.query(PortalCredential).filter(PortalCredential.user_id == user.id).first()
+			roll_number = credential.roll_number if credential else None
+
 			session.delete(user)
 			session.commit()
+
+		# Cascade delete notification data if we have a roll_number
+		if roll_number:
+			delete_notification_data_for_student(roll_number)
 
 		return ApiResponse(status="success", message="User deleted", data={"deleted_id": user_id})
 	except Exception:
@@ -155,3 +166,45 @@ async def admin_delete_user(user_id: int, _: dict = Depends(require_admin_user))
 			status_code=500,
 			content={"status": "error", "message": "Unable to delete user"},
 		)
+
+
+@router.post("/broadcast", response_model=ApiResponse)
+async def admin_broadcast(
+	payload: dict,
+	_: dict = Depends(require_admin_user),
+):
+	"""Send a broadcast push notification to premium students."""
+	from services.broadcast_service import send_broadcast
+
+	title = (payload.get("title") or "").strip()
+	body = (payload.get("body") or "").strip()
+	if not title or not body:
+		return JSONResponse(status_code=422, content={"status": "error", "message": "title and body are required"})
+
+	audience = payload.get("audience", "all")
+	program = payload.get("program")
+	priority = payload.get("priority", "standard")
+	deep_link = payload.get("deep_link")
+
+	try:
+		result = await run_in_threadpool(send_broadcast, title, body, audience, program, priority, deep_link)
+		return ApiResponse(status="success", message="Broadcast queued", data=result)
+	except Exception:
+		logger.exception("Failed to send broadcast")
+		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to send broadcast"})
+
+
+@router.get("/broadcast/stats", response_model=ApiResponse)
+async def admin_broadcast_stats(
+	title: str = Query(..., description="Broadcast title to look up stats for"),
+	_: dict = Depends(require_admin_user),
+):
+	"""Get delivery stats for a broadcast by title."""
+	from services.broadcast_service import get_broadcast_stats
+
+	try:
+		stats = await run_in_threadpool(get_broadcast_stats, title)
+		return ApiResponse(status="success", message="Broadcast stats fetched", data=stats)
+	except Exception:
+		logger.exception("Failed to fetch broadcast stats")
+		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to fetch broadcast stats"})

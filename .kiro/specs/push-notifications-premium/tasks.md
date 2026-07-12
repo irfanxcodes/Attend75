@@ -218,7 +218,7 @@ Convert the design into incremental backend + frontend changes. Foundational DB 
 - [ ] 13. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 14. Implement Admin Broadcast
+- [x] 14. Implement Admin Broadcast
   - Create `backend/services/broadcast_service.py` with `send_broadcast` and `get_broadcast_stats`
   - Extend `services/admin_service.py`'s `require_admin_user` (or add a helper) to check for `super_admin` role
   - Add `POST /admin/broadcast` and `GET /admin/broadcast/{batch}/stats` endpoints to `backend/routers/admin.py`
@@ -281,7 +281,7 @@ Convert the design into incremental backend + frontend changes. Foundational DB 
     - Cover the response shape with 2-3 concrete examples
     - _Requirements: 16.9_
 
-- [ ] 16. Implement account-deletion cascade for notification data
+- [x] 16. Implement account-deletion cascade for notification data
   - Extend the account-deletion code path (or add one in `services/subscription_manager.py`/a new `services/account_deletion_service.py`) to remove `push_subscriptions`, `notification_history`, `notification_preferences`, `attendance_alert_states`, `premium_subscriptions`, and `payment_transactions` (respecting the 365-day legal retention) for a given roll number
   - Wire this into the existing `DELETE /admin/users/{user_id}` flow in `backend/routers/admin.py` (and/or a student-facing self-service endpoint if one exists) so deletion is complete rather than partial
   - _Requirements: 18.5_
