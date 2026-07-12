@@ -95,6 +95,13 @@ class NoticeScheduler:
                     logger.info("Scheduled scrape found %d new notices for program=%s", len(new_notices), prog)
                     with record.scraper_lock:
                         process_batch(new_notices, scraper, source_program=source_program)
+                    # Dispatch push notifications for newly processed notices
+                    try:
+                        from services.notice_dispatcher import dispatch_for_new_notices
+                        processed_ids = [n["notice_id"] for n in new_notices]
+                        dispatch_for_new_notices(processed_ids)
+                    except Exception as dispatch_exc:
+                        logger.warning("Notice dispatch failed for program=%s: %s", prog, dispatch_exc)
                 except Exception as exc:
                     logger.warning("Scheduled scrape failed for program=%s: %s", prog, exc)
 
@@ -118,6 +125,13 @@ class NoticeScheduler:
                 return {"status": "done", "new_count": 0, "message": "All notices already processed"}
 
             count = process_batch(new_notices, scraper, source_program=source_program)
+            # Dispatch push notifications for newly processed notices
+            try:
+                from services.notice_dispatcher import dispatch_for_new_notices
+                processed_ids = [n["notice_id"] for n in new_notices]
+                dispatch_for_new_notices(processed_ids)
+            except Exception as dispatch_exc:
+                logger.warning("Notice dispatch failed on immediate scrape: %s", dispatch_exc)
             return {"status": "done", "new_count": count, "message": f"{count} new notices processed"}
         finally:
             self._scrape_in_progress = False

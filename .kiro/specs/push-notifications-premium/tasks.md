@@ -104,7 +104,7 @@ Convert the design into incremental backend + frontend changes. Foundational DB 
 - [ ] 5. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 6. Implement the Push Worker delivery engine
+- [x] 6. Implement the Push Worker delivery engine
   - Create `backend/services/push_worker.py` with a `PushWorker` class (threading-based, default concurrency 10) that claims `push_send` jobs via `notification_queue.claim_pending_jobs`
   - Integrate `pywebpush.webpush` with VAPID keys read from environment (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_CONTACT_EMAIL`); document key generation in a short comment/README note
   - Implement per-subscription delivery: success → insert `notification_history` row + `mark_done`; HTTP 410 → `subscription_manager.remove_subscription_by_id`; HTTP 429/5xx → `mark_failed(can_retry=True)`; other errors → `mark_failed(can_retry=False)` + failed history row
@@ -119,7 +119,7 @@ Convert the design into incremental backend + frontend changes. Foundational DB 
     - Cover the smoke-tested Req 7.1 (protocol wiring) with 1-2 examples using a mocked `pywebpush.webpush`
     - _Requirements: 7.1_
 
-- [ ] 7. Implement the Notice Dispatcher and hook it into the notice pipeline
+- [x] 7. Implement the Notice Dispatcher and hook it into the notice pipeline
   - Create `backend/services/notice_dispatcher.py` with `dispatch_for_new_notices`, `is_timetable_change_title`, and `_subscribed_students_for_program`
   - Call `notice_dispatcher.dispatch_for_new_notices(notice_ids)` from `services/notice_scheduler.py`'s `_execute_scrape` and `trigger_immediate` right after `process_batch` succeeds
   - Implement batch consolidation (>3 notices) and idempotent `notification_sent_at` marking on `Notice`
@@ -142,7 +142,7 @@ Convert the design into incremental backend + frontend changes. Foundational DB 
     - **Property 35: Timetable cache invalidation**
     - **Validates: Requirements 13.3**
 
-- [ ] 8. Implement the deadline reminder job
+- [x] 8. Implement the deadline reminder job
   - Add `run_deadline_evaluation` to `notice_dispatcher.py` (or a sibling `deadline_service.py`), scheduled daily at 7:00 AM IST via a `threading.Timer` loop started in `app.py`
   - Implement day-count-to-reminder-type mapping and `UserNotice.dismissed` / preference exclusion checks
   - _Requirements: 10.1, 10.2, 10.3, 10.5, 10.7_

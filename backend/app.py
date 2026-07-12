@@ -54,6 +54,12 @@ async def startup_event() -> None:
     # Start the retention cleanup scheduler (daily)
     from services.retention_service import retention_scheduler
     retention_scheduler.start()
+    # Start the push notification delivery worker
+    from services.push_worker import push_worker
+    push_worker.start()
+    # Start the deadline reminder scheduler (daily 7:00 AM IST)
+    from services.deadline_service import deadline_scheduler
+    deadline_scheduler.start()
 
 
 @app.on_event("shutdown")
@@ -62,6 +68,10 @@ async def shutdown_event() -> None:
     notice_scheduler.stop()
     from services.retention_service import retention_scheduler
     retention_scheduler.stop()
+    from services.push_worker import push_worker
+    push_worker.stop()
+    from services.deadline_service import deadline_scheduler
+    deadline_scheduler.stop()
 
 app.add_middleware(
     CORSMiddleware,
