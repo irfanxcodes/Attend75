@@ -29,5 +29,6 @@ class Notice(Base):
     processing_status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
     processing_version: Mapped[int] = mapped_column(Integer, default=1)
     source_program: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    notification_sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)

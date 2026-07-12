@@ -1,22 +1,29 @@
 # Attend75 Backend Deployment Guide
 
+## Server: Oracle Cloud Free Tier (Ubuntu)
+- **IP:** 129.159.239.36
+- **User:** ubuntu
+- **SSH:** `ssh -i ~/Downloads/oracle-vps.key ubuntu@129.159.239.36`
+
+---
+
 ## Quick Deploy (When updating existing server)
 
 After pushing code to GitHub:
 
 ```bash
 # 1. SSH into the server
-ssh root@168.144.112.20
+ssh ubuntu@129.159.239.36
 
 # 2. Pull latest code
 cd /opt/attend75/repo
 git pull origin main
 
 # 3. Copy backend files to deployment directory
-cp -r /opt/attend75/repo/backend/* /opt/attend75/backend/
+sudo cp -r /opt/attend75/repo/backend/* /opt/attend75/backend/
 
 # 4. Restore the production .env (git pull may overwrite it)
-cat > /opt/attend75/backend/.env << 'EOF'
+sudo cat > /opt/attend75/backend/.env << 'EOF'
 DATABASE_URL=postgresql://attend75user:attend75db2026@localhost:5432/attend75
 CREDENTIAL_ENCRYPTION_KEY=aRC25brJebPQXJq9cH6OmzRJ3krZYpFVP2yglU2NmMM=
 FIREBASE_SERVICE_ACCOUNT_FILE=/opt/attend75/backend/firebase-service-account.json
@@ -32,34 +39,61 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 # 6. Restart the backend
-systemctl restart attend75
+sudo systemctl restart attend75
 
 # 7. Verify it's running
-systemctl status attend75
+sudo systemctl status attend75
 curl http://localhost:8000/health
 ```
 
-That's it. Takes about 30 seconds.
-
 ---
 
-## Full Setup Guide (Fresh server from scratch)
+## Full Setup Guide (Oracle Cloud Free Tier - Fresh)
 
 ### Prerequisites
-- DigitalOcean droplet with Ubuntu 24.04
+- Oracle Cloud Free Tier VM (Ubuntu 22.04/24.04, ARM Ampere A1 or AMD)
 - Domain name with DNS configured
 - Firebase service account JSON
+- SSH key configured in Oracle Cloud Console
+
+### Step 0: Oracle Cloud Networking (CRITICAL)
+
+Oracle VMs have TWO firewalls. You must open ports in BOTH:
+
+**A) Oracle Cloud Console — VCN Security List:**
+1. Go to Networking → Virtual Cloud Networks → your VCN
+2. Click on the Subnet → Security Lists → Default Security List
+3. Add Ingress Rules:
+
+| Source CIDR | Protocol | Dest Port | Description |
+|-------------|----------|-----------|-------------|
+| `0.0.0.0/0` | TCP | 80 | HTTP |
+| `0.0.0.0/0` | TCP | 443 | HTTPS |
+
+**B) OS-level iptables (done in Step 1 below)**
 
 ### Step 1: Initial Server Setup
 
 ```bash
-ssh root@YOUR_DROPLET_IP
+ssh ubuntu@129.159.239.36
 
 # Update system
-apt update && apt upgrade -y
+sudo apt update && sudo apt upgrade -y
 
 # Install dependencies
-apt install -y python3 python3-pip python3-venv postgresql postgresql-contrib nginx certbot python3-certbot-nginx git
+sudo apt install -y python3 python3-pip python3-venv postgresql postgresql-contrib nginx certbot python3-certbot-nginx git libpq-dev
+
+# Open ports in iptables (Oracle Ubuntu images block ports by default)
+sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
+sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+sudo netfilter-persistent save
+
+# Add swap space (recommended for free tier)
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 ```
 
 ### Step 2: PostgreSQL Database
@@ -74,7 +108,8 @@ sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE attend75 TO attend75u
 
 ```bash
 # Create project directory
-mkdir -p /opt/attend75/backend
+sudo mkdir -p /opt/attend75/backend
+sudo chown -R ubuntu:ubuntu /opt/attend75
 
 # Clone repo
 cd /opt/attend75
@@ -95,14 +130,8 @@ pip install -r requirements.txt
 Upload your Firebase service account JSON to the server:
 
 ```bash
-# Create the file (paste your JSON content between the EOF markers)
-cat > /opt/attend75/backend/firebase-service-account.json << 'EOF'
-{
-  "type": "service_account",
-  "project_id": "attend75-534c2",
-  ... (your full JSON here)
-}
-EOF
+# From your LOCAL machine:
+scp /path/to/firebase-service-account.json ubuntu@129.159.239.36:/opt/attend75/backend/firebase-service-account.json
 ```
 
 ### Step 5: Production Environment Variables
@@ -119,16 +148,25 @@ CORS_ALLOW_ORIGIN_REGEX=https?://(.*\.)?attend75\.xyz$
 EOF
 ```
 
-### Step 6: Database Tables
+### Step 6: Restore Database (from old server)
+
+```bash
+# ON OLD SERVER (168.144.112.20):
+pg_dump -U attend75user -d attend75 -F c -f /tmp/attend75_backup.dump
+
+# ON YOUR LOCAL MACHINE:
+scp root@168.144.112.20:/tmp/attend75_backup.dump ./attend75_backup.dump
+scp ./attend75_backup.dump ubuntu@129.159.239.36:/tmp/attend75_backup.dump
+
+# ON NEW ORACLE SERVER:
+sudo -u postgres pg_restore -d attend75 /tmp/attend75_backup.dump
+```
+
+Or if starting fresh (no data to migrate):
 
 ```bash
 cd /opt/attend75/backend
 source .venv/bin/activate
-
-# Option A: Run the app once (init_database creates all tables)
-timeout 5 uvicorn app:app --host 0.0.0.0 --port 8000 || true
-
-# Option B: Run alembic migrations
 export DATABASE_URL=postgresql://attend75user:attend75db2026@localhost:5432/attend75
 alembic upgrade head
 ```
@@ -136,14 +174,14 @@ alembic upgrade head
 ### Step 7: Systemd Service (auto-start on boot)
 
 ```bash
-cat > /etc/systemd/system/attend75.service << 'EOF'
+sudo cat > /etc/systemd/system/attend75.service << 'EOF'
 [Unit]
 Description=Attend75 Backend API
 After=network.target postgresql.service
 
 [Service]
 Type=simple
-User=root
+User=ubuntu
 WorkingDirectory=/opt/attend75/backend
 Environment=PATH=/opt/attend75/backend/.venv/bin:/usr/bin:/bin
 EnvironmentFile=/opt/attend75/backend/.env
@@ -155,15 +193,15 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-systemctl daemon-reload
-systemctl enable attend75
-systemctl start attend75
+sudo systemctl daemon-reload
+sudo systemctl enable attend75
+sudo systemctl start attend75
 ```
 
 ### Step 8: Nginx Reverse Proxy
 
 ```bash
-cat > /etc/nginx/sites-available/attend75 << 'EOF'
+sudo tee /etc/nginx/sites-available/attend75 << 'EOF'
 server {
     listen 80;
     server_name api.attend75.xyz;
@@ -180,50 +218,55 @@ server {
 }
 EOF
 
-ln -sf /etc/nginx/sites-available/attend75 /etc/nginx/sites-enabled/
-rm -f /etc/nginx/sites-enabled/default
-nginx -t && systemctl restart nginx
+sudo ln -sf /etc/nginx/sites-available/attend75 /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t && sudo systemctl restart nginx
 ```
 
 ### Step 9: SSL Certificate
 
+**Important:** DNS must be pointing to the new IP (129.159.239.36) FIRST before running certbot.
+
 ```bash
-certbot --nginx -d api.attend75.xyz --non-interactive --agree-tos --email irfanxcodes@gmail.com
+sudo certbot --nginx -d api.attend75.xyz --non-interactive --agree-tos --email irfanxcodes@gmail.com
 ```
 
 ### Step 10: DNS Setup (Namecheap)
 
-Add these DNS records on Namecheap → Advanced DNS:
+Update these DNS records on Namecheap → Advanced DNS:
 
 | Type | Host | Value |
 |------|------|-------|
 | A Record | `@` | `216.198.79.1` (Vercel's IP) |
-| A Record | `api` | `168.144.112.20` (your droplet IP) |
+| A Record | `api` | `129.159.239.36` (Oracle Cloud VM) |
 | CNAME | `www` | `fc029b5438e93b6d.vercel-dns-017.com.` |
 
 ### Step 11: Vercel Frontend
 
-Add `attend75.xyz` and `www.attend75.xyz` as domains in Vercel project settings.
+No changes needed — frontend stays on Vercel as-is.
 
 ---
 
 ## Useful Commands
 
 ```bash
+# SSH into server
+ssh ubuntu@129.159.239.36
+
 # Check backend status
-systemctl status attend75
+sudo systemctl status attend75
 
 # View live logs
-journalctl -u attend75 -f
+sudo journalctl -u attend75 -f
 
 # Restart backend
-systemctl restart attend75
+sudo systemctl restart attend75
 
 # Check nginx status
-systemctl status nginx
+sudo systemctl status nginx
 
 # Renew SSL (auto-renews, but manual command)
-certbot renew
+sudo certbot renew
 
 # Check database
 sudo -u postgres psql -d attend75 -c "SELECT tablename FROM pg_tables WHERE schemaname='public';"
@@ -233,6 +276,9 @@ df -h
 
 # Check memory
 free -m
+
+# Check swap
+swapon --show
 ```
 
 ## Architecture
@@ -242,13 +288,16 @@ Internet
     │
     ├── attend75.xyz ──────→ Vercel (frontend)
     │
-    └── api.attend75.xyz ──→ Nginx (port 443, SSL)
+    └── api.attend75.xyz ──→ Oracle Cloud VM (129.159.239.36)
                                 │
-                                └──→ Uvicorn (port 8000)
-                                        │
-                                        ├── FastAPI app
-                                        ├── PostgreSQL (localhost:5432)
-                                        └── Firebase Admin SDK
+                                ├── Nginx (port 443, SSL)
+                                │     │
+                                │     └──→ Uvicorn (port 8000)
+                                │             │
+                                │             ├── FastAPI app
+                                │             └── Firebase Admin SDK
+                                │
+                                └── PostgreSQL (localhost:5432)
 ```
 
 ## Important Files on Server
@@ -264,11 +313,33 @@ Internet
 | `/etc/nginx/sites-available/attend75` | Nginx config |
 | `/etc/letsencrypt/` | SSL certificates |
 
+## Oracle Cloud Specific Notes
+
+- **Default user is `ubuntu`**, not `root`. Use `sudo` for privileged commands.
+- **Two firewalls:** Always check both VCN Security List (cloud console) AND iptables (OS level).
+- **Free tier limits:** 1 GB RAM (AMD) or up to 24 GB RAM (4 Ampere A1 OCPUs shared). Add swap regardless.
+- **Boot volume:** 47 GB by default (expandable to 200 GB for free).
+- **Always-free:** The VM won't be terminated as long as you're within free tier limits.
+- **ARM (Ampere A1):** If using ARM, most Python packages work fine. If any C extension fails to build, install the `-dev` headers (e.g., `libpq-dev` for psycopg2).
+
 ## Troubleshooting
+
+**Can't reach server on port 80/443:**
+```bash
+# Check iptables
+sudo iptables -L INPUT -n --line-numbers
+# Check if nginx is listening
+sudo ss -tlnp | grep -E '80|443'
+# If ports are blocked, re-add rules:
+sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
+sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+sudo netfilter-persistent save
+```
+Also verify Oracle Cloud Console → VCN → Security List has ingress rules for 80 and 443.
 
 **Backend won't start:**
 ```bash
-journalctl -u attend75 --no-pager -n 50
+sudo journalctl -u attend75 --no-pager -n 50
 ```
 
 **502 Bad Gateway from nginx:**
@@ -276,7 +347,7 @@ journalctl -u attend75 --no-pager -n 50
 # Check if uvicorn is running
 ss -tlnp | grep 8000
 # If not, check logs
-journalctl -u attend75 -n 20
+sudo journalctl -u attend75 -n 20
 ```
 
 **Database connection error:**
@@ -287,6 +358,35 @@ sudo systemctl status postgresql
 
 **SSL certificate expired:**
 ```bash
-certbot renew
-systemctl restart nginx
+sudo certbot renew
+sudo systemctl restart nginx
 ```
+
+**Out of memory (OOM kills):**
+```bash
+# Check if swap is active
+swapon --show
+free -m
+# If no swap, add it:
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+```
+
+## Migration Checklist (DigitalOcean → Oracle)
+
+- [x] Update DEPLOYMENT_GUIDE.md with new IP and Oracle instructions
+- [ ] Set up Oracle VCN Security List (ports 80, 443)
+- [ ] Provision and SSH into new VM
+- [ ] Install packages, open iptables, add swap
+- [ ] Set up PostgreSQL
+- [ ] Clone repo and set up backend
+- [ ] Copy firebase-service-account.json to new server
+- [ ] Migrate database (pg_dump → pg_restore)
+- [ ] Set up systemd service
+- [ ] Set up nginx
+- [ ] Update DNS (api A record → 129.159.239.36)
+- [ ] Run certbot for SSL
+- [ ] Verify everything works
+- [ ] Decommission old DigitalOcean droplet
