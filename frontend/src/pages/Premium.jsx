@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Bell, Check, ChevronLeft, Crown, LogIn, Shield, Zap } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import useAppStore from '../hooks/useAppStore'
-import { getPremiumStatus } from '../services/premiumApi'
+import { getPremiumStatus, initiatePremiumSubscription } from '../services/premiumApi'
 
 const FEATURES = [
   { icon: Bell, label: 'Real-time notice alerts', desc: 'Get notified instantly when new notices are posted' },
@@ -17,6 +17,8 @@ function Premium() {
   const navigate = useNavigate()
   const [status, setStatus] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [subscribeError, setSubscribeError] = useState('')
+  const [isSubscribing, setIsSubscribing] = useState(false)
 
   const isGuest = user.authProvider === 'guest' || !user.authProvider || user.authProvider === 'demo'
 
@@ -117,11 +119,28 @@ function Premium() {
 
             <button
               type="button"
-              className="mt-4 w-full rounded-2xl bg-[#FF916C] py-3.5 text-[14px] font-bold text-[#1D183E] shadow-lg transition active:scale-[0.97]"
-              onClick={() => { /* TODO: PhonePe integration */ }}
+              className="mt-4 w-full rounded-2xl bg-[#FF916C] py-3.5 text-[14px] font-bold text-[#1D183E] shadow-lg transition active:scale-[0.97] disabled:opacity-60"
+              disabled={isSubscribing}
+              onClick={async () => {
+                setSubscribeError('')
+                setIsSubscribing(true)
+                try {
+                  const result = await initiatePremiumSubscription({ token })
+                  if (result.redirect_url) {
+                    window.location.href = result.redirect_url
+                  }
+                } catch (err) {
+                  setSubscribeError(err.message || 'Unable to start subscription. Please try again.')
+                } finally {
+                  setIsSubscribing(false)
+                }
+              }}
             >
-              Subscribe Now
+              {isSubscribing ? 'Processing...' : 'Subscribe Now'}
             </button>
+            {subscribeError && (
+              <p className="mt-2 text-center text-[11px] text-[#FF5B5B]">{subscribeError}</p>
+            )}
           </div>
 
           {/* Features list */}
