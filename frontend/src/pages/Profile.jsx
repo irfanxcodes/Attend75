@@ -169,6 +169,41 @@ function Profile() {
         </div>
       </div>
 
+      {/* Premium & Notifications */}
+      <button
+        type="button"
+        onClick={() => navigate('/app/premium')}
+        className="flex w-full items-center gap-3 rounded-2xl bg-[#4A466A] px-4 py-4 ring-1 ring-white/5 transition active:scale-[0.99] hover:bg-[#565275]"
+      >
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FF916C]/15">
+          <Crown className="h-5 w-5 text-[#FF916C]" strokeWidth={1.8} />
+        </div>
+        <div className="min-w-0 flex-1 text-left">
+          <p className="text-sm font-bold text-[#F7F4FF]">Premium</p>
+          <p className="text-[10px] text-[#9F9AB5]">Push notifications, class reminders & more</p>
+        </div>
+        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[#9F9AB5]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => navigate('/app/notifications')}
+        className="flex w-full items-center gap-3 rounded-2xl bg-[#4A466A] px-4 py-4 ring-1 ring-white/5 transition active:scale-[0.99] hover:bg-[#565275]"
+      >
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#6CB4FF]/15">
+          <Bell className="h-5 w-5 text-[#6CB4FF]" strokeWidth={1.8} />
+        </div>
+        <div className="min-w-0 flex-1 text-left">
+          <p className="text-sm font-bold text-[#F7F4FF]">Notifications</p>
+          <p className="text-[10px] text-[#9F9AB5]">History & notification settings</p>
+        </div>
+        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[#9F9AB5]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+      </button>
+
       {/* Share */}
       <div className="rounded-2xl bg-[#4A466A] px-4 py-4 ring-1 ring-white/5">
         <div className="flex items-center gap-3">
@@ -262,41 +297,6 @@ function Profile() {
           </p>
         </div>
       ) : null}
-
-      {/* Premium & Notifications */}
-      <button
-        type="button"
-        onClick={() => navigate('/app/premium')}
-        className="flex w-full items-center gap-3 rounded-2xl bg-[#4A466A] px-4 py-4 ring-1 ring-white/5 transition active:scale-[0.99] hover:bg-[#565275]"
-      >
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FF916C]/15">
-          <Crown className="h-5 w-5 text-[#FF916C]" strokeWidth={1.8} />
-        </div>
-        <div className="min-w-0 flex-1 text-left">
-          <p className="text-sm font-bold text-[#F7F4FF]">Premium</p>
-          <p className="text-[10px] text-[#9F9AB5]">Push notifications, class reminders & more</p>
-        </div>
-        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[#9F9AB5]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="9 18 15 12 9 6" />
-        </svg>
-      </button>
-
-      <button
-        type="button"
-        onClick={() => navigate('/app/notifications')}
-        className="flex w-full items-center gap-3 rounded-2xl bg-[#4A466A] px-4 py-4 ring-1 ring-white/5 transition active:scale-[0.99] hover:bg-[#565275]"
-      >
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#6CB4FF]/15">
-          <Bell className="h-5 w-5 text-[#6CB4FF]" strokeWidth={1.8} />
-        </div>
-        <div className="min-w-0 flex-1 text-left">
-          <p className="text-sm font-bold text-[#F7F4FF]">Notifications</p>
-          <p className="text-[10px] text-[#9F9AB5]">History & notification settings</p>
-        </div>
-        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[#9F9AB5]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="9 18 15 12 9 6" />
-        </svg>
-      </button>
 
       {/* Logout */}
       <button
