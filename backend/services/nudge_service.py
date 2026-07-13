@@ -102,7 +102,7 @@ def run_nudge_evaluation() -> int:
 
             payload = build_payload(
                 category="nudge",
-                title="📬 Updates waiting for you",
+                title="👋 We miss you! Updates waiting",
                 body=body,
                 deep_link="/app/dashboard",
                 priority="standard",

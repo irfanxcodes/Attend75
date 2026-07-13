@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Bell, Check, ChevronLeft, Crown, Shield, Zap } from 'lucide-react'
+import { Bell, Check, ChevronLeft, Crown, LogIn, Shield, Zap } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import useAppStore from '../hooks/useAppStore'
 import { getPremiumStatus } from '../services/premiumApi'
@@ -12,11 +12,13 @@ const FEATURES = [
 ]
 
 function Premium() {
-  const { state: { session } } = useAppStore()
+  const { state: { session, user } } = useAppStore()
   const token = session.token
   const navigate = useNavigate()
   const [status, setStatus] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
+
+  const isGuest = user.authProvider === 'guest' || !user.authProvider || user.authProvider === 'demo'
 
   useEffect(() => {
     if (!token) return
@@ -72,6 +74,26 @@ function Premium() {
             className="mt-3 rounded-full bg-white/10 px-4 py-1.5 text-[11px] font-semibold text-[#F7F4FF]"
           >
             Manage notification settings →
+          </button>
+        </div>
+      )}
+
+      {/* Gmail linking prompt for guest premium users */}
+      {isPremium && isGuest && (
+        <div className="mb-4 rounded-xl bg-[#6CB4FF]/10 p-4 ring-1 ring-[#6CB4FF]/20">
+          <div className="flex items-center gap-2">
+            <LogIn className="h-5 w-5 text-[#6CB4FF]" />
+            <p className="text-[13px] font-bold text-[#6CB4FF]">Link your Google account</p>
+          </div>
+          <p className="mt-2 text-[11px] leading-relaxed text-[#D8D4E7]">
+            To get <span className="font-semibold text-[#F7F4FF]">background attendance alerts</span> (even without opening the app), link your Google account. This lets us securely check your attendance every 6 hours.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate('/app/profile')}
+            className="mt-3 w-full rounded-xl bg-[#6CB4FF] py-2.5 text-[12px] font-bold text-[#1D183E] transition active:scale-[0.97]"
+          >
+            Link Google Account →
           </button>
         </div>
       )}

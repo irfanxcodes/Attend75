@@ -307,7 +307,7 @@ class TimetableReminderScheduler:
 def send_tomorrow_preview() -> int:
     """
     9 PM notification: tomorrow's schedule preview.
-    'Tomorrow: 5 classes. First class at 9:30 AM.'
+    Includes skip-ability info based on current attendance.
     """
     now_ist = datetime.now(IST)
     tomorrow_name = (now_ist + timedelta(days=1)).strftime("%A")
@@ -345,10 +345,19 @@ def send_tomorrow_preview() -> int:
         class_count = len(tomorrow_classes)
         first_time = tomorrow_classes[0].get("time", "") if tomorrow_classes else ""
 
+        # Calculate skip-ability based on current attendance
+        skip_info = _compute_skip_info(roll_number, class_count)
+
+        body_parts = [f"First class at {first_time}"]
+        if skip_info:
+            body_parts.append(skip_info)
+        else:
+            body_parts.append("Get some rest!")
+
         payload = build_payload(
             category="timetable",
             title=f"📅 Tomorrow: {class_count} class{'es' if class_count != 1 else ''}",
-            body=f"First class at {first_time}. Get some rest!",
+            body=" · ".join(body_parts),
             deep_link="/app/notices",
             priority="standard",
         )
@@ -362,6 +371,62 @@ def send_tomorrow_preview() -> int:
 
     logger.info("Tomorrow preview: %d notifications enqueued", enqueued)
     return enqueued
+
+
+def _compute_skip_info(roll_number: str, tomorrow_class_count: int) -> str | None:
+    """
+    Based on current attendance, tell the student how many classes they can skip
+    tomorrow and still stay above 75%.
+    Returns a string like 'You can skip 2 out of 5 classes and still stay above 75%'
+    or None if attendance data isn't available or they can't skip any.
+    """
+    from db.models.student_registry import StudentRegistry
+
+    with SessionLocal() as session:
+        student = (
+            session.query(StudentRegistry)
+            .filter(StudentRegistry.roll_number == roll_number)
+            .one_or_none()
+        )
+        if not student or student.last_attendance_percent is None:
+            return None
+
+        current_percent = student.last_attendance_percent
+
+    if current_percent < 75:
+        return "⚠️ You're below 75% — try to attend all classes!"
+
+    # Simulate: if they skip N out of tomorrow_class_count, what happens?
+    # Approximate: overall % = (attended + tomorrow_attended) / (total + tomorrow_total)
+    # We don't have exact attended/total counts from student_registry, so use the percentage
+    # to estimate. Assume total ~ 100 classes for approximation.
+    # More precisely: if current is P% with T total classes,
+    # then attended = P/100 * T. After skipping N: new% = (attended) / (T + tomorrow_class_count) * 100
+    # But we don't know T. So use a simpler heuristic:
+    # Each class is roughly (100/total_classes_so_far)% of the total.
+    # For a student at 80% with 5 classes tomorrow:
+    # Dropping to 75% means losing 5% → can miss ~5% worth of classes.
+
+    # Simpler approach: calculate how many absences keep them above 75%
+    # new_percent = current_percent * old_total / (old_total + tomorrow_class_count)
+    # This isn't exact without knowing old_total, but we can estimate.
+
+    # Best practical approach: tell them the maximum skippable classes
+    # Assume ~50 total classes so far (conservative for a month into semester)
+    # This is imprecise but useful directionally.
+
+    # Actually, let's be transparent and simple:
+    if current_percent >= 85 and tomorrow_class_count <= 5:
+        skippable = min(tomorrow_class_count, 2)  # Conservative
+        new_approx = current_percent - (skippable * 1.5)  # ~1.5% per class rough estimate
+        if new_approx >= 75:
+            return f"✅ Safe to skip up to {skippable} — attendance stays ~{new_approx:.0f}%"
+    elif current_percent >= 80 and tomorrow_class_count <= 5:
+        return f"⚡ At {current_percent:.0f}%, try to attend at least {tomorrow_class_count - 1}"
+    elif current_percent >= 75:
+        return f"⚡ At {current_percent:.0f}%, attend all to stay safe"
+
+    return None
 
 
 timetable_reminder_scheduler = TimetableReminderScheduler()

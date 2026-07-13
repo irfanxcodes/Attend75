@@ -298,6 +298,14 @@ def fetch_consolidated_marks(token: str, semester_id: str | None, force_refresh:
         observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
         resolved_id, resolved_label = _resolve_semester_usage_context(payload, semester_id)
         observe_marks_open(semester_id=resolved_id, semester_label=resolved_label)
+
+        # Check if marks have changed and notify premium student
+        try:
+            from services.marks_notification_service import check_and_notify_marks_update
+            check_and_notify_marks_update(record.roll_number, payload)
+        except Exception:
+            pass  # Best-effort, never block marks response
+
         return payload
     except PortalNetworkError as exc:
         observe_scrape(
