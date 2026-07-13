@@ -85,10 +85,25 @@ def run_nudge_evaluation() -> int:
             if not should_nudge(days_since_last_seen, days_since_last_nudge):
                 continue
 
+            # Build contextual nudge message (not generic)
+            unread_notices = _count_unread_notices(roll_number, session)
+            upcoming_deadlines = _count_upcoming_deadlines(session)
+
+            body_parts = []
+            if unread_notices > 0:
+                body_parts.append(f"{unread_notices} new notice{'s' if unread_notices > 1 else ''}")
+            if upcoming_deadlines > 0:
+                body_parts.append(f"{upcoming_deadlines} upcoming deadline{'s' if upcoming_deadlines > 1 else ''}")
+
+            if body_parts:
+                body = f"You have {' and '.join(body_parts)}. Tap to check."
+            else:
+                body = f"You haven't checked attendance in {days_since_last_seen} days. Tap to see if anything changed."
+
             payload = build_payload(
                 category="nudge",
-                title="👋 We miss you!",
-                body=f"You haven't checked attendance in {days_since_last_seen} days. Tap to see if anything changed.",
+                title="📬 Updates waiting for you",
+                body=body,
                 deep_link="/app/dashboard",
                 priority="standard",
             )
@@ -142,3 +157,44 @@ class NudgeScheduler:
 
 
 nudge_scheduler = NudgeScheduler()
+
+
+def _count_unread_notices(roll_number: str, session) -> int:
+    """Count notices not yet opened by this student (recent ones)."""
+    from db.models.notice import Notice
+    from db.models.user_notice import UserNotice
+    from datetime import timedelta
+
+    cutoff = datetime.utcnow() - timedelta(days=7)
+    total_recent = (
+        session.query(Notice)
+        .filter(Notice.processing_status == "done", Notice.created_at >= cutoff)
+        .count()
+    )
+    opened = (
+        session.query(UserNotice)
+        .filter(UserNotice.user_id == roll_number, UserNotice.opened_at.isnot(None))
+        .count()
+    )
+    return max(0, total_recent - opened)
+
+
+def _count_upcoming_deadlines(session) -> int:
+    """Count notices with deadlines in the next 7 days."""
+    from db.models.notice import Notice
+    from datetime import timedelta, timezone
+
+    ist = timezone(timedelta(hours=5, minutes=30))
+    today = datetime.now(ist).date()
+    week_ahead = today + timedelta(days=7)
+
+    return (
+        session.query(Notice)
+        .filter(
+            Notice.processing_status == "done",
+            Notice.deadline.isnot(None),
+            Notice.deadline >= today,
+            Notice.deadline <= week_ahead,
+        )
+        .count()
+    )

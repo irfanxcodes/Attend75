@@ -169,10 +169,14 @@ def schedule_reminders_for_today() -> int:
                     subjects = sorted(set(c.get("course", "") for c in today_classes_all))[:5]
                     subjects_str = ", ".join(subjects)
 
+                    # Build richer digest body
+                    body_lines = [f"⏰ First class at {first_class_time}"]
+                    body_lines.append(f"📚 Subjects: {subjects_str}")
+
                     payload = build_payload(
                         category="digest",
-                        title=f"📅 {class_count} classes today",
-                        body=f"First class at {first_class_time}. Subjects: {subjects_str}",
+                        title=f"Good morning! {class_count} class{'es' if class_count != 1 else ''} today",
+                        body="\n".join(body_lines),
                         deep_link="/app/notices",
                         priority="standard",
                     )
@@ -242,16 +246,20 @@ class TimetableReminderScheduler:
     def __init__(self):
         self._running = False
         self._timer: threading.Timer | None = None
+        self._evening_timer: threading.Timer | None = None
 
     def start(self) -> None:
         self._running = True
         self._schedule_next()
+        self._schedule_evening()
         logger.info("TimetableReminderScheduler started")
 
     def stop(self) -> None:
         self._running = False
         if self._timer:
             self._timer.cancel()
+        if self._evening_timer:
+            self._evening_timer.cancel()
 
     def _schedule_next(self) -> None:
         if not self._running:
@@ -266,6 +274,19 @@ class TimetableReminderScheduler:
         self._timer.daemon = True
         self._timer.start()
 
+    def _schedule_evening(self) -> None:
+        """Schedule the 9 PM 'tomorrow preview' notification."""
+        if not self._running:
+            return
+        now_ist = datetime.now(IST)
+        target = now_ist.replace(hour=21, minute=0, second=0, microsecond=0)
+        if now_ist >= target:
+            target += timedelta(days=1)
+        delay = (target - now_ist).total_seconds()
+        self._evening_timer = threading.Timer(delay, self._run_evening_cycle)
+        self._evening_timer.daemon = True
+        self._evening_timer.start()
+
     def _run_cycle(self) -> None:
         try:
             schedule_reminders_for_today()
@@ -273,6 +294,74 @@ class TimetableReminderScheduler:
             logger.exception("TimetableReminderScheduler cycle failed")
         finally:
             self._schedule_next()
+
+    def _run_evening_cycle(self) -> None:
+        try:
+            send_tomorrow_preview()
+        except Exception:
+            logger.exception("TimetableReminderScheduler evening cycle failed")
+        finally:
+            self._schedule_evening()
+
+
+def send_tomorrow_preview() -> int:
+    """
+    9 PM notification: tomorrow's schedule preview.
+    'Tomorrow: 5 classes. First class at 9:30 AM.'
+    """
+    now_ist = datetime.now(IST)
+    tomorrow_name = (now_ist + timedelta(days=1)).strftime("%A")
+    enqueued = 0
+
+    with SessionLocal() as session:
+        students = (
+            session.query(PushSubscription.roll_number)
+            .join(PremiumSubscription, PremiumSubscription.roll_number == PushSubscription.roll_number)
+            .filter(
+                PremiumSubscription.status.in_(["active", "grace"]),
+                PushSubscription.has_timetable.is_(True),
+            )
+            .distinct()
+            .all()
+        )
+
+    notice = _find_latest_timetable_notice()
+    if not notice or not notice.cleaned_text:
+        return 0
+
+    schedule = _parse_timetable_from_text(notice.cleaned_text)
+    if not schedule:
+        return 0
+
+    tomorrow_classes = [c for c in schedule if c.get("day") == tomorrow_name]
+    if not tomorrow_classes:
+        return 0
+
+    for (roll_number,) in students:
+        prefs = get_or_create_preferences(roll_number)
+        if not should_send(prefs, "timetable_enabled"):
+            continue
+
+        class_count = len(tomorrow_classes)
+        first_time = tomorrow_classes[0].get("time", "") if tomorrow_classes else ""
+
+        payload = build_payload(
+            category="timetable",
+            title=f"📅 Tomorrow: {class_count} class{'es' if class_count != 1 else ''}",
+            body=f"First class at {first_time}. Get some rest!",
+            deep_link="/app/notices",
+            priority="standard",
+        )
+
+        notification_queue.enqueue(
+            "push_send",
+            {"roll_number": roll_number, "notification": payload},
+            target_roll=roll_number,
+        )
+        enqueued += 1
+
+    logger.info("Tomorrow preview: %d notifications enqueued", enqueued)
+    return enqueued
 
 
 timetable_reminder_scheduler = TimetableReminderScheduler()

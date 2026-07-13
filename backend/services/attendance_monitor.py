@@ -146,12 +146,13 @@ def _evaluate_single(roll_number: str, subject_abbr: str, percent: float, attend
                 )
 
         elif new_bracket == "75_to_80" and old_bracket == "above_80":
-            # Warning alert (Req 4.1)
+            # Warning alert (Req 4.1) — include recovery info
             if subject_abbr == OVERALL_SUBJECT_KEY:
+                # How many classes to get back to 80%? Approximate: similar formula but target 80%
                 payload = build_payload(
                     category="attendance",
-                    title="📉 Attendance warning",
-                    body=f"Your overall attendance dropped to {percent:.1f}%. One more absence could put you below 75%.",
+                    title="📉 Attendance dropped to {:.1f}%".format(percent),
+                    body="Attend the next few classes consistently to stay above 80%. One more absence could put you below 75%.",
                     deep_link="/app/dashboard",
                     priority="standard",
                 )
@@ -159,7 +160,7 @@ def _evaluate_single(roll_number: str, subject_abbr: str, percent: float, attend
                 payload = build_payload(
                     category="attendance",
                     title=f"📉 {subject_abbr} at {percent:.1f}%",
-                    body=f"{subject_abbr} is near the danger zone. Be careful with absences.",
+                    body=f"{subject_abbr} is near the danger zone. Attend the next few classes to stay safe.",
                     deep_link="/app/dashboard",
                     priority="standard",
                 )
@@ -169,8 +170,8 @@ def _evaluate_single(roll_number: str, subject_abbr: str, percent: float, attend
             if subject_abbr != OVERALL_SUBJECT_KEY:
                 payload = build_payload(
                     category="attendance",
-                    title=f"✅ {subject_abbr} recovered!",
-                    body=f"{subject_abbr} attendance is back to {percent:.1f}%. Keep it up!",
+                    title=f"🎉 {subject_abbr} recovered!",
+                    body=f"Back above 75%! Current attendance: {percent:.1f}%. Keep it up!",
                     deep_link="/app/dashboard",
                     priority="standard",
                 )

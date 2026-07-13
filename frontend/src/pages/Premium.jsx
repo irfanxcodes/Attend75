@@ -6,9 +6,9 @@ import { getPremiumStatus } from '../services/premiumApi'
 
 const FEATURES = [
   { icon: Bell, label: 'Real-time notice alerts', desc: 'Get notified instantly when new notices are posted' },
-  { icon: Zap, label: 'Attendance warnings', desc: 'Alerts when you\'re near the 75% danger zone' },
-  { icon: Shield, label: 'Class reminders', desc: 'Never miss a class with timely reminders' },
-  { icon: Crown, label: 'Daily & weekly digests', desc: 'Morning schedule + Monday attendance recap' },
+  { icon: Zap, label: 'Attendance warnings', desc: 'Alerts when you\'re near the 75% danger zone with recovery steps' },
+  { icon: Shield, label: 'Class reminders*', desc: 'Never miss a class with timely reminders + tomorrow preview' },
+  { icon: Crown, label: 'Daily & weekly digests', desc: 'Morning schedule + Monday attendance recap with trends' },
 ]
 
 function Premium() {
@@ -119,7 +119,10 @@ function Premium() {
           </div>
 
           <p className="mt-4 text-center text-[9px] text-[#7a6f94]">
-            Note: Background attendance monitoring requires Google account linking
+            *Class reminders available for programs with digital timetables (BBA/B.Com).
+          </p>
+          <p className="mt-1 text-center text-[9px] text-[#7a6f94]">
+            Background attendance monitoring requires Google account linking.
           </p>
         </>
       )}
