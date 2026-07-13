@@ -244,7 +244,7 @@ Convert the design into incremental backend + frontend changes. Foundational DB 
     - Cover required-field validation and non-super_admin rejection with 2-3 concrete examples
     - _Requirements: 15.1_
 
-- [ ] 15. Implement the Background Fetcher
+- [x] 15. Implement the Background Fetcher
   - Create migration adding `status` column to `portal_credentials` (default `valid`) and a new `background_fetch_state` table (roll_number PK, `last_fetch_at`, `last_fetch_status`, `consecutive_failures`, `next_eligible_at`)
   - Create `backend/db/models/background_fetch_state.py` matching the migration
   - Create `backend/services/background_fetcher.py` with `BackgroundFetcher` (6-hour scheduler) and `process_fetch_job` implementing eligibility filtering, round-robin ordering, 10s spacing, credential-invalid handling, transient-retry/24h-pause logic, and a credential-decrypt audit log call
@@ -318,7 +318,7 @@ Convert the design into incremental backend + frontend changes. Foundational DB 
 - [ ] 20. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 21. Implement PhonePe subscription and webhook handling
+- [x] 21. Implement PhonePe subscription and webhook handling
   - Create `backend/services/phonepe_service.py` with `initiate_subscription`, `handle_webhook`, `cancel_subscription`
   - Implement webhook validation: `X-VERIFY` signature check, 5-minute timestamp window, 64KB payload cap, and idempotency by `transaction_id`
   - Wire `payment.success`/`recurring.success` to `premium_service.activate_premium` and `recurring.failed` to `premium_service.enter_grace_period` (both already implemented)
@@ -352,7 +352,7 @@ Convert the design into incremental backend + frontend changes. Foundational DB 
     - Cover the "processing" state redirect using a mocked PhonePe client, 1-2 examples
     - _Requirements: 17.3_
 
-- [ ] 22. Implement subscription cancellation and payment history endpoints
+- [x] 22. Implement subscription cancellation and payment history endpoints
   - Add `POST /premium/subscribe`, `POST /premium/cancel`, `POST /premium/webhook`, `GET /premium/transactions` to `backend/routers/premium.py` (also add `GET /premium/status` using the existing `premium_service.get_subscription_status`)
   - Enforce owner-or-admin access control on `GET /premium/transactions`
   - Register `premium_router` in `backend/app.py`

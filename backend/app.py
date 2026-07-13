@@ -18,6 +18,7 @@ from routers.feedback import router as feedback_router
 from routers.firebase_auth import router as firebase_auth_router
 from routers.notices import router as notices_router
 from routers.push import router as push_router
+from routers.premium import router as premium_router
 from routers.studyme import router as studyme_router
 from services.request_metrics import observe_request
 
@@ -69,6 +70,9 @@ async def startup_event() -> None:
     # Start the nudge scheduler (daily 10:00 AM IST)
     from services.nudge_service import nudge_scheduler
     nudge_scheduler.start()
+    # Start the background attendance fetcher (every 6 hours)
+    from services.background_fetcher import background_fetch_scheduler
+    background_fetch_scheduler.start()
 
 
 @app.on_event("shutdown")
@@ -87,6 +91,8 @@ async def shutdown_event() -> None:
     weekly_summary_scheduler.stop()
     from services.nudge_service import nudge_scheduler
     nudge_scheduler.stop()
+    from services.background_fetcher import background_fetch_scheduler
+    background_fetch_scheduler.stop()
 
 app.add_middleware(
     CORSMiddleware,
@@ -145,4 +151,5 @@ app.include_router(feedback_router)
 app.include_router(firebase_auth_router)
 app.include_router(notices_router)
 app.include_router(push_router)
+app.include_router(premium_router)
 app.include_router(studyme_router)

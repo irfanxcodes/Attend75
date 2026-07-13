@@ -13,6 +13,7 @@ class PortalCredential(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
     roll_number: Mapped[str] = mapped_column(String(32), nullable=False)
     encrypted_password: Mapped[str] = mapped_column(String(1024), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), default="valid", nullable=False)  # valid, invalid
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,

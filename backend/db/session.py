@@ -36,6 +36,7 @@ def init_database() -> None:
     from db.models import user_notice  # noqa: F401
     from db.models import student_registry  # noqa: F401
     from db.models import attendance_alert_state  # noqa: F401
+    from db.models import background_fetch_state  # noqa: F401
     from db.models import notification_history  # noqa: F401
     from db.models import notification_job  # noqa: F401
     from db.models import notification_preference  # noqa: F401

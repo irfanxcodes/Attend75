@@ -208,3 +208,16 @@ async def admin_broadcast_stats(
 	except Exception:
 		logger.exception("Failed to fetch broadcast stats")
 		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to fetch broadcast stats"})
+
+
+@router.get("/fetcher/health", response_model=ApiResponse)
+async def admin_fetcher_health(_: dict = Depends(require_admin_user)):
+	"""Background fetcher health metrics."""
+	from services.background_fetcher import get_fetcher_health
+
+	try:
+		data = await run_in_threadpool(get_fetcher_health)
+		return ApiResponse(status="success", message="Fetcher health", data=data)
+	except Exception:
+		logger.exception("Failed to fetch background fetcher health")
+		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to fetch health"})
