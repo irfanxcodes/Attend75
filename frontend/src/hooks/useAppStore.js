@@ -17,6 +17,11 @@ function useAppStore() {
       setAuthSession: (session) => {
         dispatch({ type: 'SET_AUTH_SESSION', payload: session })
 
+        // Clear saved semester/program on fresh login so the portal's current selection takes priority
+        // This prevents stale semester overrides when the college advances to a new semester
+        window.localStorage.removeItem('attend75.selectedSemester')
+        window.localStorage.removeItem('attend75.selectedProgram')
+
         // Persist guest session token for PWA session recovery
         persistSession(session)
       },

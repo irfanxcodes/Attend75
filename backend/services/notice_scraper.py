@@ -36,15 +36,44 @@ def scrape_notice_list(scraper: PortalScraper) -> list[dict]:
         logger.warning("Notice.aspx returned login page — session likely expired")
         return []
 
+    if len(html) < 200:
+        logger.warning("Notice.aspx returned suspiciously short response (%d bytes)", len(html))
+        return []
+
     return _parse_notice_table(html)
 
 
 def _parse_notice_table(html: str) -> list[dict]:
     """Parse the notice board HTML table into a list of notice dicts."""
     soup = BeautifulSoup(html, "html.parser")
-    table = soup.find("table")
+
+    # Strategy 1: Find table by ID (common portal pattern)
+    table = soup.find("table", {"id": "table"})
+
+    # Strategy 2: Find any table with "NoticeID" links
     if not table:
-        logger.warning("No table found on Notice.aspx")
+        for t in soup.find_all("table"):
+            if t.find("a", href=lambda h: h and "NoticeID" in str(h)):
+                table = t
+                break
+
+    # Strategy 3: Find first table with enough rows
+    if not table:
+        for t in soup.find_all("table"):
+            rows = t.find_all("tr")
+            if len(rows) >= 3:  # At least header + 2 data rows
+                table = t
+                break
+
+    # Strategy 4: Generic first table (original fallback)
+    if not table:
+        table = soup.find("table")
+
+    if not table:
+        # Log page structure hints for debugging
+        all_tables = soup.find_all("table")
+        all_divs_with_class = [(d.get("class", []), d.get("id", "")) for d in soup.find_all(class_=True)][:5]
+        logger.warning("No notice table found on Notice.aspx (tables=%d, page_len=%d, sample_elements=%s)", len(all_tables), len(html), all_divs_with_class)
         return []
 
     rows = table.find_all("tr")[1:]  # skip header
