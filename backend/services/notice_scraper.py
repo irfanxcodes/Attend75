@@ -40,6 +40,16 @@ def scrape_notice_list(scraper: PortalScraper) -> list[dict]:
         logger.warning("Notice.aspx returned suspiciously short response (%d bytes)", len(html))
         return []
 
+    # Check for Bootstrap card layout with no table — portal session expired/redirected
+    # The portal returns a small Bootstrap-based card page (~2800 bytes) when session is stale
+    from bs4 import BeautifulSoup as _BS
+    _quick_soup = _BS(html, "html.parser")
+    _tables = _quick_soup.find_all("table")
+    _has_card = _quick_soup.find(class_="card-body") or _quick_soup.find(class_="card-block")
+    if len(_tables) == 0 and _has_card:
+        logger.warning("Notice.aspx returned Bootstrap card page with no table (session likely stale, page_len=%d)", len(html))
+        return []
+
     return _parse_notice_table(html)
 
 

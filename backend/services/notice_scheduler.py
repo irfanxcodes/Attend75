@@ -66,17 +66,21 @@ class NoticeScheduler:
             self._scrape_in_progress = True
 
         try:
-            # Group active sessions by program
+            # Only use FRESH sessions (portal cookies last ~30-60 min; skip sessions
+            # last accessed more than 20 minutes ago — their portal cookies are stale)
+            MAX_SESSION_AGE_FOR_SCRAPING = 1200  # 20 minutes
             sessions_by_program = {}
-            now = __import__('time').time()
+            now = time.time()
             with session_store._lock:
                 for r in session_store._sessions.values():
+                    if (now - r.last_accessed_at) > MAX_SESSION_AGE_FOR_SCRAPING:
+                        continue  # Stale — portal cookies likely expired
                     prog = r.program_full or r.program_sn or "unknown"
                     if prog not in sessions_by_program:
                         sessions_by_program[prog] = r
 
             if not sessions_by_program:
-                logger.debug("No active sessions available for notice scraping")
+                logger.debug("No fresh sessions available for notice scraping (all sessions stale)")
                 return
 
             for prog, record in sessions_by_program.items():
