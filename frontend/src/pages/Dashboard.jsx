@@ -246,19 +246,28 @@ function Dashboard() {
     const savedProgram = window.localStorage.getItem('attend75.selectedProgram')
     const isSemesterValid = session.semesters.some((s) => s.id === savedSemester)
     const isProgramValid = !savedProgram || session.programs.some((p) => p.id === savedProgram)
-    if ((!isSemesterValid || !savedSemester || savedSemester === session.selectedSemester) && (!savedProgram || savedProgram === session.selectedProgram)) {
+    // Portal already selected the right semester (or user has nothing saved) — just sync localStorage and done
+    if ((!savedSemester || savedSemester === session.selectedSemester) && (!savedProgram || savedProgram === session.selectedProgram)) {
       if (session.selectedSemester) window.localStorage.setItem('attend75.selectedSemester', session.selectedSemester)
       if (session.selectedProgram) window.localStorage.setItem('attend75.selectedProgram', session.selectedProgram)
       return
     }
-    if (isSemesterValid && savedSemester) actions.setSelectedSemester(savedSemester)
+    // User has a valid saved semester/program that differs from the portal default — re-fetch for it
+    const nextSemesterId = (isSemesterValid && savedSemester) ? savedSemester : session.selectedSemester
+    const nextProgramId = (isProgramValid && savedProgram) ? savedProgram : session.selectedProgram
+    if (nextSemesterId && nextSemesterId !== session.selectedSemester) actions.setSelectedSemester(nextSemesterId)
     if (isProgramValid && savedProgram) actions.setSelectedProgram(savedProgram)
     void (async () => {
       try {
         actions.setLoading(true); actions.setError('')
-        const result = await fetchAttendance({ token: session.token, semesterId: savedSemester || session.selectedSemester, programId: savedProgram || session.selectedProgram })
+        const result = await fetchAttendance({ token: session.token, semesterId: nextSemesterId, programId: nextProgramId })
         actions.setAttendanceData(result.attendanceData)
-        actions.setSessionSemesters(result.semesters, result.selectedSemester || savedSemester, result.programs, result.selectedProgram || savedProgram)
+        actions.setSessionSemesters(
+          result.semesters,
+          result.selectedSemester || session.selectedSemester || nextSemesterId,
+          result.programs,
+          result.selectedProgram || session.selectedProgram || nextProgramId,
+        )
       } catch (error) {
         if (isSessionExpiredError(error)) { actions.logout(); window.localStorage.removeItem('attend75.selectedSemester'); window.localStorage.removeItem('attend75.selectedProgram'); navigate('/login', { replace: true }); return }
         actions.setError(error.message)

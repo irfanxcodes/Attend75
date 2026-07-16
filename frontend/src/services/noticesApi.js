@@ -81,7 +81,21 @@ export function isSessionExpired(error) {
 }
 
 
-export async function fetchTimetable({ token }) {
+export async function fetchTimetable({ token, semesterId = null }) {
   const params = new URLSearchParams({ token })
+  if (semesterId) params.set('semester_id', semesterId)
   return request(`${API_BASE_URL}/notices/timetable?${params.toString()}`)
+}
+
+export async function fetchTimetableCandidates({ token }) {
+  const params = new URLSearchParams({ token })
+  return request(`${API_BASE_URL}/notices/timetable/candidates?${params.toString()}`)
+}
+
+export async function selectTimetable({ token, noticeId, semesterId = null }) {
+  return request(`${API_BASE_URL}/notices/timetable/select`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, notice_id: noticeId, semester_id: semesterId }),
+  })
 }

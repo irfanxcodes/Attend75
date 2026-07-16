@@ -26,6 +26,9 @@ class SessionRecord:
     scraper_lock: threading.RLock = field(default_factory=threading.RLock)
     # Cached subjects for timetable (populated on first attendance fetch)
     cached_subjects: list[dict] = field(default_factory=list)
+    # Raw attendance rows kept so the timetable service can re-resolve abbrs
+    # using the timetable notice's subject lookup table (course code/name → abbr)
+    cached_attendance_rows: list[dict] = field(default_factory=list)
 
 
 class SessionStore:

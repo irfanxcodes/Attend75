@@ -61,7 +61,7 @@ def get_todays_classes_for_student(cached_subjects: list[dict]) -> list[dict]:
     Get today's timetable classes for a student using their cached subjects.
     Returns empty list if no timetable or no classes today.
     """
-    notice = _find_latest_timetable_notice()
+    notice = _find_latest_timetable_notice(cached_subjects)
     if not notice or not notice.cleaned_text:
         return []
 
@@ -85,7 +85,7 @@ def reevaluate_has_timetable(roll_number: str, cached_subjects: list[dict]) -> b
     Re-check if a student has any matching timetable classes across the whole week.
     Updates the has_timetable flag on all their subscriptions.
     """
-    notice = _find_latest_timetable_notice()
+    notice = _find_latest_timetable_notice(cached_subjects)
     if not notice or not notice.cleaned_text:
         set_has_timetable(roll_number, False)
         return False
@@ -131,7 +131,7 @@ def schedule_reminders_for_today() -> int:
         # Since we're building this for logged-in users primarily, we use
         # the timetable data that's already been matched (has_timetable=True).
         # The actual class list comes from parsing the stored timetable text.
-        notice = _find_latest_timetable_notice()
+        notice = _find_latest_timetable_notice(cached_subjects)
         if not notice or not notice.cleaned_text:
             continue
 
@@ -325,7 +325,7 @@ def send_tomorrow_preview() -> int:
             .all()
         )
 
-    notice = _find_latest_timetable_notice()
+    notice = _find_latest_timetable_notice(cached_subjects)
     if not notice or not notice.cleaned_text:
         return 0
 

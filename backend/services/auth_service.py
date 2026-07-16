@@ -143,6 +143,9 @@ def login_user(roll_number: str, password: str, user_agent: str | None = None) -
                     subjects.append({"abbr": abbr, "section": section})
             if subjects:
                 record.cached_subjects = subjects
+            # Always store raw rows so timetable service can re-resolve abbrs
+            # using the timetable notice's subject lookup (code/name → short abbr)
+            record.cached_attendance_rows = list(attendance_rows)
         if _prefetch_marks_after_login_enabled():
             threading.Thread(
                 target=_prefetch_marks_after_login,
@@ -205,7 +208,7 @@ def fetch_attendance_for_semester(token: str, semester_id: str | None, program_i
 
         # Cache subjects for timetable service (survives portal session expiry)
         attendance_items = payload.get("attendance", [])
-        if attendance_items and not record.cached_subjects:
+        if attendance_items:
             subjects = []
             for item in attendance_items:
                 abbr = str(item.get("course_abbr", "")).strip().upper()
@@ -214,6 +217,8 @@ def fetch_attendance_for_semester(token: str, semester_id: str | None, program_i
                     subjects.append({"abbr": abbr, "section": section})
             if subjects:
                 record.cached_subjects = subjects
+            # Always keep raw rows for timetable abbr re-resolution
+            record.cached_attendance_rows = list(attendance_items)
 
         return payload
     except PortalNetworkError as exc:

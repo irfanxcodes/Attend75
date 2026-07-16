@@ -170,6 +170,31 @@ class PortalScraper:
         if payload.get("attendance") is None:
             payload["attendance"] = []
 
+        # At login the portal often defaults to an older semester. Auto-switch to
+        # the latest regular semester so the user sees current data immediately.
+        login_semesters = payload.get("semesters", [])
+        login_selected = payload.get("selected_semester")
+        if login_semesters and login_selected:
+            _skip_kw = {"compre", "makeup", "back", "ex", "st -", "st-"}
+            regular_sems = [
+                s for s in login_semesters
+                if not any(kw in s["label"].lower() for kw in _skip_kw)
+            ]
+            latest_sem_id = max(
+                regular_sems or login_semesters,
+                key=lambda s: int(s["id"]),
+            )["id"]
+            if latest_sem_id != login_selected:
+                switched_html = self._switch_semester(
+                    attendance_response.text,
+                    self._build_url("CommonS.aspx?qs=ap"),
+                    latest_sem_id,
+                )
+                if switched_html:
+                    payload = self._build_attendance_payload(switched_html)
+                    if payload.get("attendance") is None:
+                        payload["attendance"] = []
+
         # If student has multiple programs, switch to the earliest (default) and re-fetch
         nav_programs = navigation_payload.get("programs", [])
         nav_selected_program = navigation_payload.get("selected_program")
@@ -1361,9 +1386,48 @@ class PortalScraper:
             )
             response.raise_for_status()
             switched_html = response.text
+
+            # If the response looks like a login page, session is stale
+            if self._looks_like_login_page(switched_html):
+                raise PortalAuthenticationError(
+                    "Portal session expired during semester switch",
+                    code="SESSION_EXPIRED",
+                )
+
             switched_semesters, switched_selected = self._extract_semesters(switched_html)
             has_requested_semester = any(str(item.get("id") or "").strip() == requested_value for item in switched_semesters)
             if has_requested_semester and switched_selected and switched_selected != requested_value:
+                # The POST may have used a stale VIEWSTATE. Re-fetch the page fresh
+                # and try the switch one more time before failing.
+                try:
+                    fresh_response = self.session.get(
+                        attendance_url,
+                        timeout=self.request_timeout,
+                        headers={"Referer": self._build_url("Index.aspx")},
+                    )
+                    fresh_response.raise_for_status()
+                    fresh_html = fresh_response.text
+                    if not self._looks_like_login_page(fresh_html):
+                        fresh_payload = self._extract_hidden_form_fields(fresh_html)
+                        fresh_payload.update({
+                            "__EVENTTARGET": event_target,
+                            "__EVENTARGUMENT": "",
+                            "ddlSem": requested_value,
+                        })
+                        retry_response = self.session.post(
+                            attendance_url,
+                            data=fresh_payload,
+                            timeout=self.request_timeout,
+                            allow_redirects=True,
+                            headers={"Referer": attendance_url},
+                        )
+                        retry_response.raise_for_status()
+                        retry_html = retry_response.text
+                        _, retry_selected = self._extract_semesters(retry_html)
+                        if retry_selected == requested_value:
+                            return retry_html
+                except Exception:
+                    pass
                 raise PortalNetworkError(
                     "Portal did not switch to requested semester",
                     code="SEMESTER_SWITCH_MISMATCH",
@@ -1441,21 +1505,23 @@ class PortalScraper:
         if not semesters:
             return [], None
 
-        # For dual-program students the portal resets to Semester I after a
-        # program switch. Override: always default to the latest regular semester
-        # (highest numeric id, ignoring Compre/Makeup entries).
-        if is_dual_program or soup.find("select", {"name": "ddlClassof"}) is not None:
-            _skip_keywords = {"compre", "makeup", "back", "ex", "st -", "st-"}
-            regular = [
-                s for s in semesters
-                if not any(kw in s["label"].lower() for kw in _skip_keywords)
-            ]
-            selected_semester = max(
-                regular or semesters,
-                key=lambda s: int(s["id"]),
-            )["id"]
-        elif not selected_semester:
-            selected_semester = semesters[-1]["id"]
+        # If the portal HTML has an explicitly selected option, always respect it.
+        # Only fall back to auto-selecting the latest regular semester when the
+        # portal HTML shows nothing selected (e.g. immediately after login before
+        # a semester has been committed to the session cookie).
+        if selected_semester:
+            return semesters, selected_semester
+
+        # No option was marked selected — pick the latest regular semester as default.
+        _skip_keywords = {"compre", "makeup", "back", "ex", "st -", "st-"}
+        regular = [
+            s for s in semesters
+            if not any(kw in s["label"].lower() for kw in _skip_keywords)
+        ]
+        selected_semester = max(
+            regular or semesters,
+            key=lambda s: int(s["id"]),
+        )["id"]
 
         return semesters, selected_semester
 

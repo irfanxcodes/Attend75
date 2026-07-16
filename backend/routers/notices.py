@@ -67,14 +67,180 @@ async def notices_stats(token: str = Query(..., description="Session token")):
         return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to load notice stats"})
 
 
-# GET /notices/timetable?token=...
+def get_timetable_candidates(token: str) -> list[dict]:
+    """
+    Return recent timetable notices that could be the student's timetable.
+    Used when automatic matching fails, so the student can pick their own.
+    """
+    from db.models.notice import Notice
+    from db.session import SessionLocal
+    from services.timetable_service import _parse_timetable_from_text
+
+    record = session_store.get(token)
+    if record is None:
+        raise PermissionError("Session expired")
+
+    with SessionLocal() as session:
+        notices = (
+            session.query(Notice)
+            .filter(Notice.processing_status == "done")
+            .filter(Notice.title.isnot(None))
+            .order_by(Notice.portal_date.desc(), Notice.notice_id.desc())
+            .limit(200)
+            .all()
+        )
+
+    candidates = []
+    for notice in notices:
+        title_upper = (notice.title or "").upper()
+        if "TIMETABLE" not in title_upper and "TIME TABLE" not in title_upper:
+            continue
+        if "EXAM" in title_upper or "SPECIAL" in title_upper or "SUMMER" in title_upper or "REMEDIAL" in title_upper:
+            continue
+        if not notice.cleaned_text or len(notice.cleaned_text) < 100:
+            continue
+        schedule = _parse_timetable_from_text(notice.cleaned_text)
+        if not schedule:
+            continue
+        semesters = sorted(set(e["semester"] for e in schedule if e["semester"]))
+        sections = sorted(set(e["section"] for e in schedule if e["section"]))
+        candidates.append({
+            "noticeId": notice.notice_id,
+            "title": notice.title,
+            "date": notice.portal_date.isoformat() if notice.portal_date else None,
+            "semesters": semesters,
+            "sections": sections,
+            "entryCount": len(schedule),
+        })
+        if len(candidates) >= 5:
+            break
+
+    return candidates
+
+
+def get_timetable_for_notice(token: str, notice_id: int, semester_id: str | None = None) -> dict | None:
+    """
+    Build a personalized timetable from a specific notice chosen by the student.
+    Saves the chosen notice ID to the session so subsequent requests use it.
+    """
+    from db.models.notice import Notice
+    from db.session import SessionLocal
+    from services.timetable_service import (
+        _build_abbr_lookup, _get_parsed_schedule, _infer_full_subjects_from_schedule,
+        _match_student_classes, _resolve_subjects,
+    )
+
+    record = session_store.get(token)
+    if record is None:
+        raise PermissionError("Session expired")
+
+    with SessionLocal() as db_session:
+        notice = db_session.query(Notice).filter(Notice.notice_id == notice_id).one_or_none()
+        if not notice:
+            return None
+
+    abbr_lookup = _build_abbr_lookup(notice.cleaned_text or "")
+    student_subjects = _resolve_subjects(record, semester_id, abbr_lookup)
+    if not student_subjects:
+        student_subjects = record.cached_subjects or []
+
+    schedule = _get_parsed_schedule(notice, record)
+    if not schedule:
+        return None
+
+    my_classes = _match_student_classes(schedule, student_subjects)
+    if my_classes and len(student_subjects) < 4:
+        from services.timetable_service import _infer_full_subjects_from_schedule
+        augmented = _infer_full_subjects_from_schedule(schedule, my_classes)
+        if len(augmented) > len(student_subjects):
+            student_subjects = augmented
+            my_classes = _match_student_classes(schedule, student_subjects)
+
+    if not my_classes:
+        return None
+
+    # Save the chosen notice to session so automatic matching uses it next time
+    record.pinned_timetable_notice_id = notice_id
+
+    days_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    by_day = {day: [] for day in days_order}
+    for cls in my_classes:
+        day = cls.get("day", "")
+        if day in by_day:
+            by_day[day].append(cls)
+    for day in by_day:
+        by_day[day].sort(key=lambda c: c.get("time_sort", ""))
+    by_day = {day: classes for day, classes in by_day.items() if classes}
+
+    if not by_day:
+        return None
+
+    return {
+        "noticeTitle": notice.title,
+        "noticeDate": notice.portal_date.isoformat() if notice.portal_date else None,
+        "noticeId": notice.notice_id,
+        "schedule": by_day,
+        "totalClasses": len(my_classes),
+        "subjects": [s["abbr"] for s in student_subjects],
+    }
+
+
+# GET /notices/timetable/candidates?token=...
+@router.get("/timetable/candidates", response_model=ApiResponse)
+async def timetable_candidates(token: str = Query(..., description="Session token")):
+    """Return recent parseable timetable notices for manual selection."""
+    try:
+        data = await run_in_threadpool(get_timetable_candidates, token)
+        return ApiResponse(status="success", message="Candidates fetched", data={"candidates": data})
+    except PermissionError:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Session expired"})
+    except Exception:
+        logger.exception("Failed to fetch timetable candidates")
+        return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to load candidates"})
+
+
+class TimetableSelectRequest(BaseModel):
+    token: str = Field(..., description="Session token")
+    notice_id: int = Field(..., description="Notice ID chosen by student")
+    semester_id: str | None = Field(default=None)
+
+
+# POST /notices/timetable/select
+@router.post("/timetable/select", response_model=ApiResponse)
+async def select_timetable(payload: TimetableSelectRequest):
+    """Build personalized timetable from a student-chosen notice."""
+    try:
+        data = await run_in_threadpool(
+            get_timetable_for_notice, payload.token, payload.notice_id, payload.semester_id
+        )
+        if data is None:
+            return ApiResponse(status="success", message="No timetable data", data={"schedule": None})
+        return ApiResponse(status="success", message="Timetable fetched", data=data)
+    except PermissionError:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Session expired"})
+    except Exception:
+        logger.exception("Failed to build timetable from selected notice")
+        return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to load timetable"})
+
+
 @router.get("/timetable", response_model=ApiResponse)
-async def get_timetable(token: str = Query(..., description="Session token")):
+async def get_timetable(
+    token: str = Query(..., description="Session token"),
+    semester_id: str | None = Query(default=None),
+):
     """Get personalized timetable for the student."""
     from services.timetable_service import get_personalized_timetable
 
     try:
-        data = await run_in_threadpool(get_personalized_timetable, token)
+        # Check if the student has manually pinned a specific timetable notice
+        record = session_store.get(token)
+        pinned_id = getattr(record, "pinned_timetable_notice_id", None) if record else None
+
+        if pinned_id:
+            data = await run_in_threadpool(get_timetable_for_notice, token, pinned_id, semester_id)
+        else:
+            data = await run_in_threadpool(get_personalized_timetable, token, semester_id)
+
         if data is None:
             return ApiResponse(status="success", message="No timetable available", data={"schedule": None})
         return ApiResponse(status="success", message="Timetable fetched", data=data)
