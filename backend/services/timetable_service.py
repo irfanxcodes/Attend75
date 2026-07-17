@@ -447,8 +447,13 @@ def _get_parsed_schedule(notice: Notice, record) -> list[dict] | None:
     # Check cache
     if notice_id in _timetable_cache:
         cached = _timetable_cache[notice_id]
+        # Invalidate if the cached schedule still has the old wrong slot-6 time
+        has_old_time = any(
+            e.get("time") == "3:10 – 4:00 PM"
+            for e in cached.get("schedule", [])
+        )
         # Cache for 1 hour
-        if (datetime.utcnow() - cached["parsed_at"]).seconds < 3600:
+        if not has_old_time and (datetime.utcnow() - cached["parsed_at"]).seconds < 3600:
             return cached["schedule"]
 
     # Try parsing from stored text (no network needed)
@@ -499,7 +504,7 @@ def _parse_timetable_from_text(text: str) -> list[dict]:
         "12:15 – 1:05 PM",
         "2:00 – 2:50 PM",
         "2:55 – 3:45 PM",
-        "3:10 – 4:00 PM",
+        "3:50 – 4:40 PM",
     ]
 
     course_pattern = re.compile(r'^([A-Z][A-Z0-9]{1,6})-([A-Z0-9]{1,4})$')
@@ -549,7 +554,7 @@ def _parse_timetable_from_text(text: str) -> list[dict]:
                     slot_idx = 4
                 elif re.search(r'2[:.:]?55|14[:.:]?55|14\.55', raw_time):
                     slot_idx = 5
-                elif re.search(r'3[:.:]?10|15[:.:]?10|15\.10', raw_time):
+                elif re.search(r'3[:.:]?50|15[:.:]?50|15\.50', raw_time):
                     slot_idx = 6
                 # else: unrecognised time — leave slot_idx as-is (previous value)
                 time_slot = PAGE_TIME_SLOTS[slot_idx] if 0 <= slot_idx < len(PAGE_TIME_SLOTS) else first_cell
@@ -673,7 +678,7 @@ def _parse_timetable_pdf(pdf_bytes: io.BytesIO) -> list[dict]:
         "12:15 – 1:05 PM",
         "2:00 – 2:50 PM",
         "2:55 – 3:45 PM",
-        "3:10 – 4:00 PM",
+        "3:50 – 4:40 PM",
     ]
 
     with pdfplumber.open(pdf_bytes) as pdf:
