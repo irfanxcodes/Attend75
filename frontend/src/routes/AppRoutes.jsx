@@ -188,6 +188,8 @@ function AppRoutes() {
               selectedSemester: persistedSession.selectedSemester,
               programs: persistedSession.programs,
               selectedProgram: persistedSession.selectedProgram,
+              programFull: persistedSession.programFull || null,
+              programSn: persistedSession.programSn || null,
             })
 
             if (cachedAttendance) {
@@ -217,6 +219,8 @@ function AppRoutes() {
               selectedSemester: persistedSession.selectedSemester,
               programs: persistedSession.programs,
               selectedProgram: persistedSession.selectedProgram,
+              programFull: persistedSession.programFull || null,
+              programSn: persistedSession.programSn || null,
             })
             actions.setAttendanceData(cachedAttendance)
             setAuthBootstrapComplete(true)

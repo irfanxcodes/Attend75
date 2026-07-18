@@ -287,6 +287,8 @@ export async function login(credentials) {
     selectedSemester: normalized.selectedSemester,
     programs: normalized.programs,
     selectedProgram: normalized.selectedProgram,
+    programFull: (data.program_full || '').trim() || null,
+    programSn: (data.program_sn || '').trim() || null,
     attendanceData: {
       subjects: normalized.subjects,
       history: normalized.history,

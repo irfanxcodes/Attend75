@@ -35,6 +35,8 @@ const initialState = {
     selectedSemester: null,
     programs: [],
     selectedProgram: null,
+    programFull: null,
+    programSn: null,
   },
   attendance: buildAttendanceState(attendanceSeedData),
   selectedTarget: 75,
@@ -65,6 +67,8 @@ function appStateReducer(state, action) {
           selectedSemester: action.payload.selectedSemester || null,
           programs: action.payload.programs || [],
           selectedProgram: action.payload.selectedProgram || null,
+          programFull: action.payload.programFull || null,
+          programSn: action.payload.programSn || null,
         },
       }
 
@@ -83,6 +87,8 @@ function appStateReducer(state, action) {
           selectedSemester: null,
           programs: [],
           selectedProgram: null,
+          programFull: null,
+          programSn: null,
         },
       }
 

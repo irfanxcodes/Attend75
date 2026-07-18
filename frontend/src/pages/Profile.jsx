@@ -28,6 +28,9 @@ function Profile() {
   const overallPercentage = attendance?.overallPercentage || 0
   const initials = getInitials(userName)
 
+  // Derive program label from portal data (program_full cookie, e.g. "Bachelor of Commerce")
+  const programLabel = session.programFull || session.programSn || null
+
   const [rating, setRating] = useState(0)
   const [hoverRating, setHoverRating] = useState(0)
   const [feedbackMessage, setFeedbackMessage] = useState('')
@@ -127,7 +130,9 @@ function Profile() {
         {/* Name + details */}
         <p className="mt-4 text-xl font-bold text-[#F7F4FF]">{userName}</p>
         <p className="mt-0.5 text-xs text-[#9F9AB5]">{rollNumber}</p>
-        <p className="mt-0.5 text-xs text-[#9F9AB5]">BBA — Sem IV</p>
+        {programLabel && (
+          <p className="mt-0.5 text-xs text-[#9F9AB5]">{programLabel}</p>
+        )}
 
         {/* Status badge */}
         <div className="mt-3 flex items-center gap-1.5 rounded-full border border-[#4EF0A0]/30 px-3 py-1">

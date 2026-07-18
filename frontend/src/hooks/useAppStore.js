@@ -43,6 +43,8 @@ function useAppStore() {
           selectedSemester: selectedSemester || null,
           programs: persistedPrograms || [],
           selectedProgram: selectedProgram !== undefined ? selectedProgram : (state.session.selectedProgram || null),
+          programFull: state.session.programFull || null,
+          programSn: state.session.programSn || null,
         })
       },
       setSelectedSemester: (semesterId) => dispatch({ type: 'SET_SELECTED_SEMESTER', payload: semesterId }),
