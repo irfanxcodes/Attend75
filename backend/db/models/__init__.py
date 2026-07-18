@@ -9,6 +9,7 @@ from db.models.notification_preference import NotificationPreference
 from db.models.payment_transaction import PaymentTransaction
 from db.models.portal_credential import PortalCredential
 from db.models.premium_subscription import PremiumSubscription
+from db.models.premium_waitlist import PremiumWaitlist
 from db.models.push_subscription import PushSubscription
 from db.models.studyme_event import StudyMeEvent
 from db.models.studyme_important_vote import StudyMeImportantVote
@@ -27,6 +28,7 @@ __all__ = [
     "PaymentTransaction",
     "PortalCredential",
     "PremiumSubscription",
+    "PremiumWaitlist",
     "PushSubscription",
     "StudyMeEvent",
     "StudyMeImportantVote",

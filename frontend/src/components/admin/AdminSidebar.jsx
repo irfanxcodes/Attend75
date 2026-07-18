@@ -28,6 +28,7 @@ const NAV_SECTIONS = [
     items: [
       { id: 'subject-requests', label: 'Subject Requests', icon: 'git-pull-request' },
       { id: 'college-interest', label: 'College Interest', icon: 'building' },
+      { id: 'waitlist', label: 'Premium Waitlist', icon: 'crown' },
     ],
   },
 ]
@@ -45,6 +46,7 @@ function NavIcon({ name, className = 'h-4 w-4' }) {
     'message-square': <><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></>,
     'git-pull-request': <><circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" /><path d="M13 6h3a2 2 0 0 1 2 2v7" /><line x1="6" y1="9" x2="6" y2="21" /></>,
     building: <><rect x="4" y="2" width="16" height="20" rx="2" ry="2" /><line x1="9" y1="6" x2="9" y2="6.01" /><line x1="15" y1="6" x2="15" y2="6.01" /><line x1="9" y1="10" x2="9" y2="10.01" /><line x1="15" y1="10" x2="15" y2="10.01" /><line x1="9" y1="14" x2="9" y2="14.01" /><line x1="15" y1="14" x2="15" y2="14.01" /><line x1="9" y1="18" x2="15" y2="18" /></>,
+    crown: <><path d="M2 20h20M5 20V10l7-7 7 7v10" /><polyline points="5 10 12 3 19 10" /></>,
   }
 
   return (

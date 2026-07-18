@@ -42,6 +42,7 @@ def init_database() -> None:
     from db.models import notification_preference  # noqa: F401
     from db.models import payment_transaction  # noqa: F401
     from db.models import premium_subscription  # noqa: F401
+    from db.models import premium_waitlist  # noqa: F401
     from db.models import push_subscription  # noqa: F401
 
     Base.metadata.create_all(bind=engine)

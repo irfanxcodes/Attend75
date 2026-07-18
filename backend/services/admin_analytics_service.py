@@ -612,6 +612,7 @@ def get_full_admin_analytics() -> dict:
         "guestEngagement": get_guest_engagement(),
         "pwaInstalls": get_pwa_install_metrics(),
         "notices": get_notice_analytics(),
+        "waitlist": get_waitlist_analytics(),
     }
 
 
@@ -790,3 +791,58 @@ def get_pwa_install_metrics() -> dict:
     }
 
 
+def get_waitlist_analytics() -> dict:
+    """Premium waitlist signups — total count, recent entries, and daily trend (last 14 days)."""
+    from db.models.premium_waitlist import PremiumWaitlist
+
+    today = date.today()
+    window_start = today - timedelta(days=13)
+
+    with SessionLocal() as session:
+        total = int(session.query(func.count(PremiumWaitlist.id)).scalar() or 0)
+
+        # Daily counts for the last 14 days
+        daily_rows = (
+            session.query(
+                func.date(PremiumWaitlist.joined_at).label("day"),
+                func.count(PremiumWaitlist.id).label("count"),
+            )
+            .filter(func.date(PremiumWaitlist.joined_at) >= window_start.isoformat())
+            .group_by(func.date(PremiumWaitlist.joined_at))
+            .all()
+        )
+        daily_map: dict[str, int] = {str(row.day): int(row.count) for row in daily_rows}
+        trend = []
+        for i in range(14):
+            d = (window_start + timedelta(days=i)).isoformat()
+            trend.append({"date": d, "count": daily_map.get(d, 0)})
+
+        # 10 most recent signups
+        recent_rows = (
+            session.query(PremiumWaitlist)
+            .order_by(PremiumWaitlist.joined_at.desc())
+            .limit(10)
+            .all()
+        )
+        recent = [
+            {
+                "rollNumber": row.roll_number,
+                "joinedAt": row.joined_at.isoformat() if row.joined_at else None,
+            }
+            for row in recent_rows
+        ]
+
+        # Joined in the last 7 days
+        week_ago = today - timedelta(days=7)
+        last7days = int(
+            session.query(func.count(PremiumWaitlist.id))
+            .filter(func.date(PremiumWaitlist.joined_at) >= week_ago.isoformat())
+            .scalar() or 0
+        )
+
+    return {
+        "total": total,
+        "last7days": last7days,
+        "trend": trend,
+        "recent": recent,
+    }

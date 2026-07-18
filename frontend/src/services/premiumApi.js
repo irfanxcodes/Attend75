@@ -50,3 +50,11 @@ export async function getTransactions({ token }) {
   const params = new URLSearchParams({ token })
   return request(`${API_BASE_URL}/premium/transactions?${params}`)
 }
+
+export async function joinPremiumWaitlist({ token }) {
+  return request(`${API_BASE_URL}/premium/waitlist`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  })
+}

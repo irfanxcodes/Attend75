@@ -18,6 +18,7 @@ import AppRatingsPage from '../../components/admin/AppRatingsPage'
 import FeedbackPage from '../../components/admin/FeedbackPage'
 import SubjectRequestsPage from '../../components/admin/SubjectRequestsPage'
 import CollegeInterestPage from '../../components/admin/CollegeInterestPage'
+import WaitlistPage from '../../components/admin/WaitlistPage'
 
 function AdminDashboard() {
   const navigate = useNavigate()
@@ -175,6 +176,12 @@ function AdminDashboard() {
           ) : activeSection === 'college-interest' ? (
             <CollegeInterestPage
               data={data}
+              analytics={analytics}
+              onRefresh={fetchAllData}
+              isLoading={isLoading}
+            />
+          ) : activeSection === 'waitlist' ? (
+            <WaitlistPage
               analytics={analytics}
               onRefresh={fetchAllData}
               isLoading={isLoading}

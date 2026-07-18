@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Bell, Check, ChevronLeft, Crown, LogIn, Shield, Zap } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import useAppStore from '../hooks/useAppStore'
-import { getPremiumStatus, initiatePremiumSubscription } from '../services/premiumApi'
+import { getPremiumStatus, joinPremiumWaitlist } from '../services/premiumApi'
 
 const FEATURES = [
   { icon: Bell, label: 'Real-time notice alerts', desc: 'Get notified instantly when new notices are posted' },
@@ -17,8 +17,9 @@ function Premium() {
   const navigate = useNavigate()
   const [status, setStatus] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [subscribeError, setSubscribeError] = useState('')
-  const [isSubscribing, setIsSubscribing] = useState(false)
+  const [waitlistError, setWaitlistError] = useState('')
+  const [waitlistSuccess, setWaitlistSuccess] = useState(false)
+  const [isJoining, setIsJoining] = useState(false)
 
   const isGuest = user.authProvider === 'guest' || !user.authProvider || user.authProvider === 'demo'
 
@@ -120,26 +121,27 @@ function Premium() {
             <button
               type="button"
               className="mt-4 w-full rounded-2xl bg-[#FF916C] py-3.5 text-[14px] font-bold text-[#1D183E] shadow-lg transition active:scale-[0.97] disabled:opacity-60"
-              disabled={isSubscribing}
+              disabled={isJoining || waitlistSuccess}
               onClick={async () => {
-                setSubscribeError('')
-                setIsSubscribing(true)
+                setWaitlistError('')
+                setIsJoining(true)
                 try {
-                  const result = await initiatePremiumSubscription({ token })
-                  if (result.redirect_url) {
-                    window.location.href = result.redirect_url
-                  }
+                  await joinPremiumWaitlist({ token })
+                  setWaitlistSuccess(true)
                 } catch (err) {
-                  setSubscribeError(err.message || 'Unable to start subscription. Please try again.')
+                  setWaitlistError(err.message || 'Unable to join waitlist. Please try again.')
                 } finally {
-                  setIsSubscribing(false)
+                  setIsJoining(false)
                 }
               }}
             >
-              {isSubscribing ? 'Processing...' : 'Subscribe Now'}
+              {waitlistSuccess ? '✓ You\'re on the waitlist!' : isJoining ? 'Joining...' : 'Join Waitlist'}
             </button>
-            {subscribeError && (
-              <p className="mt-2 text-center text-[11px] text-[#FF5B5B]">{subscribeError}</p>
+            {waitlistSuccess && (
+              <p className="mt-2 text-center text-[11px] text-[#4EF0A0]">We'll notify you when Premium launches.</p>
+            )}
+            {waitlistError && (
+              <p className="mt-2 text-center text-[11px] text-[#FF5B5B]">{waitlistError}</p>
             )}
           </div>
 
