@@ -33,10 +33,25 @@ function NotificationSettings() {
     Promise.all([
       getPreferences({ token }),
       isPushSubscribed(),
-    ]).then(([prefsData, subscribed]) => {
+    ]).then(async ([prefsData, subscribed]) => {
       setPrefs(prefsData)
-      setIsSubscribed(subscribed)
       setPermissionState(getNotificationPermission())
+
+      if (subscribed) {
+        // Re-register with backend to ensure sync
+        try {
+          await requestPushSubscription(token)
+          setIsSubscribed(true)
+        } catch (err) {
+          if (err?.status === 402) {
+            setIsSubscribed(false)
+          } else {
+            setIsSubscribed(true)
+          }
+        }
+      } else {
+        setIsSubscribed(false)
+      }
     }).catch(() => {})
     .finally(() => setIsLoading(false))
   }, [token])

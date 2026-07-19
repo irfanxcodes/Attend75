@@ -67,10 +67,27 @@ function Profile() {
     Promise.all([
       getPreferences({ token: session.token }),
       isPushSubscribed(),
-    ]).then(([prefsData, subscribed]) => {
+    ]).then(async ([prefsData, subscribed]) => {
       setPrefs(prefsData)
-      setIsSubscribed(subscribed)
       setPermissionState(getNotificationPermission())
+
+      if (subscribed) {
+        // Browser has a subscription, but backend might not know about it.
+        // Re-register to ensure the backend is in sync.
+        try {
+          await requestPushSubscription(session.token)
+          setIsSubscribed(true)
+        } catch (err) {
+          // If premium required error, mark as not subscribed on backend
+          if (err?.status === 402) {
+            setIsSubscribed(false)
+          } else {
+            setIsSubscribed(true) // Browser says yes, best effort
+          }
+        }
+      } else {
+        setIsSubscribed(false)
+      }
     }).catch(() => {})
   }, [showSettings, session.token])
 

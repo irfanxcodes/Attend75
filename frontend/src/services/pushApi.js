@@ -51,10 +51,16 @@ export async function getPreferences({ token }) {
 }
 
 export async function updatePreferences({ token, ...prefs }) {
+  // Convert camelCase keys to snake_case for the backend
+  const snakePrefs = {}
+  for (const [key, value] of Object.entries(prefs)) {
+    const snakeKey = key.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase())
+    snakePrefs[snakeKey] = value
+  }
   return request(`${API_BASE_URL}/push/preferences`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, ...prefs }),
+    body: JSON.stringify({ token, ...snakePrefs }),
   })
 }
 
