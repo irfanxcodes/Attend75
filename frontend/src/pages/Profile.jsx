@@ -60,6 +60,7 @@ function Profile() {
   const [prefs, setPrefs] = useState(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isEnabling, setIsEnabling] = useState(false)
+  const [iosMessage, setIosMessage] = useState(null)
 
   // Load notification state when settings sheet opens
   useEffect(() => {
@@ -115,9 +116,13 @@ function Profile() {
         setShowSettings(false)
         navigate('/app/premium')
       } else {
-        // Show the error so user knows what happened
-        console.error('[Push Subscribe Error]', err)
-        alert(`Push subscription failed: ${err?.message || 'Unknown error'}. Make sure you're using HTTPS and have allowed notifications.`)
+        const msg = err?.message || 'Unknown error'
+        // Don't show ugly alert for iOS — show inline
+        if (msg.includes('iOS_NON_SAFARI') || msg.includes('iOS_NOT_INSTALLED')) {
+          setIosMessage(msg.split(': ').slice(1).join(': '))
+        } else {
+          alert(`Push subscription failed: ${msg}`)
+        }
       }
     } finally {
       setIsEnabling(false)
@@ -546,6 +551,13 @@ function Profile() {
                     )}
                   </div>
                 </div>
+
+                {/* iOS guidance message */}
+                {iosMessage && (
+                  <div className="mt-3 rounded-xl bg-[#6CB4FF]/10 px-3.5 py-3 ring-1 ring-[#6CB4FF]/20">
+                    <p className="text-[11px] leading-relaxed text-[#6CB4FF]">{iosMessage}</p>
+                  </div>
+                )}
 
                 {/* Per-category toggles (only when subscribed + prefs loaded) */}
                 {isSubscribed && prefs && (

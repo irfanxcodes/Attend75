@@ -5,6 +5,37 @@
 import { getVapidPublicKey, subscribePush } from '../../services/pushApi'
 
 /**
+ * Detect if running on iOS in a non-Safari browser (Chrome, Brave, Firefox, etc.)
+ * All iOS browsers use WebKit but only Safari supports Web Push (as PWA).
+ */
+function isIOSNonSafari() {
+  const ua = navigator.userAgent
+  const isIOS = /iPhone|iPad|iPod/.test(ua)
+  if (!isIOS) return false
+  // Safari on iOS doesn't have "CriOS", "FxiOS", "OPiOS", "EdgiOS" in the UA
+  // Brave on iOS shows as Safari but doesn't support push either
+  // The key check: if it's iOS and NOT running as standalone PWA and the push API isn't fully supported
+  const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|OPiOS|EdgiOS|Brave/.test(ua)
+  // Even "Safari" on iOS Brave reports as Safari — detect via navigator.brave
+  if (typeof navigator.brave !== 'undefined') return true
+  return !isSafari
+}
+
+/**
+ * Detect if running on iOS Safari but NOT installed as PWA (standalone mode).
+ * Push only works when installed to Home Screen on iOS.
+ */
+function isIOSNonPWA() {
+  const ua = navigator.userAgent
+  const isIOS = /iPhone|iPad|iPod/.test(ua)
+  if (!isIOS) return false
+  // Check if running in standalone mode (installed PWA)
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true
+  return !isStandalone
+}
+
+/**
  * Convert a base64url-encoded string to Uint8Array for applicationServerKey.
  */
 function urlBase64ToUint8Array(base64String) {
@@ -25,7 +56,22 @@ function urlBase64ToUint8Array(base64String) {
 export async function requestPushSubscription(token) {
   // Check browser support
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    // Detect iOS non-Safari browsers
+    if (isIOSNonSafari()) {
+      throw new Error(
+        'iOS_NON_SAFARI: Push notifications on iPhone only work in Safari. ' +
+        'Open attend75.xyz in Safari → tap Share → "Add to Home Screen" → open from there.'
+      )
+    }
     throw new Error('Push notifications are not supported in this browser')
+  }
+
+  // Even if PushManager exists, iOS non-PWA Safari won't work
+  if (isIOSNonPWA()) {
+    throw new Error(
+      'iOS_NOT_INSTALLED: To get notifications on iPhone, install the app first: ' +
+      'tap Share (box with arrow) → "Add to Home Screen" → then enable notifications.'
+    )
   }
 
   // Request permission
