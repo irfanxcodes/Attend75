@@ -230,6 +230,27 @@ async def admin_premium_analytics(_: dict = Depends(require_admin_user)):
 		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to fetch premium analytics"})
 
 
+@router.post("/premium/{roll_number}/toggle", response_model=ApiResponse)
+async def admin_toggle_premium(roll_number: str, payload: dict, _: dict = Depends(require_admin_user)):
+	"""Enable or disable a student's premium subscription."""
+	from services.premium_service import activate_premium, expire_subscription, get_subscription_status
+
+	action = (payload.get("action") or "").strip()
+	if action not in ("activate", "expire"):
+		return JSONResponse(status_code=422, content={"status": "error", "message": "action must be 'activate' or 'expire'"})
+
+	try:
+		if action == "activate":
+			await run_in_threadpool(activate_premium, roll_number)
+		else:
+			await run_in_threadpool(expire_subscription, roll_number)
+		status = await run_in_threadpool(get_subscription_status, roll_number)
+		return ApiResponse(status="success", message=f"Premium {action}d for {roll_number}", data=status)
+	except Exception:
+		logger.exception("Failed to toggle premium for %s", roll_number)
+		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to toggle premium"})
+
+
 @router.get("/broadcast/stats", response_model=ApiResponse)
 async def admin_broadcast_stats(
 	title: str = Query(..., description="Broadcast title to look up stats for"),

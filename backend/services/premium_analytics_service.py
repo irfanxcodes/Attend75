@@ -156,34 +156,56 @@ def get_premium_analytics() -> dict:
         # ── Premium students list ───────────────────────────────────────────
         premium_students = (
             session.query(PremiumSubscription)
-            .join(StudentRegistry, StudentRegistry.roll_number == PremiumSubscription.roll_number, isouter=True)
             .order_by(PremiumSubscription.created_at.desc())
-            .limit(50)
+            .limit(100)
             .all()
         )
 
-        # Get names
+        # Get student details
         roll_numbers = [s.roll_number for s in premium_students]
-        name_map = {}
+        student_details = {}
+        push_sub_counts = {}
         if roll_numbers:
-            name_rows = (
-                session.query(StudentRegistry.roll_number, StudentRegistry.display_name)
+            detail_rows = (
+                session.query(StudentRegistry)
                 .filter(StudentRegistry.roll_number.in_(roll_numbers))
                 .all()
             )
-            name_map = {r.roll_number: r.display_name for r in name_rows}
+            for r in detail_rows:
+                student_details[r.roll_number] = {
+                    "name": r.display_name,
+                    "program": r.program,
+                    "hasGoogle": r.has_google_linked,
+                    "lastSeen": r.last_seen_at.isoformat() if r.last_seen_at else None,
+                    "attendancePercent": r.last_attendance_percent,
+                }
 
-        students_list = [
-            {
+            # Count push subscriptions per student
+            push_rows = (
+                session.query(PushSubscription.roll_number, func.count(PushSubscription.id))
+                .filter(PushSubscription.roll_number.in_(roll_numbers))
+                .group_by(PushSubscription.roll_number)
+                .all()
+            )
+            push_sub_counts = {r[0]: int(r[1]) for r in push_rows}
+
+        students_list = []
+        for s in premium_students:
+            details = student_details.get(s.roll_number, {})
+            students_list.append({
                 "rollNumber": s.roll_number,
-                "name": name_map.get(s.roll_number),
+                "name": details.get("name"),
+                "program": details.get("program"),
+                "hasGoogle": details.get("hasGoogle", False),
+                "lastSeen": details.get("lastSeen"),
+                "attendancePercent": details.get("attendancePercent"),
+                "pushDevices": push_sub_counts.get(s.roll_number, 0),
                 "plan": s.plan,
                 "status": s.status,
                 "expiryDate": s.expiry_date.isoformat() if s.expiry_date else None,
+                "graceEndsAt": s.grace_ends_at.isoformat() if s.grace_ends_at else None,
                 "createdAt": s.created_at.isoformat() if s.created_at else None,
-            }
-            for s in premium_students
-        ]
+            })
 
     # Total students for conversion rate
     with SessionLocal() as session:
