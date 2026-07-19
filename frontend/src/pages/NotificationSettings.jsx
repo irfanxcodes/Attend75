@@ -3,7 +3,7 @@ import { Bell, BellOff, ChevronLeft } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import useAppStore from '../hooks/useAppStore'
 import { getPreferences, updatePreferences } from '../services/pushApi'
-import { requestPushSubscription, isPushSubscribed, getNotificationPermission } from '../pwa/push/subscribe'
+import { requestPushSubscription, isPushSubscribed, getNotificationPermission, ensurePushRegistered } from '../pwa/push/subscribe'
 
 const CATEGORY_LABELS = [
   { key: 'noticeExam', label: 'Exam', color: '#FF5B5B' },
@@ -33,10 +33,14 @@ function NotificationSettings() {
     Promise.all([
       getPreferences({ token }),
       isPushSubscribed(),
-    ]).then(([prefsData, subscribed]) => {
+    ]).then(async ([prefsData, subscribed]) => {
       setPrefs(prefsData)
       setIsSubscribed(subscribed)
       setPermissionState(getNotificationPermission())
+      // If browser is subscribed but backend might not know, sync it
+      if (subscribed) {
+        await ensurePushRegistered(token)
+      }
     }).catch(() => {})
     .finally(() => setIsLoading(false))
   }, [token])

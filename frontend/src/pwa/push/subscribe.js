@@ -137,6 +137,44 @@ export async function isPushSubscribed() {
 }
 
 /**
+ * Ensure the current browser push subscription is registered on the backend.
+ * Call this on app load / notification settings page to sync state.
+ * If the browser has a subscription but the backend doesn't know about it,
+ * this will register it. Silently fails if not subscribed or not premium.
+ */
+export async function ensurePushRegistered(token) {
+  if (!token) return false
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false
+
+  try {
+    const registration = await navigator.serviceWorker.ready
+    const subscription = await registration.pushManager.getSubscription()
+    if (!subscription) return false
+
+    const subJson = subscription.toJSON()
+    if (!subJson.endpoint || !subJson.keys?.p256dh || !subJson.keys?.auth) return false
+
+    const ua = navigator.userAgent
+    let deviceInfo = 'Unknown'
+    if (/Android/i.test(ua)) deviceInfo = 'Android'
+    else if (/iPhone|iPad/i.test(ua)) deviceInfo = 'iOS'
+    else if (/Mac/i.test(ua)) deviceInfo = 'macOS'
+    else if (/Windows/i.test(ua)) deviceInfo = 'Windows'
+    else if (/Linux/i.test(ua)) deviceInfo = 'Linux'
+
+    await subscribePush({
+      token,
+      endpoint: subJson.endpoint,
+      keys: { p256dh: subJson.keys.p256dh, auth: subJson.keys.auth },
+      deviceInfo,
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
  * Get the current notification permission state.
  */
 export function getNotificationPermission() {

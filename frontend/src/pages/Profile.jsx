@@ -6,7 +6,7 @@ import useAppStore from '../hooks/useAppStore'
 import { fetchSessionStatus, fetchUserRating, submitFeedback, submitRating } from '../services/attendanceApi'
 import { useInstallPrompt } from '../pwa/useInstallPrompt'
 import { getPreferences, updatePreferences } from '../services/pushApi'
-import { requestPushSubscription, isPushSubscribed, getNotificationPermission } from '../pwa/push/subscribe'
+import { requestPushSubscription, isPushSubscribed, getNotificationPermission, ensurePushRegistered } from '../pwa/push/subscribe'
 import { getPremiumStatus } from '../services/premiumApi'
 
 function getInitials(name) {
@@ -68,7 +68,11 @@ function Profile() {
     getPreferences({ token: session.token })
       .then((prefsData) => setPrefs(prefsData))
       .catch(() => {})
-    isPushSubscribed().then(setIsSubscribed).catch(() => setIsSubscribed(false))
+    isPushSubscribed().then((subscribed) => {
+      setIsSubscribed(subscribed)
+      // Sync with backend if browser is subscribed but server might not know
+      if (subscribed) ensurePushRegistered(session.token)
+    }).catch(() => setIsSubscribed(false))
     setPermissionState(getNotificationPermission())
     setIosMessage(null)
   }, [showSettings, session.token])
