@@ -91,19 +91,23 @@ function Profile() {
       await requestPushSubscription(session.token)
       setIsSubscribed(true)
       setPermissionState(getNotificationPermission())
+      // Show success feedback
+      setIosMessage('SUCCESS')
     } catch (err) {
       const code = err?.code || ''
       if (code === 'PREMIUM_REQUIRED') {
         setShowSettings(false)
         navigate('/app/premium')
+      } else if (code === 'SESSION_EXPIRED') {
+        setIosMessage('Your session has expired. Please close this, go back, and log in again.')
       } else if (code === 'IOS_INSTALL_REQUIRED') {
         setIosMessage('To get notifications on iPhone, install the app first:\n\nIn Safari → tap Share (⬆) → "Add to Home Screen"\n\nThen open from your home screen and enable here.')
       } else if (code === 'PERMISSION_DENIED') {
-        setIosMessage('Notifications are blocked. Go to your device Settings → Notifications → allow for this app/browser.')
+        setIosMessage('Notifications are blocked. Go to your device Settings → find this browser/app → enable Notifications.')
       } else if (code === 'SUBSCRIBE_FAILED') {
-        setIosMessage('Could not connect to the notification service. Try installing the app:\n\nTap the browser menu (⋮ or ⋯) → "Install app" or "Add to Home Screen"\n\nThen enable notifications from the installed app.')
+        setIosMessage('Notifications aren\'t available in this browser right now. Try using Chrome or installing the app from the browser menu.')
       } else {
-        setIosMessage('Something went wrong. Please try again or install the app from the browser menu.')
+        setIosMessage('Something went wrong. Please try again later.')
       }
     } finally {
       setIsEnabling(false)
@@ -534,9 +538,18 @@ function Profile() {
                 </div>
 
                 {/* iOS/Mac/platform guidance message */}
-                {iosMessage && (
+                {iosMessage && iosMessage !== 'SUCCESS' && (
                   <div className="mt-3 rounded-xl bg-[#6CB4FF]/10 px-3.5 py-3 ring-1 ring-[#6CB4FF]/20">
                     <p className="text-[11px] leading-relaxed text-[#6CB4FF] whitespace-pre-line">{iosMessage}</p>
+                  </div>
+                )}
+
+                {/* Success state */}
+                {iosMessage === 'SUCCESS' && (
+                  <div className="mt-3 rounded-xl bg-[#4EF0A0]/10 px-3.5 py-3 ring-1 ring-[#4EF0A0]/20">
+                    <p className="text-[11px] font-semibold text-[#4EF0A0]">
+                      ✓ Notifications enabled! You'll receive alerts for new notices, attendance drops, and class reminders.
+                    </p>
                   </div>
                 )}
 
