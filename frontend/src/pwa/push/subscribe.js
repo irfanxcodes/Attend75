@@ -140,7 +140,9 @@ export async function isPushSubscribed() {
  * Ensure the current browser push subscription is registered on the backend.
  * Call this on app load / notification settings page to sync state.
  * If the browser has a subscription but the backend doesn't know about it,
- * this will register it. Silently fails if not subscribed or not premium.
+ * this will register it. If the subscription was made with a different VAPID key,
+ * it will re-subscribe with the correct one.
+ * Silently fails if not subscribed or not premium.
  */
 export async function ensurePushRegistered(token) {
   if (!token) return false
@@ -148,8 +150,37 @@ export async function ensurePushRegistered(token) {
 
   try {
     const registration = await navigator.serviceWorker.ready
-    const subscription = await registration.pushManager.getSubscription()
-    if (!subscription) return false
+    let subscription = await registration.pushManager.getSubscription()
+
+    // If there's an existing subscription, verify it uses our current VAPID key
+    // by checking if we can get the server's VAPID key and comparing
+    const { publicKey } = await getVapidPublicKey()
+    if (!publicKey) return false
+
+    const applicationServerKey = urlBase64ToUint8Array(publicKey)
+
+    if (subscription) {
+      // Compare applicationServerKey — if different, unsubscribe and re-subscribe
+      const existingKey = subscription.options?.applicationServerKey
+      if (existingKey) {
+        const existingKeyArray = new Uint8Array(existingKey)
+        const keysMatch = existingKeyArray.length === applicationServerKey.length &&
+          existingKeyArray.every((v, i) => v === applicationServerKey[i])
+        if (!keysMatch) {
+          // VAPID key mismatch — unsubscribe old and create new
+          await subscription.unsubscribe()
+          subscription = null
+        }
+      }
+    }
+
+    // If no subscription (or we just unsubscribed the old one), create a new one
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey,
+      })
+    }
 
     const subJson = subscription.toJSON()
     if (!subJson.endpoint || !subJson.keys?.p256dh || !subJson.keys?.auth) return false
