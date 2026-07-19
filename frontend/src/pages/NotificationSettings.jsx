@@ -33,25 +33,10 @@ function NotificationSettings() {
     Promise.all([
       getPreferences({ token }),
       isPushSubscribed(),
-    ]).then(async ([prefsData, subscribed]) => {
+    ]).then(([prefsData, subscribed]) => {
       setPrefs(prefsData)
+      setIsSubscribed(subscribed)
       setPermissionState(getNotificationPermission())
-
-      if (subscribed) {
-        // Re-register with backend to ensure sync
-        try {
-          await requestPushSubscription(token)
-          setIsSubscribed(true)
-        } catch (err) {
-          if (err?.status === 402) {
-            setIsSubscribed(false)
-          } else {
-            setIsSubscribed(true)
-          }
-        }
-      } else {
-        setIsSubscribed(false)
-      }
     }).catch(() => {})
     .finally(() => setIsLoading(false))
   }, [token])
@@ -73,7 +58,7 @@ function NotificationSettings() {
       setIsSubscribed(true)
       setPermissionState(getNotificationPermission())
     } catch (err) {
-      if (err.status === 402) {
+      if (err?.code === 'PREMIUM_REQUIRED') {
         navigate('/app/premium')
       }
     }

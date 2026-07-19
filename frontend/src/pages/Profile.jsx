@@ -65,33 +65,12 @@ function Profile() {
   // Load notification state when settings sheet opens
   useEffect(() => {
     if (!showSettings || !session.token) return
-    Promise.all([
-      getPreferences({ token: session.token }),
-      isPushSubscribed(),
-    ]).then(async ([prefsData, subscribed]) => {
-      setPrefs(prefsData)
-      setPermissionState(getNotificationPermission())
-
-      if (subscribed) {
-        // Browser has a subscription, but backend might not know about it.
-        // Re-register to ensure the backend is in sync.
-        try {
-          await requestPushSubscription(session.token)
-          setIsSubscribed(true)
-        } catch (err) {
-          console.error('[Push Re-register Error]', err)
-          // If premium required error, mark as not subscribed on backend
-          if (err?.status === 402) {
-            setIsSubscribed(false)
-          } else {
-            // Browser has a sub but backend registration failed — show as off
-            setIsSubscribed(false)
-          }
-        }
-      } else {
-        setIsSubscribed(false)
-      }
-    }).catch(() => {})
+    getPreferences({ token: session.token })
+      .then((prefsData) => setPrefs(prefsData))
+      .catch(() => {})
+    isPushSubscribed().then(setIsSubscribed).catch(() => setIsSubscribed(false))
+    setPermissionState(getNotificationPermission())
+    setIosMessage(null)
   }, [showSettings, session.token])
 
   const handleNotificationToggle = async (key, value) => {
@@ -113,17 +92,18 @@ function Profile() {
       setIsSubscribed(true)
       setPermissionState(getNotificationPermission())
     } catch (err) {
-      if (err?.status === 402) {
+      const code = err?.code || ''
+      if (code === 'PREMIUM_REQUIRED') {
         setShowSettings(false)
         navigate('/app/premium')
+      } else if (code === 'IOS_INSTALL_REQUIRED') {
+        setIosMessage('To get notifications on iPhone, install the app first:\n\nIn Safari → tap Share (⬆) → "Add to Home Screen"\n\nThen open from your home screen and enable here.')
+      } else if (code === 'PERMISSION_DENIED') {
+        setIosMessage('Notifications are blocked. Go to your device Settings → Notifications → allow for this app/browser.')
+      } else if (code === 'SUBSCRIBE_FAILED') {
+        setIosMessage('Could not connect to the notification service. Try installing the app:\n\nTap the browser menu (⋮ or ⋯) → "Install app" or "Add to Home Screen"\n\nThen enable notifications from the installed app.')
       } else {
-        const msg = err?.message || 'Unknown error'
-        // Show platform-specific guidance inline (not ugly alert)
-        if (msg.includes('iOS_') || msg.includes('MAC_') || msg.includes('PUSH_ERROR')) {
-          setIosMessage(msg.split(': ').slice(1).join(': '))
-        } else {
-          setIosMessage(msg)
-        }
+        setIosMessage('Something went wrong. Please try again or install the app from the browser menu.')
       }
     } finally {
       setIsEnabling(false)
