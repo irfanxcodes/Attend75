@@ -37,7 +37,12 @@ def get_subscription_status(roll_number: str) -> dict:
         ).one_or_none()
 
         if sub is None:
-            return {"is_premium": False, "status": "none", "plan": None}
+            # Check waitlist
+            from db.models.premium_waitlist import PremiumWaitlist
+            on_waitlist = session.query(PremiumWaitlist).filter(
+                PremiumWaitlist.roll_number == roll_number
+            ).first() is not None
+            return {"is_premium": False, "status": "none", "plan": None, "waitlisted": on_waitlist}
 
         now = datetime.utcnow()
         is_active = False
@@ -55,6 +60,7 @@ def get_subscription_status(roll_number: str) -> dict:
             "plan": sub.plan,
             "expiry_date": sub.expiry_date.isoformat() if sub.expiry_date else None,
             "grace_remaining_days": grace_remaining_days,
+            "waitlisted": False,
         }
 
 

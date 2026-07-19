@@ -26,7 +26,10 @@ function Premium() {
   useEffect(() => {
     if (!token) return
     getPremiumStatus({ token })
-      .then(setStatus)
+      .then((data) => {
+        setStatus(data)
+        if (data?.waitlisted) setWaitlistSuccess(true)
+      })
       .catch(() => setStatus({ is_premium: false, status: 'none' }))
       .finally(() => setIsLoading(false))
   }, [token])
