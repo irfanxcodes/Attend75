@@ -85,10 +85,11 @@ export async function requestPushSubscription(token) {
           applicationServerKey,
         })
       } catch (retryErr) {
+        // Final fallback: tell user to clear site data
         throw new Error(
-          `Push service rejected subscription after recovery attempt. ` +
-          `Original: ${errMsg}. Retry: ${retryErr.message}. ` +
-          `[SW: ${swState}, Browser: ${navigator.userAgent.slice(0, 50)}]`
+          `Push service error. This is usually a browser cache issue. ` +
+          `Please clear site data: Settings → Privacy → Site Settings → attend75.xyz → Clear data, then try again. ` +
+          `[${retryErr.message}]`
         )
       }
     } else {
