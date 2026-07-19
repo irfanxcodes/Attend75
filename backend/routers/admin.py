@@ -194,6 +194,42 @@ async def admin_broadcast(
 		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to send broadcast"})
 
 
+@router.post("/feedback/{feedback_id}/reply", response_model=ApiResponse)
+async def admin_feedback_reply(
+	feedback_id: str,
+	payload: dict,
+	_: dict = Depends(require_admin_user),
+):
+	"""Reply to a feedback entry via push notification to the student."""
+	from services.feedback_reply_service import reply_to_feedback
+
+	message = (payload.get("message") or "").strip()
+	if not message:
+		return JSONResponse(status_code=422, content={"status": "error", "message": "message is required"})
+
+	try:
+		result = await run_in_threadpool(reply_to_feedback, feedback_id, message)
+		if result is None:
+			return JSONResponse(status_code=404, content={"status": "error", "message": "Feedback entry not found"})
+		return ApiResponse(status="success", message="Reply sent", data=result)
+	except Exception:
+		logger.exception("Failed to reply to feedback %s", feedback_id)
+		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to send reply"})
+
+
+@router.get("/premium/analytics", response_model=ApiResponse)
+async def admin_premium_analytics(_: dict = Depends(require_admin_user)):
+	"""Premium subscription analytics and notification queue health."""
+	from services.premium_analytics_service import get_premium_analytics
+
+	try:
+		data = await run_in_threadpool(get_premium_analytics)
+		return ApiResponse(status="success", message="Premium analytics fetched", data=data)
+	except Exception:
+		logger.exception("Failed to fetch premium analytics")
+		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to fetch premium analytics"})
+
+
 @router.get("/broadcast/stats", response_model=ApiResponse)
 async def admin_broadcast_stats(
 	title: str = Query(..., description="Broadcast title to look up stats for"),

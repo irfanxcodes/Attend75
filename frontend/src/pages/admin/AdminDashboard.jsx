@@ -16,6 +16,7 @@ import GrowthMetricsPage from '../../components/admin/GrowthMetricsPage'
 import EngagementPage from '../../components/admin/EngagementPage'
 import AppRatingsPage from '../../components/admin/AppRatingsPage'
 import FeedbackPage from '../../components/admin/FeedbackPage'
+import PremiumAnalyticsPage from '../../components/admin/PremiumAnalyticsPage'
 import SubjectRequestsPage from '../../components/admin/SubjectRequestsPage'
 import CollegeInterestPage from '../../components/admin/CollegeInterestPage'
 import WaitlistPage from '../../components/admin/WaitlistPage'
@@ -167,6 +168,8 @@ function AdminDashboard() {
               onRefresh={fetchAllData}
               isLoading={isLoading}
             />
+          ) : activeSection === 'premium-analytics' ? (
+            <PremiumAnalyticsPage />
           ) : activeSection === 'subject-requests' ? (
             <SubjectRequestsPage
               analytics={analytics}

@@ -40,6 +40,10 @@ function FeedbackPage({ feedback: initialFeedback, onRefresh, isLoading }) {
   const [items, setItems] = useState(initialFeedback || [])
   const [filter, setFilter] = useState('all')
   const [updatingId, setUpdatingId] = useState(null)
+  const [replyingId, setReplyingId] = useState(null)
+  const [replyText, setReplyText] = useState('')
+  const [replySending, setReplySending] = useState(false)
+  const [replyResult, setReplyResult] = useState(null)
 
   useEffect(() => {
     setItems(initialFeedback || [])
@@ -80,6 +84,32 @@ function FeedbackPage({ feedback: initialFeedback, onRefresh, isLoading }) {
       setUpdatingId(null)
     }
   }, [sessionToken])
+
+  const handleReply = useCallback(async (feedbackId) => {
+    if (!sessionToken || !replyText.trim()) return
+    setReplySending(true)
+    setReplyResult(null)
+    try {
+      const res = await fetch('/api/admin/feedback/' + feedbackId + '/reply', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${sessionToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: replyText.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || 'Failed')
+      setReplyResult({ success: true, message: data.data?.message || 'Reply sent' })
+      setReplyText('')
+      setReplyingId(null)
+      // Mark as reviewed in UI
+      setItems(prev => prev.map(item =>
+        item.id === feedbackId ? { ...item, status: 'reviewed' } : item
+      ))
+    } catch (err) {
+      setReplyResult({ success: false, message: err.message })
+    } finally {
+      setReplySending(false)
+    }
+  }, [sessionToken, replyText])
 
   const filters = [
     { id: 'all', label: 'All' },
@@ -157,9 +187,6 @@ function FeedbackPage({ feedback: initialFeedback, onRefresh, isLoading }) {
           <button type="button" onClick={onRefresh} className="flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-[10px] font-semibold text-[#9F9AB5] transition hover:bg-white/5">
             ✓ Mark read
           </button>
-          <button type="button" disabled className="flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-[10px] font-semibold text-[#7a6f94] opacity-50 cursor-not-allowed" title="Requires push notifications (coming soon)">
-            ↩ Reply
-          </button>
           <button type="button" className="flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-[10px] font-semibold text-[#9F9AB5] transition hover:bg-white/5">
             ⊘ Archive
           </button>
@@ -172,7 +199,8 @@ function FeedbackPage({ feedback: initialFeedback, onRefresh, isLoading }) {
           const tag = getTag(item.message)
           const isUpdating = updatingId === item.id
           return (
-            <div key={item.id || i} className="flex items-start gap-3 rounded-2xl border border-white/[0.06] bg-[#2a2440] p-4">
+            <div key={item.id || i} className="rounded-2xl border border-white/[0.06] bg-[#2a2440] p-4">
+              <div className="flex items-start gap-3">
               {/* Avatar */}
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-[#1e1932]" style={{ backgroundColor: avatarColors[i % avatarColors.length] }}>
                 {getInitials(item.user_name)}
@@ -192,8 +220,13 @@ function FeedbackPage({ feedback: initialFeedback, onRefresh, isLoading }) {
 
               {/* Actions */}
               <div className="flex shrink-0 items-center gap-1.5">
-                {/* Reply (disabled) */}
-                <button type="button" disabled className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 text-[#7a6f94] opacity-50 cursor-not-allowed" title="Reply requires push notifications">
+                {/* Reply */}
+                <button
+                  type="button"
+                  onClick={() => { setReplyingId(replyingId === item.id ? null : item.id); setReplyText(''); setReplyResult(null) }}
+                  className={`flex h-7 w-7 items-center justify-center rounded-lg border transition ${replyingId === item.id ? 'border-[#6CB4FF]/30 bg-[#6CB4FF]/10 text-[#6CB4FF]' : 'border-white/10 text-[#9F9AB5] hover:bg-white/5'}`}
+                  title="Reply via push notification"
+                >
                   <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 17 4 12 9 7" /><path d="M20 18v-2a4 4 0 0 0-4-4H4" /></svg>
                 </button>
                 {/* Mark reviewed */}
@@ -217,6 +250,34 @@ function FeedbackPage({ feedback: initialFeedback, onRefresh, isLoading }) {
                   <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
                 </button>
               </div>
+            </div>
+
+              {/* Reply form */}
+              {replyingId === item.id && (
+                <div className="mt-3 flex items-center gap-2 border-t border-white/[0.06] pt-3">
+                  <input
+                    type="text"
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    placeholder="Type your reply (sent as push notification)..."
+                    className="flex-1 rounded-lg border border-white/10 bg-[#1e1932] px-3 py-2 text-[11px] text-[#f0ece4] placeholder:text-[#6E6A88] outline-none focus:border-[#6CB4FF]/40"
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleReply(item.id) } }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleReply(item.id)}
+                    disabled={replySending || !replyText.trim()}
+                    className="rounded-lg bg-[#6CB4FF] px-3 py-2 text-[10px] font-bold text-[#1D183E] transition active:scale-95 disabled:opacity-50"
+                  >
+                    {replySending ? '...' : 'Send'}
+                  </button>
+                  {replyResult && (
+                    <span className={`text-[9px] ${replyResult.success ? 'text-[#4EF0A0]' : 'text-[#FF5B5B]'}`}>
+                      {replyResult.success ? '✓' : '✗'} {replyResult.message?.slice(0, 40)}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           )
         })}
