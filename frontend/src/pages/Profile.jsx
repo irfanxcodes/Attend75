@@ -107,6 +107,7 @@ function Profile() {
   const handleEnablePush = async () => {
     if (!session.token || isEnabling) return
     setIsEnabling(true)
+    setIosMessage(null)
     try {
       await requestPushSubscription(session.token)
       setIsSubscribed(true)
@@ -117,11 +118,11 @@ function Profile() {
         navigate('/app/premium')
       } else {
         const msg = err?.message || 'Unknown error'
-        // Don't show ugly alert for iOS — show inline
-        if (msg.includes('iOS_NON_SAFARI') || msg.includes('iOS_NOT_INSTALLED')) {
+        // Show platform-specific guidance inline (not ugly alert)
+        if (msg.includes('iOS_') || msg.includes('MAC_') || msg.includes('PUSH_ERROR')) {
           setIosMessage(msg.split(': ').slice(1).join(': '))
         } else {
-          alert(`Push subscription failed: ${msg}`)
+          setIosMessage(msg)
         }
       }
     } finally {
@@ -552,10 +553,10 @@ function Profile() {
                   </div>
                 </div>
 
-                {/* iOS guidance message */}
+                {/* iOS/Mac/platform guidance message */}
                 {iosMessage && (
                   <div className="mt-3 rounded-xl bg-[#6CB4FF]/10 px-3.5 py-3 ring-1 ring-[#6CB4FF]/20">
-                    <p className="text-[11px] leading-relaxed text-[#6CB4FF]">{iosMessage}</p>
+                    <p className="text-[11px] leading-relaxed text-[#6CB4FF] whitespace-pre-line">{iosMessage}</p>
                   </div>
                 )}
 

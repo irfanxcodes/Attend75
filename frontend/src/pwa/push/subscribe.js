@@ -131,12 +131,34 @@ export async function requestPushSubscription(token) {
           applicationServerKey,
         })
       } catch (retryErr) {
-        // Final fallback: tell user to clear site data
-        throw new Error(
-          `Push service error. This is usually a browser cache issue. ` +
-          `Please clear site data: Settings → Privacy → Site Settings → attend75.xyz → Clear data, then try again. ` +
-          `[${retryErr.message}]`
-        )
+        // Detect platform for specific instructions
+        const ua = navigator.userAgent
+        const isIOS = /iPhone|iPad|iPod/.test(ua)
+        const isMac = /Macintosh|Mac OS X/.test(ua)
+
+        if (isIOS) {
+          throw new Error(
+            'iOS_NOT_INSTALLED: Notifications on iPhone require the app to be installed. ' +
+            'Open attend75.xyz in Safari → tap the Share button (⬆) → tap "Add to Home Screen" → open the app from your home screen → then enable notifications.'
+          )
+        } else if (isMac) {
+          throw new Error(
+            'MAC_CACHE_ISSUE: Your browser has a stale notification cache. To fix:\n\n' +
+            '1. Open browser Settings → Privacy / Site Settings\n' +
+            '2. Search for "attend75.xyz"\n' +
+            '3. Click "Clear data" or "Reset permissions"\n' +
+            '4. Come back and tap Enable again\n\n' +
+            'Or try: Install Attend75 as an app (click ⋮ menu → "Install Attend75") and enable from there.'
+          )
+        } else {
+          throw new Error(
+            'PUSH_ERROR: Could not connect to notification service. To fix:\n\n' +
+            '1. Go to browser Settings → Site Settings → Notifications\n' +
+            '2. Remove attend75.xyz from the list\n' +
+            '3. Come back and tap Enable again\n\n' +
+            'Or install as app: tap ⋮ menu → "Install app" and enable from there.'
+          )
+        }
       }
     } else {
       throw new Error(`${errMsg} [SW: ${swState}]`)
