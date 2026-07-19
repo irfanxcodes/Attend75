@@ -20,7 +20,7 @@ function urlBase64ToUint8Array(base64String) {
 
 /**
  * Request notification permission and subscribe to Web Push.
- * Returns the subscription data on success, or null if denied/unavailable.
+ * Returns the subscription data on success, throws on failure.
  */
 export async function requestPushSubscription(token) {
   // Check browser support
@@ -43,25 +43,57 @@ export async function requestPushSubscription(token) {
   // Get the active service worker registration
   const registration = await navigator.serviceWorker.ready
 
-  // Unsubscribe any existing subscription first (avoids stale key conflicts)
+  // Check for existing subscription — if it exists with a different applicationServerKey,
+  // we must unsubscribe it first (browser rejects subscribe with a different key)
   const existingSub = await registration.pushManager.getSubscription()
   if (existingSub) {
-    await existingSub.unsubscribe()
+    try {
+      await existingSub.unsubscribe()
+    } catch {
+      // If unsubscribe fails, continue anyway — subscribe() might still work
+    }
   }
 
-  // Subscribe to push with fresh VAPID key
+  // Subscribe to push with the VAPID key
+  const applicationServerKey = urlBase64ToUint8Array(publicKey)
   let subscription
   try {
     subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey),
+      applicationServerKey,
     })
   } catch (subErr) {
-    // Provide detailed diagnostic info
-    const swState = registration.active ? registration.active.state : 'no active SW'
-    throw new Error(
-      `${subErr.message || subErr}. [SW state: ${swState}, Permission: ${Notification.permission}, Endpoint: ${registration.scope}]`
-    )
+    // "Registration failed - push service error" can happen when:
+    // 1. The browser has a stale push registration with a different VAPID key
+    // 2. The push service (FCM/APNs) is temporarily unavailable
+    // 3. iOS Safari (not running as installed PWA)
+    //
+    // Attempt recovery: unregister SW, re-register, try again
+    const swState = registration.active ? registration.active.state : 'none'
+    const errMsg = subErr.message || String(subErr)
+
+    if (errMsg.includes('push service') || errMsg.includes('Registration failed')) {
+      // Try recovery: unregister the SW completely and re-register
+      try {
+        await registration.unregister()
+        // Wait for the new SW to be ready
+        const newReg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+        await navigator.serviceWorker.ready
+
+        subscription = await newReg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey,
+        })
+      } catch (retryErr) {
+        throw new Error(
+          `Push service rejected subscription after recovery attempt. ` +
+          `Original: ${errMsg}. Retry: ${retryErr.message}. ` +
+          `[SW: ${swState}, Browser: ${navigator.userAgent.slice(0, 50)}]`
+        )
+      }
+    } else {
+      throw new Error(`${errMsg} [SW: ${swState}]`)
+    }
   }
 
   // Extract keys
