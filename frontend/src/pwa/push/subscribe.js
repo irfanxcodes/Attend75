@@ -31,7 +31,7 @@ export async function requestPushSubscription(token) {
   // Request permission
   const permission = await Notification.requestPermission()
   if (permission !== 'granted') {
-    return null // Permission denied
+    throw new Error(`Notification permission ${permission}. Please allow notifications in your browser settings.`)
   }
 
   // Get VAPID public key from backend
@@ -43,7 +43,13 @@ export async function requestPushSubscription(token) {
   // Get the active service worker registration
   const registration = await navigator.serviceWorker.ready
 
-  // Subscribe to push
+  // Unsubscribe any existing subscription first (avoids stale key conflicts)
+  const existingSub = await registration.pushManager.getSubscription()
+  if (existingSub) {
+    await existingSub.unsubscribe()
+  }
+
+  // Subscribe to push with fresh VAPID key
   const subscription = await registration.pushManager.subscribe({
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToUint8Array(publicKey),

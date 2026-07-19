@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchAdminFeedbackLog, updateAdminFeedbackStatus, parseAdminSession } from '../../services/adminApi'
 
+const configuredApiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || '').trim()
+function resolveApiBaseUrl() {
+  if (import.meta.env.DEV) return 'http://127.0.0.1:8000'
+  if (configuredApiBaseUrl) return configuredApiBaseUrl
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') return '/api'
+  return 'http://127.0.0.1:8000'
+}
+const API_BASE = resolveApiBaseUrl()
+
 function formatNumber(num) {
   if (num >= 1000) return `${(num / 1000).toFixed(1)}k`
   return String(num)
@@ -90,7 +99,7 @@ function FeedbackPage({ feedback: initialFeedback, onRefresh, isLoading }) {
     setReplySending(true)
     setReplyResult(null)
     try {
-      const res = await fetch('/api/admin/feedback/' + feedbackId + '/reply', {
+      const res = await fetch(`${API_BASE}/admin/feedback/${feedbackId}/reply`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${sessionToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: replyText.trim() }),

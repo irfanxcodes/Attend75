@@ -1,14 +1,21 @@
 import { useEffect, useState } from 'react'
 import { parseAdminSession } from '../../services/adminApi'
 
-const API_BASE = '/api'
+const configuredApiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || '').trim()
+function resolveApiBaseUrl() {
+  if (import.meta.env.DEV) return 'http://127.0.0.1:8000'
+  if (configuredApiBaseUrl) return configuredApiBaseUrl
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') return '/api'
+  return 'http://127.0.0.1:8000'
+}
+const API_BASE = resolveApiBaseUrl()
 
 async function fetchPremiumAnalytics(token) {
   const res = await fetch(`${API_BASE}/admin/premium/analytics`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   const data = await res.json()
-  if (!res.ok) throw new Error(data.message || 'Failed')
+  if (!res.ok) throw new Error(data.message || data.detail || `HTTP ${res.status}`)
   return data.data
 }
 

@@ -78,11 +78,13 @@ function Profile() {
           await requestPushSubscription(session.token)
           setIsSubscribed(true)
         } catch (err) {
+          console.error('[Push Re-register Error]', err)
           // If premium required error, mark as not subscribed on backend
           if (err?.status === 402) {
             setIsSubscribed(false)
           } else {
-            setIsSubscribed(true) // Browser says yes, best effort
+            // Browser has a sub but backend registration failed — show as off
+            setIsSubscribed(false)
           }
         }
       } else {
@@ -112,6 +114,10 @@ function Profile() {
       if (err?.status === 402) {
         setShowSettings(false)
         navigate('/app/premium')
+      } else {
+        // Show the error so user knows what happened
+        console.error('[Push Subscribe Error]', err)
+        alert(`Push subscription failed: ${err?.message || 'Unknown error'}. Make sure you're using HTTPS and have allowed notifications.`)
       }
     } finally {
       setIsEnabling(false)
