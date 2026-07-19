@@ -10,7 +10,7 @@ import logging
 import threading
 import time
 from collections import defaultdict, deque
-from datetime import datetime
+from datetime import datetime, timezone
 
 from db.models.push_subscription import PushSubscription
 from db.session import SessionLocal
@@ -110,7 +110,7 @@ def register_subscription(
     if not rate_limiter.check_and_record(roll_number):
         raise RateLimitExceededError(f"{roll_number} exceeded {RATE_LIMIT_MAX_REQUESTS} subscription requests/hour")
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     encrypted_endpoint = credential_crypto_service.encrypt(endpoint)
     encrypted_p256dh = credential_crypto_service.encrypt(p256dh_key)
     encrypted_auth = credential_crypto_service.encrypt(auth_key)
@@ -293,5 +293,5 @@ def touch_last_used(subscription_id: int) -> None:
     with SessionLocal() as session:
         row = session.query(PushSubscription).filter(PushSubscription.id == subscription_id).one_or_none()
         if row:
-            row.last_used_at = datetime.utcnow()
+            row.last_used_at = datetime.now(timezone.utc)
             session.commit()

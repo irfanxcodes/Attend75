@@ -9,7 +9,7 @@ Called from notice_scheduler after process_batch succeeds. Handles:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import or_
 
@@ -56,7 +56,7 @@ def dispatch_for_new_notices(notice_ids: list[int]) -> int:
     if not notice_ids:
         return 0
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     with SessionLocal() as session:
         notices = (

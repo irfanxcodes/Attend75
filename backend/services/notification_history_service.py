@@ -5,7 +5,7 @@ Used by routers/push.py for the history endpoint and by every dispatcher/worker
 that needs to log a dispatched notification.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from db.models.notification_history import NotificationHistory
 from db.session import SessionLocal
@@ -23,7 +23,7 @@ def log_notification(
     delivery_status: str = "sent",
 ) -> int:
     """Insert a notification_history row. Returns the new row id."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     with SessionLocal() as session:
         row = NotificationHistory(
             roll_number=roll_number,
@@ -83,7 +83,7 @@ def mark_read(roll_number: str, history_id: int) -> bool:
             return False
         if not row.is_read:
             row.is_read = True
-            row.read_at = datetime.utcnow()
+            row.read_at = datetime.now(timezone.utc)
             session.commit()
         return True
 

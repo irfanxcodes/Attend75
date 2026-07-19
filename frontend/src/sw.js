@@ -86,9 +86,15 @@ self.addEventListener('notificationclick', (event) => {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
       for (const client of clients) {
         if (client.url.startsWith(self.location.origin)) {
-          client.focus()
-          client.navigate(urlToOpen)
-          return
+          // navigate() is not supported in all browsers, use postMessage fallback
+          if ('navigate' in client) {
+            client.focus()
+            return client.navigate(urlToOpen)
+          } else {
+            client.focus()
+            client.postMessage({ type: 'NOTIFICATION_CLICK', url: urlToOpen })
+            return
+          }
         }
       }
       return self.clients.openWindow(urlToOpen)

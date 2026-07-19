@@ -12,7 +12,7 @@ Recovery alerts fire when crossing from below_75 back to a higher bracket (Req 4
 
 import logging
 import math
-from datetime import datetime
+from datetime import datetime, timezone
 
 from db.models.attendance_alert_state import AttendanceAlertState
 from db.session import SessionLocal
@@ -177,7 +177,7 @@ def _evaluate_single(roll_number: str, subject_abbr: str, percent: float, attend
                 )
 
         # Update stored state
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         if state:
             state.last_alerted_bracket = new_bracket
             state.last_alerted_percent = percent

@@ -5,7 +5,7 @@ Used by every dispatcher (notice, deadline, attendance, timetable, digest,
 weekly summary) to decide whether a given notification should be sent.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from db.models.notification_preference import NotificationPreference
 from db.session import SessionLocal
@@ -86,7 +86,7 @@ def update_preferences(roll_number: str, updates: dict) -> NotificationPreferenc
             if field == "reminder_lead_minutes" and value not in VALID_LEAD_MINUTES:
                 value = 15
             setattr(prefs, field, value)
-        prefs.updated_at = datetime.utcnow()
+        prefs.updated_at = datetime.now(timezone.utc)
         session.commit()
         session.refresh(prefs)
         session.expunge(prefs)
@@ -101,7 +101,7 @@ def get_or_create_preferences(roll_number: str) -> NotificationPreference:
 
     Req 6.5 / Property 18.
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     with SessionLocal() as session:
         prefs = (
             session.query(NotificationPreference)

@@ -166,6 +166,7 @@ class PushWorker:
         self._concurrency = concurrency
         self._running = False
         self._threads: list[threading.Thread] = []
+        self._reaper_thread: threading.Thread | None = None
 
     def start(self) -> None:
         self._running = True
@@ -173,13 +174,29 @@ class PushWorker:
             t = threading.Thread(target=self._worker_loop, name=f"push-worker-{i}", daemon=True)
             t.start()
             self._threads.append(t)
-        logger.info("PushWorker started with %d threads", self._concurrency)
+        # Start the stale job reaper
+        self._reaper_thread = threading.Thread(target=self._reaper_loop, name="push-reaper", daemon=True)
+        self._reaper_thread.start()
+        logger.info("PushWorker started with %d threads + reaper", self._concurrency)
 
     def stop(self) -> None:
         self._running = False
-        # Threads are daemon and will exit when the process does,
-        # but setting _running=False lets them exit their poll loops cleanly.
         logger.info("PushWorker stopping")
+
+    def _reaper_loop(self) -> None:
+        """Reclaim stale processing jobs every 5 minutes."""
+        while self._running:
+            try:
+                reclaimed = notification_queue.reclaim_stale_processing_jobs(stale_minutes=10)
+                if reclaimed > 0:
+                    logger.info("Reclaimed %d stale processing jobs", reclaimed)
+            except Exception:
+                logger.exception("Reaper loop error")
+            # Sleep 5 minutes between reaper runs
+            for _ in range(300):
+                if not self._running:
+                    break
+                time.sleep(1)
 
     def _worker_loop(self) -> None:
         while self._running:

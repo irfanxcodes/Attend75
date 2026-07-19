@@ -11,10 +11,18 @@ _DEFAULT_SQLITE_PATH = _BASE_DIR / "attend75.db"
 _DEFAULT_DATABASE_URL = f"sqlite:///{_DEFAULT_SQLITE_PATH}"
 DATABASE_URL = os.getenv("DATABASE_URL", _DEFAULT_DATABASE_URL)
 
+# Detect database engine for feature gating (e.g., SKIP LOCKED is PostgreSQL-only)
+IS_POSTGRES = DATABASE_URL.startswith("postgresql")
+
 _engine_kwargs = {
     "pool_pre_ping": True,
 }
-if DATABASE_URL.startswith("sqlite"):
+
+if IS_POSTGRES:
+    _engine_kwargs["pool_size"] = 10
+    _engine_kwargs["max_overflow"] = 20
+else:
+    # SQLite needs this for multi-threaded access
     _engine_kwargs["connect_args"] = {"check_same_thread": False}
 
 engine = create_engine(DATABASE_URL, **_engine_kwargs)
@@ -44,11 +52,14 @@ def init_database() -> None:
     from db.models import premium_subscription  # noqa: F401
     from db.models import premium_waitlist  # noqa: F401
     from db.models import push_subscription  # noqa: F401
+    from db.models import pwa_install  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
 
-    if DATABASE_URL.startswith("sqlite"):
+    # SQLite-specific schema patches for columns added after initial migration
+    if not IS_POSTGRES:
         _ensure_feature_usage_schema()
+        _ensure_push_tables_exist()
 
 
 def _ensure_feature_usage_schema() -> None:
@@ -65,3 +76,15 @@ def _ensure_feature_usage_schema() -> None:
         connection.execute(
             text("CREATE INDEX IF NOT EXISTS ix_feature_usage_events_semester_id ON feature_usage_events (semester_id)")
         )
+
+
+def _ensure_push_tables_exist() -> None:
+    """Ensure push notification tables exist in SQLite (in case migrations haven't been run)."""
+    with engine.begin() as connection:
+        # Check if notification_jobs table exists
+        result = connection.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='notification_jobs'")
+        )
+        if not result.fetchone():
+            # Tables will be created by Base.metadata.create_all above
+            pass

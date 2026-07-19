@@ -39,7 +39,7 @@ def get_eligible_students() -> list[dict]:
     Ordered by last_fetch_at ascending (round-robin, Req 16.7).
     Excludes: inactive >30 days, invalid credentials, paused students.
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     cutoff = now - timedelta(days=INACTIVE_THRESHOLD_DAYS)
 
     with SessionLocal() as session:
@@ -144,7 +144,7 @@ def run_fetch_cycle() -> dict:
     logger.info("Background fetch cycle: %d eligible students", len(eligible))
 
     stats = {"total": len(eligible), "success": 0, "failed": 0, "invalid": 0}
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     for i, student in enumerate(eligible):
         roll = student["roll_number"]
@@ -240,7 +240,7 @@ def _send_relink_notification(roll_number: str) -> None:
 
 def get_fetcher_health() -> dict:
     """Admin health endpoint data."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     with SessionLocal() as session:
         total_states = session.query(BackgroundFetchState).count()
         success_count = session.query(BackgroundFetchState).filter(BackgroundFetchState.last_fetch_status == "success").count()

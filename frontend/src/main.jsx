@@ -11,6 +11,16 @@ import { submitFeedback, submitRating, trackFeatureUsageEvent } from './services
 // Initialize PWA service worker (no-op in development)
 initServiceWorker()
 
+// Listen for NOTIFICATION_CLICK messages from the service worker (fallback for
+// browsers where WindowClient.navigate() is not supported)
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data?.type === 'NOTIFICATION_CLICK' && event.data.url) {
+      window.location.href = event.data.url
+    }
+  })
+}
+
 // Initialize offline queue — sends queued actions when connectivity returns
 initOfflineQueueSync(async (type, payload) => {
   switch (type) {
