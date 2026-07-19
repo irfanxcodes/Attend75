@@ -7,6 +7,7 @@ import { fetchSessionStatus, fetchUserRating, submitFeedback, submitRating } fro
 import { useInstallPrompt } from '../pwa/useInstallPrompt'
 import { getPreferences, updatePreferences } from '../services/pushApi'
 import { requestPushSubscription, isPushSubscribed, getNotificationPermission } from '../pwa/push/subscribe'
+import { getPremiumStatus } from '../services/premiumApi'
 
 function getInitials(name) {
   if (!name) return 'A'
@@ -41,6 +42,16 @@ function Profile() {
   const [feedbackError, setFeedbackError] = useState('')
 
   const { canInstall, isInstalled, promptInstall, isIOS } = useInstallPrompt()
+
+  // ── Premium status ──────────────────────────────────────────────────────────
+  const [premiumStatus, setPremiumStatus] = useState(null) // null=loading, {is_premium, status, expiry_date, ...}
+
+  useEffect(() => {
+    if (!session.token) return
+    getPremiumStatus({ token: session.token })
+      .then(setPremiumStatus)
+      .catch(() => setPremiumStatus({ is_premium: false, status: 'none' }))
+  }, [session.token])
 
   // ── Settings sheet state ──────────────────────────────────────────────────
   const [showSettings, setShowSettings] = useState(false)
@@ -235,22 +246,100 @@ function Profile() {
       </div>
 
       {/* Premium & Notifications */}
-      <button
-        type="button"
-        onClick={() => navigate('/app/premium')}
-        className="flex w-full items-center gap-3 rounded-2xl bg-[#4A466A] px-4 py-4 ring-1 ring-white/5 transition active:scale-[0.99] hover:bg-[#565275]"
-      >
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FF916C]/15">
-          <Crown className="h-5 w-5 text-[#FF916C]" strokeWidth={1.8} />
-        </div>
-        <div className="min-w-0 flex-1 text-left">
-          <p className="text-sm font-bold text-[#F7F4FF]">Premium</p>
-          <p className="text-[10px] text-[#9F9AB5]">Push notifications, class reminders & more</p>
-        </div>
-        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[#9F9AB5]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="9 18 15 12 9 6" />
-        </svg>
-      </button>
+      {(() => {
+        const isPremiumActive = premiumStatus?.is_premium === true
+        const expiryDate = premiumStatus?.expiry_date ? new Date(premiumStatus.expiry_date) : null
+        const daysRemaining = expiryDate ? Math.max(0, Math.ceil((expiryDate - new Date()) / (1000 * 60 * 60 * 24))) : null
+        const needsRenewal = !isPremiumActive || (daysRemaining !== null && daysRemaining <= 3)
+
+        if (isPremiumActive && !needsRenewal) {
+          // Active premium — show green "Premium Active" badge
+          return (
+            <button
+              type="button"
+              onClick={() => navigate('/app/premium')}
+              className="flex w-full items-center gap-3 rounded-2xl px-4 py-4 ring-1 ring-[#4EF0A0]/20 transition active:scale-[0.99] hover:bg-[#4EF0A0]/5"
+              style={{ background: 'linear-gradient(135deg, rgba(78,240,160,0.08) 0%, rgba(78,240,160,0.02) 100%)' }}
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#4EF0A0]/15">
+                <Crown className="h-5 w-5 text-[#4EF0A0]" strokeWidth={1.8} />
+              </div>
+              <div className="min-w-0 flex-1 text-left">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-bold text-[#F7F4FF]">Premium Active</p>
+                  <span className="rounded-full bg-[#4EF0A0]/15 px-2 py-0.5 text-[9px] font-bold text-[#4EF0A0]">✓</span>
+                </div>
+                <p className="text-[10px] text-[#9F9AB5]">
+                  {daysRemaining !== null ? `Renews in ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}` : 'All features unlocked'}
+                </p>
+              </div>
+              <ChevronRight className="h-4 w-4 shrink-0 text-[#9F9AB5]" />
+            </button>
+          )
+        }
+
+        if (isPremiumActive && needsRenewal) {
+          // Expiring soon or in grace — show amber "Renew Premium" CTA
+          return (
+            <button
+              type="button"
+              onClick={() => navigate('/app/premium')}
+              className="flex w-full items-center gap-3 rounded-2xl px-4 py-4 ring-1 ring-[#FFB23E]/25 transition active:scale-[0.99] hover:bg-[#FFB23E]/5"
+              style={{ background: 'linear-gradient(135deg, rgba(255,178,62,0.1) 0%, rgba(255,178,62,0.02) 100%)' }}
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FFB23E]/15">
+                <Crown className="h-5 w-5 text-[#FFB23E]" strokeWidth={1.8} />
+              </div>
+              <div className="min-w-0 flex-1 text-left">
+                <p className="text-sm font-bold text-[#F7F4FF]">Renew Premium</p>
+                <p className="text-[10px] text-[#FFB23E]">
+                  {daysRemaining === 0 ? 'Expires today — renew to keep alerts' : `${daysRemaining} day${daysRemaining !== 1 ? 's' : ''} left — renew now`}
+                </p>
+              </div>
+              <span className="shrink-0 rounded-full bg-[#FFB23E] px-3 py-1 text-[10px] font-bold text-[#1D183E]">Renew</span>
+            </button>
+          )
+        }
+
+        if (!isPremiumActive && premiumStatus?.status === 'expired') {
+          // Expired — show red-ish "Renew Premium"
+          return (
+            <button
+              type="button"
+              onClick={() => navigate('/app/premium')}
+              className="flex w-full items-center gap-3 rounded-2xl px-4 py-4 ring-1 ring-[#FF916C]/25 transition active:scale-[0.99] hover:bg-[#FF916C]/5"
+              style={{ background: 'linear-gradient(135deg, rgba(255,145,108,0.1) 0%, rgba(255,145,108,0.02) 100%)' }}
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FF916C]/15">
+                <Crown className="h-5 w-5 text-[#FF916C]" strokeWidth={1.8} />
+              </div>
+              <div className="min-w-0 flex-1 text-left">
+                <p className="text-sm font-bold text-[#F7F4FF]">Renew Premium</p>
+                <p className="text-[10px] text-[#FF916C]">Subscription expired — renew to resume alerts</p>
+              </div>
+              <span className="shrink-0 rounded-full bg-[#FF916C] px-3 py-1 text-[10px] font-bold text-[#1D183E]">Renew</span>
+            </button>
+          )
+        }
+
+        // Default: not premium — show subscribe CTA
+        return (
+          <button
+            type="button"
+            onClick={() => navigate('/app/premium')}
+            className="flex w-full items-center gap-3 rounded-2xl bg-[#4A466A] px-4 py-4 ring-1 ring-white/5 transition active:scale-[0.99] hover:bg-[#565275]"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FF916C]/15">
+              <Crown className="h-5 w-5 text-[#FF916C]" strokeWidth={1.8} />
+            </div>
+            <div className="min-w-0 flex-1 text-left">
+              <p className="text-sm font-bold text-[#F7F4FF]">Get Premium</p>
+              <p className="text-[10px] text-[#9F9AB5]">Push notifications, class reminders & more</p>
+            </div>
+            <span className="shrink-0 rounded-full bg-[#FF916C] px-3 py-1 text-[10px] font-bold text-[#1D183E]">₹19/mo</span>
+          </button>
+        )
+      })()}
 
       {/* Share */}
       <div className="rounded-2xl bg-[#4A466A] px-4 py-4 ring-1 ring-white/5">
