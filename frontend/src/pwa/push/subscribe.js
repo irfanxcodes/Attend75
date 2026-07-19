@@ -50,10 +50,19 @@ export async function requestPushSubscription(token) {
   }
 
   // Subscribe to push with fresh VAPID key
-  const subscription = await registration.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(publicKey),
-  })
+  let subscription
+  try {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey),
+    })
+  } catch (subErr) {
+    // Provide detailed diagnostic info
+    const swState = registration.active ? registration.active.state : 'no active SW'
+    throw new Error(
+      `${subErr.message || subErr}. [SW state: ${swState}, Permission: ${Notification.permission}, Endpoint: ${registration.scope}]`
+    )
+  }
 
   // Extract keys
   const subJson = subscription.toJSON()
