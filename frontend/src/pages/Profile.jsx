@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Crown, LogOut, Share2, Star, MessageSquare } from 'lucide-react'
+import { Crown, LogOut, Share2, Star, MessageSquare, Settings, Bell, BellOff, X, ChevronRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { FollowCreatorSection } from '../components/common/FollowCreatorBanner'
 import useAppStore from '../hooks/useAppStore'
 import { fetchSessionStatus, fetchUserRating, submitFeedback, submitRating } from '../services/attendanceApi'
 import { useInstallPrompt } from '../pwa/useInstallPrompt'
+import { getPreferences, updatePreferences } from '../services/pushApi'
+import { requestPushSubscription, isPushSubscribed, getNotificationPermission } from '../pwa/push/subscribe'
 
 function getInitials(name) {
   if (!name) return 'A'
@@ -39,6 +41,54 @@ function Profile() {
   const [feedbackError, setFeedbackError] = useState('')
 
   const { canInstall, isInstalled, promptInstall, isIOS } = useInstallPrompt()
+
+  // ── Settings sheet state ──────────────────────────────────────────────────
+  const [showSettings, setShowSettings] = useState(false)
+  const [isSubscribed, setIsSubscribed] = useState(false)
+  const [permissionState, setPermissionState] = useState('default')
+  const [prefs, setPrefs] = useState(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isEnabling, setIsEnabling] = useState(false)
+
+  // Load notification state when settings sheet opens
+  useEffect(() => {
+    if (!showSettings || !session.token) return
+    Promise.all([
+      getPreferences({ token: session.token }),
+      isPushSubscribed(),
+    ]).then(([prefsData, subscribed]) => {
+      setPrefs(prefsData)
+      setIsSubscribed(subscribed)
+      setPermissionState(getNotificationPermission())
+    }).catch(() => {})
+  }, [showSettings, session.token])
+
+  const handleNotificationToggle = async (key, value) => {
+    if (!session.token) return
+    setIsSaving(true)
+    try {
+      const updated = await updatePreferences({ token: session.token, [key]: value })
+      setPrefs(updated)
+    } catch { /* silent */ }
+    finally { setIsSaving(false) }
+  }
+
+  const handleEnablePush = async () => {
+    if (!session.token || isEnabling) return
+    setIsEnabling(true)
+    try {
+      await requestPushSubscription(session.token)
+      setIsSubscribed(true)
+      setPermissionState(getNotificationPermission())
+    } catch (err) {
+      if (err?.status === 402) {
+        setShowSettings(false)
+        navigate('/app/premium')
+      }
+    } finally {
+      setIsEnabling(false)
+    }
+  }
 
   // Fetch existing rating
   useEffect(() => {
@@ -98,7 +148,17 @@ function Profile() {
   return (
     <section className="space-y-3 pb-4">
       {/* Header */}
-      <h1 className="text-2xl font-extrabold text-[#F7F4FF]">Profile</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-extrabold text-[#F7F4FF]">Profile</h1>
+        <button
+          type="button"
+          onClick={() => setShowSettings(true)}
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-white/8 text-[#9F9AB5] transition hover:bg-white/15 active:scale-95"
+          aria-label="Settings"
+        >
+          <Settings className="h-4.5 w-4.5" strokeWidth={1.8} />
+        </button>
+      </div>
 
       {/* User card */}
       <div
@@ -305,6 +365,125 @@ function Profile() {
       <p className="text-center text-[10px] text-[#6E6A88]">
         Attend<span className="text-[#FF916C]">75</span> · Made for ICFAI / IBS students
       </p>
+
+      {/* Settings sheet */}
+      {showSettings && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowSettings(false) }}
+        >
+          <div className="w-full max-w-md overflow-hidden rounded-t-[28px] bg-[#1E1B2E] shadow-2xl">
+            {/* Drag handle */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="h-1 w-10 rounded-full bg-white/20" />
+            </div>
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 pt-3 pb-4">
+              <div className="flex items-center gap-2.5">
+                <Settings className="h-4 w-4 text-[#9F9AB5]" strokeWidth={1.8} />
+                <h2 className="text-[15px] font-bold text-[#F7F4FF]">Settings</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSettings(false)}
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-white/8 text-[#9F9AB5] transition hover:bg-white/15"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            <div className="px-4 pb-8 space-y-3">
+              {/* Notification enable/disable */}
+              <div>
+                <p className="mb-2 px-1 text-[10px] font-bold uppercase tracking-wider text-[#9F9AB5]/70">
+                  Push Notifications
+                </p>
+
+                {/* Subscription status row */}
+                <div className="rounded-2xl bg-white/[0.05] ring-1 ring-white/[0.07] px-4 py-3.5">
+                  <div className="flex items-center gap-3">
+                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${isSubscribed ? 'bg-[#4EF0A0]/15' : 'bg-white/8'}`}>
+                      {isSubscribed
+                        ? <Bell className="h-4 w-4 text-[#4EF0A0]" strokeWidth={1.8} />
+                        : <BellOff className="h-4 w-4 text-[#9F9AB5]" strokeWidth={1.8} />
+                      }
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-semibold text-[#F7F4FF]">
+                        {isSubscribed ? 'Notifications active' : 'Notifications off'}
+                      </p>
+                      <p className="text-[10px] text-[#9F9AB5] leading-snug">
+                        {isSubscribed
+                          ? 'You\'ll get alerts even when the app is closed'
+                          : permissionState === 'denied'
+                            ? 'Blocked in browser — go to Site Settings to allow'
+                            : 'Enable to get notice & attendance alerts'
+                        }
+                      </p>
+                    </div>
+                    {!isSubscribed && permissionState !== 'denied' && (
+                      <button
+                        type="button"
+                        onClick={handleEnablePush}
+                        disabled={isEnabling}
+                        className="shrink-0 rounded-full bg-[#FF916C] px-3.5 py-1.5 text-[11px] font-bold text-[#1D183E] transition active:scale-95 disabled:opacity-60"
+                      >
+                        {isEnabling ? 'Enabling…' : 'Enable'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Per-category toggles (only when subscribed + prefs loaded) */}
+                {isSubscribed && prefs && (
+                  <div className="mt-2 space-y-1.5">
+                    {[
+                      { key: 'noticesEnabled', label: 'Notice alerts', desc: 'New college notices' },
+                      { key: 'attendanceEnabled', label: 'Attendance warnings', desc: 'When you drop below 75%' },
+                      { key: 'timetableEnabled', label: 'Class reminders', desc: 'Before your classes start' },
+                      { key: 'dailyDigestEnabled', label: 'Daily digest', desc: 'Morning class summary' },
+                      { key: 'weeklySummaryEnabled', label: 'Weekly summary', desc: 'Monday attendance recap' },
+                    ].map(({ key, label, desc }) => (
+                      <div
+                        key={key}
+                        className="flex items-center justify-between rounded-xl bg-white/[0.04] px-4 py-3 ring-1 ring-white/[0.06]"
+                      >
+                        <div className="min-w-0 flex-1 pr-3">
+                          <p className="text-[12px] font-semibold text-[#F7F4FF]">{label}</p>
+                          <p className="text-[10px] text-[#9F9AB5]">{desc}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleNotificationToggle(key, !prefs[key])}
+                          disabled={isSaving}
+                          aria-label={`Toggle ${label}`}
+                          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-200 ${prefs[key] ? 'bg-[#4EF0A0]' : 'bg-white/10'}`}
+                        >
+                          <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all duration-200 ${prefs[key] ? 'left-[22px]' : 'left-0.5'}`} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Divider */}
+              <div className="h-px bg-white/[0.07]" />
+
+              {/* Full settings link */}
+              <button
+                type="button"
+                onClick={() => { setShowSettings(false); navigate('/app/notification-settings') }}
+                className="flex w-full items-center justify-between rounded-xl bg-white/[0.04] px-4 py-3 ring-1 ring-white/[0.06] transition hover:bg-white/[0.07] active:scale-[0.98]"
+              >
+                <p className="text-[12px] font-semibold text-[#F7F4FF]">All notification settings</p>
+                <ChevronRight className="h-4 w-4 text-[#9F9AB5]" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   )
 }
