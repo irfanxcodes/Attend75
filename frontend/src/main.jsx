@@ -11,6 +11,13 @@ import { submitFeedback, submitRating, trackFeatureUsageEvent } from './services
 // Initialize PWA service worker (no-op in development)
 initServiceWorker()
 
+// Force service worker update check on every page load (ensures new code propagates quickly)
+if ('serviceWorker' in navigator && !import.meta.env.DEV) {
+  navigator.serviceWorker.ready.then((registration) => {
+    registration.update()
+  })
+}
+
 // Listen for NOTIFICATION_CLICK messages from the service worker (fallback for
 // browsers where WindowClient.navigate() is not supported)
 if ('serviceWorker' in navigator) {
