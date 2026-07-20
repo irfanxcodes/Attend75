@@ -19,6 +19,16 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Inline SW updater: runs independently of cached JS bundles.
+         Forces the browser to check for a new service worker on every page load.
+         This breaks the stale-SW cycle without requiring user cache clearing. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistration().then(function(reg) {
+          if (reg) reg.update();
+        });
+      }
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

@@ -17,7 +17,7 @@ export default defineConfig({
       includeAssets: ['favicon.svg', 'icons/*.png', '*.svg', '*.png'],
       manifest: false, // Use public/manifest.json directly
       injectManifest: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globPatterns: ['**/*.{js,css,ico,png,svg,woff2}'],
       },
     }),
   ],
