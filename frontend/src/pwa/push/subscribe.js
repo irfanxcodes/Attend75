@@ -200,7 +200,15 @@ export async function ensurePushRegistered(token) {
       deviceInfo,
     })
     return true
-  } catch {
+  } catch (err) {
+    // Log the error for debugging — don't silently swallow premium/auth failures
+    if (err?.status === 402) {
+      console.warn('[Push] ensurePushRegistered: not premium, skipping')
+    } else if (err?.status === 401) {
+      console.warn('[Push] ensurePushRegistered: session expired')
+    } else {
+      console.warn('[Push] ensurePushRegistered failed:', err?.message || err)
+    }
     return false
   }
 }

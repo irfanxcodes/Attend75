@@ -102,6 +102,7 @@ def _process_job(job: dict) -> None:
     if not targets:
         # No active subscriptions — mark done (not a failure, the student unsubscribed)
         notification_queue.mark_done(job["id"])
+        logger.info("Push job %d: no active subscriptions for %s (skipped)", job["id"], roll_number)
         return
 
     all_success = True
@@ -122,7 +123,8 @@ def _process_job(job: dict) -> None:
             elif status_code == 410:
                 # Gone — subscription expired, remove it (Req 1.3)
                 subscription_manager.remove_subscription_by_id(sub["id"])
-                logger.info("Removed expired subscription %d (410 Gone)", sub["id"])
+                logger.warning("Push job %d: removed expired subscription %d (410 Gone) for %s", job["id"], sub["id"], roll_number)
+                all_success = False
             elif status_code == 429 or status_code >= 500:
                 # Transient — retry the whole job
                 any_transient_failure = True
@@ -137,7 +139,12 @@ def _process_job(job: dict) -> None:
             any_transient_failure = True
             all_success = False
 
-    # Log notification in history (regardless of partial failures, as long as we attempted)
+    # Log notification in history
+    # Only log as "sent" if at least one push was successfully accepted by push service
+    actual_delivery_status = "sent" if all_success else ("failed" if not any_transient_failure else "failed")
+    if not targets or all(sub.get("_removed") for sub in targets if isinstance(sub, dict)):
+        actual_delivery_status = "no_subscription"
+
     log_notification(
         roll_number=roll_number,
         category=notification_data.get("category", "unknown"),
@@ -145,7 +152,7 @@ def _process_job(job: dict) -> None:
         body=notification_data.get("body"),
         deep_link=notification_data.get("deepLink"),
         priority=priority,
-        delivery_status="sent" if all_success else "failed",
+        delivery_status=actual_delivery_status,
     )
 
     if all_success:
