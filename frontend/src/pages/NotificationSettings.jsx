@@ -17,6 +17,78 @@ const CATEGORY_LABELS = [
 
 const LEAD_TIME_OPTIONS = [10, 15, 30, 60]
 
+function BatteryOptimizationTip() {
+  const [dismissed, setDismissed] = useState(() => localStorage.getItem('attend75_battery_tip_dismissed') === '1')
+  const [expanded, setExpanded] = useState(false)
+
+  if (dismissed) return null
+
+  const handleDismiss = () => {
+    localStorage.setItem('attend75_battery_tip_dismissed', '1')
+    setDismissed(true)
+  }
+
+  // Detect phone brand for targeted instructions
+  const ua = navigator.userAgent
+  let brand = 'your phone'
+  let steps = []
+  if (/samsung/i.test(ua)) {
+    brand = 'Samsung'
+    steps = ['Settings → Apps → Chrome', 'Battery → Unrestricted', 'Also: Settings → Battery → Background usage limits → Never sleeping apps → Add Chrome']
+  } else if (/xiaomi|miui|redmi|poco/i.test(ua)) {
+    brand = 'Xiaomi/Redmi'
+    steps = ['Settings → Apps → Manage apps → Chrome', 'Battery saver → No restrictions', 'Also: Security → Battery → App battery saver → Chrome → No restrictions']
+  } else if (/oneplus|oppo|realme/i.test(ua)) {
+    brand = 'OnePlus/Realme'
+    steps = ['Settings → Battery → Battery optimization', 'Find Chrome → Don\'t optimize', 'Also: Settings → Apps → Chrome → Battery → Allow background activity']
+  } else {
+    steps = ['Settings → Apps → Chrome → Battery', 'Set to "Unrestricted" or "Don\'t optimize"', 'This ensures notifications arrive even when the app is closed']
+  }
+
+  return (
+    <div className="mt-3 rounded-2xl bg-gradient-to-br from-[#FF916C]/10 to-[#FF916C]/5 p-4 ring-1 ring-[#FF916C]/20">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#FF916C]/15">
+            <span className="text-sm">🔋</span>
+          </div>
+          <div>
+            <p className="text-[12px] font-semibold text-[#F7F4FF]">Get instant notifications</p>
+            <p className="mt-0.5 text-[10px] leading-relaxed text-[#9F9AB5]">
+              {brand} may delay notifications to save battery. A quick settings change fixes this.
+            </p>
+          </div>
+        </div>
+        <button type="button" onClick={handleDismiss} className="shrink-0 p-1 text-[#9F9AB5] hover:text-[#F7F4FF]">
+          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      {!expanded ? (
+        <button type="button" onClick={() => setExpanded(true)} className="mt-3 flex items-center gap-1.5 rounded-lg bg-[#FF916C]/15 px-3 py-1.5 text-[10px] font-semibold text-[#FF916C] transition active:scale-95">
+          <span>Show me how</span>
+          <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      ) : (
+        <div className="mt-3 space-y-2">
+          {steps.map((step, i) => (
+            <div key={i} className="flex items-start gap-2">
+              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#FF916C]/20 text-[8px] font-bold text-[#FF916C]">{i + 1}</span>
+              <p className="text-[10px] leading-relaxed text-[#d8d4e7]">{step}</p>
+            </div>
+          ))}
+          <div className="mt-2 flex items-center gap-2">
+            <button type="button" onClick={handleDismiss} className="rounded-lg bg-[#4EF0A0]/15 px-3 py-1.5 text-[10px] font-semibold text-[#4EF0A0] transition active:scale-95">
+              ✓ Done, got it
+            </button>
+            <span className="text-[9px] text-[#7a6f94]">Takes 30 seconds</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function NotificationSettings() {
   const { state: { session } } = useAppStore()
   const token = session.token
@@ -105,6 +177,27 @@ function NotificationSettings() {
           <p className="mt-2 text-[10px] text-[#FF5B5B]">Notifications are blocked. Enable them in your browser settings → Site Settings → Notifications.</p>
         )}
       </div>
+
+      {/* Background delivery tip — shown on Android when subscribed */}
+      {isSubscribed && /Android/i.test(navigator.userAgent) && (
+        <BatteryOptimizationTip />
+      )}
+
+      {/* PWA install nudge — installed PWAs get more reliable background push */}
+      {isSubscribed && !window.matchMedia('(display-mode: standalone)').matches && /Android/i.test(navigator.userAgent) && (
+        <div className="mt-3 rounded-2xl bg-[#2E2A3A] p-4 ring-1 ring-white/5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#6CB4FF]/15">
+              <span className="text-sm">📲</span>
+            </div>
+            <div className="flex-1">
+              <p className="text-[11px] font-semibold text-[#F7F4FF]">Install Attend75 for best experience</p>
+              <p className="text-[9px] text-[#9F9AB5]">Installed apps receive notifications more reliably in the background</p>
+            </div>
+          </div>
+          <p className="mt-2 ml-11 text-[9px] text-[#7a6f94]">Chrome menu (⋮) → "Add to Home screen" or "Install app"</p>
+        </div>
+      )}
 
       {prefs && (
         <>
