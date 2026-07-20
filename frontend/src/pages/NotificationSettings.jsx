@@ -199,6 +199,37 @@ function NotificationSettings() {
         </div>
       )}
 
+      {/* iOS: must install PWA for push to work */}
+      {!isSubscribed && /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.matchMedia('(display-mode: standalone)').matches && (
+        <div className="mt-3 rounded-2xl bg-gradient-to-br from-[#6CB4FF]/10 to-[#6CB4FF]/5 p-4 ring-1 ring-[#6CB4FF]/20">
+          <div className="flex items-start gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#6CB4FF]/15">
+              <span className="text-sm">🍎</span>
+            </div>
+            <div>
+              <p className="text-[12px] font-semibold text-[#F7F4FF]">iOS requires installation</p>
+              <p className="mt-1 text-[10px] leading-relaxed text-[#9F9AB5]">
+                Push notifications on iPhone/iPad only work when Attend75 is installed to your Home Screen.
+              </p>
+              <div className="mt-2.5 space-y-1.5">
+                <div className="flex items-start gap-2">
+                  <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#6CB4FF]/20 text-[8px] font-bold text-[#6CB4FF]">1</span>
+                  <p className="text-[10px] text-[#d8d4e7]">Tap the Share button (⬆) at the bottom of Safari</p>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#6CB4FF]/20 text-[8px] font-bold text-[#6CB4FF]">2</span>
+                  <p className="text-[10px] text-[#d8d4e7]">Scroll down and tap "Add to Home Screen"</p>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#6CB4FF]/20 text-[8px] font-bold text-[#6CB4FF]">3</span>
+                  <p className="text-[10px] text-[#d8d4e7]">Open Attend75 from your Home Screen and enable notifications here</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {prefs && (
         <>
           {/* Master toggles */}
