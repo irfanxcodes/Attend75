@@ -18,12 +18,17 @@ if ('serviceWorker' in navigator && !import.meta.env.DEV) {
   })
 }
 
-// Listen for NOTIFICATION_CLICK messages from the service worker (fallback for
-// browsers where WindowClient.navigate() is not supported)
+// Listen for NOTIFICATION_CLICK messages from the service worker
+// Uses window.location for navigation (works with React Router's BrowserRouter)
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('message', (event) => {
     if (event.data?.type === 'NOTIFICATION_CLICK' && event.data.url) {
-      window.location.href = event.data.url
+      const targetPath = new URL(event.data.url, window.location.origin).pathname + new URL(event.data.url, window.location.origin).search
+      // Use pushState + dispatchEvent for SPA navigation without full reload
+      if (window.location.pathname !== targetPath) {
+        window.history.pushState({}, '', targetPath)
+        window.dispatchEvent(new PopStateEvent('popstate'))
+      }
     }
   })
 }

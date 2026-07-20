@@ -112,9 +112,6 @@ export async function requestPushSubscription(token) {
     })
     return result
   } catch (err) {
-    if (err?.status === 402) {
-      throw { code: 'PREMIUM_REQUIRED', status: 402 }
-    }
     if (err?.status === 401) {
       throw { code: 'SESSION_EXPIRED', status: 401 }
     }

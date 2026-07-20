@@ -74,15 +74,6 @@ async def subscribe(payload: PushSubscribeRequest):
             payload.device_info,
         )
         return ApiResponse(status="success", message="Subscribed to push notifications", data=result)
-    except subscription_manager.PremiumRequiredError:
-        return JSONResponse(
-            status_code=402,
-            content={
-                "status": "error",
-                "message": "Push notifications require an active premium subscription",
-                "upgradeUrl": "/app/premium",
-            },
-        )
     except subscription_manager.RateLimitExceededError:
         return JSONResponse(
             status_code=429,

@@ -104,8 +104,11 @@ def register_subscription(
     Returns a dict describing the subscription (id, device_info, created_at) —
     never returns the raw/decrypted endpoint or keys.
     """
-    if not premium_service.is_premium(roll_number):
-        raise PremiumRequiredError(f"{roll_number} does not have an active premium subscription")
+    # Premium gate is removed — all logged-in users can register for push.
+    # Premium status is checked at notification DISPATCH time (attendance alerts,
+    # timetable reminders, etc.) not at subscription registration time.
+    # This allows admin-initiated notifications (feedback replies, broadcasts)
+    # to reach all users who have opted in.
 
     if not rate_limiter.check_and_record(roll_number):
         raise RateLimitExceededError(f"{roll_number} exceeded {RATE_LIMIT_MAX_REQUESTS} subscription requests/hour")

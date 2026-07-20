@@ -23,6 +23,10 @@ def reply_to_feedback(feedback_id: str, reply_message: str) -> dict | None:
     Send a push notification reply to the student who submitted feedback.
     Also marks the feedback as 'reviewed'.
 
+    NOTE: This sends to students regardless of premium status. If the student
+    has a push subscription (because they were previously premium or were
+    given one by admin), the notification will be delivered.
+
     Returns {sent: bool, roll_number: str|None, message: str} or None if feedback not found.
     """
     with SessionLocal() as session:
@@ -45,7 +49,7 @@ def reply_to_feedback(feedback_id: str, reply_message: str) -> dict | None:
             "message": f"Could not find student '{user_name}' — feedback marked reviewed but no notification sent.",
         }
 
-    # Build and enqueue the push notification
+    # Build and enqueue the push notification (no premium check — admin-initiated)
     payload = build_payload(
         category="broadcast",
         title="💬 Reply to your feedback",

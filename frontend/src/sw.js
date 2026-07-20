@@ -57,6 +57,7 @@ self.addEventListener('push', (event) => {
         body: 'You have a new update — open Attend75',
         icon: '/icons/icon-192.png',
         badge: '/icons/badge-72.png',
+        vibrate: [100, 50, 100],
       })
     )
     return
@@ -73,14 +74,29 @@ self.addEventListener('push', (event) => {
     actions = [],
   } = payload
 
+  // Category-specific action buttons
+  const categoryActions = {
+    notice: [{ action: 'open', title: '📄 View Notice' }],
+    attendance: [{ action: 'open', title: '📊 View Dashboard' }],
+    broadcast: [{ action: 'open', title: '🔔 Open App' }],
+    timetable: [{ action: 'open', title: '📅 View Timetable' }],
+    weekly_summary: [{ action: 'open', title: '📈 View Summary' }],
+    digest: [{ action: 'open', title: '📋 View Schedule' }],
+  }
+
+  // Vibration patterns by priority
+  const vibrate = priority === 'high' ? [200, 100, 200, 100, 200] : [100, 50, 100]
+
   const options = {
     body,
     icon: icon || CATEGORY_ICONS[category] || '/icons/icon-192.png',
     badge: badge || '/icons/badge-72.png',
-    data: { deepLink, category },
+    data: { deepLink: deepLink || '/app/dashboard', category },
     requireInteraction: priority === 'high',
-    actions: actions.length > 0 ? actions : [{ action: 'open', title: 'View' }],
+    vibrate,
+    actions: actions.length > 0 ? actions : (categoryActions[category] || [{ action: 'open', title: 'View' }]),
     tag: `attend75-${category}-${Date.now()}`,
+    renotify: true,
   }
 
   event.waitUntil(self.registration.showNotification(title, options))
@@ -89,24 +105,23 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
 
+  // Get deep link from notification data, action click, or default to dashboard
   const deepLink = event.notification.data?.deepLink || '/app/dashboard'
   const urlToOpen = new URL(deepLink, self.location.origin).href
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      // Try to find an existing app window and navigate it
       for (const client of clients) {
         if (client.url.startsWith(self.location.origin)) {
-          // navigate() is not supported in all browsers, use postMessage fallback
-          if ('navigate' in client) {
-            client.focus()
-            return client.navigate(urlToOpen)
-          } else {
-            client.focus()
+          return client.focus().then(() => {
+            // Post message to navigate — more reliable than client.navigate()
             client.postMessage({ type: 'NOTIFICATION_CLICK', url: urlToOpen })
-            return
-          }
+            return client
+          })
         }
       }
+      // No existing window — open a new one
       return self.clients.openWindow(urlToOpen)
     })
   )
