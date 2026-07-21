@@ -2,6 +2,39 @@ import { precacheAndRoute } from 'workbox-precaching'
 import { registerRoute, NavigationRoute } from 'workbox-routing'
 import { StaleWhileRevalidate, CacheFirst, NetworkFirst } from 'workbox-strategies'
 import { ExpirationPlugin } from 'workbox-expiration'
+import { initializeApp } from 'firebase/app'
+import { getMessaging, onBackgroundMessage } from 'firebase/messaging/sw'
+
+// Initialize Firebase in the service worker for FCM background message handling
+const firebaseApp = initializeApp({
+  apiKey: 'AIzaSyC1DU3v_ftnC0ZvW2cR8MQSue7ns5KxNvo',
+  authDomain: 'attend75-534c2.firebaseapp.com',
+  projectId: 'attend75-534c2',
+  messagingSenderId: '222443696612',
+  appId: '1:222443696612:web:0c969f294953e107aa17f1',
+})
+const messaging = getMessaging(firebaseApp)
+
+// Handle FCM background messages (delivered via Google Play Services)
+onBackgroundMessage(messaging, (payload) => {
+  // FCM data messages — display notification using our standard format
+  const data = payload.data || {}
+  const { title, body, category, priority, deepLink, icon, badge } = data
+  if (!title) return
+
+  const vibrate = priority === 'high' ? [200, 100, 200, 100, 200] : [100, 50, 100]
+  const options = {
+    body: body || '',
+    icon: icon || '/icons/icon-192.png',
+    badge: badge || '/icons/badge-72.png',
+    data: { deepLink: deepLink || '/app/dashboard', category: category || 'broadcast' },
+    vibrate,
+    requireInteraction: priority === 'high',
+    tag: `attend75-${category || 'fcm'}-${Date.now()}`,
+    renotify: true,
+  }
+  return self.registration.showNotification(title, options)
+})
 
 // Force the new service worker to activate immediately (don't wait for old tabs to close)
 self.addEventListener('install', () => self.skipWaiting())
