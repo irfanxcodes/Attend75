@@ -11,3 +11,4 @@ python-dotenv
 pdfplumber
 pywebpush
 py-vapid
+python-multipart
