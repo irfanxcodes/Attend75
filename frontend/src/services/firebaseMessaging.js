@@ -36,31 +36,41 @@ function getFirebaseMessaging() {
  */
 export async function getFCMToken() {
   try {
-    if (Notification.permission !== 'granted') return null
+    if (Notification.permission !== 'granted') return 'NO_PERMISSION'
     const messaging = getFirebaseMessaging()
     // Register Firebase's own messaging SW at its expected scope
-    // This doesn't conflict with our main sw.js because it's a different scope
-    let swRegistration = await navigator.serviceWorker.getRegistration('/firebase-cloud-messaging-push-scope')
-    if (!swRegistration) {
+    let swRegistration
+    try {
       swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
         scope: '/firebase-cloud-messaging-push-scope',
       })
-      // Wait for it to be ready
-      await new Promise(r => setTimeout(r, 1000))
+      // Wait for activation
+      if (swRegistration.installing) {
+        await new Promise(r => {
+          swRegistration.installing.addEventListener('statechange', (e) => {
+            if (e.target.state === 'activated') r()
+          })
+          setTimeout(r, 3000) // timeout fallback
+        })
+      }
+    } catch (swErr) {
+      return 'SW_REG_FAIL:' + (swErr.message || '').substring(0, 30)
     }
-    const token = await getToken(messaging, {
-      vapidKey: FCM_VAPID_KEY,
-      serviceWorkerRegistration: swRegistration,
-    })
-    if (token) {
-      console.log('[FCM] Token obtained:', token.substring(0, 20) + '...')
-    } else {
-      console.warn('[FCM] getToken returned empty')
+
+    let token
+    try {
+      token = await getToken(messaging, {
+        vapidKey: FCM_VAPID_KEY,
+        serviceWorkerRegistration: swRegistration,
+      })
+    } catch (tokenErr) {
+      return 'TOKEN_ERR:' + (tokenErr.code || tokenErr.message || '').substring(0, 40)
     }
+
+    if (!token) return null
     return token
   } catch (err) {
-    console.error('[FCM] getToken failed:', err.code || err.name, err.message)
-    return null
+    return 'OUTER_ERR:' + (err.code || err.message || String(err)).substring(0, 40)
   }
 }
 

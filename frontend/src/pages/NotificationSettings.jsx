@@ -118,17 +118,18 @@ function NotificationSettings() {
         setFcmStatus('checking')
         try {
           const { getFCMToken } = await import('../services/firebaseMessaging')
-          const fcmToken = await getFCMToken()
-          if (fcmToken) {
-            setFcmStatus('ok:' + fcmToken.substring(0, 15))
-            // Register with backend
+          const result = await getFCMToken()
+          if (result && result.length > 50) {
+            // It's a real token (tokens are long strings)
+            setFcmStatus('ok:' + result.substring(0, 15))
             const { registerFCMToken } = await import('../services/pushApi')
-            await registerFCMToken({ token, fcmToken, deviceInfo: /Android/i.test(navigator.userAgent) ? 'Android' : 'Other' })
+            await registerFCMToken({ token, fcmToken: result, deviceInfo: /Android/i.test(navigator.userAgent) ? 'Android' : 'Other' })
           } else {
-            setFcmStatus('error:token_null')
+            // It's an error code or null
+            setFcmStatus('error:' + (result || 'null'))
           }
         } catch (err) {
-          setFcmStatus('error:' + (err?.code || err?.name || err?.message || 'unknown').substring(0, 40))
+          setFcmStatus('error:' + (err?.code || err?.name || err?.message || 'unknown').substring(0, 50))
         }
       }
     }).catch(() => {})
