@@ -202,6 +202,21 @@ function AppRoutes() {
             import('../pwa/push/subscribe').then(({ ensurePushRegistered }) => {
               ensurePushRegistered(persistedSession.token)
             }).catch(() => {})
+
+            // Register FCM token independently (for reliable Android background delivery)
+            import('../services/firebaseMessaging').then(({ getFCMToken }) => {
+              getFCMToken().then((fcmToken) => {
+                if (fcmToken) {
+                  import('../services/pushApi').then(({ registerFCMToken }) => {
+                    registerFCMToken({ token: persistedSession.token, fcmToken, deviceInfo: /Android/i.test(navigator.userAgent) ? 'Android' : 'Other' })
+                      .then(() => console.log('[FCM] Token registered!'))
+                      .catch((e) => console.warn('[FCM] Register failed:', e.message))
+                  })
+                } else {
+                  console.warn('[FCM] getToken returned null')
+                }
+              }).catch((e) => console.warn('[FCM] getToken error:', e.message || e))
+            }).catch(() => {})
           } else {
             // Token expired — clear and fall through to Firebase check
             clearPersistedSession()

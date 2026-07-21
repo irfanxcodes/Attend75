@@ -20,7 +20,7 @@ from services import premium_service
 logger = logging.getLogger(__name__)
 
 MAX_DEVICES_PER_STUDENT = 5
-RATE_LIMIT_MAX_REQUESTS = 10
+RATE_LIMIT_MAX_REQUESTS = 30
 RATE_LIMIT_WINDOW_SECONDS = 3600
 
 
