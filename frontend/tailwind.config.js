@@ -24,6 +24,7 @@ export default {
       animation: {
         hourglass: 'hourglass 1.5s ease-in-out infinite',
         fadeIn: 'fadeIn 0.25s ease-out both',
+        'slide-up': 'slideUp 0.3s ease-out both',
       },
     },
   },

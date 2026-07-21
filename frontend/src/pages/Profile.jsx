@@ -145,6 +145,17 @@ function Profile() {
       await submitFeedback(feedbackMessage, userName)
       setFeedbackStatus('Sent!')
       setFeedbackMessage('')
+
+      // After successful feedback, prompt for notifications if not already enabled
+      if ('Notification' in window && Notification.permission === 'default') {
+        // Small delay so user sees the "Sent!" confirmation first
+        setTimeout(async () => {
+          const permission = await Notification.requestPermission()
+          if (permission === 'granted' && session.token) {
+            ensurePushRegistered(session.token)
+          }
+        }, 1500)
+      }
     } catch (error) {
       setFeedbackError(error.message || 'Unable to submit.')
     } finally {

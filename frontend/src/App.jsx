@@ -5,6 +5,7 @@ import UpdateNotification from './components/common/UpdateNotification'
 import InstallBanner from './components/common/InstallBanner'
 import IOSInstallGuide from './components/common/IOSInstallGuide'
 import CollegeInterestWidget from './components/common/CollegeInterestWidget'
+import NotificationPromptBanner from './components/common/NotificationPromptBanner'
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
         <CollegeInterestWidget />
         <InstallBanner />
         <IOSInstallGuide />
+        <NotificationPromptBanner />
         <UpdateNotification />
       </div>
     </BrowserRouter>
