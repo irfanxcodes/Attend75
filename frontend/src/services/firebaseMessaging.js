@@ -18,7 +18,6 @@ const firebaseConfig = {
 }
 
 // Firebase Web Push certificate VAPID key (generated in Firebase Console → Cloud Messaging → Web Push certificates)
-// This is DIFFERENT from our custom VAPID key used for pywebpush delivery
 const FCM_VAPID_KEY = 'BIPcJq_HqbuQxq2KwQX1X44yAAgEQHWNaXeXSunpnA_guAHdd0IsJ_zr1A4y27VPHvTFiEoHCQmEqbdH3Aglz4I'
 
 let messagingInstance = null
@@ -37,17 +36,22 @@ function getFirebaseMessaging() {
  */
 export async function getFCMToken() {
   try {
+    if (Notification.permission !== 'granted') return null
     const messaging = getFirebaseMessaging()
-    // Use the main service worker registration (sw.js) — not a separate one.
-    // Chrome only allows one active SW per scope; registering a second one conflicts.
+    // Use the existing SW registration (the main sw.js which has Firebase initialized)
     const swRegistration = await navigator.serviceWorker.ready
     const token = await getToken(messaging, {
       vapidKey: FCM_VAPID_KEY,
       serviceWorkerRegistration: swRegistration,
     })
+    if (token) {
+      console.log('[FCM] Token obtained:', token.substring(0, 20) + '...')
+    } else {
+      console.warn('[FCM] getToken returned empty')
+    }
     return token
   } catch (err) {
-    console.warn('[FCM] Failed to get token:', err.message || err)
+    console.error('[FCM] getToken failed:', err.code || err.name, err.message)
     return null
   }
 }
