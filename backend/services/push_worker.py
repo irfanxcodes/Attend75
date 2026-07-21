@@ -133,6 +133,9 @@ def _process_job(job: dict) -> None:
         logger.info("Push job %d: no active subscriptions for %s (skipped)", job["id"], roll_number)
         return
 
+    all_success = True
+    any_transient_failure = False
+
     for sub in targets:
         sub_info_dict = {
             "endpoint": sub["endpoint"],

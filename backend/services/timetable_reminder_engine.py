@@ -131,7 +131,7 @@ def schedule_reminders_for_today() -> int:
         # Since we're building this for logged-in users primarily, we use
         # the timetable data that's already been matched (has_timetable=True).
         # The actual class list comes from parsing the stored timetable text.
-        notice = _find_latest_timetable_notice(cached_subjects)
+        notice = _find_latest_timetable_notice(None)
         if not notice or not notice.cleaned_text:
             continue
 
@@ -325,7 +325,7 @@ def send_tomorrow_preview() -> int:
             .all()
         )
 
-    notice = _find_latest_timetable_notice(cached_subjects)
+    notice = _find_latest_timetable_notice(None)
     if not notice or not notice.cleaned_text:
         return 0
 
