@@ -38,8 +38,9 @@ function getFirebaseMessaging() {
 export async function getFCMToken() {
   try {
     const messaging = getFirebaseMessaging()
-    const swRegistration = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js')
-      || await navigator.serviceWorker.register('/firebase-messaging-sw.js')
+    // Use the main service worker registration (sw.js) — not a separate one.
+    // Chrome only allows one active SW per scope; registering a second one conflicts.
+    const swRegistration = await navigator.serviceWorker.ready
     const token = await getToken(messaging, {
       vapidKey: FCM_VAPID_KEY,
       serviceWorkerRegistration: swRegistration,
