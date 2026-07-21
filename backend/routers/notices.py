@@ -149,12 +149,32 @@ def get_timetable_for_notice(token: str, notice_id: int, semester_id: str | None
         return None
 
     my_classes = _match_student_classes(schedule, student_subjects)
-    if my_classes and len(student_subjects) < 4:
+    if my_classes:
         from services.timetable_service import _infer_full_subjects_from_schedule
         augmented = _infer_full_subjects_from_schedule(schedule, my_classes)
         if len(augmented) > len(student_subjects):
             student_subjects = augmented
             my_classes = _match_student_classes(schedule, student_subjects)
+
+    # If subject matching failed, fall back to section-based display.
+    # This helps students whose subjects can't be resolved (different semester,
+    # stale session, etc.) — they still see their section's full timetable.
+    if not my_classes and student_subjects:
+        # Try to determine student's section from their subjects
+        sections = set(s.get('section', '').upper() for s in student_subjects if s.get('section'))
+        if sections:
+            student_section = max(sections, key=lambda s: sum(1 for subj in student_subjects if subj.get('section', '').upper() == s))
+            # Show all classes for this section (regardless of subject matching)
+            my_classes = [
+                cls for cls in schedule
+                if cls.get('section', '').upper() == student_section
+                or cls.get('section', '').upper().startswith(student_section)
+                or student_section.startswith(cls.get('section', '').upper())
+            ]
+            if my_classes:
+                # Infer subjects from section
+                student_subjects = [{'abbr': c['course'], 'section': c['section']} for c in my_classes]
+                student_subjects = list({f"{s['abbr']}-{s['section']}": s for s in student_subjects}.values())
 
     if not my_classes:
         return None
