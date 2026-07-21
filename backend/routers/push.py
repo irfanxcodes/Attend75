@@ -166,3 +166,26 @@ async def mark_history_read(history_id: int, payload: PushHistoryReadRequest):
     except Exception:
         logger.exception("Failed to mark notification as read")
         return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to mark as read"})
+
+
+# POST /push/fcm-register — Register an FCM token for reliable Android delivery
+@router.post("/fcm-register", response_model=ApiResponse)
+async def register_fcm_token(payload: dict):
+    token = (payload.get("token") or "").strip()
+    fcm_token = (payload.get("fcm_token") or "").strip()
+    device_info = (payload.get("device_info") or "").strip()
+
+    if not token or not fcm_token:
+        return JSONResponse(status_code=422, content={"status": "error", "message": "token and fcm_token are required"})
+
+    roll_number = _require_roll_number(token)
+    if roll_number is None:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Session expired"})
+
+    try:
+        from services.fcm_service import register_fcm_token as _register
+        result = await run_in_threadpool(_register, roll_number, fcm_token, device_info)
+        return ApiResponse(status="success", message="FCM token registered", data=result)
+    except Exception:
+        logger.exception("Failed to register FCM token for %s", roll_number)
+        return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to register FCM token"})

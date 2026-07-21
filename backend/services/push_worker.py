@@ -99,14 +99,39 @@ def _process_job(job: dict) -> None:
             if info:
                 targets.append(info)
 
+    # Try FCM delivery first (more reliable on Android — uses Google Play Services)
+    fcm_delivered = False
+    try:
+        from services.fcm_service import get_fcm_tokens_for_roll, send_fcm_notification
+        fcm_tokens = get_fcm_tokens_for_roll(roll_number)
+        for token_info in fcm_tokens:
+            success = send_fcm_notification(token_info["fcm_token"], notification_data)
+            if success:
+                fcm_delivered = True
+                subscription_manager.touch_last_used(token_info["id"])
+    except Exception as e:
+        logger.debug("FCM delivery attempt failed for %s: %s", roll_number, e)
+
+    # If FCM delivered successfully, skip Web Push (avoid duplicate)
+    if fcm_delivered:
+        log_notification(
+            roll_number=roll_number,
+            category=notification_data.get("category", "unknown"),
+            title=notification_data.get("title", ""),
+            body=notification_data.get("body"),
+            deep_link=notification_data.get("deepLink"),
+            priority=priority,
+            delivery_status="sent",
+        )
+        notification_queue.mark_done(job["id"])
+        logger.info("Push job %d: delivered via FCM to %s", job["id"], roll_number)
+        return
+
     if not targets:
         # No active subscriptions — mark done (not a failure, the student unsubscribed)
         notification_queue.mark_done(job["id"])
         logger.info("Push job %d: no active subscriptions for %s (skipped)", job["id"], roll_number)
         return
-
-    all_success = True
-    any_transient_failure = False
 
     for sub in targets:
         sub_info_dict = {

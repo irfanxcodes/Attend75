@@ -15,6 +15,7 @@ class PushSubscription(Base):
     p256dh_key: Mapped[str] = mapped_column(Text, nullable=False)
     auth_key: Mapped[str] = mapped_column(Text, nullable=False)
     device_info: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    fcm_token: Mapped[str | None] = mapped_column(Text, nullable=True)  # Firebase Cloud Messaging token
     has_timetable: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     consent_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     consent_method: Mapped[str] = mapped_column(String(32), nullable=False, default="browser_prompt")

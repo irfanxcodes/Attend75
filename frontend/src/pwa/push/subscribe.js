@@ -1,8 +1,10 @@
 /**
  * Push Subscription Helper — wraps PushManager.subscribe() with VAPID key.
+ * Also registers FCM token for reliable Android background delivery.
  */
 
-import { getVapidPublicKey, subscribePush } from '../../services/pushApi'
+import { getVapidPublicKey, subscribePush, registerFCMToken } from '../../services/pushApi'
+import { getFCMToken, onForegroundMessage } from '../../services/firebaseMessaging'
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -93,7 +95,7 @@ export async function requestPushSubscription(token) {
     }
   }
 
-  // 8. Send to backend
+  // 8. Send to backend (Web Push subscription)
   const subJson = subscription.toJSON()
   const ua = navigator.userAgent
   let deviceInfo = 'Unknown'
@@ -110,12 +112,32 @@ export async function requestPushSubscription(token) {
       keys: { p256dh: subJson.keys.p256dh, auth: subJson.keys.auth },
       deviceInfo,
     })
+
+    // 9. Also register FCM token for reliable Android background delivery
+    // This runs in parallel — doesn't block the subscribe flow
+    registerFCMTokenInBackground(token, publicKey, deviceInfo)
+
     return result
   } catch (err) {
     if (err?.status === 401) {
       throw { code: 'SESSION_EXPIRED', status: 401 }
     }
     throw { code: 'BACKEND_ERROR', detail: err?.message }
+  }
+}
+
+/**
+ * Register FCM token with the backend (non-blocking).
+ * FCM delivers through Google Play Services which is more reliable on Android.
+ */
+async function registerFCMTokenInBackground(sessionToken, vapidKey, deviceInfo) {
+  try {
+    const fcmToken = await getFCMToken(vapidKey)
+    if (fcmToken) {
+      await registerFCMToken({ token: sessionToken, fcmToken, deviceInfo })
+    }
+  } catch (err) {
+    console.warn('[FCM] Background token registration failed:', err.message || err)
   }
 }
 

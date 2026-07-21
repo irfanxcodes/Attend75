@@ -76,3 +76,11 @@ export async function markHistoryRead({ token, id }) {
     body: JSON.stringify({ token }),
   })
 }
+
+export async function registerFCMToken({ token, fcmToken, deviceInfo }) {
+  return request(`${API_BASE_URL}/push/fcm-register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, fcm_token: fcmToken, device_info: deviceInfo }),
+  })
+}
