@@ -98,6 +98,7 @@ function NotificationSettings() {
   const [isSaving, setIsSaving] = useState(false)
   const [isSubscribed, setIsSubscribed] = useState(false)
   const [permissionState, setPermissionState] = useState('default')
+  const [fcmStatus, setFcmStatus] = useState(null) // null | 'checking' | 'ok:TOKEN' | 'error:MSG'
 
   useEffect(() => {
     if (!token) return
@@ -109,9 +110,26 @@ function NotificationSettings() {
       setPrefs(prefsData)
       setIsSubscribed(subscribed)
       setPermissionState(getNotificationPermission())
-      // If browser is subscribed but backend might not know, sync it
       if (subscribed) {
         await ensurePushRegistered(token)
+      }
+      // Try FCM token registration and show status
+      if (Notification.permission === 'granted') {
+        setFcmStatus('checking')
+        try {
+          const { getFCMToken } = await import('../services/firebaseMessaging')
+          const fcmToken = await getFCMToken()
+          if (fcmToken) {
+            setFcmStatus('ok:' + fcmToken.substring(0, 15))
+            // Register with backend
+            const { registerFCMToken } = await import('../services/pushApi')
+            await registerFCMToken({ token, fcmToken, deviceInfo: /Android/i.test(navigator.userAgent) ? 'Android' : 'Other' })
+          } else {
+            setFcmStatus('error:token_null')
+          }
+        } catch (err) {
+          setFcmStatus('error:' + (err?.code || err?.name || err?.message || 'unknown').substring(0, 40))
+        }
       }
     }).catch(() => {})
     .finally(() => setIsLoading(false))
@@ -175,6 +193,11 @@ function NotificationSettings() {
         </div>
         {permissionState === 'denied' && (
           <p className="mt-2 text-[10px] text-[#FF5B5B]">Notifications are blocked. Enable them in your browser settings → Site Settings → Notifications.</p>
+        )}
+        {fcmStatus && (
+          <p className={`mt-2 text-[9px] font-mono ${fcmStatus.startsWith('ok') ? 'text-[#4EF0A0]' : fcmStatus === 'checking' ? 'text-[#FFB23E]' : 'text-[#FF5B5B]'}`}>
+            FCM: {fcmStatus}
+          </p>
         )}
       </div>
 
