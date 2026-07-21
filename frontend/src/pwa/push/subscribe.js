@@ -218,6 +218,10 @@ export async function ensurePushRegistered(token) {
       keys: { p256dh: subJson.keys.p256dh, auth: subJson.keys.auth },
       deviceInfo,
     })
+
+    // Also register FCM token for reliable background delivery on Android
+    registerFCMTokenInBackground(token, publicKey, deviceInfo)
+
     return true
   } catch (err) {
     // Log the error for debugging — don't silently swallow premium/auth failures
