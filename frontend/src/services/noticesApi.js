@@ -99,3 +99,21 @@ export async function selectTimetable({ token, noticeId, semesterId = null }) {
     body: JSON.stringify({ token, notice_id: noticeId, semester_id: semesterId }),
   })
 }
+
+export async function uploadTimetablePdf({ token, file }) {
+  const formData = new FormData()
+  formData.append('token', token)
+  formData.append('file', file)
+
+  const response = await fetch(`${API_BASE_URL}/notices/timetable/upload`, {
+    method: 'POST',
+    body: formData,
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok || data.status === 'error') {
+    const err = new Error(data.message || 'Upload failed')
+    err.status = response.status
+    throw err
+  }
+  return data.data || data
+}

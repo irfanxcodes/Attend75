@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Calendar, Clock, MapPin, User, X, ChevronRight, AlertCircle, RefreshCw, Search } from 'lucide-react'
-import { fetchTimetable, fetchTimetableCandidates, selectTimetable, refreshNotices } from '../../services/noticesApi'
+import { fetchTimetable, fetchTimetableCandidates, selectTimetable, refreshNotices, uploadTimetablePdf } from '../../services/noticesApi'
 import useAppStore from '../../hooks/useAppStore'
 
 const DAY_COLORS = {
@@ -19,6 +19,7 @@ function TimetablePicker({ token, semesterId, onSelect, onDismiss }) {
   const [selecting, setSelecting] = useState(null)
   const [error, setError] = useState(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
 
   // Fetch candidates when modal opens
   useEffect(() => {
@@ -61,6 +62,34 @@ function TimetablePicker({ token, semesterId, onSelect, onDismiss }) {
     } finally {
       setIsRefreshing(false)
       setIsFetchingCandidates(false)
+    }
+  }
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      setError('Please select a PDF file')
+      return
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError('File too large (max 10MB)')
+      return
+    }
+    setIsUploading(true)
+    setError(null)
+    try {
+      const data = await uploadTimetablePdf({ token, file })
+      if (data && data.schedule) {
+        onSelect(data)
+      } else {
+        setError("Couldn't find timetable data in this PDF. Make sure it's your class timetable.")
+      }
+    } catch (err) {
+      setError(err?.message || 'Failed to process the PDF. Please try a different file.')
+    } finally {
+      setIsUploading(false)
+      e.target.value = '' // Reset file input
     }
   }
 
@@ -120,40 +149,45 @@ function TimetablePicker({ token, semesterId, onSelect, onDismiss }) {
               <p className="mt-3 text-[11px] text-[#9F9AB5]">Looking for timetable notices…</p>
             </div>
           ) : isEmpty ? (
-            /* Empty state */
-            <div className="flex flex-col items-center py-7 text-center">
-              {/* Animated icon */}
+            /* Empty state — no timetable notices found */
+            <div className="flex flex-col items-center py-5 text-center">
               <div className="relative mb-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#FF916C]/10">
-                  <Search className="h-7 w-7 text-[#FF916C]/60" />
-                </div>
-                <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#2A2640] ring-2 ring-[#1E1B2E]">
-                  <Calendar className="h-2.5 w-2.5 text-[#9F9AB5]" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#FF916C]/10">
+                  <Search className="h-6 w-6 text-[#FF916C]/60" />
                 </div>
               </div>
 
-              <p className="text-[14px] font-bold text-[#F7F4FF]">No timetable notices yet</p>
-              <p className="mt-1.5 max-w-[220px] text-[11px] leading-relaxed text-[#9F9AB5]">
-                Once your college posts the timetable, tap refresh and come back here.
+              <p className="text-[14px] font-bold text-[#F7F4FF]">No timetable in your notices</p>
+              <p className="mt-1.5 max-w-[250px] text-[11px] leading-relaxed text-[#9F9AB5]">
+                Your college may share timetables via email or WhatsApp instead.
+                Upload your timetable PDF below.
               </p>
 
-              {/* Refresh CTA */}
+              {/* Upload CTA */}
+              <label className="mt-5 cursor-pointer">
+                <input type="file" accept=".pdf" onChange={handleFileUpload} className="hidden" disabled={isUploading} />
+                <div className="flex items-center gap-2 rounded-full bg-[#FF916C] px-5 py-2.5 text-[12px] font-bold text-white shadow-lg shadow-[#FF916C]/20 transition hover:bg-[#ff7a50] active:scale-95">
+                  {isUploading ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  ) : (
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                  )}
+                  {isUploading ? 'Processing...' : 'Upload Timetable PDF'}
+                </div>
+              </label>
+
+              {/* Refresh option */}
               <button
                 type="button"
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                className="mt-5 flex items-center gap-2 rounded-full bg-white/8 px-5 py-2.5 text-[12px] font-semibold text-[#F7F4FF] transition hover:bg-white/12 disabled:opacity-60"
+                className="mt-3 flex items-center gap-1.5 text-[11px] text-[#9F9AB5] transition hover:text-[#F7F4FF]"
               >
-                <RefreshCw className={`h-3.5 w-3.5 text-[#FF916C] ${isRefreshing ? 'animate-spin' : ''}`} />
-                {isRefreshing ? 'Refreshing notices…' : 'Refresh notices'}
+                <RefreshCw className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
+                {isRefreshing ? 'Checking...' : 'Or check notices again'}
               </button>
-
-              {/* Feedback hint */}
-              <p className="mt-4 text-[10px] text-[#9F9AB5]/50">
-                Still missing?{' '}
-                <span className="text-[#9F9AB5]/70 underline underline-offset-2">Send feedback</span>
-                {' '}and we'll look into it.
-              </p>
             </div>
           ) : (
             /* Candidates list */
@@ -213,11 +247,23 @@ function TimetablePicker({ token, semesterId, onSelect, onDismiss }) {
                 </button>
               ))}
 
-              {/* Feedback footer */}
-              <p className="mt-2 text-center text-[10px] text-[#9F9AB5]/50">
-                Not right?{' '}
-                <span className="text-[#9F9AB5]/70 underline underline-offset-2 cursor-pointer">Send feedback</span>
-              </p>
+              {/* Feedback footer + Upload option */}
+              <div className="mt-3 pt-3 border-t border-white/[0.05]">
+                <p className="text-center text-[10px] text-[#9F9AB5]/70 mb-2">
+                  Can't find yours? Upload your timetable PDF:
+                </p>
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-white/[0.05] ring-1 ring-white/[0.07] px-4 py-3 text-[11px] font-semibold text-[#F7F4FF] transition hover:bg-white/[0.09] active:scale-[0.98]">
+                  <input type="file" accept=".pdf" onChange={handleFileUpload} className="hidden" disabled={isUploading} />
+                  {isUploading ? (
+                    <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#FF916C] border-t-transparent" />
+                  ) : (
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-[#FF916C]" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                  )}
+                  {isUploading ? 'Processing PDF...' : 'Upload Timetable PDF'}
+                </label>
+              </div>
             </div>
           )}
         </div>

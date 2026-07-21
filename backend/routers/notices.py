@@ -4,7 +4,7 @@ Notice Board API Router
 
 import logging
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, UploadFile, File, Form
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, StreamingResponse
 
@@ -269,6 +269,93 @@ async def get_timetable(
     except Exception:
         logger.exception("Failed to fetch timetable")
         return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to load timetable"})
+
+
+# POST /notices/timetable/upload — Upload a timetable PDF for parsing
+@router.post("/timetable/upload", response_model=ApiResponse)
+async def upload_timetable(token: str = Form(...), file: UploadFile = File(...)):
+    """Parse an uploaded timetable PDF and return personalized schedule."""
+    import io
+    from services.timetable_service import _parse_timetable_pdf, _match_student_classes, _infer_full_subjects_from_schedule
+    from services.session_store import session_store as _ss
+
+    record = _ss.get(token)
+    if record is None:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Session expired"})
+
+    # Validate file
+    if not file.filename or not file.filename.lower().endswith('.pdf'):
+        return JSONResponse(status_code=422, content={"status": "error", "message": "Please upload a PDF file"})
+
+    content = await file.read()
+    if len(content) > 10 * 1024 * 1024:  # 10MB limit
+        return JSONResponse(status_code=422, content={"status": "error", "message": "File too large (max 10MB)"})
+
+    if len(content) < 100:
+        return JSONResponse(status_code=422, content={"status": "error", "message": "File appears to be empty"})
+
+    try:
+        schedule = await run_in_threadpool(_parse_timetable_pdf, io.BytesIO(content))
+    except Exception:
+        logger.exception("Failed to parse uploaded timetable PDF")
+        return JSONResponse(status_code=422, content={"status": "error", "message": "Could not parse this PDF. Make sure it's a valid timetable."})
+
+    if not schedule:
+        return JSONResponse(status_code=422, content={"status": "error", "message": "No timetable data found in this PDF. Make sure it's your class timetable."})
+
+    # Try to match to student's subjects
+    student_subjects = record.cached_subjects or []
+    my_classes = _match_student_classes(schedule, student_subjects) if student_subjects else []
+
+    # If subject matching fails, try section-based fallback
+    if not my_classes and student_subjects:
+        sections = set(s.get('section', '').upper() for s in student_subjects if s.get('section'))
+        if sections:
+            student_section = max(sections, key=lambda s: sum(1 for subj in student_subjects if subj.get('section', '').upper() == s))
+            my_classes = [
+                cls for cls in schedule
+                if cls.get('section', '').upper() == student_section
+                or cls.get('section', '').upper().startswith(student_section)
+                or student_section.startswith(cls.get('section', '').upper())
+            ]
+
+    # If still no match, try augmentation
+    if my_classes:
+        augmented = _infer_full_subjects_from_schedule(schedule, my_classes)
+        if len(augmented) > len(student_subjects):
+            student_subjects = augmented
+            my_classes = _match_student_classes(schedule, student_subjects)
+
+    # If absolutely no matching possible, show all classes (user can figure out which are theirs)
+    if not my_classes:
+        my_classes = schedule
+
+    # Organize by day
+    days_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    by_day = {day: [] for day in days_order}
+    for cls in my_classes:
+        day = cls.get("day", "")
+        if day in by_day:
+            by_day[day].append(cls)
+    for day in by_day:
+        by_day[day].sort(key=lambda c: c.get("time_sort", ""))
+    by_day = {day: classes for day, classes in by_day.items() if classes}
+
+    if not by_day:
+        return JSONResponse(status_code=422, content={"status": "error", "message": "No classes found in the uploaded timetable."})
+
+    result = {
+        "noticeTitle": f"Uploaded: {file.filename}",
+        "noticeDate": None,
+        "noticeId": None,
+        "schedule": by_day,
+        "totalClasses": len(my_classes),
+        "subjects": list(set(s.get("abbr", s.get("course", "")) for s in student_subjects)) if student_subjects else [],
+        "uploaded": True,
+    }
+
+    logger.info("Timetable upload: parsed %d classes from %s for %s", len(my_classes), file.filename, record.roll_number)
+    return ApiResponse(status="success", message="Timetable parsed successfully", data=result)
 
 
 # GET /notices/{id}?token=...
