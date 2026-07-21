@@ -226,8 +226,33 @@ def _match_student_classes(schedule: list[dict], student_subjects: list[dict]) -
         key = f"{subj['abbr']}-{subj['section']}".upper()
         lookup.add(key)
 
-    # Primary match
+    # Primary match: exact ABBR-SECTION
     my_classes = [cls for cls in schedule if cls.get("course_key", "").upper() in lookup]
+
+    # If exact match fails, try abbr-only matching (section may differ between
+    # attendance data and timetable, e.g. "J" vs "J1" or "A" vs "A1")
+    if not my_classes:
+        abbr_set = {subj['abbr'].upper() for subj in student_subjects}
+        section_set = {subj['section'].upper() for subj in student_subjects}
+
+        # Match by abbreviation alone, then filter by section prefix/overlap
+        abbr_matched = [cls for cls in schedule if cls.get("course", "").upper() in abbr_set]
+        if abbr_matched:
+            # Accept classes whose section starts with a student section or vice versa
+            for cls in abbr_matched:
+                cls_section = cls.get("section", "").upper()
+                if cls_section and any(
+                    cls_section.startswith(s) or s.startswith(cls_section)
+                    for s in section_set
+                ):
+                    my_classes.append(cls)
+
+            # If prefix matching also fails, use the abbr-matched classes directly
+            # (student likely has matching subjects, just different section naming)
+            if not my_classes and abbr_matched:
+                # Only use this if a significant portion of student's subjects match
+                if len(set(cls.get("course", "").upper() for cls in abbr_matched)) >= min(2, len(abbr_set)):
+                    my_classes = abbr_matched
 
     # If primary match works, also try language course matching
     if my_classes:
@@ -310,12 +335,16 @@ def _extract_subjects(attendance_rows: list[dict], abbr_lookup: dict[str, str] |
 
         abbr = raw_abbr
 
-        # Try to resolve via lookup when abbr is missing or looks like a full
-        # course code (all-caps alpha+digit, length > 6) or a full course name
-        if abbr_lookup and (not abbr or len(abbr) > 6 or " " in abbr):
-            # Try raw_abbr as a key first, then the full subject name
-            resolved = abbr_lookup.get(abbr) or abbr_lookup.get(
-                str(item.get("subject", "")).strip().upper()
+        # Always attempt lookup resolution when abbr_lookup is available.
+        # The portal may return abbreviations that differ from the timetable's
+        # short names (e.g. attendance says "BE" but timetable uses "BEE", or
+        # attendance returns a course code like "SHIS460" instead of "CSCL").
+        if abbr_lookup:
+            # Try raw_abbr as a key, then the full subject name, then the course code
+            resolved = (
+                abbr_lookup.get(abbr)
+                or abbr_lookup.get(str(item.get("subject", "")).strip().upper())
+                or abbr_lookup.get(str(item.get("code", "")).strip().upper())
             )
             if resolved:
                 abbr = resolved
@@ -430,6 +459,10 @@ def _find_latest_timetable_notice(student_subjects: list[dict] | None = None) ->
                 schedule = _parse_timetable_from_text(notice.cleaned_text)
                 if schedule and _match_student_classes(schedule, student_subjects):
                     return notice
+                # No match for this notice — remember it as a fallback timetable
+                # in case none of the notices match the raw portal abbreviations.
+                if fallback_candidate is None and schedule:
+                    fallback_candidate = notice
                 continue
             # This looks like a regular class timetable
             return notice
