@@ -17,6 +17,10 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 }
 
+// Firebase Web Push certificate VAPID key (generated in Firebase Console → Cloud Messaging → Web Push certificates)
+// This is DIFFERENT from our custom VAPID key used for pywebpush delivery
+const FCM_VAPID_KEY = 'BIPcJq_HqbuQxq2KwQX1X44yAAgEQHWNaXeXSunpnA_guAHdd0IsJ_zr1A4y27VPHvTFiEoHCQmEqbdH3Aglz4I'
+
 let messagingInstance = null
 
 function getFirebaseMessaging() {
@@ -29,19 +33,20 @@ function getFirebaseMessaging() {
 /**
  * Get the FCM token for this device.
  * Requires notification permission to already be granted.
- * Uses the VAPID key for web push certificate validation.
+ * Uses Firebase's VAPID key (not our custom one).
  */
-export async function getFCMToken(vapidKey) {
+export async function getFCMToken() {
   try {
     const messaging = getFirebaseMessaging()
+    const swRegistration = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js')
+      || await navigator.serviceWorker.register('/firebase-messaging-sw.js')
     const token = await getToken(messaging, {
-      vapidKey,
-      serviceWorkerRegistration: await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js')
-        || await navigator.serviceWorker.register('/firebase-messaging-sw.js'),
+      vapidKey: FCM_VAPID_KEY,
+      serviceWorkerRegistration: swRegistration,
     })
     return token
   } catch (err) {
-    console.warn('[FCM] Failed to get token:', err.message)
+    console.warn('[FCM] Failed to get token:', err.message || err)
     return null
   }
 }

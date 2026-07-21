@@ -4,7 +4,7 @@
  */
 
 import { getVapidPublicKey, subscribePush, registerFCMToken } from '../../services/pushApi'
-import { getFCMToken, onForegroundMessage } from '../../services/firebaseMessaging'
+import { getFCMToken } from '../../services/firebaseMessaging'
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -115,7 +115,7 @@ export async function requestPushSubscription(token) {
 
     // 9. Also register FCM token for reliable Android background delivery
     // This runs in parallel — doesn't block the subscribe flow
-    registerFCMTokenInBackground(token, publicKey, deviceInfo)
+    registerFCMTokenInBackground(token, deviceInfo)
 
     return result
   } catch (err) {
@@ -130,11 +130,14 @@ export async function requestPushSubscription(token) {
  * Register FCM token with the backend (non-blocking).
  * FCM delivers through Google Play Services which is more reliable on Android.
  */
-async function registerFCMTokenInBackground(sessionToken, vapidKey, deviceInfo) {
+async function registerFCMTokenInBackground(sessionToken, deviceInfo) {
   try {
-    const fcmToken = await getFCMToken(vapidKey)
+    const fcmToken = await getFCMToken()
     if (fcmToken) {
       await registerFCMToken({ token: sessionToken, fcmToken, deviceInfo })
+      console.log('[FCM] Token registered successfully')
+    } else {
+      console.warn('[FCM] getToken returned null — check Firebase Console Web Push certificates')
     }
   } catch (err) {
     console.warn('[FCM] Background token registration failed:', err.message || err)
@@ -220,7 +223,7 @@ export async function ensurePushRegistered(token) {
     })
 
     // Also register FCM token for reliable background delivery on Android
-    registerFCMTokenInBackground(token, publicKey, deviceInfo)
+    registerFCMTokenInBackground(token, deviceInfo)
 
     return true
   } catch (err) {
