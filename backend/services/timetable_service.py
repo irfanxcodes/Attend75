@@ -85,7 +85,9 @@ def get_personalized_timetable(token: str, semester_id: str | None = None) -> di
 
     # 7. If we got a partial match (incomplete subjects from stale session),
     #    infer the full subject set from the timetable using section + semester.
-    if my_classes and len(student_subjects) < 4:
+    #    Always attempt augmentation when matched classes seem incomplete
+    #    (a typical semester has 5-8 subjects, so fewer than expected suggests gaps).
+    if my_classes:
         augmented = _infer_full_subjects_from_schedule(schedule, my_classes)
         if len(augmented) > len(student_subjects):
             logger.info("Timetable: augmented %s → %s via schedule inference",
@@ -222,23 +224,40 @@ def _match_student_classes(schedule: list[dict], student_subjects: list[dict]) -
 
     # Build lookup: exact ABBR-SECTION keys
     lookup = set()
+    abbr_set = set()
+    section_set = set()
     for subj in student_subjects:
         key = f"{subj['abbr']}-{subj['section']}".upper()
         lookup.add(key)
+        abbr_set.add(subj['abbr'].upper())
+        section_set.add(subj['section'].upper())
 
     # Primary match: exact ABBR-SECTION
     my_classes = [cls for cls in schedule if cls.get("course_key", "").upper() in lookup]
 
-    # If exact match fails, try abbr-only matching (section may differ between
-    # attendance data and timetable, e.g. "J" vs "J1" or "A" vs "A1")
-    if not my_classes:
-        abbr_set = {subj['abbr'].upper() for subj in student_subjects}
-        section_set = {subj['section'].upper() for subj in student_subjects}
+    # Secondary match: for subjects that didn't match exactly, try flexible section matching.
+    # This catches cases like attendance="A" but timetable="A1", or "J" vs "J1"
+    matched_abbrs = set(cls.get("course", "").upper() for cls in my_classes)
+    unmatched_abbrs = abbr_set - matched_abbrs
 
-        # Match by abbreviation alone, then filter by section prefix/overlap
+    if unmatched_abbrs:
+        for cls in schedule:
+            course = cls.get("course", "").upper()
+            if course not in unmatched_abbrs:
+                continue
+            cls_section = cls.get("section", "").upper()
+            # Flexible section matching: prefix overlap
+            if cls_section and any(
+                cls_section.startswith(s) or s.startswith(cls_section)
+                for s in section_set
+            ):
+                my_classes.append(cls)
+
+    # If exact + flexible match still fails entirely, try abbr-only matching
+    if not my_classes:
         abbr_matched = [cls for cls in schedule if cls.get("course", "").upper() in abbr_set]
         if abbr_matched:
-            # Accept classes whose section starts with a student section or vice versa
+            # Accept classes whose section has any prefix overlap with student sections
             for cls in abbr_matched:
                 cls_section = cls.get("section", "").upper()
                 if cls_section and any(
@@ -247,12 +266,9 @@ def _match_student_classes(schedule: list[dict], student_subjects: list[dict]) -
                 ):
                     my_classes.append(cls)
 
-            # If prefix matching also fails, use the abbr-matched classes directly
-            # (student likely has matching subjects, just different section naming)
-            if not my_classes and abbr_matched:
-                # Only use this if a significant portion of student's subjects match
-                if len(set(cls.get("course", "").upper() for cls in abbr_matched)) >= min(2, len(abbr_set)):
-                    my_classes = abbr_matched
+            # If prefix matching also fails, use abbr-matched if significant overlap
+            if not my_classes and len(set(cls.get("course", "").upper() for cls in abbr_matched)) >= min(2, len(abbr_set)):
+                my_classes = abbr_matched
 
     # If primary match works, also try language course matching
     if my_classes:
