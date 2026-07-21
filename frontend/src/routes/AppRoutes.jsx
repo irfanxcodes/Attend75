@@ -197,6 +197,11 @@ function AppRoutes() {
             }
 
             setAuthBootstrapComplete(true)
+
+            // Register push subscription in background for ALL users (needed for feedback replies)
+            import('../pwa/push/subscribe').then(({ ensurePushRegistered }) => {
+              ensurePushRegistered(persistedSession.token)
+            }).catch(() => {})
           } else {
             // Token expired — clear and fall through to Firebase check
             clearPersistedSession()
