@@ -15,6 +15,8 @@ firebase.initializeApp({
   projectId: 'attend75-534c2',
   messagingSenderId: '222443696612',
   appId: '1:222443696612:web:0c969f294953e107aa17f1',
+  storageBucket: 'attend75-534c2.firebasestorage.app',
+  measurementId: 'G-0KMX1ZR6SM',
 })
 
 const messaging = firebase.messaging()

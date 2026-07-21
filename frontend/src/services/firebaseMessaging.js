@@ -13,8 +13,10 @@ const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: 'attend75-534c2.firebasestorage.app',
   messagingSenderId: '222443696612',
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: 'G-0KMX1ZR6SM',
 }
 
 // Firebase Web Push certificate VAPID key (generated in Firebase Console → Cloud Messaging → Web Push certificates)
