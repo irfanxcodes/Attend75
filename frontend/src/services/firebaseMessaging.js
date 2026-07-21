@@ -40,30 +40,13 @@ export async function getFCMToken() {
   try {
     if (Notification.permission !== 'granted') return 'NO_PERMISSION'
     const messaging = getFirebaseMessaging()
-    // Register Firebase's own messaging SW at its expected scope
-    let swRegistration
-    try {
-      swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
-        scope: '/firebase-cloud-messaging-push-scope',
-      })
-      // Wait for activation
-      if (swRegistration.installing) {
-        await new Promise(r => {
-          swRegistration.installing.addEventListener('statechange', (e) => {
-            if (e.target.state === 'activated') r()
-          })
-          setTimeout(r, 3000) // timeout fallback
-        })
-      }
-    } catch (swErr) {
-      return 'SW_REG_FAIL:' + (swErr.message || '').substring(0, 30)
-    }
 
+    // Let Firebase handle its own SW registration internally
+    // by NOT passing serviceWorkerRegistration
     let token
     try {
       token = await getToken(messaging, {
         vapidKey: FCM_VAPID_KEY,
-        serviceWorkerRegistration: swRegistration,
       })
     } catch (tokenErr) {
       return 'TOKEN_ERR:' + (tokenErr.code || tokenErr.message || '').substring(0, 40)
