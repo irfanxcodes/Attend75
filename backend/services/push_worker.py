@@ -234,6 +234,7 @@ class PushWorker:
                 time.sleep(1)
 
     def _worker_loop(self) -> None:
+        last_target_roll = None
         while self._running:
             try:
                 jobs = notification_queue.claim_pending_jobs(batch_size=5, job_types=["push_send"])
@@ -244,6 +245,12 @@ class PushWorker:
                 for job in jobs:
                     if not self._running:
                         break
+                    # Add 3-second delay between consecutive notifications to the same user
+                    # This prevents Chrome from batching/dropping rapid-fire pushes
+                    target = job.get("target_roll", "")
+                    if target and target == last_target_roll:
+                        time.sleep(3)
+                    last_target_roll = target
                     try:
                         _process_job(job)
                     except Exception:
