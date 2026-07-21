@@ -38,8 +38,16 @@ export async function getFCMToken() {
   try {
     if (Notification.permission !== 'granted') return null
     const messaging = getFirebaseMessaging()
-    // Use the existing SW registration (the main sw.js which has Firebase initialized)
-    const swRegistration = await navigator.serviceWorker.ready
+    // Register Firebase's own messaging SW at its expected scope
+    // This doesn't conflict with our main sw.js because it's a different scope
+    let swRegistration = await navigator.serviceWorker.getRegistration('/firebase-cloud-messaging-push-scope')
+    if (!swRegistration) {
+      swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+        scope: '/firebase-cloud-messaging-push-scope',
+      })
+      // Wait for it to be ready
+      await new Promise(r => setTimeout(r, 1000))
+    }
     const token = await getToken(messaging, {
       vapidKey: FCM_VAPID_KEY,
       serviceWorkerRegistration: swRegistration,
