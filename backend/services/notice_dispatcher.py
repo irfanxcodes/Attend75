@@ -195,8 +195,8 @@ def _subscribed_students_for_program(program: str | None) -> list[str]:
     with SessionLocal() as session:
         query = (
             session.query(PushSubscription.roll_number)
-            .join(PremiumSubscription, PremiumSubscription.roll_number == PushSubscription.roll_number)
-            .filter(PremiumSubscription.status.in_(["active", "grace"]))
+            
+            
         )
 
         if program:

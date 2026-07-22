@@ -105,7 +105,7 @@ def run_weekly_summary() -> int:
     with SessionLocal() as session:
         students = (
             session.query(PushSubscription.roll_number)
-            .join(PremiumSubscription, PremiumSubscription.roll_number == PushSubscription.roll_number)
+            
             .filter(PremiumSubscription.status.in_(["active", "grace"]))
             .distinct()
             .all()

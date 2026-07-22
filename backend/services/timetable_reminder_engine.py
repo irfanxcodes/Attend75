@@ -134,9 +134,9 @@ def schedule_reminders_for_today() -> int:
     with SessionLocal() as session:
         students = (
             session.query(PushSubscription.roll_number)
-            .join(PremiumSubscription, PremiumSubscription.roll_number == PushSubscription.roll_number)
+            
             .filter(
-                PremiumSubscription.status.in_(["active", "grace"]),
+                
                 PushSubscription.has_timetable.is_(True),
             )
             .distinct()
@@ -329,9 +329,9 @@ def send_tomorrow_preview() -> int:
     with SessionLocal() as session:
         students = (
             session.query(PushSubscription.roll_number)
-            .join(PremiumSubscription, PremiumSubscription.roll_number == PushSubscription.roll_number)
+            
             .filter(
-                PremiumSubscription.status.in_(["active", "grace"]),
+                
                 PushSubscription.has_timetable.is_(True),
             )
             .distinct()

@@ -153,9 +153,7 @@ function NotificationSettings() {
       setIsSubscribed(true)
       setPermissionState(getNotificationPermission())
     } catch (err) {
-      if (err?.code === 'PREMIUM_REQUIRED') {
-        navigate('/app/premium')
-      }
+      // No premium gating — notifications are free for all
     }
   }
 

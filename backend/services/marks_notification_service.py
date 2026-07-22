@@ -27,8 +27,6 @@ def check_and_notify_marks_update(roll_number: str, marks_data: dict) -> bool:
 
     Called from the marks fetch path (auth_service.fetch_consolidated_marks or similar).
     """
-    if not is_premium(roll_number):
-        return False
 
     prefs = get_or_create_preferences(roll_number)
     if not should_send(prefs, "notices_enabled"):  # Reuse notices toggle for marks alerts

@@ -72,8 +72,6 @@ def evaluate_attendance(
     Returns:
         Number of push_send jobs enqueued.
     """
-    if not is_premium(roll_number):
-        return 0
 
     prefs = get_or_create_preferences(roll_number)
     if not should_send(prefs, "attendance_enabled"):
