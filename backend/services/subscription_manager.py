@@ -156,7 +156,7 @@ def register_subscription(
                 p256dh_key=encrypted_p256dh,
                 auth_key=encrypted_auth,
                 device_info=device_info,
-                has_timetable=False,
+                has_timetable=True,  # Default to True — scheduler will validate at runtime
                 consent_at=now,
                 consent_method=consent_method,
                 created_at=now,
