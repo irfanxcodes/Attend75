@@ -98,7 +98,6 @@ function NotificationSettings() {
   const [isSaving, setIsSaving] = useState(false)
   const [isSubscribed, setIsSubscribed] = useState(false)
   const [permissionState, setPermissionState] = useState('default')
-  const [fcmStatus, setFcmStatus] = useState(null) // null | 'checking' | 'ok:TOKEN' | 'error:MSG'
 
   useEffect(() => {
     if (!token) return
@@ -112,25 +111,6 @@ function NotificationSettings() {
       setPermissionState(getNotificationPermission())
       if (subscribed) {
         await ensurePushRegistered(token)
-      }
-      // Try FCM token registration and show status
-      if (Notification.permission === 'granted') {
-        setFcmStatus('checking')
-        try {
-          const { getFCMToken } = await import('../services/firebaseMessaging')
-          const result = await getFCMToken()
-          if (result && result.length > 50) {
-            // It's a real token (tokens are long strings)
-            setFcmStatus('ok:' + result.substring(0, 15))
-            const { registerFCMToken } = await import('../services/pushApi')
-            await registerFCMToken({ token, fcmToken: result, deviceInfo: /Android/i.test(navigator.userAgent) ? 'Android' : 'Other' })
-          } else {
-            // It's an error code or null
-            setFcmStatus('error:' + (result || 'null'))
-          }
-        } catch (err) {
-          setFcmStatus('error:' + (err?.code || err?.name || err?.message || 'unknown').substring(0, 50))
-        }
       }
     }).catch(() => {})
     .finally(() => setIsLoading(false))
@@ -154,6 +134,27 @@ function NotificationSettings() {
       setPermissionState(getNotificationPermission())
     } catch (err) {
       // No premium gating — notifications are free for all
+    }
+  }
+
+  const handleDisablePush = async () => {
+    if (!token) return
+    try {
+      // Unsubscribe from browser push
+      if ('serviceWorker' in navigator && 'PushManager' in window) {
+        const registration = await navigator.serviceWorker.ready
+        const subscription = await registration.pushManager.getSubscription()
+        if (subscription) {
+          const endpoint = subscription.endpoint
+          await subscription.unsubscribe()
+          // Also remove from backend
+          const { unsubscribePush } = await import('../services/pushApi')
+          await unsubscribePush({ token, endpoint })
+        }
+      }
+      setIsSubscribed(false)
+    } catch {
+      // Silent
     }
   }
 
@@ -181,7 +182,7 @@ function NotificationSettings() {
             {isSubscribed ? <Bell className="h-5 w-5 text-[#4EF0A0]" /> : <BellOff className="h-5 w-5 text-[#9F9AB5]" />}
             <div>
               <p className="text-sm font-semibold text-[#F7F4FF]">{isSubscribed ? 'Push Notifications Active' : 'Push Notifications Off'}</p>
-              <p className="text-[10px] text-[#9F9AB5]">{isSubscribed ? 'You\'ll receive alerts even when the app is closed' : 'Enable to get real-time alerts'}</p>
+              <p className="text-[10px] text-[#9F9AB5]">{isSubscribed ? 'Receive alerts for notices, classes & more' : 'Enable to get real-time alerts'}</p>
             </div>
           </div>
           {!isSubscribed && permissionState !== 'denied' && (
@@ -189,14 +190,14 @@ function NotificationSettings() {
               Enable
             </button>
           )}
+          {isSubscribed && (
+            <button type="button" onClick={handleDisablePush} className="rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-[#9F9AB5]">
+              Disable
+            </button>
+          )}
         </div>
         {permissionState === 'denied' && (
           <p className="mt-2 text-[10px] text-[#FF5B5B]">Notifications are blocked. Enable them in your browser settings → Site Settings → Notifications.</p>
-        )}
-        {fcmStatus && (
-          <p className={`mt-2 text-[9px] font-mono ${fcmStatus.startsWith('ok') ? 'text-[#4EF0A0]' : fcmStatus === 'checking' ? 'text-[#FFB23E]' : 'text-[#FF5B5B]'}`}>
-            FCM: {fcmStatus}
-          </p>
         )}
       </div>
 
