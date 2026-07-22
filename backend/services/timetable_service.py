@@ -115,6 +115,19 @@ def get_personalized_timetable(token: str, semester_id: str | None = None) -> di
     if not by_day:
         return None
 
+    # Persist student's resolved subjects for background scheduler use
+    try:
+        import json
+        from db.models.push_subscription import PushSubscription
+        subjects_json = json.dumps(student_subjects)
+        with SessionLocal() as db_sess:
+            db_sess.query(PushSubscription).filter(
+                PushSubscription.roll_number == record.roll_number
+            ).update({"cached_subjects_json": subjects_json, "has_timetable": True})
+            db_sess.commit()
+    except Exception:
+        pass  # Non-critical — don't fail timetable response
+
     return {
         "noticeTitle": matched_notice.title,
         "noticeDate": matched_notice.portal_date.isoformat() if matched_notice.portal_date else None,

@@ -45,6 +45,26 @@ PAGE_TIME_SLOTS_HOURS = [
 ]
 
 
+def _load_cached_subjects_for_roll(roll_number: str) -> list[dict]:
+    """Load cached subjects from push_subscriptions.cached_subjects_json for background use."""
+    import json
+    with SessionLocal() as session:
+        row = (
+            session.query(PushSubscription.cached_subjects_json)
+            .filter(
+                PushSubscription.roll_number == roll_number,
+                PushSubscription.cached_subjects_json.isnot(None),
+            )
+            .first()
+        )
+        if row and row[0]:
+            try:
+                return json.loads(row[0])
+            except (json.JSONDecodeError, TypeError):
+                pass
+    return []
+
+
 def _time_sort_to_hour_minute(time_sort: str) -> tuple[int, int] | None:
     """Convert the time_sort index (e.g. '02') to (hour, minute) using PAGE_TIME_SLOTS_HOURS."""
     try:
@@ -126,11 +146,6 @@ def schedule_reminders_for_today() -> int:
     for (roll_number,) in students:
         prefs = get_or_create_preferences(roll_number)
 
-        # Get cached subjects from session store (if logged in) or skip
-        # For background scheduling, we need subjects stored persistently.
-        # Since we're building this for logged-in users primarily, we use
-        # the timetable data that's already been matched (has_timetable=True).
-        # The actual class list comes from parsing the stored timetable text.
         notice = _find_latest_timetable_notice(None)
         if not notice or not notice.cleaned_text:
             continue
@@ -139,19 +154,17 @@ def schedule_reminders_for_today() -> int:
         if not schedule:
             continue
 
-        # We need the student's subjects to filter. Since has_timetable=True,
-        # we previously computed this. For now, we can't filter without subjects
-        # stored persistently — skip individual reminders and just send digest
-        # based on all classes matching the student's program/section.
-        # TODO: Store cached_subjects persistently for background use.
+        # Load student's cached subjects for per-student class filtering
+        student_subjects = _load_cached_subjects_for_roll(roll_number)
+        if student_subjects:
+            today_classes_all = _match_student_classes(schedule, student_subjects)
+            today_classes_all = [c for c in today_classes_all if c.get("day") == today_name]
+        else:
+            # No cached subjects — skip this student (they need to view timetable once)
+            today_classes_all = []
 
         # Daily digest (Req 11)
-        if should_send(prefs, "daily_digest_enabled"):
-            # Get all classes for today (we'll use broad matching since we lack
-            # persistent subject cache in background mode)
-            today_classes_all = [c for c in schedule if c.get("day") == today_name]
-
-            if today_classes_all:
+        if should_send(prefs, "daily_digest_enabled") and today_classes_all:
                 # Jitter the digest delivery time per student (spread over 15 min)
                 jitter_seconds = int(hashlib.md5(roll_number.encode()).hexdigest()[:4], 16) % 900
 
@@ -196,7 +209,7 @@ def schedule_reminders_for_today() -> int:
             if lead_minutes not in VALID_LEAD_MINUTES:
                 lead_minutes = 15
 
-            for cls in [c for c in schedule if c.get("day") == today_name]:
+            for cls in today_classes_all:
                 hm = _time_sort_to_hour_minute(cls.get("time_sort", ""))
                 if not hm:
                     continue

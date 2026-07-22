@@ -16,6 +16,7 @@ class PushSubscription(Base):
     auth_key: Mapped[str] = mapped_column(Text, nullable=False)
     device_info: Mapped[str | None] = mapped_column(String(255), nullable=True)
     fcm_token: Mapped[str | None] = mapped_column(Text, nullable=True)  # Firebase Cloud Messaging token
+    cached_subjects_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON array of {abbr, section} for background scheduler
     has_timetable: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     consent_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     consent_method: Mapped[str] = mapped_column(String(32), nullable=False, default="browser_prompt")
