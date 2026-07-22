@@ -20,18 +20,20 @@ logger = logging.getLogger(__name__)
 
 def register_fcm_token(roll_number: str, fcm_token: str, device_info: str = "") -> dict:
     """
-    Store an FCM token for a student. Updates existing subscription row
-    if one exists for this device, otherwise creates a new record.
+    Store an FCM token for a student. Updates the fcm_token field on an
+    existing subscription row (matched by device_info or most recent).
+    Does NOT create standalone FCM-only rows.
     """
     now = datetime.now(timezone.utc)
 
     with SessionLocal() as session:
-        # Find existing subscription for this roll + device
+        # Find existing Web Push subscription for this roll + device
         existing = (
             session.query(PushSubscription)
             .filter(
                 PushSubscription.roll_number == roll_number,
-                PushSubscription.device_info == (device_info or None),
+                PushSubscription.p256dh_key != "",  # Only real Web Push subscriptions
+                PushSubscription.p256dh_key.isnot(None),
             )
             .order_by(PushSubscription.created_at.desc())
             .first()
@@ -41,27 +43,13 @@ def register_fcm_token(roll_number: str, fcm_token: str, device_info: str = "") 
             existing.fcm_token = fcm_token
             existing.last_used_at = now
             session.commit()
-            logger.info("FCM token updated for %s (sub_id=%d)", roll_number, existing.id)
+            logger.info("FCM token set on existing sub %d for %s", existing.id, roll_number)
             return {"id": existing.id, "updated": True}
         else:
-            # Create a new subscription entry with just FCM token (no Web Push endpoint)
-            sub = PushSubscription(
-                roll_number=roll_number,
-                endpoint="fcm:" + fcm_token[:50],  # Placeholder — not used for delivery
-                p256dh_key="",
-                auth_key="",
-                device_info=device_info or None,
-                fcm_token=fcm_token,
-                has_timetable=False,
-                consent_at=now,
-                consent_method="fcm",
-                created_at=now,
-            )
-            session.add(sub)
-            session.commit()
-            session.refresh(sub)
-            logger.info("FCM token created for %s (sub_id=%d)", roll_number, sub.id)
-            return {"id": sub.id, "updated": False}
+            # No valid Web Push subscription exists — store token for later
+            # when the user subscribes via Web Push, the FCM token will be there
+            logger.warning("FCM token received but no Web Push subscription for %s", roll_number)
+            return {"id": None, "updated": False}
 
 
 def send_fcm_notification(fcm_token: str, data: dict) -> bool:

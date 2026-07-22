@@ -255,20 +255,27 @@ def get_decrypted_subscription_info(subscription_id: int) -> dict | None:
     """
     Used internally by push_worker to build the pywebpush subscription_info
     dict ({endpoint, keys: {p256dh, auth}}) right before delivery.
+    Returns None if the subscription can't be decrypted (e.g. FCM-only row).
     """
     with SessionLocal() as session:
         row = session.query(PushSubscription).filter(PushSubscription.id == subscription_id).one_or_none()
         if row is None:
             return None
-        return {
-            "id": row.id,
-            "roll_number": row.roll_number,
-            "endpoint": credential_crypto_service.decrypt(row.endpoint),
-            "keys": {
-                "p256dh": credential_crypto_service.decrypt(row.p256dh_key),
-                "auth": credential_crypto_service.decrypt(row.auth_key),
-            },
-        }
+        # Skip FCM-only rows that don't have encrypted Web Push data
+        if not row.endpoint or not row.p256dh_key or not row.auth_key:
+            return None
+        try:
+            return {
+                "id": row.id,
+                "roll_number": row.roll_number,
+                "endpoint": credential_crypto_service.decrypt(row.endpoint),
+                "keys": {
+                    "p256dh": credential_crypto_service.decrypt(row.p256dh_key),
+                    "auth": credential_crypto_service.decrypt(row.auth_key),
+                },
+            }
+        except Exception:
+            return None
 
 
 def list_all_subscription_ids_for_roll(roll_number: str) -> list[int]:
