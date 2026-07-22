@@ -26,7 +26,17 @@ let messagingInstance = null
 
 function getFirebaseMessaging() {
   if (messagingInstance) return messagingInstance
-  const app = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig)
+  // Use a dedicated Firebase app for messaging with ALL required fields
+  // Don't reuse the auth app which may have incomplete config
+  let app
+  try {
+    app = getApps().find(a => a.name === 'messaging-app')
+    if (!app) {
+      app = initializeApp(firebaseConfig, 'messaging-app')
+    }
+  } catch {
+    app = initializeApp(firebaseConfig, 'messaging-app')
+  }
   messagingInstance = getMessaging(app)
   return messagingInstance
 }
