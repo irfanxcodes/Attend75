@@ -21,7 +21,7 @@ const NAV_SECTIONS = [
       { id: 'engagement', label: 'Engagement', icon: 'zap' },
       { id: 'app-ratings', label: 'App Ratings', icon: 'star' },
       { id: 'feedback', label: 'Feedback', icon: 'message-square', badge: null },
-      { id: 'premium-analytics', label: 'Premium & Notifs', icon: 'crown' },
+      { id: 'premium-analytics', label: 'Notifications', icon: 'crown' },
     ],
   },
   {

@@ -153,18 +153,20 @@ def get_premium_analytics() -> dict:
             for row in recent_broadcasts
         ]
 
-        # ── Premium students list ───────────────────────────────────────────
-        premium_students = (
-            session.query(PremiumSubscription)
-            .order_by(PremiumSubscription.created_at.desc())
+        # ── Push notification subscribers list ───────────────────────────────
+        push_subscriber_rolls = (
+            session.query(PushSubscription.roll_number, func.count(PushSubscription.id).label('devices'),
+                          func.max(PushSubscription.created_at).label('registered_at'),
+                          func.max(PushSubscription.last_used_at).label('last_used'))
+            .filter(PushSubscription.p256dh_key != "", PushSubscription.p256dh_key.isnot(None))
+            .group_by(PushSubscription.roll_number)
+            .order_by(func.max(PushSubscription.created_at).desc())
             .limit(100)
             .all()
         )
 
-        # Get student details
-        roll_numbers = [s.roll_number for s in premium_students]
+        roll_numbers = [r[0] for r in push_subscriber_rolls]
         student_details = {}
-        push_sub_counts = {}
         if roll_numbers:
             detail_rows = (
                 session.query(StudentRegistry)
@@ -176,35 +178,20 @@ def get_premium_analytics() -> dict:
                     "name": r.display_name,
                     "program": r.program,
                     "hasGoogle": r.has_google_linked,
-                    "lastSeen": r.last_seen_at.isoformat() if r.last_seen_at else None,
-                    "attendancePercent": r.last_attendance_percent,
                 }
 
-            # Count push subscriptions per student
-            push_rows = (
-                session.query(PushSubscription.roll_number, func.count(PushSubscription.id))
-                .filter(PushSubscription.roll_number.in_(roll_numbers))
-                .group_by(PushSubscription.roll_number)
-                .all()
-            )
-            push_sub_counts = {r[0]: int(r[1]) for r in push_rows}
-
         students_list = []
-        for s in premium_students:
-            details = student_details.get(s.roll_number, {})
+        for row in push_subscriber_rolls:
+            roll, devices, registered_at, last_used = row
+            details = student_details.get(roll, {})
             students_list.append({
-                "rollNumber": s.roll_number,
+                "rollNumber": roll,
                 "name": details.get("name"),
                 "program": details.get("program"),
                 "hasGoogle": details.get("hasGoogle", False),
-                "lastSeen": details.get("lastSeen"),
-                "attendancePercent": details.get("attendancePercent"),
-                "pushDevices": push_sub_counts.get(s.roll_number, 0),
-                "plan": s.plan,
-                "status": s.status,
-                "expiryDate": s.expiry_date.isoformat() if s.expiry_date else None,
-                "graceEndsAt": s.grace_ends_at.isoformat() if s.grace_ends_at else None,
-                "createdAt": s.created_at.isoformat() if s.created_at else None,
+                "pushDevices": int(devices),
+                "registeredAt": registered_at.isoformat() if registered_at else None,
+                "lastUsedAt": last_used.isoformat() if last_used else None,
             })
 
     # Total students for conversion rate

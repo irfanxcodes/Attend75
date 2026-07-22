@@ -183,11 +183,12 @@ async def admin_broadcast(
 
 	audience = payload.get("audience", "all")
 	program = payload.get("program")
+	target_roll = payload.get("target_roll")
 	priority = payload.get("priority", "standard")
 	deep_link = payload.get("deep_link")
 
 	try:
-		result = await run_in_threadpool(send_broadcast, title, body, audience, program, priority, deep_link)
+		result = await run_in_threadpool(send_broadcast, title, body, audience, program, target_roll, priority, deep_link)
 		return ApiResponse(status="success", message="Broadcast queued", data=result)
 	except Exception:
 		logger.exception("Failed to send broadcast")

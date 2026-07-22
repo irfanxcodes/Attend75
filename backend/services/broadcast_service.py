@@ -21,15 +21,19 @@ def send_broadcast(
     body: str,
     audience: str = "all",
     program: str | None = None,
+    target_roll: str | None = None,
     priority: str = "standard",
     deep_link: str | None = None,
 ) -> dict:
     """
-    Enqueue a broadcast push notification to all matching premium students.
-    audience: "all" | "program"
+    Enqueue a broadcast push notification.
+    audience: "all" | "program" | "individual"
     Returns {queued_count: int}.
     """
-    targets = _get_broadcast_targets(audience, program)
+    if audience == "individual" and target_roll:
+        targets = [target_roll]
+    else:
+        targets = _get_broadcast_targets(audience, program)
 
     if not targets:
         return {"queued_count": 0}
