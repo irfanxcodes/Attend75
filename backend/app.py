@@ -19,6 +19,7 @@ from fastapi.responses import JSONResponse
 from fastapi import Request
 
 from db.session import init_database
+from routers.arcade import router as arcade_router
 from routers.auth import router as auth_router
 from routers.admin import router as admin_router
 from routers.feedback import router as feedback_router
@@ -154,6 +155,7 @@ async def health_check():
 
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(arcade_router)
 app.include_router(feedback_router)
 app.include_router(firebase_auth_router)
 app.include_router(notices_router)

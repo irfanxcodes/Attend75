@@ -30,6 +30,8 @@ const AdminDashboard = lazy(() => import('../pages/admin/AdminDashboard'))
 const NotificationSettings = lazy(() => import('../pages/NotificationSettings'))
 const NotificationHistory = lazy(() => import('../pages/NotificationHistory'))
 const Premium = lazy(() => import('../pages/Premium'))
+const ArcadeHome = lazy(() => import('../pages/ArcadeHome'))
+const ArcadeGamePage = lazy(() => import('../pages/ArcadeGamePage'))
 
 function RouteFallback({ message = 'Loading page...' }) {
   return (
@@ -341,6 +343,8 @@ function AppRoutes() {
           <Route path="study/:subjectId/:lessonId/practice/:topicId" element={<StudyTopicPractice />} />
           <Route path="profile" element={<Profile />} />
           <Route path="premium" element={<Premium />} />
+          <Route path="arcade" element={<ArcadeHome />} />
+          <Route path="arcade/:gameSlug" element={<ArcadeGamePage />} />
           <Route path="notification-settings" element={<NotificationSettings />} />
           <Route path="notifications" element={<NotificationHistory />} />
         </Route>

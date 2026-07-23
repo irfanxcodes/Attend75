@@ -16,6 +16,7 @@ import { calculatePrediction } from '../utils/calculations'
 import { calculateTotalAbsents } from '../utils/dashboardMetrics'
 import { loadAttendanceSnapshot } from '../services/sessionPersistence'
 import StaleDataBadge from '../components/common/StaleDataBadge'
+import ArcadeBanner from '../components/arcade/ArcadeBanner'
 
 function formatPercentage(value) {
   const num = Number(value) || 0
@@ -437,6 +438,9 @@ function Dashboard() {
           ) : null}
         </div>
 
+        {/* Arcade banner */}
+        <ArcadeBanner />
+
         {/* Target card - expandable */}
         <div data-walkthrough="target-card" className="rounded-xl bg-[#4A466A] ring-1 ring-white/5">
           <button
@@ -600,6 +604,9 @@ function Dashboard() {
             onChangeTarget={actions.setSelectedTarget}
           />
         </div>
+
+        {/* Arcade banner - desktop */}
+        <ArcadeBanner />
 
         <div data-walkthrough="desktop-subjects-list">
           <SubjectList subjects={subjects} />

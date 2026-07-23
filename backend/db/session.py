@@ -33,6 +33,7 @@ def init_database() -> None:
     # Import model modules so SQLAlchemy registers table metadata.
     from db.models import feature_usage_event  # noqa: F401
     from db.models import feedback_entry  # noqa: F401
+    from db.models import game_score  # noqa: F401
     from db.models import college_interest  # noqa: F401
     from db.models import portal_credential  # noqa: F401
     from db.models import studyme_event  # noqa: F401

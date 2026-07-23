@@ -372,3 +372,26 @@ class NotificationPreferencesUpdateRequest(BaseModel):
         if not cleaned:
             raise ValueError("token must not be empty")
         return cleaned
+
+
+class ScoreSubmitRequest(BaseModel):
+    token: str = Field(..., description="Session token")
+    score: int = Field(..., description="Game score")
+
+
+class ScoreSubmitResponse(BaseModel):
+    score: int
+    personal_best: int
+    rank: int
+
+
+class LeaderboardEntry(BaseModel):
+    rank: int
+    username: str
+    score: int
+
+
+class LeaderboardResponse(BaseModel):
+    entries: list[LeaderboardEntry]
+    user_entry: LeaderboardEntry | None = None
+    metadata: dict = Field(default_factory=dict)
