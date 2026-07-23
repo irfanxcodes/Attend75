@@ -66,7 +66,20 @@ function LoadingSpinner() {
 function Login() {
   const navigate = useNavigate()
   const { actions } = useAppStore()
-  const [form, setForm] = useState({ username: '', password: '' })
+  const [form, setForm] = useState(() => {
+    // Load saved credentials if "Remember me" was checked
+    try {
+      const saved = localStorage.getItem('attend75_remember')
+      if (saved) {
+        const parsed = JSON.parse(atob(saved))
+        return { username: parsed.u || '', password: parsed.p || '' }
+      }
+    } catch {
+      // Ignore corrupted data
+    }
+    return { username: '', password: '' }
+  })
+  const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem('attend75_remember'))
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -109,6 +122,14 @@ function Login() {
       setError('')
       setIsSubmitting(true)
       const session = await login(form)
+
+      // Save or clear credentials based on "Remember me"
+      if (rememberMe) {
+        localStorage.setItem('attend75_remember', btoa(JSON.stringify({ u: form.username, p: form.password })))
+      } else {
+        localStorage.removeItem('attend75_remember')
+      }
+
       actions.setAuthSession(session)
       actions.setAttendanceData(session.attendanceData)
       navigate('/loading')
@@ -262,6 +283,33 @@ function Login() {
                 </button>
               </div>
             </label>
+          </div>
+
+          {/* Remember me */}
+          <div className="mt-4 flex items-center gap-2">
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={rememberMe}
+              onClick={() => {
+                setRememberMe((prev) => {
+                  if (prev) localStorage.removeItem('attend75_remember')
+                  return !prev
+                })
+              }}
+              className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded border transition ${
+                rememberMe
+                  ? 'border-[#F59B74] bg-[#F59B74]'
+                  : 'border-white/30 bg-transparent'
+              }`}
+            >
+              {rememberMe && (
+                <svg viewBox="0 0 12 12" className="h-3 w-3 text-[#1D183E]" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M2 6l3 3 5-5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </button>
+            <span className="text-xs text-[#CFC5E8]">Remember me</span>
           </div>
 
           {error ? (
