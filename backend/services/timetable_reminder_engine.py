@@ -35,13 +35,13 @@ VALID_LEAD_MINUTES = {10, 15, 30, 60}
 
 # Time slots from the timetable PDF (same as timetable_service)
 PAGE_TIME_SLOTS_HOURS = [
-    (9, 30),   # 9:30 AM
-    (10, 25),  # 10:25 AM
-    (11, 20),  # 11:20 AM
-    (12, 15),  # 12:15 PM
-    (14, 0),   # 2:00 PM
-    (14, 55),  # 2:55 PM
-    (15, 10),  # 3:10 PM
+    (9, 30),   # 9:30 AM  → index 0
+    (10, 25),  # 10:25 AM → index 1
+    (11, 20),  # 11:20 AM → index 2
+    (12, 20),  # 12:20 PM → index 3
+    (13, 15),  # 1:15 PM  → index 4
+    (14, 10),  # 2:10 PM  → index 5
+    (15, 10),  # 3:10 PM  → index 6
 ]
 
 
@@ -143,14 +143,13 @@ def schedule_reminders_for_today() -> int:
             .all()
         )
 
+    # Load timetable once (same for all students)
+    notice = _find_latest_timetable_notice(None)
+    schedule = _parse_timetable_from_text(notice.cleaned_text) if notice and notice.cleaned_text else []
+
     for (roll_number,) in students:
         prefs = get_or_create_preferences(roll_number)
 
-        notice = _find_latest_timetable_notice(None)
-        if not notice or not notice.cleaned_text:
-            continue
-
-        schedule = _parse_timetable_from_text(notice.cleaned_text)
         if not schedule:
             continue
 
@@ -355,8 +354,18 @@ def send_tomorrow_preview() -> int:
         if not should_send(prefs, "timetable_enabled"):
             continue
 
-        class_count = len(tomorrow_classes)
-        first_time = tomorrow_classes[0].get("time", "") if tomorrow_classes else ""
+        # Filter to this student's classes for tomorrow
+        student_subjects = _load_cached_subjects_for_roll(roll_number)
+        if student_subjects:
+            student_tomorrow = _match_student_classes(tomorrow_classes, student_subjects)
+        else:
+            student_tomorrow = tomorrow_classes  # fallback to all classes if no cached subjects
+
+        if not student_tomorrow:
+            continue
+
+        class_count = len(student_tomorrow)
+        first_time = student_tomorrow[0].get("time", "") if student_tomorrow else ""
 
         # Calculate skip-ability based on current attendance
         skip_info = _compute_skip_info(roll_number, class_count)
