@@ -143,24 +143,31 @@ def schedule_reminders_for_today() -> int:
             .all()
         )
 
-    # Load timetable once (same for all students)
-    notice = _find_latest_timetable_notice(None)
-    schedule = _parse_timetable_from_text(notice.cleaned_text) if notice and notice.cleaned_text else []
+    # Load timetable once (same for all students) - pass None initially,
+    # per-student matching will use their cached_subjects below
+    # Note: We need to find the notice per-student since different programs
+    # have different timetable notices
 
     for (roll_number,) in students:
         prefs = get_or_create_preferences(roll_number)
 
+        # Load student's cached subjects for per-student class filtering
+        student_subjects = _load_cached_subjects_for_roll(roll_number)
+        if not student_subjects:
+            # No cached subjects — skip this student (they need to view timetable once)
+            continue
+
+        # Find the timetable notice matching this student's subjects
+        notice = _find_latest_timetable_notice(student_subjects)
+        if not notice or not notice.cleaned_text:
+            continue
+
+        schedule = _parse_timetable_from_text(notice.cleaned_text)
         if not schedule:
             continue
 
-        # Load student's cached subjects for per-student class filtering
-        student_subjects = _load_cached_subjects_for_roll(roll_number)
-        if student_subjects:
-            today_classes_all = _match_student_classes(schedule, student_subjects)
-            today_classes_all = [c for c in today_classes_all if c.get("day") == today_name]
-        else:
-            # No cached subjects — skip this student (they need to view timetable once)
-            today_classes_all = []
+        today_classes_all = _match_student_classes(schedule, student_subjects)
+        today_classes_all = [c for c in today_classes_all if c.get("day") == today_name]
 
         # Daily digest (Req 11)
         if should_send(prefs, "daily_digest_enabled") and today_classes_all:
