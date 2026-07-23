@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 // --- Game Constants ---
-const GRAVITY = 1800
-const JUMP_VELOCITY = -450
+const GRAVITY = 1400
+const JUMP_VELOCITY = -420
 const PIPE_SPEED = 200
 const PIPE_GAP = 150
 const PIPE_WIDTH = 60

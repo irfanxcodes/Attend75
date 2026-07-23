@@ -1,9 +1,51 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Trophy } from 'lucide-react'
 import gameRegistry from './gameRegistry'
 import { submitScore } from '../../services/arcadeApi'
 import useAppStore from '../../hooks/useAppStore'
+
+// --- Offline score queue (localStorage) ---
+const QUEUE_KEY = 'attend75.arcade.scoreQueue'
+
+function getScoreQueue() {
+  try {
+    return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]')
+  } catch { return [] }
+}
+
+function saveToQueue(gameSlug, score) {
+  try {
+    const queue = getScoreQueue()
+    queue.push({ gameSlug, score, timestamp: Date.now() })
+    localStorage.setItem(QUEUE_KEY, JSON.stringify(queue))
+  } catch { /* ignore storage errors */ }
+}
+
+function clearQueue() {
+  try { localStorage.removeItem(QUEUE_KEY) } catch { /* ignore */ }
+}
+
+async function flushQueue(token) {
+  if (!token) return
+  const queue = getScoreQueue()
+  if (!queue.length) return
+
+  const remaining = []
+  for (const item of queue) {
+    try {
+      await submitScore(token, item.gameSlug, item.score)
+    } catch {
+      remaining.push(item)
+    }
+  }
+
+  if (remaining.length) {
+    try { localStorage.setItem(QUEUE_KEY, JSON.stringify(remaining)) } catch { /* ignore */ }
+  } else {
+    clearQueue()
+  }
+}
 
 /**
  * GameLayout — shared wrapper for all arcade games.
@@ -28,7 +70,6 @@ function GameLayout({ gameSlug, children }) {
   const [isGameOver, setIsGameOver] = useState(false)
   const [submissionResult, setSubmissionResult] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState(null)
 
   // Track whether we've already submitted for the current session
   const hasSubmittedRef = useRef(false)
@@ -44,27 +85,28 @@ function GameLayout({ gameSlug, children }) {
 
     setCurrentScore(finalScore)
     setIsGameOver(true)
+
+    // Don't attempt score submission if not authenticated
+    if (!token) {
+      setIsSubmitting(false)
+      return
+    }
+
     setIsSubmitting(true)
-    setError(null)
 
     try {
       const result = await submitScore(token, gameSlug, finalScore)
       setSubmissionResult(result)
     } catch (err) {
       if (err.status === 401) {
-        // Session expired — redirect to login
         actions.logout()
         navigate('/login', { replace: true })
         return
       }
 
-      if (err.status === 429) {
-        // Rate limited — silently ignore
-        setSubmissionResult(null)
-      } else {
-        // Network failure or other error
-        setError("Score couldn't be saved")
-      }
+      // Save to offline queue so the score is never lost
+      saveToQueue(gameSlug, finalScore)
+      setSubmissionResult(null)
     } finally {
       setIsSubmitting(false)
     }
@@ -75,13 +117,17 @@ function GameLayout({ gameSlug, children }) {
     setIsGameOver(false)
     setSubmissionResult(null)
     setIsSubmitting(false)
-    setError(null)
     hasSubmittedRef.current = false
   }, [])
 
   const handleViewLeaderboard = useCallback(() => {
     navigate(`/app/arcade/${gameSlug}?view=leaderboard`)
   }, [navigate, gameSlug])
+
+  // Flush any offline-queued scores on mount
+  useEffect(() => {
+    flushQueue(token)
+  }, [token])
 
   // --- Render ---
   return (
@@ -144,11 +190,6 @@ function GameLayout({ gameSlug, children }) {
                     Rank: <span className="font-bold text-[#F7F4FF]">#{submissionResult.rank}</span>
                   </p>
                 </div>
-              )}
-
-              {/* Error message */}
-              {error && (
-                <p className="text-sm font-medium text-red-300">{error}</p>
               )}
 
               {/* Actions */}

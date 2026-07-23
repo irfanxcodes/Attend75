@@ -22,28 +22,42 @@ def _resolve_user_id(roll_number: str, display_name: str | None, db_session) -> 
     """Resolve a user_id from the users table given a roll_number.
 
     Looks up via portal_credentials first. If no linked user exists,
-    creates a minimal User record so arcade scores can be persisted.
+    checks for an existing arcade fallback user. Merges if both exist.
     """
     from db.models.portal_credential import PortalCredential
     from db.models.user import User
 
-    # Try finding via portal_credentials
+    # Try finding via portal_credentials (Google-linked user)
     credential = (
         db_session.query(PortalCredential)
         .filter(PortalCredential.roll_number == roll_number)
         .first()
     )
-    if credential is not None:
-        return credential.user_id
 
-    # Check if a user already exists with roll_number as firebase_uid (arcade fallback)
-    existing_user = (
+    # Check for existing arcade fallback user
+    fallback_user = (
         db_session.query(User)
         .filter(User.firebase_uid == f"portal:{roll_number}")
         .first()
     )
-    if existing_user is not None:
-        return existing_user.id
+
+    if credential is not None:
+        # If both exist, migrate arcade scores from fallback to the real user and remove fallback
+        if fallback_user is not None and fallback_user.id != credential.user_id:
+            from db.models.game_score import GameScore
+            db_session.query(GameScore).filter(
+                GameScore.user_id == fallback_user.id
+            ).update({"user_id": credential.user_id})
+            db_session.delete(fallback_user)
+            db_session.flush()
+        return credential.user_id
+
+    if fallback_user is not None:
+        # Update display name if we have a better one now
+        if display_name and fallback_user.display_name == roll_number:
+            fallback_user.display_name = display_name
+            db_session.flush()
+        return fallback_user.id
 
     # Create a minimal user record for this portal session user
     new_user = User(

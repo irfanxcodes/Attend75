@@ -114,14 +114,9 @@ function LeaderboardRow({ entry, isCurrentUser, isPinned }) {
         {entry.rank}
       </div>
 
-      {/* Avatar placeholder */}
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#5B5878] text-sm font-bold text-[#F7F4FF] ring-1 ring-white/10">
-        {(entry.username || '?')[0].toUpperCase()}
-      </div>
-
       {/* Username */}
       <span className="min-w-0 flex-1 truncate text-sm font-medium text-[#F7F4FF]">
-        {entry.username}
+        {entry.username || 'Anonymous'}
         {isCurrentUser && <span className="ml-1.5 text-[10px] font-semibold text-[#FF916C]">(you)</span>}
       </span>
 
@@ -140,7 +135,6 @@ function LoadingState() {
       {Array.from({ length: 6 }).map((_, i) => (
         <div key={i} className="flex animate-pulse items-center gap-3 rounded-xl bg-[#3E3A5C]/60 px-3 py-3">
           <div className="h-9 w-9 rounded-full bg-white/10" />
-          <div className="h-10 w-10 rounded-full bg-white/10" />
           <div className="h-4 flex-1 rounded bg-white/10" />
           <div className="h-4 w-12 rounded bg-white/10" />
         </div>
