@@ -14,10 +14,11 @@ from db.models.game_score import GameScore
 
 # --- Configuration ---
 
-REGISTERED_GAMES: set[str] = {"flappy"}
+REGISTERED_GAMES: set[str] = {"flappy", "pacman"}
 
 GAME_MAX_SCORES: dict[str, int] = {
     "flappy": 999,
+    "pacman": 5000,
 }
 
 DUPLICATE_WINDOW_SECONDS: int = 5

@@ -3,14 +3,39 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 // --- Game Constants ---
 const GRAVITY = 1400
 const JUMP_VELOCITY = -420
-const PIPE_SPEED = 200
-const PIPE_GAP = 150
+const PIPE_SPEED_MIN = 130       // starting speed (easy)
+const PIPE_SPEED_MAX = 280       // max speed (hard)
+const PIPE_GAP_MAX = 210         // starting gap (easy, wide)
+const PIPE_GAP_MIN = 120         // minimum gap (tough)
 const PIPE_WIDTH = 60
-const PIPE_SPACING = 250
+const PIPE_SPACING_MAX = 320     // starting spacing (easy, lots of room)
+const PIPE_SPACING_MIN = 200     // minimum spacing (tight)
 const BIRD_SIZE = 30
 const GAME_WIDTH = 400
 const GAME_HEIGHT = 750
 const GROUND_HEIGHT = 50
+const DIFFICULTY_RAMP_SCORE = 100 // full difficulty reached at score 100
+
+// --- Difficulty scaling helpers ---
+function getDifficulty(score) {
+  // Phase 1 (0-60): very gentle ramp, stays easy
+  // Phase 2 (60-100): ramps up noticeably, gets hard
+  let t
+  if (score <= 60) {
+    // Only cover 30% of the difficulty range in the first 60 points
+    t = (score / 60) * 0.3
+  } else {
+    // Cover remaining 70% from score 60 to 100
+    t = 0.3 + ((score - 60) / 40) * 0.7
+  }
+  t = Math.min(t, 1)
+
+  return {
+    pipeSpeed: PIPE_SPEED_MIN + (PIPE_SPEED_MAX - PIPE_SPEED_MIN) * t,
+    pipeGap: PIPE_GAP_MAX - (PIPE_GAP_MAX - PIPE_GAP_MIN) * t,
+    pipeSpacing: PIPE_SPACING_MAX - (PIPE_SPACING_MAX - PIPE_SPACING_MIN) * t,
+  }
+}
 
 // --- Colors ---
 const COLORS = {
@@ -77,11 +102,12 @@ function FlappyGame({ onGameEnd, onScoreUpdate, isActive }) {
   }), [])
 
   // --- Generate pipe ---
-  const genPipe = useCallback((x) => {
-    const minCenter = PIPE_GAP / 2 + 60
-    const maxCenter = GAME_HEIGHT - PIPE_GAP / 2 - GROUND_HEIGHT - 30
+  const genPipe = useCallback((x, gap) => {
+    const pipeGap = gap || PIPE_GAP_MAX
+    const minCenter = pipeGap / 2 + 60
+    const maxCenter = GAME_HEIGHT - pipeGap / 2 - GROUND_HEIGHT - 30
     const center = minCenter + Math.random() * (maxCenter - minCenter)
-    return { x, gapTop: center - PIPE_GAP / 2, gapBottom: center + PIPE_GAP / 2, scored: false }
+    return { x, gapTop: center - pipeGap / 2, gapBottom: center + pipeGap / 2, scored: false }
   }, [])
 
   // --- Render static background to offscreen canvas ---
@@ -261,20 +287,22 @@ function FlappyGame({ onGameEnd, onScoreUpdate, isActive }) {
 
     // Physics
     if (state.status === STATE_PLAYING) {
+      const { pipeSpeed, pipeGap, pipeSpacing } = getDifficulty(state.score)
+
       state.birdVel += GRAVITY * dt
       state.birdY += state.birdVel * dt
 
-      state.pipeTimer += PIPE_SPEED * dt
-      if (state.pipeTimer >= PIPE_SPACING) {
-        state.pipeTimer -= PIPE_SPACING
+      state.pipeTimer += pipeSpeed * dt
+      if (state.pipeTimer >= pipeSpacing) {
+        state.pipeTimer -= pipeSpacing
         const last = state.pipes[state.pipes.length - 1]
-        state.pipes.push(genPipe(last ? last.x + PIPE_SPACING : GAME_WIDTH + 50))
+        state.pipes.push(genPipe(last ? last.x + pipeSpacing : GAME_WIDTH + 50, pipeGap))
       }
 
       // Move and cull pipes
       let i = state.pipes.length
       while (i--) {
-        state.pipes[i].x -= PIPE_SPEED * dt
+        state.pipes[i].x -= pipeSpeed * dt
         if (state.pipes[i].x + PIPE_WIDTH < -10) {
           state.pipes.splice(i, 1)
         }
@@ -364,9 +392,10 @@ function FlappyGame({ onGameEnd, onScoreUpdate, isActive }) {
 
     const state = createState()
     const firstX = GAME_WIDTH + 100
-    state.pipes.push(genPipe(firstX))
-    state.pipes.push(genPipe(firstX + PIPE_SPACING))
-    state.pipes.push(genPipe(firstX + PIPE_SPACING * 2))
+    const initSpacing = PIPE_SPACING_MAX
+    state.pipes.push(genPipe(firstX, PIPE_GAP_MAX))
+    state.pipes.push(genPipe(firstX + initSpacing, PIPE_GAP_MAX))
+    state.pipes.push(genPipe(firstX + initSpacing * 2, PIPE_GAP_MAX))
     stateRef.current = state
 
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
