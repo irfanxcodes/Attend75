@@ -182,6 +182,7 @@ function ArcadeHome() {
 function GameHeroCard({ game, personalBest, navigate }) {
   if (game.slug === 'flappy') return <FlappyHeroCard game={game} personalBest={personalBest} navigate={navigate} />
   if (game.slug === 'pacman') return <PacmanHeroCard game={game} personalBest={personalBest} navigate={navigate} />
+  if (game.slug === 'stack') return <StackHeroCard game={game} personalBest={personalBest} navigate={navigate} />
   return <GenericHeroCard game={game} personalBest={personalBest} navigate={navigate} />
 }
 
@@ -284,6 +285,68 @@ function GenericHeroCard({ game, personalBest, navigate }) {
   )
 }
 
+function StackHeroCard({ game, personalBest, navigate }) {
+  return (
+    <div>
+      <div className="relative flex h-52 flex-col items-center justify-end overflow-hidden" style={{ background: 'linear-gradient(180deg, #7EC8E3 0%, #B8E8F8 50%, #E8F4FD 100%)' }}>
+        {/* Clouds background */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute top-[10%] left-[5%] h-10 w-24 rounded-full bg-white/70 blur-[2px]" />
+          <div className="absolute top-[15%] left-[15%] h-7 w-16 rounded-full bg-white/50 blur-[1px]" />
+          <div className="absolute top-[8%] right-[8%] h-9 w-20 rounded-full bg-white/60 blur-[2px]" />
+          <div className="absolute top-[20%] right-[20%] h-6 w-14 rounded-full bg-white/40 blur-[1px]" />
+          <div className="absolute bottom-[25%] left-[10%] h-8 w-20 rounded-full bg-white/50 blur-[1px]" />
+          <div className="absolute bottom-[30%] right-[5%] h-10 w-28 rounded-full bg-white/60 blur-[2px]" />
+        </div>
+
+        {/* City silhouette in distance */}
+        <div className="absolute bottom-0 left-0 right-0 flex items-end justify-center opacity-15">
+          {[40, 55, 35, 70, 45, 60, 38, 50, 65, 42].map((h, i) => (
+            <div key={i} className="bg-[#2D5F8A]" style={{ width: '8%', height: `${h}px`, marginRight: '1px' }} />
+          ))}
+        </div>
+
+        {/* Swinging block (in the air) */}
+        <div className="absolute top-[28%] left-[32%]">
+          <div className="h-5 w-12 rounded-sm shadow-md" style={{ background: 'linear-gradient(180deg, #FFE066, #FFD700)' }} />
+        </div>
+
+        {/* Stacked tower - 3D-ish blocks with gradients */}
+        <div className="relative z-10 mb-4 flex flex-col items-center">
+          {[
+            { w: 'w-16', bg: 'linear-gradient(180deg, #FFE066, #CC9900)', shadow: true },
+            { w: 'w-[70px]', bg: 'linear-gradient(180deg, #FF9A5C, #D84315)' },
+            { w: 'w-[74px]', bg: 'linear-gradient(180deg, #AED581, #558B2F)' },
+            { w: 'w-[78px]', bg: 'linear-gradient(180deg, #CE93D8, #7B1FA2)' },
+            { w: 'w-20', bg: 'linear-gradient(180deg, #4FC3F7, #0277BD)' },
+          ].map((blk, i) => (
+            <div key={i} className={`${blk.w} h-[14px] rounded-[2px] ${blk.shadow ? 'shadow-lg' : 'shadow-sm'} -mt-[1px]`} style={{ background: blk.bg }} />
+          ))}
+        </div>
+
+        {/* Combo text */}
+        <div className="absolute top-[35%] right-[12%] rotate-[-5deg]">
+          <span className="text-sm font-extrabold text-[#FF6B35] drop-shadow-md">COMBO</span>
+          <br />
+          <span className="text-lg font-black text-[#FF6B35] drop-shadow-md">x15!</span>
+        </div>
+
+        {/* Game title */}
+        <div className="relative z-10 mb-12">
+          <span className="text-lg font-extrabold tracking-wider text-[#2D4A5C] drop-shadow-sm">{game.title}</span>
+        </div>
+
+        {/* Floor badge (top-left corner) */}
+        <div className="absolute top-3 left-3 rounded-md bg-[#2D5F8A]/80 px-2 py-1 backdrop-blur-sm">
+          <span className="text-[9px] font-bold text-white/80">FLOOR</span>
+          <span className="ml-1 text-xs font-black text-white">185</span>
+        </div>
+      </div>
+      <CardFooter game={game} personalBest={personalBest} navigate={navigate} />
+    </div>
+  )
+}
+
 function CardFooter({ game, personalBest, navigate }) {
   return (
     <div className="bg-[#4A466A] px-4 py-4 pb-8">
@@ -300,6 +363,13 @@ function CardFooter({ game, personalBest, navigate }) {
             <svg width="28" height="28" viewBox="0 0 64 64" fill="none">
               <path d="M32 8 C48 8 56 20 56 32 C56 44 48 56 32 56 C16 56 8 44 8 32 C8 20 16 8 32 8 Z" fill="#FFFF00" />
               <path d="M32 32 L54 20 L54 44 Z" fill="#302A52" />
+            </svg>
+          ) : game.slug === 'stack' ? (
+            <svg width="28" height="28" viewBox="0 0 64 64" fill="none">
+              <rect x="18" y="40" width="28" height="8" fill="#FFD700" rx="1" />
+              <rect x="20" y="32" width="24" height="8" fill="#FFC107" rx="1" />
+              <rect x="22" y="24" width="20" height="8" fill="#FF9800" rx="1" />
+              <rect x="24" y="16" width="16" height="8" fill="#FF5722" rx="1" />
             </svg>
           ) : (
             <span className="text-xl">🎮</span>

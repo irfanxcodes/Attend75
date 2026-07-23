@@ -17,6 +17,14 @@ const gameRegistry = {
     maxScore: 5000,
     component: lazy(() => import('./games/PacmanGame')),
   },
+  stack: {
+    slug: 'stack',
+    title: 'Stack Tower',
+    description: 'Tap to stack blocks and build tall!',
+    thumbnail: '/assets/arcade/stack-thumb.webp',
+    maxScore: 200,
+    component: lazy(() => import('./games/StackGame')),
+  },
   // Future games added here
 }
 
