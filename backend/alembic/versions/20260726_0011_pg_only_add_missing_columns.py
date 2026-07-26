@@ -51,28 +51,34 @@ _TIMESTAMPTZ_COLUMNS: dict[str, list[str]] = {
 
 
 def upgrade() -> None:
-    # 1. Add missing push_subscriptions columns
-    op.add_column(
-        "push_subscriptions",
-        sa.Column("cached_subjects_json", sa.Text(), nullable=True),
-    )
-    op.add_column(
-        "push_subscriptions",
-        sa.Column("fcm_token", sa.Text(), nullable=True),
-    )
+    # 1. Add missing push_subscriptions columns (IF NOT EXISTS — safe to re-run)
+    op.execute("""
+        ALTER TABLE push_subscriptions
+        ADD COLUMN IF NOT EXISTS cached_subjects_json TEXT,
+        ADD COLUMN IF NOT EXISTS fcm_token TEXT
+    """)
 
     # 2. Convert DateTime → TIMESTAMPTZ for all known UTC timestamp columns.
     #    Using AT TIME ZONE 'UTC' so existing naive-UTC values are reinterpreted
-    #    correctly rather than shifted.
+    #    correctly rather than shifted. Wrapped in DO blocks to skip columns
+    #    that are already TIMESTAMPTZ (safe to re-run).
     for table, columns in _TIMESTAMPTZ_COLUMNS.items():
         for col in columns:
-            # Skip nullable columns that might not exist on older installs —
-            # we use a safe ALTER that will no-op if column is already TIMESTAMPTZ.
-            op.execute(
-                f"ALTER TABLE {table} "
-                f"ALTER COLUMN {col} TYPE TIMESTAMPTZ "
-                f"USING {col} AT TIME ZONE 'UTC'"
-            )
+            op.execute(f"""
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = '{table}'
+                          AND column_name = '{col}'
+                          AND data_type = 'timestamp without time zone'
+                    ) THEN
+                        ALTER TABLE {table}
+                        ALTER COLUMN {col} TYPE TIMESTAMPTZ
+                        USING {col} AT TIME ZONE 'UTC';
+                    END IF;
+                END$$;
+            """)
 
 
 def downgrade() -> None:
