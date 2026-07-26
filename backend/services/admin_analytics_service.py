@@ -643,14 +643,31 @@ def get_student_metrics() -> dict:
             .scalar() or 0
         )
 
-        # Data integrity
+        # Data integrity: find actual duplicates — same email registered multiple times
+        # (not users without email, which would be wrongly counted as duplicates)
         total_user_rows = int(session.query(func.count(User.id)).scalar() or 0)
         unique_emails = int(
             session.query(func.count(distinct(User.email)))
             .filter(User.email.isnot(None))
             .scalar() or 0
         )
-        duplicate_rows = total_user_rows - unique_emails
+        # Users with no email are guests, not duplicates — count them separately
+        no_email_count = int(
+            session.query(func.count(User.id))
+            .filter(User.email.is_(None))
+            .scalar() or 0
+        )
+        # True duplicates: emails that appear more than once
+        from sqlalchemy import text
+        dup_result = session.execute(
+            text(
+                "SELECT COUNT(*) FROM ("
+                "  SELECT email FROM users WHERE email IS NOT NULL"
+                "  GROUP BY email HAVING COUNT(*) > 1"
+                ") AS dups"
+            )
+        ).scalar()
+        duplicate_email_count = int(dup_result or 0)
 
     return {
         "totalStudents": total_students,
@@ -661,7 +678,8 @@ def get_student_metrics() -> dict:
         "dataIntegrity": {
             "totalUserRows": total_user_rows,
             "uniqueEmails": unique_emails,
-            "duplicateRowsDetected": duplicate_rows,
+            "usersWithoutEmail": no_email_count,
+            "duplicateEmailsDetected": duplicate_email_count,
         },
     }
 

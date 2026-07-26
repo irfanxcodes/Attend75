@@ -1,5 +1,5 @@
 """
-Nudge Service — Re-engagement notifications for inactive premium students.
+Nudge Service — Re-engagement notifications for inactive students.
 
 Runs daily at 10:00 AM IST. Sends a nudge if:
 - Student hasn't logged in for 3+ days
@@ -12,13 +12,12 @@ import threading
 from datetime import datetime, timedelta, timezone
 
 from db.models.notification_history import NotificationHistory
-from db.models.premium_subscription import PremiumSubscription
 from db.models.push_subscription import PushSubscription
 from db.models.student_registry import StudentRegistry
 from db.session import SessionLocal
 from services import notification_queue
 from services.payload_builder import build_payload
-from services.premium_service import is_premium
+from services.preference_filter import get_or_create_preferences, should_send
 
 logger = logging.getLogger(__name__)
 
@@ -45,19 +44,17 @@ def run_nudge_evaluation() -> int:
     Evaluate all premium students for nudge eligibility and enqueue notifications.
     Returns count of nudge jobs enqueued.
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     enqueued = 0
 
     with SessionLocal() as session:
-        # Get all premium subscribed students
+        # Get all push-subscribed students
         students = (
             session.query(
                 PushSubscription.roll_number,
                 StudentRegistry.last_seen_at,
             )
-            .join(PremiumSubscription, PremiumSubscription.roll_number == PushSubscription.roll_number)
             .join(StudentRegistry, StudentRegistry.roll_number == PushSubscription.roll_number)
-            .filter(PremiumSubscription.status.in_(["active", "grace"]))
             .distinct()
             .all()
         )
@@ -83,6 +80,14 @@ def run_nudge_evaluation() -> int:
                 days_since_last_nudge = (now - last_nudge.created_at).days
 
             if not should_nudge(days_since_last_seen, days_since_last_nudge):
+                continue
+
+            # Respect the student's notification preferences — check weekly_summary_enabled
+            # as the closest opt-out toggle (nudge is a re-engagement feature).
+            # We use daily_digest_enabled as the gate: if a student turned off digests
+            # they likely want fewer proactive notifications.
+            prefs = get_or_create_preferences(roll_number)
+            if not should_send(prefs, "daily_digest_enabled"):
                 continue
 
             # Build contextual nudge message (not generic)

@@ -15,7 +15,6 @@ import threading
 from datetime import datetime, timedelta, timezone
 
 from db.models.push_subscription import PushSubscription
-from db.models.premium_subscription import PremiumSubscription
 from db.session import SessionLocal
 from services import notification_queue
 from services.payload_builder import build_payload
@@ -130,23 +129,16 @@ def schedule_reminders_for_today() -> int:
     today_name = now_ist.strftime("%A")
     enqueued = 0
 
-    # Find all premium students with push subscriptions that have has_timetable=True
+    # Find all push-subscribed students with has_timetable=True
     with SessionLocal() as session:
         students = (
             session.query(PushSubscription.roll_number)
-            
-            .filter(
-                
-                PushSubscription.has_timetable.is_(True),
-            )
+            .filter(PushSubscription.has_timetable.is_(True))
             .distinct()
             .all()
         )
 
-    # Load timetable once (same for all students) - pass None initially,
-    # per-student matching will use their cached_subjects below
-    # Note: We need to find the notice per-student since different programs
-    # have different timetable notices
+    logger.info("Timetable reminder engine: %d students with has_timetable=True for %s", len(students), today_name)
 
     for (roll_number,) in students:
         prefs = get_or_create_preferences(roll_number)
@@ -154,7 +146,9 @@ def schedule_reminders_for_today() -> int:
         # Load student's cached subjects for per-student class filtering
         student_subjects = _load_cached_subjects_for_roll(roll_number)
         if not student_subjects:
-            # No cached subjects — skip this student (they need to view timetable once)
+            # No cached subjects yet — will be populated by next background fetch cycle.
+            # Skip for now; the student will receive reminders starting from the
+            # next day after their subjects are resolved.
             continue
 
         # Find the timetable notice matching this student's subjects
@@ -200,7 +194,7 @@ def schedule_reminders_for_today() -> int:
                         priority="standard",
                     )
 
-                    scheduled_at_utc = digest_time.astimezone(timezone.utc).replace(tzinfo=None)
+                    scheduled_at_utc = digest_time.astimezone(timezone.utc)
                     notification_queue.enqueue(
                         "push_send",
                         {"roll_number": roll_number, "notification": payload},
@@ -246,7 +240,7 @@ def schedule_reminders_for_today() -> int:
                     priority="standard",
                 )
 
-                scheduled_at_utc = reminder_time.astimezone(timezone.utc).replace(tzinfo=None)
+                scheduled_at_utc = reminder_time.astimezone(timezone.utc)
                 notification_queue.enqueue(
                     "push_send",
                     {"roll_number": roll_number, "notification": payload},
@@ -335,38 +329,38 @@ def send_tomorrow_preview() -> int:
     with SessionLocal() as session:
         students = (
             session.query(PushSubscription.roll_number)
-            
-            .filter(
-                
-                PushSubscription.has_timetable.is_(True),
-            )
+            .filter(PushSubscription.has_timetable.is_(True))
             .distinct()
             .all()
         )
 
-    notice = _find_latest_timetable_notice(None)
-    if not notice or not notice.cleaned_text:
-        return 0
-
-    schedule = _parse_timetable_from_text(notice.cleaned_text)
-    if not schedule:
-        return 0
-
-    tomorrow_classes = [c for c in schedule if c.get("day") == tomorrow_name]
-    if not tomorrow_classes:
-        return 0
+    logger.info("Tomorrow preview: %d students with has_timetable=True for %s", len(students), tomorrow_name)
 
     for (roll_number,) in students:
         prefs = get_or_create_preferences(roll_number)
         if not should_send(prefs, "timetable_enabled"):
             continue
 
-        # Filter to this student's classes for tomorrow
+        # Load student's cached subjects — skip students with no cached subjects yet.
+        # Subjects are auto-populated by the background fetcher and on subscribe,
+        # so no user interaction with the timetable page is required.
         student_subjects = _load_cached_subjects_for_roll(roll_number)
-        if student_subjects:
-            student_tomorrow = _match_student_classes(tomorrow_classes, student_subjects)
-        else:
-            student_tomorrow = tomorrow_classes  # fallback to all classes if no cached subjects
+        if not student_subjects:
+            continue
+
+        # Find the timetable notice matching this student's subjects
+        notice = _find_latest_timetable_notice(student_subjects)
+        if not notice or not notice.cleaned_text:
+            continue
+
+        schedule = _parse_timetable_from_text(notice.cleaned_text)
+        if not schedule:
+            continue
+
+        student_tomorrow = _match_student_classes(
+            [c for c in schedule if c.get("day") == tomorrow_name],
+            student_subjects,
+        )
 
         if not student_tomorrow:
             continue

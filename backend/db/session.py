@@ -1,31 +1,37 @@
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from db.base import Base
 
 _BASE_DIR = Path(__file__).resolve().parent.parent
-_DEFAULT_SQLITE_PATH = _BASE_DIR / "attend75.db"
-_DEFAULT_DATABASE_URL = f"sqlite:///{_DEFAULT_SQLITE_PATH}"
-DATABASE_URL = os.getenv("DATABASE_URL", _DEFAULT_DATABASE_URL)
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
-# Detect database engine for feature gating (e.g., SKIP LOCKED is PostgreSQL-only)
-IS_POSTGRES = DATABASE_URL.startswith("postgresql")
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL environment variable is required. "
+        "Set it to a PostgreSQL connection string, e.g.: "
+        "postgresql://user:password@localhost:5432/attend75"
+    )
 
-_engine_kwargs = {
-    "pool_pre_ping": True,
-}
+if not DATABASE_URL.startswith("postgresql"):
+    raise RuntimeError(
+        f"Only PostgreSQL is supported. Got DATABASE_URL starting with: "
+        f"{DATABASE_URL.split('://')[0]!r}. "
+        "Please set DATABASE_URL to a postgresql:// connection string."
+    )
 
-if IS_POSTGRES:
-    _engine_kwargs["pool_size"] = 10
-    _engine_kwargs["max_overflow"] = 20
-else:
-    # SQLite needs this for multi-threaded access
-    _engine_kwargs["connect_args"] = {"check_same_thread": False}
+# Always PostgreSQL
+IS_POSTGRES = True
 
-engine = create_engine(DATABASE_URL, **_engine_kwargs)
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=20,
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -55,37 +61,5 @@ def init_database() -> None:
     from db.models import push_subscription  # noqa: F401
     from db.models import pwa_install  # noqa: F401
 
-    Base.metadata.create_all(bind=engine)
-
-    # SQLite-specific schema patches for columns added after initial migration
-    if not IS_POSTGRES:
-        _ensure_feature_usage_schema()
-        _ensure_push_tables_exist()
-
-
-def _ensure_feature_usage_schema() -> None:
-    with engine.begin() as connection:
-        result = connection.execute(text("PRAGMA table_info(feature_usage_events)"))
-        columns = {row[1] for row in result.fetchall()}
-
-        if "semester_id" not in columns:
-            connection.execute(text("ALTER TABLE feature_usage_events ADD COLUMN semester_id VARCHAR(64)"))
-
-        if "semester_label" not in columns:
-            connection.execute(text("ALTER TABLE feature_usage_events ADD COLUMN semester_label VARCHAR(255)"))
-
-        connection.execute(
-            text("CREATE INDEX IF NOT EXISTS ix_feature_usage_events_semester_id ON feature_usage_events (semester_id)")
-        )
-
-
-def _ensure_push_tables_exist() -> None:
-    """Ensure push notification tables exist in SQLite (in case migrations haven't been run)."""
-    with engine.begin() as connection:
-        # Check if notification_jobs table exists
-        result = connection.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='notification_jobs'")
-        )
-        if not result.fetchone():
-            # Tables will be created by Base.metadata.create_all above
-            pass
+    # Schema is managed exclusively by Alembic migrations in production.
+    # create_all is intentionally not called here to prevent silent schema drift.

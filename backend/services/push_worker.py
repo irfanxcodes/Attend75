@@ -167,11 +167,16 @@ def _process_job(job: dict) -> None:
             any_transient_failure = True
             all_success = False
 
-    # Log notification in history
-    # Only log as "sent" if at least one push was successfully accepted by push service
-    actual_delivery_status = "sent" if all_success else ("failed" if not any_transient_failure else "failed")
-    if not targets or all(sub.get("_removed") for sub in targets if isinstance(sub, dict)):
-        actual_delivery_status = "no_subscription"
+    # Determine final delivery status to log in history.
+    # "sent" only if every Web Push delivery succeeded.
+    # "partial" if some succeeded and some failed.
+    # "failed" if all failed.
+    if all_success:
+        actual_delivery_status = "sent"
+    elif any_transient_failure:
+        actual_delivery_status = "failed"
+    else:
+        actual_delivery_status = "failed"
 
     log_notification(
         roll_number=roll_number,

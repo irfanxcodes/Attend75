@@ -279,3 +279,156 @@ async def admin_fetcher_health(_: dict = Depends(require_admin_user)):
 	except Exception:
 		logger.exception("Failed to fetch background fetcher health")
 		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to fetch health"})
+
+
+@router.post("/notifications/trigger-timetable-reminders", response_model=ApiResponse)
+async def admin_trigger_timetable_reminders(_: dict = Depends(require_admin_user)):
+	"""Manually trigger today's timetable reminder scheduling (normally runs at 5:30 AM IST).
+	Use this to test scheduled notifications without waiting for the timer."""
+	from services.timetable_reminder_engine import schedule_reminders_for_today
+
+	try:
+		count = await run_in_threadpool(schedule_reminders_for_today)
+		return ApiResponse(
+			status="success",
+			message=f"Timetable reminders scheduled",
+			data={"jobs_enqueued": count},
+		)
+	except Exception:
+		logger.exception("Failed to trigger timetable reminders")
+		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to trigger timetable reminders"})
+
+
+@router.post("/notifications/trigger-tomorrow-preview", response_model=ApiResponse)
+async def admin_trigger_tomorrow_preview(_: dict = Depends(require_admin_user)):
+	"""Manually trigger the 9 PM tomorrow preview notifications."""
+	from services.timetable_reminder_engine import send_tomorrow_preview
+
+	try:
+		count = await run_in_threadpool(send_tomorrow_preview)
+		return ApiResponse(
+			status="success",
+			message="Tomorrow preview notifications queued",
+			data={"jobs_enqueued": count},
+		)
+	except Exception:
+		logger.exception("Failed to trigger tomorrow preview")
+		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to trigger tomorrow preview"})
+
+
+@router.get("/notifications/queue-stats", response_model=ApiResponse)
+async def admin_notification_queue_stats(_: dict = Depends(require_admin_user)):
+	"""Get current notification job queue statistics and recent failed jobs."""
+	from services.notification_queue import get_queue_stats
+	from db.models.notification_job import NotificationJob
+	from db.session import SessionLocal
+	from datetime import datetime, timedelta
+
+	try:
+		stats = await run_in_threadpool(get_queue_stats)
+
+		# Fetch recent failed jobs for diagnostics
+		cutoff = datetime.utcnow() - timedelta(hours=24)
+		with SessionLocal() as session:
+			failed_jobs = (
+				session.query(NotificationJob)
+				.filter(
+					NotificationJob.status == "failed",
+					NotificationJob.created_at >= cutoff,
+				)
+				.order_by(NotificationJob.created_at.desc())
+				.limit(20)
+				.all()
+			)
+			recent_scheduled = (
+				session.query(NotificationJob)
+				.filter(
+					NotificationJob.status == "pending",
+					NotificationJob.job_type == "push_send",
+				)
+				.order_by(NotificationJob.scheduled_at)
+				.limit(10)
+				.all()
+			)
+			failed_details = [
+				{
+					"id": j.id,
+					"job_type": j.job_type,
+					"target_roll": j.target_roll,
+					"last_error": j.last_error,
+					"attempts": j.attempts,
+					"created_at": j.created_at.isoformat() if j.created_at else None,
+				}
+				for j in failed_jobs
+			]
+			pending_details = [
+				{
+					"id": j.id,
+					"target_roll": j.target_roll,
+					"scheduled_at": j.scheduled_at.isoformat() if j.scheduled_at else None,
+					"created_at": j.created_at.isoformat() if j.created_at else None,
+				}
+				for j in recent_scheduled
+			]
+
+		return ApiResponse(
+			status="success",
+			message="Notification queue stats",
+			data={
+				"queue": stats,
+				"recent_failed_24h": failed_details,
+				"upcoming_pending": pending_details,
+			},
+		)
+	except Exception:
+		logger.exception("Failed to fetch notification queue stats")
+		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to fetch queue stats"})
+
+
+@router.get("/notifications/timetable-status", response_model=ApiResponse)
+async def admin_timetable_notification_status(_: dict = Depends(require_admin_user)):
+	"""Check how many students are eligible for timetable notifications and their readiness."""
+	from db.models.push_subscription import PushSubscription
+	from db.session import SessionLocal
+
+	try:
+		with SessionLocal() as session:
+			total_subscriptions = session.query(PushSubscription).count()
+			has_timetable_count = (
+				session.query(PushSubscription)
+				.filter(PushSubscription.has_timetable.is_(True))
+				.count()
+			)
+			has_subjects_count = (
+				session.query(PushSubscription)
+				.filter(
+					PushSubscription.has_timetable.is_(True),
+					PushSubscription.cached_subjects_json.isnot(None),
+				)
+				.count()
+			)
+			# Distinct students
+			distinct_with_subjects = (
+				session.query(PushSubscription.roll_number)
+				.filter(
+					PushSubscription.has_timetable.is_(True),
+					PushSubscription.cached_subjects_json.isnot(None),
+				)
+				.distinct()
+				.count()
+			)
+
+		return ApiResponse(
+			status="success",
+			message="Timetable notification eligibility",
+			data={
+				"total_push_subscriptions": total_subscriptions,
+				"subscriptions_with_has_timetable": has_timetable_count,
+				"subscriptions_with_cached_subjects": has_subjects_count,
+				"distinct_students_eligible": distinct_with_subjects,
+				"note": "Students need to open the timetable page at least once to cache their subjects and become eligible for class reminders.",
+			},
+		)
+	except Exception:
+		logger.exception("Failed to fetch timetable notification status")
+		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to fetch status"})

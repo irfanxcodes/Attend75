@@ -73,6 +73,21 @@ async def subscribe(payload: PushSubscribeRequest):
             payload.keys.auth,
             payload.device_info,
         )
+
+        # If the session has cached attendance rows from login, resolve and
+        # persist subjects immediately — zero portal requests, all in-memory data.
+        record = session_store.get(payload.token)
+        if record is not None:
+            attendance_rows = getattr(record, "cached_attendance_rows", None) or []
+            if attendance_rows:
+                try:
+                    from services.timetable_subject_resolver import resolve_and_cache_subjects_for_student
+                    await run_in_threadpool(
+                        resolve_and_cache_subjects_for_student, roll_number, attendance_rows
+                    )
+                except Exception as subj_exc:
+                    logger.debug("Subject caching on subscribe failed for %s: %s", roll_number, subj_exc)
+
         return ApiResponse(status="success", message="Subscribed to push notifications", data=result)
     except subscription_manager.RateLimitExceededError:
         return JSONResponse(

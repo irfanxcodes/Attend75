@@ -15,7 +15,6 @@ from sqlalchemy import or_
 
 from db.models.notice import Notice
 from db.models.push_subscription import PushSubscription
-from db.models.premium_subscription import PremiumSubscription
 from db.models.student_registry import StudentRegistry
 from db.session import SessionLocal
 from services import notification_queue
@@ -101,6 +100,22 @@ def dispatch_for_new_notices(notice_ids: list[int]) -> int:
                 _timetable_cache.clear()
             except ImportError:
                 pass
+
+            # When a new timetable is scraped, re-validate cached_subjects_json
+            # for all push subscribers against the new schedule.
+            # Runs in a daemon thread — zero portal requests, pure DB.
+            try:
+                import threading
+                new_notice_id = timetable_notices[-1].notice_id
+                t = threading.Thread(
+                    target=_reschedule_todays_reminders_for_new_timetable,
+                    args=(new_notice_id,),
+                    daemon=True,
+                    name="timetable-subject-refresh",
+                )
+                t.start()
+            except Exception as refresh_exc:
+                logger.warning("Failed to start timetable reschedule thread: %s", refresh_exc)
 
         # Handle regular notices — with batch consolidation
         if len(regular_notices) > BATCH_CONSOLIDATION_THRESHOLD:
@@ -189,15 +204,11 @@ def _dispatch_consolidated(notices: list, now: datetime, session) -> int:
 
 def _subscribed_students_for_program(program: str | None) -> list[str]:
     """
-    Get all premium, subscribed students whose program matches the given program.
-    If program is None, return all subscribed premium students.
+    Get all push-subscribed students whose program matches the given program.
+    If program is None, return all push-subscribed students.
     """
     with SessionLocal() as session:
-        query = (
-            session.query(PushSubscription.roll_number)
-            
-            
-        )
+        query = session.query(PushSubscription.roll_number)
 
         if program:
             # Also include students whose program is NULL (they see all notices)
@@ -212,3 +223,63 @@ def _subscribed_students_for_program(program: str | None) -> list[str]:
 
         rows = query.distinct().all()
         return [row[0] for row in rows]
+
+
+def _reschedule_todays_reminders_for_new_timetable(notice_id: int) -> None:
+    """
+    Called in a daemon thread whenever a new timetable notice is scraped.
+
+    Does three things, all without any portal requests:
+
+    1. Cancel today's still-pending timetable/digest reminder jobs that were
+       built from the old timetable schedule. Jobs that have already fired
+       (scheduled_at <= now) are left alone.
+
+    2. Re-validate every push subscriber's has_timetable flag against the new
+       timetable (their cached_subjects_json subjects may map to different
+       classes/sections in the new schedule).
+
+    3. Re-run schedule_reminders_for_today() so new jobs are created from the
+       new timetable. This only enqueues reminders for classes that haven't
+       started yet (reminder_time > now), so already-delivered reminders are
+       not duplicated.
+    """
+    try:
+        # Step 1: cancel stale jobs from old timetable
+        from services.notification_queue import cancel_pending_timetable_jobs_for_today
+        cancelled = cancel_pending_timetable_jobs_for_today()
+        logger.info(
+            "_reschedule_todays_reminders: cancelled %d stale jobs for notice %d",
+            cancelled, notice_id,
+        )
+
+        # Step 2: re-validate has_timetable for all subscribers against new schedule
+        from services.timetable_subject_resolver import refresh_all_subscribers_from_timetable
+        stats = refresh_all_subscribers_from_timetable(notice_id=notice_id)
+        logger.info("_reschedule_todays_reminders: subject refresh stats=%s", stats)
+
+        # Step 3: re-enqueue today's reminders from the new timetable
+        from services.timetable_reminder_engine import schedule_reminders_for_today
+        enqueued = schedule_reminders_for_today()
+        logger.info(
+            "_reschedule_todays_reminders: re-enqueued %d jobs from new timetable notice %d",
+            enqueued, notice_id,
+        )
+    except Exception as exc:
+        logger.exception(
+            "_reschedule_todays_reminders_for_new_timetable failed (notice %d): %s",
+            notice_id, exc,
+        )
+
+
+def _refresh_subjects_from_new_timetable(notice_id: int | None = None) -> None:
+    """Kept for backwards compatibility — delegates to the full reschedule flow."""
+    if notice_id is not None:
+        _reschedule_todays_reminders_for_new_timetable(notice_id)
+    else:
+        try:
+            from services.timetable_subject_resolver import refresh_all_subscribers_from_timetable
+            stats = refresh_all_subscribers_from_timetable(notice_id=None)
+            logger.info("_refresh_subjects_from_new_timetable (no notice_id): %s", stats)
+        except Exception as exc:
+            logger.exception("_refresh_subjects_from_new_timetable failed: %s", exc)

@@ -1,9 +1,9 @@
 """
 Subscription Manager — CRUD for Web Push subscription endpoints.
 
-Owns all push_subscriptions access: registration (with premium gating, rate
-limiting, encryption-at-rest, and 5-device eviction), removal (explicit
-unsubscribe or HTTP 410 cleanup), and listing for the settings UI.
+Owns all push_subscriptions access: registration (with rate limiting,
+encryption-at-rest, and 5-device eviction), removal (explicit unsubscribe
+or HTTP 410 cleanup), and listing for the settings UI.
 """
 
 import logging
@@ -15,17 +15,12 @@ from datetime import datetime, timezone
 from db.models.push_subscription import PushSubscription
 from db.session import SessionLocal
 from services.crypto_service import credential_crypto_service
-from services import premium_service
 
 logger = logging.getLogger(__name__)
 
 MAX_DEVICES_PER_STUDENT = 5
 RATE_LIMIT_MAX_REQUESTS = 30
 RATE_LIMIT_WINDOW_SECONDS = 3600
-
-
-class PremiumRequiredError(Exception):
-    """Raised when a non-premium student attempts a premium-gated action."""
 
 
 class RateLimitExceededError(Exception):
@@ -92,8 +87,7 @@ def register_subscription(
     """
     Register (or re-register) a Web Push subscription for a student.
 
-    1. Premium gate — raises PremiumRequiredError if not premium.
-    2. Rate limit — raises RateLimitExceededError if >= 10 registrations in the
+    1. Rate limit — raises RateLimitExceededError if >= 10 registrations in the
        last rolling hour for this student.
     3. Encrypt endpoint/p256dh_key/auth_key before persisting.
     4. Upsert by (roll_number, endpoint): re-registering the same endpoint

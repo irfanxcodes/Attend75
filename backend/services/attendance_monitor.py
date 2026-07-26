@@ -19,7 +19,6 @@ from db.session import SessionLocal
 from services import notification_queue
 from services.payload_builder import build_payload
 from services.preference_filter import get_or_create_preferences, should_send
-from services.premium_service import is_premium
 
 logger = logging.getLogger(__name__)
 
@@ -164,8 +163,16 @@ def _evaluate_single(roll_number: str, subject_abbr: str, percent: float, attend
                 )
 
         elif old_bracket == "below_75" and new_bracket in ("75_to_80", "above_80"):
-            # Recovery alert (Req 4.4) — only for subjects, not overall
-            if subject_abbr != OVERALL_SUBJECT_KEY:
+            # Recovery alert (Req 4.4) — fires for both subjects and overall
+            if subject_abbr == OVERALL_SUBJECT_KEY:
+                payload = build_payload(
+                    category="attendance",
+                    title="✅ Attendance recovered!",
+                    body=f"Overall attendance is back to {percent:.1f}%. Keep attending to stay above 75%.",
+                    deep_link="/app/dashboard",
+                    priority="standard",
+                )
+            else:
                 payload = build_payload(
                     category="attendance",
                     title=f"🎉 {subject_abbr} recovered!",

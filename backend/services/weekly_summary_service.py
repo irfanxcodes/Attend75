@@ -12,7 +12,6 @@ import threading
 from datetime import datetime, timedelta, timezone
 
 from db.models.notification_history import NotificationHistory
-from db.models.premium_subscription import PremiumSubscription
 from db.models.push_subscription import PushSubscription
 from db.models.student_registry import StudentRegistry
 from db.session import SessionLocal
@@ -20,7 +19,6 @@ from services import notification_queue
 from services.attendance_monitor import classes_to_recover
 from services.payload_builder import build_payload
 from services.preference_filter import get_or_create_preferences, should_send
-from services.premium_service import is_premium
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +41,7 @@ def compute_weekly_summary(roll_number: str) -> dict | None:
 
         # Staleness check for non-Firebase (guest) users (Req 12.5)
         if not student.has_google_linked:
-            days_since_update = (datetime.utcnow() - student.last_seen_at).days
+            days_since_update = (datetime.now(timezone.utc) - student.last_seen_at).days
             if days_since_update > 7:
                 return None
 
@@ -96,7 +94,7 @@ def compute_weekly_summary(roll_number: str) -> dict | None:
 
 def run_weekly_summary() -> int:
     """
-    Enqueue weekly summary notifications for all eligible premium students.
+    Enqueue weekly summary notifications for all push-subscribed students.
     Returns count of jobs enqueued.
     """
     enqueued = 0
@@ -105,8 +103,6 @@ def run_weekly_summary() -> int:
     with SessionLocal() as session:
         students = (
             session.query(PushSubscription.roll_number)
-            
-            .filter(PremiumSubscription.status.in_(["active", "grace"]))
             .distinct()
             .all()
         )
@@ -152,7 +148,7 @@ def run_weekly_summary() -> int:
         # Jitter over 30-minute window (Req 12.1)
         jitter_seconds = int(hashlib.md5(roll_number.encode()).hexdigest()[:4], 16) % 1800
         scheduled_at = now_ist + timedelta(seconds=jitter_seconds)
-        scheduled_at_utc = scheduled_at.astimezone(timezone.utc).replace(tzinfo=None)
+        scheduled_at_utc = scheduled_at.astimezone(timezone.utc)
 
         notification_queue.enqueue(
             "push_send",

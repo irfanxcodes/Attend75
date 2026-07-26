@@ -74,7 +74,8 @@ def get_premium_analytics() -> dict:
         queue = {row[0]: int(row[1]) for row in job_status_rows}
 
         # Failed jobs in last 24h
-        day_ago = datetime.utcnow() - timedelta(hours=24)
+        from datetime import timezone as _tz
+        day_ago = datetime.now(_tz.utc) - timedelta(hours=24)
         failed_24h = int(
             session.query(func.count(NotificationJob.id))
             .filter(NotificationJob.status == "failed", NotificationJob.created_at >= day_ago)
@@ -154,40 +155,58 @@ def get_premium_analytics() -> dict:
         ]
 
         # ── Push notification subscribers list ───────────────────────────────
-        push_subscriber_rolls = (
-            session.query(PushSubscription.roll_number, func.count(PushSubscription.id).label('devices'),
-                          func.max(PushSubscription.created_at).label('registered_at'),
-                          func.max(PushSubscription.last_used_at).label('last_used'))
-            .filter(PushSubscription.p256dh_key != "", PushSubscription.p256dh_key.isnot(None))
+        push_subscriber_rows = (
+            session.query(
+                PushSubscription.roll_number,
+                func.count(PushSubscription.id).label('devices'),
+                func.max(PushSubscription.created_at).label('registered_at'),
+                func.max(PushSubscription.last_used_at).label('last_used'),
+            )
+            .filter(
+                PushSubscription.p256dh_key.isnot(None),
+                PushSubscription.p256dh_key != "",
+            )
             .group_by(PushSubscription.roll_number)
             .order_by(func.max(PushSubscription.created_at).desc())
             .limit(100)
             .all()
         )
 
-        roll_numbers = [r[0] for r in push_subscriber_rolls]
+        # Normalise roll numbers to uppercase for registry lookup
+        # (subscriptions may have been stored with mixed-case roll numbers)
+        roll_numbers = [r[0] for r in push_subscriber_rows]
+        roll_upper_map = {r: r.upper() for r in roll_numbers}  # original → upper
+        upper_rolls = list(set(roll_upper_map.values()))
+
         student_details = {}
-        if roll_numbers:
+        if upper_rolls:
             detail_rows = (
                 session.query(StudentRegistry)
-                .filter(StudentRegistry.roll_number.in_(roll_numbers))
+                .filter(StudentRegistry.roll_number.in_(upper_rolls))
                 .all()
             )
             for r in detail_rows:
-                student_details[r.roll_number] = {
+                student_details[r.roll_number.upper()] = {
                     "name": r.display_name,
                     "program": r.program,
                     "hasGoogle": r.has_google_linked,
                 }
 
         students_list = []
-        for row in push_subscriber_rolls:
+        for row in push_subscriber_rows:
             roll, devices, registered_at, last_used = row
-            details = student_details.get(roll, {})
+            upper = roll_upper_map.get(roll, roll.upper())
+            details = student_details.get(upper, {})
+
+            # Fallback name: title-case the roll number prefix if no name stored
+            # e.g. "24FMUCHH012165" → we at least show the roll, frontend shows "?"
+            name = details.get("name") or None
+            program = details.get("program") or None
+
             students_list.append({
-                "rollNumber": roll,
-                "name": details.get("name"),
-                "program": details.get("program"),
+                "rollNumber": upper,   # always uppercase for consistency
+                "name": name,
+                "program": program,
                 "hasGoogle": details.get("hasGoogle", False),
                 "pushDevices": int(devices),
                 "registeredAt": registered_at.isoformat() if registered_at else None,

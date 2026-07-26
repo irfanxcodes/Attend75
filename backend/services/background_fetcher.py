@@ -16,7 +16,6 @@ from datetime import datetime, timedelta, timezone
 
 from db.models.background_fetch_state import BackgroundFetchState
 from db.models.portal_credential import PortalCredential
-from db.models.premium_subscription import PremiumSubscription
 from db.models.student_registry import StudentRegistry
 from db.models.user import User
 from db.session import SessionLocal
@@ -35,15 +34,15 @@ INACTIVE_THRESHOLD_DAYS = 30
 
 def get_eligible_students() -> list[dict]:
     """
-    Get Firebase-linked premium students eligible for background fetch.
-    Ordered by last_fetch_at ascending (round-robin, Req 16.7).
+    Get students with valid portal credentials eligible for background fetch.
+    Ordered by last_fetch_at ascending (round-robin, least-recently-fetched first).
     Excludes: inactive >30 days, invalid credentials, paused students.
     """
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(days=INACTIVE_THRESHOLD_DAYS)
 
     with SessionLocal() as session:
-        # Join: PortalCredential → User → PremiumSubscription → StudentRegistry → BackgroundFetchState
+        # Join: PortalCredential → User → StudentRegistry
         rows = (
             session.query(
                 PortalCredential.roll_number,
@@ -51,10 +50,8 @@ def get_eligible_students() -> list[dict]:
                 PortalCredential.status,
             )
             .join(User, User.id == PortalCredential.user_id)
-            .join(PremiumSubscription, PremiumSubscription.roll_number == PortalCredential.roll_number)
             .join(StudentRegistry, StudentRegistry.roll_number == PortalCredential.roll_number)
             .filter(
-                PremiumSubscription.status.in_(["active", "grace"]),
                 PortalCredential.status == "valid",
                 StudentRegistry.last_seen_at >= cutoff,
             )
@@ -119,6 +116,13 @@ def process_single_fetch(roll_number: str, encrypted_password: str) -> dict:
             evaluate_attendance(roll_number, overall, subject_data)
         except Exception as eval_exc:
             logger.warning("Background fetch: attendance evaluation failed for %s: %s", roll_number, eval_exc)
+
+        # Auto-populate cached_subjects_json so timetable reminders work without
+        # the student ever opening the timetable page.
+        try:
+            _populate_cached_subjects(roll_number, attendance_rows)
+        except Exception as subj_exc:
+            logger.warning("Background fetch: subject caching failed for %s: %s", roll_number, subj_exc)
 
         return {"status": "success", "overall": overall, "subjects": len(attendance_rows)}
 
@@ -192,6 +196,16 @@ def _update_fetch_state(roll_number: str, status: str, now: datetime) -> None:
             state.next_eligible_at = now + timedelta(days=365)
 
         session.commit()
+
+
+def _populate_cached_subjects(roll_number: str, attendance_rows: list[dict]) -> None:
+    """
+    Resolve and persist timetable subjects from freshly fetched attendance rows.
+    Uses only the timetable notice already stored in DB — zero additional
+    portal requests. Called after every successful background fetch.
+    """
+    from services.timetable_subject_resolver import resolve_and_cache_subjects_for_student
+    resolve_and_cache_subjects_for_student(roll_number, attendance_rows)
 
 
 def _mark_credential_invalid(roll_number: str) -> None:

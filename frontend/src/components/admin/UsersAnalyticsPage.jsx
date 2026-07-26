@@ -354,13 +354,20 @@ function UsersAnalyticsPage({ data, analytics, onRefresh, isLoading }) {
           </div>
           <div>
             <p className="text-2xl font-bold text-[#f0ece4]">{dataIntegrity.uniqueEmails || 0}</p>
-            <p className="mt-1 text-[10px] text-[#7a6f94]">Unique emails (distinct humans)</p>
+            <p className="mt-1 text-[10px] text-[#7a6f94]">Firebase users (with email)</p>
           </div>
           <div>
-            <p className={`text-2xl font-bold ${(dataIntegrity.duplicateRowsDetected || 0) > 0 ? 'text-[#FFB23E]' : 'text-[#4EF0A0]'}`}>{dataIntegrity.duplicateRowsDetected || 0}</p>
-            <p className="mt-1 text-[10px] text-[#7a6f94]">Duplicate records detected</p>
+            <p className={`text-2xl font-bold ${(dataIntegrity.duplicateEmailsDetected || 0) > 0 ? 'text-[#FFB23E]' : 'text-[#4EF0A0]'}`}>
+              {dataIntegrity.duplicateEmailsDetected || 0}
+            </p>
+            <p className="mt-1 text-[10px] text-[#7a6f94]">Duplicate emails detected</p>
           </div>
         </div>
+        {(dataIntegrity.usersWithoutEmail || 0) > 0 && (
+          <p className="mt-3 text-[10px] text-[#7a6f94]">
+            {dataIntegrity.usersWithoutEmail} guest user{dataIntegrity.usersWithoutEmail !== 1 ? 's' : ''} (no email — normal)
+          </p>
+        )}
       </div>
 
       {/* Active Sessions Table */}

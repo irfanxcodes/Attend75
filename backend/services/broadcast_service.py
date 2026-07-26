@@ -6,7 +6,6 @@ import logging
 from datetime import datetime
 
 from db.models.notification_history import NotificationHistory
-from db.models.premium_subscription import PremiumSubscription
 from db.models.push_subscription import PushSubscription
 from db.models.student_registry import StudentRegistry
 from db.session import SessionLocal
@@ -83,13 +82,9 @@ def get_broadcast_stats(title: str, since: datetime | None = None) -> dict:
 
 
 def _get_broadcast_targets(audience: str, program: str | None) -> list[str]:
-    """Get all premium subscribed students, optionally filtered by program."""
+    """Get all push-subscribed students, optionally filtered by program."""
     with SessionLocal() as session:
-        query = (
-            session.query(PushSubscription.roll_number)
-            
-            
-        )
+        query = session.query(PushSubscription.roll_number)
 
         if audience == "program" and program:
             query = query.join(

@@ -1,14 +1,29 @@
-fastapi
-uvicorn
-requests
-beautifulsoup4
-sqlalchemy
-alembic
-cryptography
-psycopg2-binary
-firebase-admin
-python-dotenv
-pdfplumber
-pywebpush
+# Core framework
+fastapi==0.139.0
+uvicorn==0.51.0
+python-multipart==0.0.20
+
+# Database — PostgreSQL only (SQLite is not supported)
+sqlalchemy==2.0.51
+alembic==1.18.5
+psycopg2-binary==2.9.12
+
+# HTTP / scraping
+requests==2.34.2
+beautifulsoup4==4.15.0
+
+# Security / encryption
+cryptography==48.0.1
+
+# Firebase (auth + FCM)
+firebase-admin==7.5.0
+
+# Environment
+python-dotenv==1.2.2
+
+# PDF parsing (timetable)
+pdfplumber==0.11.10
+
+# Web Push
+pywebpush==2.3.0
 py-vapid
-python-multipart

@@ -107,6 +107,28 @@ def _resolve_semester_label(data: dict) -> str | None:
     return None
 
 
+def _persist_subjects_from_login(roll_number: str, attendance_rows: list[dict]) -> None:
+    """
+    Background thread: resolve timetable subjects from login attendance rows
+    and persist to push_subscriptions.cached_subjects_json.
+    Only runs if the student has push subscriptions — no-op otherwise.
+    Zero portal requests.
+    """
+    try:
+        from db.models.push_subscription import PushSubscription
+        from db.session import SessionLocal as _SessionLocal
+        with _SessionLocal() as session:
+            has_sub = session.query(PushSubscription).filter(
+                PushSubscription.roll_number == roll_number
+            ).first()
+        if not has_sub:
+            return  # Not subscribed — nothing to update
+        from services.timetable_subject_resolver import resolve_and_cache_subjects_for_student
+        resolve_and_cache_subjects_for_student(roll_number, attendance_rows)
+    except Exception:
+        pass  # Best-effort; never raise in a daemon thread
+
+
 def login_user(roll_number: str, password: str, user_agent: str | None = None) -> dict:
     started = time.perf_counter()
     scraper = PortalScraper()
@@ -146,6 +168,16 @@ def login_user(roll_number: str, password: str, user_agent: str | None = None) -
             # Always store raw rows so timetable service can re-resolve abbrs
             # using the timetable notice's subject lookup (code/name → short abbr)
             record.cached_attendance_rows = list(attendance_rows)
+
+            # Eagerly persist subjects to DB so timetable reminders work
+            # without the student ever opening the timetable page.
+            # Zero extra portal requests — uses attendance rows already in memory.
+            threading.Thread(
+                target=_persist_subjects_from_login,
+                args=(roll_number.strip().upper(), list(attendance_rows)),
+                daemon=True,
+                name=f"subj-cache-{roll_number}",
+            ).start()
         if _prefetch_marks_after_login_enabled():
             threading.Thread(
                 target=_prefetch_marks_after_login,

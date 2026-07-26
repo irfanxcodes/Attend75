@@ -236,15 +236,19 @@ function PremiumAnalyticsPage() {
                           <div className="flex items-center gap-3">
                             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold text-[#1e1932]"
                               style={{ backgroundColor: avatarColors[colorIdx] }}>
-                              {getInitials(s.name)}
+                              {getInitials(s.name || s.rollNumber)}
                             </div>
                             <div className="min-w-0">
-                              <p className="text-[11px] font-semibold text-[#d8d4e7] truncate">{s.name || '—'}</p>
+                              <p className="text-[11px] font-semibold text-[#d8d4e7] truncate">
+                                {s.name || <span className="text-[#7a6f94] italic">No name on record</span>}
+                              </p>
                               <p className="text-[9px] text-[#7a6f94] font-mono">{s.rollNumber}</p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-5 py-3.5 text-[10px] text-[#9F9AB5] max-w-[140px] truncate">{s.program || '—'}</td>
+                        <td className="px-5 py-3.5 text-[10px] text-[#9F9AB5] max-w-[140px] truncate">
+                          {s.program || <span className="text-[#5a5570]">—</span>}
+                        </td>
                         <td className="px-5 py-3.5">
                           <span className="text-[10px] font-semibold text-[#4EF0A0]">{s.pushDevices || 1}</span>
                         </td>

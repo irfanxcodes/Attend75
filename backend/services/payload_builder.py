@@ -2,8 +2,11 @@
 Payload Builder — Single source of truth for constructing Notification_Payload dicts.
 
 Every notification dispatcher (notice, deadline, timetable, attendance, digest,
-weekly summary, nudge, broadcast) funnels through build_payload() so the 4KB
-size cap (Req 7.2) and category/priority conventions are enforced in one place.
+weekly summary, nudge, broadcast, marks) funnels through build_payload() so the
+4KB size cap (Req 7.2) and category/priority conventions are enforced in one place.
+
+Valid category strings: "notice", "attendance", "timetable", "digest",
+"weekly_summary", "nudge", "broadcast", "marks", "relink"
 """
 
 import json
