@@ -20,6 +20,7 @@ import PremiumAnalyticsPage from '../../components/admin/PremiumAnalyticsPage'
 import SubjectRequestsPage from '../../components/admin/SubjectRequestsPage'
 import CollegeInterestPage from '../../components/admin/CollegeInterestPage'
 import WaitlistPage from '../../components/admin/WaitlistPage'
+import PushNotificationHealthPage from '../../components/admin/PushNotificationHealthPage'
 
 function AdminDashboard() {
   const navigate = useNavigate()
@@ -183,6 +184,8 @@ function AdminDashboard() {
               onRefresh={fetchAllData}
               isLoading={isLoading}
             />
+          ) : activeSection === 'push-health' ? (
+            <PushNotificationHealthPage />
           ) : activeSection === 'waitlist' ? (
             <WaitlistPage
               analytics={analytics}

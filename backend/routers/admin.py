@@ -432,3 +432,29 @@ async def admin_timetable_notification_status(_: dict = Depends(require_admin_us
 	except Exception:
 		logger.exception("Failed to fetch timetable notification status")
 		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to fetch status"})
+
+
+@router.get("/notifications/health", response_model=ApiResponse)
+async def admin_notification_health(_: dict = Depends(require_admin_user)):
+	"""
+	Comprehensive push notification system health check.
+
+	Returns:
+	- VAPID and FCM configuration status
+	- Push worker health (alive, jobs processed, last delivery)
+	- Queue depth (pending, processing, done, failed, cancelled)
+	- Delivery stats (last 24h success/failure, failure rate)
+	- Recent failed jobs with error details
+	- Upcoming pending jobs
+	- Push subscription counts and timetable eligibility
+	- Device breakdown
+	- 7-day notification history by category
+	"""
+	from services.notification_health_service import get_push_notification_health
+
+	try:
+		data = await run_in_threadpool(get_push_notification_health)
+		return ApiResponse(status="success", message="Push notification health data", data=data)
+	except Exception:
+		logger.exception("Failed to fetch push notification health")
+		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to fetch push notification health"})

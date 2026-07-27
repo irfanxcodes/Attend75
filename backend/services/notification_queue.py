@@ -4,9 +4,10 @@ Notification Queue — Database-backed job queue for notification dispatch.
 Provides enqueue/dequeue/process methods for asynchronous notification delivery.
 Workers poll the queue and process jobs with configurable concurrency.
 
-All datetime values are stored and compared as naive UTC (stripped of tzinfo)
-to match the DateTime columns in notification_jobs. PostgreSQL stores them as
-timestamp without time zone. We use datetime.utcnow() throughout for consistency.
+All datetime values are stored as timezone-aware UTC (datetime.now(timezone.utc))
+to match the TIMESTAMPTZ columns in PostgreSQL (DateTime(timezone=True) in the
+NotificationJob model). Comparisons between scheduled_at and the current time
+work correctly because both sides are timezone-aware UTC.
 """
 
 import json
@@ -67,10 +68,13 @@ def enqueue_batch(jobs: list[dict]) -> int:
     now = _utcnow()
     with SessionLocal() as session:
         for job_data in jobs:
-            sa = job_data.get("scheduled_at", now)
-            # Normalise to timezone-aware UTC
-            if sa is not None and sa.tzinfo is None:
-                sa = sa.replace(tzinfo=timezone.utc)
+            sa = job_data.get("scheduled_at")
+            if sa is not None:
+                # Normalise to timezone-aware UTC
+                if sa.tzinfo is None:
+                    sa = sa.replace(tzinfo=timezone.utc)
+            else:
+                sa = now
             job = NotificationJob(
                 job_type=job_data["job_type"],
                 status="pending",
@@ -78,7 +82,7 @@ def enqueue_batch(jobs: list[dict]) -> int:
                 target_roll=job_data.get("target_roll"),
                 priority=job_data.get("priority", 0),
                 max_attempts=job_data.get("max_attempts", 3),
-                scheduled_at=sa if sa is not None else now,
+                scheduled_at=sa,
                 created_at=now,
             )
             session.add(job)
@@ -91,9 +95,10 @@ def claim_pending_jobs(batch_size: int = 10, job_types: list[str] | None = None)
     Claim up to batch_size pending jobs whose scheduled_at has arrived.
     Returns list of job dicts with id, job_type, payload, target_roll.
 
-    Uses SELECT FOR UPDATE SKIP LOCKED for safe concurrent access on PostgreSQL,
-    preventing multiple worker threads from claiming the same job.
+    Uses SELECT FOR UPDATE SKIP LOCKED on PostgreSQL for safe concurrent access.
+    Falls back to a plain query on SQLite (single-threaded dev use only).
     """
+    from db.session import IS_POSTGRES
     now = _utcnow()
     with SessionLocal() as session:
         query = (
@@ -104,12 +109,10 @@ def claim_pending_jobs(batch_size: int = 10, job_types: list[str] | None = None)
         if job_types:
             query = query.filter(NotificationJob.job_type.in_(job_types))
 
-        query = (
-            query
-            .order_by(NotificationJob.priority.desc(), NotificationJob.scheduled_at)
-            .limit(batch_size)
-            .with_for_update(skip_locked=True)
-        )
+        query = query.order_by(NotificationJob.priority.desc(), NotificationJob.scheduled_at).limit(batch_size)
+
+        if IS_POSTGRES:
+            query = query.with_for_update(skip_locked=True)
 
         jobs = query.all()
 

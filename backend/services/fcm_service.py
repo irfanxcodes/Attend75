@@ -10,12 +10,18 @@ tries FCM first (if token exists), falls back to Web Push (pywebpush).
 """
 
 import logging
+import threading
 from datetime import datetime, timezone
 
 from db.session import SessionLocal
 from db.models.push_subscription import PushSubscription
 
 logger = logging.getLogger(__name__)
+
+# Thread lock to prevent race conditions on Firebase Admin SDK initialization.
+# Multiple push_worker threads may call send_fcm_notification simultaneously,
+# and firebase_admin._apps is not thread-safe during initialization.
+_firebase_init_lock = threading.Lock()
 
 
 def register_fcm_token(roll_number: str, fcm_token: str, device_info: str = "") -> dict:
@@ -61,16 +67,21 @@ def send_fcm_notification(fcm_token: str, data: dict) -> bool:
         import firebase_admin
         from firebase_admin import messaging
 
-        # Ensure Firebase is initialized
+        # Ensure Firebase is initialized — protected by a lock so multiple
+        # push_worker threads don't race on firebase_admin._apps (not
+        # thread-safe during initialization).
         if not firebase_admin._apps:
-            import os
-            from firebase_admin import credentials
-            cred_file = os.getenv("FIREBASE_SERVICE_ACCOUNT_FILE", "")
-            if cred_file:
-                cred = credentials.Certificate(cred_file)
-                firebase_admin.initialize_app(cred)
-            else:
-                firebase_admin.initialize_app()
+            with _firebase_init_lock:
+                # Double-check after acquiring lock
+                if not firebase_admin._apps:
+                    import os
+                    from firebase_admin import credentials
+                    cred_file = os.getenv("FIREBASE_SERVICE_ACCOUNT_FILE", "")
+                    if cred_file:
+                        cred = credentials.Certificate(cred_file)
+                        firebase_admin.initialize_app(cred)
+                    else:
+                        firebase_admin.initialize_app()
 
         # Build the message — use data message (not notification) so SW handles display
         message = messaging.Message(

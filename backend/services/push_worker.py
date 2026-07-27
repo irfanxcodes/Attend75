@@ -169,12 +169,9 @@ def _process_job(job: dict) -> None:
 
     # Determine final delivery status to log in history.
     # "sent" only if every Web Push delivery succeeded.
-    # "partial" if some succeeded and some failed.
-    # "failed" if all failed.
+    # "failed" for any other outcome (transient or permanent).
     if all_success:
         actual_delivery_status = "sent"
-    elif any_transient_failure:
-        actual_delivery_status = "failed"
     else:
         actual_delivery_status = "failed"
 

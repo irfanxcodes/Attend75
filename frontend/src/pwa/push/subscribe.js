@@ -80,13 +80,45 @@ export async function requestPushSubscription(token) {
       applicationServerKey,
     })
   } catch {
-    // First attempt failed — try full SW reset
+    // First attempt failed — try re-registering the service worker
     try {
-      await registration.unregister()
+      // Register a fresh SW without unregistering the current one first,
+      // to avoid losing the active worker and ending up with no SW at all.
       const newReg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
-      await new Promise(r => setTimeout(r, 1000)) // give it a second to activate
-      await navigator.serviceWorker.ready
-      subscription = await newReg.pushManager.subscribe({
+
+      // Wait for the SW to become active before trying to subscribe again.
+      // We wait for both the specific registration and the global ready state.
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('SW activation timeout')), 5000)
+        const sw = newReg.installing || newReg.waiting || newReg.active
+        if (newReg.active) {
+          clearTimeout(timeout)
+          resolve()
+          return
+        }
+        const onStateChange = () => {
+          if (sw && sw.state === 'activated') {
+            clearTimeout(timeout)
+            sw.removeEventListener('statechange', onStateChange)
+            resolve()
+          }
+        }
+        if (sw) {
+          sw.addEventListener('statechange', onStateChange)
+        } else {
+          // No SW installing/waiting/active — wait for ready
+          navigator.serviceWorker.ready.then(() => {
+            clearTimeout(timeout)
+            resolve()
+          }).catch(() => {
+            clearTimeout(timeout)
+            reject(new Error('SW ready failed'))
+          })
+        }
+      })
+
+      const activeReg = await navigator.serviceWorker.ready
+      subscription = await activeReg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey,
       })

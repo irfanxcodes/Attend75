@@ -98,6 +98,8 @@ function NotificationSettings() {
   const [isSaving, setIsSaving] = useState(false)
   const [isSubscribed, setIsSubscribed] = useState(false)
   const [permissionState, setPermissionState] = useState('default')
+  const [isEnabling, setIsEnabling] = useState(false)
+  const [enableMessage, setEnableMessage] = useState(null) // null | 'SUCCESS' | error string
 
   useEffect(() => {
     if (!token) return
@@ -127,13 +129,29 @@ function NotificationSettings() {
   }
 
   const handleEnablePush = async () => {
-    if (!token) return
+    if (!token || isEnabling) return
+    setIsEnabling(true)
+    setEnableMessage(null)
     try {
       await requestPushSubscription(token)
       setIsSubscribed(true)
       setPermissionState(getNotificationPermission())
+      setEnableMessage('SUCCESS')
     } catch (err) {
-      // No premium gating — notifications are free for all
+      const code = err?.code || ''
+      if (code === 'SESSION_EXPIRED') {
+        setEnableMessage('Your session has expired. Please go back and log in again.')
+      } else if (code === 'IOS_INSTALL_REQUIRED') {
+        setEnableMessage('To get notifications on iPhone, install the app first:\n\nIn Safari → tap Share (⬆) → "Add to Home Screen"\n\nThen open from your home screen and enable here.')
+      } else if (code === 'PERMISSION_DENIED') {
+        setEnableMessage('Notifications are blocked. Go to your device Settings → find this browser/app → enable Notifications.')
+      } else if (code === 'SUBSCRIBE_FAILED') {
+        setEnableMessage('Could not subscribe in this browser. Try refreshing the page, or use Chrome for the best experience.')
+      } else {
+        setEnableMessage('Something went wrong. Please try again later.')
+      }
+    } finally {
+      setIsEnabling(false)
     }
   }
 
@@ -153,6 +171,7 @@ function NotificationSettings() {
         }
       }
       setIsSubscribed(false)
+      setEnableMessage(null)
     } catch {
       // Silent
     }
@@ -186,8 +205,8 @@ function NotificationSettings() {
             </div>
           </div>
           {!isSubscribed && permissionState !== 'denied' && (
-            <button type="button" onClick={handleEnablePush} className="rounded-full bg-[#FF916C] px-3 py-1.5 text-[11px] font-bold text-[#1D183E]">
-              Enable
+            <button type="button" onClick={handleEnablePush} disabled={isEnabling} className="rounded-full bg-[#FF916C] px-3 py-1.5 text-[11px] font-bold text-[#1D183E] disabled:opacity-60">
+              {isEnabling ? 'Enabling…' : 'Enable'}
             </button>
           )}
           {isSubscribed && (
@@ -198,6 +217,12 @@ function NotificationSettings() {
         </div>
         {permissionState === 'denied' && (
           <p className="mt-2 text-[10px] text-[#FF5B5B]">Notifications are blocked. Enable them in your browser settings → Site Settings → Notifications.</p>
+        )}
+        {enableMessage && enableMessage !== 'SUCCESS' && (
+          <p className="mt-2 text-[10px] text-[#FF5B5B] whitespace-pre-line">{enableMessage}</p>
+        )}
+        {enableMessage === 'SUCCESS' && (
+          <p className="mt-2 text-[10px] text-[#4EF0A0] font-semibold">✓ Notifications enabled! You'll receive real-time alerts.</p>
         )}
       </div>
 

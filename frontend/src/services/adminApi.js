@@ -197,6 +197,13 @@ export async function fetchAdminAnalytics(sessionToken) {
   })
 }
 
+export async function fetchPushNotificationHealth(sessionToken) {
+  return requestAdminJson(`${API_BASE_URL}/admin/notifications/health`, {
+    method: 'GET',
+    headers: authHeaders(sessionToken),
+  })
+}
+
 export async function deleteAdminUser(sessionToken, userId) {
   return requestAdminJson(`${API_BASE_URL}/admin/users/${userId}`, {
     method: 'DELETE',

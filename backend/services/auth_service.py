@@ -129,6 +129,33 @@ def _persist_subjects_from_login(roll_number: str, attendance_rows: list[dict]) 
         pass  # Best-effort; never raise in a daemon thread
 
 
+def _evaluate_attendance_from_login(roll_number: str, overall_percent: float | None, attendance_rows: list[dict]) -> None:
+    """
+    Background thread: evaluate attendance bracket changes at login time
+    and enqueue alerts if needed.
+
+    This covers guest users (no portal credentials stored) who would otherwise
+    never receive attendance alerts — the background fetcher skips them since
+    it requires PortalCredential rows. Using data already fetched at login
+    means zero additional portal requests.
+    """
+    try:
+        from services.attendance_monitor import evaluate_attendance
+        subject_data = [
+            {
+                "abbr": r.get("course_abbr", ""),
+                "attended": r.get("attended", 0),
+                "sessions": r.get("sessions", 0),
+                "percentage": r.get("attendance", 0),
+            }
+            for r in attendance_rows
+            if r.get("course_abbr")
+        ]
+        evaluate_attendance(roll_number, overall_percent, subject_data)
+    except Exception:
+        pass  # Best-effort; never raise in a daemon thread
+
+
 def login_user(roll_number: str, password: str, user_agent: str | None = None) -> dict:
     started = time.perf_counter()
     scraper = PortalScraper()
@@ -177,6 +204,17 @@ def login_user(roll_number: str, password: str, user_agent: str | None = None) -
                 args=(roll_number.strip().upper(), list(attendance_rows)),
                 daemon=True,
                 name=f"subj-cache-{roll_number}",
+            ).start()
+
+            # Evaluate attendance bracket changes at login time.
+            # Covers guest users who have no stored PortalCredential and are
+            # therefore skipped by the 6-hour background fetcher. Uses data
+            # already scraped — zero extra portal requests.
+            threading.Thread(
+                target=_evaluate_attendance_from_login,
+                args=(roll_number.strip().upper(), overall_percent, list(attendance_rows)),
+                daemon=True,
+                name=f"att-eval-{roll_number}",
             ).start()
         if _prefetch_marks_after_login_enabled():
             threading.Thread(
@@ -251,6 +289,19 @@ def fetch_attendance_for_semester(token: str, semester_id: str | None, program_i
                 record.cached_subjects = subjects
             # Always keep raw rows for timetable abbr re-resolution
             record.cached_attendance_rows = list(attendance_items)
+
+            # Re-evaluate attendance alerts with the fresh data.
+            # This fires on every manual refresh, keeping guest users' alert
+            # states current without any extra portal requests.
+            total_attended = sum(int(r.get("attended") or 0) for r in attendance_items)
+            total_sessions = sum(int(r.get("sessions") or 0) for r in attendance_items)
+            refreshed_overall = round((total_attended / total_sessions) * 100, 1) if total_sessions > 0 else None
+            threading.Thread(
+                target=_evaluate_attendance_from_login,
+                args=(record.roll_number, refreshed_overall, list(attendance_items)),
+                daemon=True,
+                name=f"att-eval-refresh-{record.roll_number}",
+            ).start()
 
         return payload
     except PortalNetworkError as exc:

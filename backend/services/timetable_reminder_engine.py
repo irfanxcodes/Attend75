@@ -357,10 +357,8 @@ def send_tomorrow_preview() -> int:
         if not schedule:
             continue
 
-        student_tomorrow = _match_student_classes(
-            [c for c in schedule if c.get("day") == tomorrow_name],
-            student_subjects,
-        )
+        all_tomorrow_classes = _match_student_classes(schedule, student_subjects)
+        student_tomorrow = [c for c in all_tomorrow_classes if c.get("day") == tomorrow_name]
 
         if not student_tomorrow:
             continue

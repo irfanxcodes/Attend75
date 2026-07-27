@@ -204,3 +204,288 @@ async def register_fcm_token(payload: dict):
     except Exception:
         logger.exception("Failed to register FCM token for %s", roll_number)
         return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to register FCM token"})
+
+
+# GET /push/timetable-debug?token=... — per-student timetable notification readiness check
+@router.get("/timetable-debug", response_model=ApiResponse)
+async def timetable_debug(token: str = Query(..., description="Session token")):
+    """
+    Diagnostic endpoint: shows why a student is or isn't receiving timetable
+    notifications. Checks has_timetable flag, cached_subjects_json, matching
+    classes for today, and what jobs are pending in the queue.
+    """
+    import json
+    from datetime import datetime, timezone, timedelta
+    from db.models.push_subscription import PushSubscription
+    from db.models.notification_job import NotificationJob
+    from db.session import SessionLocal
+    from services.timetable_service import (
+        _find_latest_timetable_notice,
+        _parse_timetable_from_text,
+        _match_student_classes,
+    )
+
+    roll_number = _require_roll_number(token)
+    if roll_number is None:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Session expired"})
+
+    IST = timezone(timedelta(hours=5, minutes=30))
+    now_ist = datetime.now(IST)
+    today_name = now_ist.strftime("%A")
+
+    # 1. Fetch subscription rows for this student
+    with SessionLocal() as session:
+        subs = (
+            session.query(PushSubscription)
+            .filter(PushSubscription.roll_number == roll_number)
+            .all()
+        )
+        sub_info = [
+            {
+                "id": s.id,
+                "has_timetable": s.has_timetable,
+                "has_cached_subjects": s.cached_subjects_json is not None,
+                "cached_subjects": json.loads(s.cached_subjects_json) if s.cached_subjects_json else None,
+                "device_info": s.device_info,
+                "last_used_at": s.last_used_at.isoformat() if s.last_used_at else None,
+            }
+            for s in subs
+        ]
+
+        # 2. Pending timetable/digest jobs for this student
+        pending_jobs = (
+            session.query(NotificationJob)
+            .filter(
+                NotificationJob.target_roll == roll_number,
+                NotificationJob.status == "pending",
+                NotificationJob.job_type == "push_send",
+            )
+            .order_by(NotificationJob.scheduled_at)
+            .all()
+        )
+        pending_info = [
+            {
+                "id": j.id,
+                "scheduled_at_ist": (
+                    j.scheduled_at.astimezone(IST).strftime("%H:%M IST")
+                    if j.scheduled_at else None
+                ),
+                "category": (json.loads(j.payload).get("notification") or {}).get("category"),
+                "title": (json.loads(j.payload).get("notification") or {}).get("title"),
+            }
+            for j in pending_jobs
+        ]
+
+    # 3. Check timetable matching for today
+    timetable_check = {"status": "no_subscription"}
+    if subs:
+        # Use the first subscription's cached subjects
+        cached_json = next((s.cached_subjects_json for s in subs if s.cached_subjects_json), None)
+        if not cached_json:
+            timetable_check = {
+                "status": "no_cached_subjects",
+                "fix": "Open the Timetable page once, or wait for the next background fetch (~6h cycle) to auto-populate your subjects.",
+            }
+        else:
+            student_subjects = json.loads(cached_json)
+            notice = _find_latest_timetable_notice(student_subjects)
+            if not notice:
+                timetable_check = {"status": "no_timetable_notice_in_db"}
+            else:
+                schedule = _parse_timetable_from_text(notice.cleaned_text or "")
+                if not schedule:
+                    timetable_check = {"status": "timetable_parse_failed", "notice_id": notice.notice_id}
+                else:
+                    all_classes = _match_student_classes(schedule, student_subjects)
+                    today_classes = [c for c in all_classes if c.get("day") == today_name]
+                    timetable_check = {
+                        "status": "ok",
+                        "notice_id": notice.notice_id,
+                        "notice_title": notice.title,
+                        "matched_subjects": student_subjects,
+                        "today": today_name,
+                        "classes_today": [
+                            {"time": c["time"], "course": c["course"], "section": c["section"], "room": c.get("room", "")}
+                            for c in today_classes
+                        ],
+                        "total_classes_this_week": len(all_classes),
+                    }
+
+    # 4. Check preferences
+    prefs = await run_in_threadpool(preference_filter.get_or_create_preferences, roll_number)
+
+    return ApiResponse(
+        status="success",
+        message="Timetable notification debug info",
+        data={
+            "roll_number": roll_number,
+            "current_time_ist": now_ist.strftime("%A %H:%M IST"),
+            "subscriptions": sub_info,
+            "preferences": {
+                "timetable_enabled": prefs.timetable_enabled,
+                "daily_digest_enabled": prefs.daily_digest_enabled,
+                "reminder_lead_minutes": prefs.reminder_lead_minutes,
+                "daily_digest_time": f"{prefs.daily_digest_hour:02d}:{prefs.daily_digest_minute:02d} IST",
+            },
+            "timetable_match": timetable_check,
+            "pending_jobs_today": pending_info,
+        },
+    )
+
+
+# POST /push/schedule-my-reminders — manually trigger today's reminders for yourself
+@router.post("/schedule-my-reminders", response_model=ApiResponse)
+async def schedule_my_reminders(payload: dict):
+    """
+    Immediately schedule today's class reminders for the authenticated student.
+    Useful after subscribing or updating preferences — no need to wait until 5:30 AM.
+    """
+    import json
+    import hashlib
+    from datetime import datetime, timezone, timedelta
+    from db.models.push_subscription import PushSubscription
+    from db.session import SessionLocal
+    from services.timetable_service import (
+        _find_latest_timetable_notice,
+        _parse_timetable_from_text,
+        _match_student_classes,
+    )
+    from services.timetable_reminder_engine import (
+        VALID_LEAD_MINUTES,
+        PAGE_TIME_SLOTS_HOURS,
+        _time_sort_to_hour_minute,
+    )
+    from services import notification_queue
+    from services.payload_builder import build_payload
+    from services.preference_filter import get_or_create_preferences, should_send
+
+    token = (payload.get("token") or "").strip()
+    roll_number = _require_roll_number(token)
+    if roll_number is None:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Session expired"})
+
+    IST = timezone(timedelta(hours=5, minutes=30))
+    now_ist = datetime.now(IST)
+    today_name = now_ist.strftime("%A")
+
+    # Load cached subjects
+    with SessionLocal() as session:
+        row = (
+            session.query(PushSubscription.cached_subjects_json)
+            .filter(
+                PushSubscription.roll_number == roll_number,
+                PushSubscription.cached_subjects_json.isnot(None),
+            )
+            .first()
+        )
+
+    if not row or not row[0]:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "status": "error",
+                "message": "No cached subjects found. Open the Timetable page first so your subjects can be resolved.",
+            },
+        )
+
+    student_subjects = json.loads(row[0])
+    notice = _find_latest_timetable_notice(student_subjects)
+    if not notice or not notice.cleaned_text:
+        return JSONResponse(status_code=400, content={"status": "error", "message": "No timetable notice found in database."})
+
+    schedule = _parse_timetable_from_text(notice.cleaned_text)
+    if not schedule:
+        return JSONResponse(status_code=400, content={"status": "error", "message": "Could not parse timetable from notice."})
+
+    all_classes = _match_student_classes(schedule, student_subjects)
+    today_classes = [c for c in all_classes if c.get("day") == today_name]
+
+    if not today_classes:
+        return ApiResponse(
+            status="success",
+            message=f"No classes found for {today_name}. Nothing to schedule.",
+            data={"enqueued": 0, "today": today_name},
+        )
+
+    prefs = await run_in_threadpool(preference_filter.get_or_create_preferences, roll_number)
+    enqueued = 0
+
+    # Daily digest
+    if should_send(prefs, "daily_digest_enabled"):
+        jitter_seconds = int(hashlib.md5(roll_number.encode()).hexdigest()[:4], 16) % 900
+        digest_time = now_ist.replace(
+            hour=prefs.daily_digest_hour, minute=prefs.daily_digest_minute, second=0, microsecond=0
+        ) + timedelta(seconds=jitter_seconds)
+
+        if digest_time > now_ist:
+            class_count = len(today_classes)
+            subjects_str = ", ".join(sorted(set(c.get("course", "") for c in today_classes))[:5])
+            first_time = today_classes[0].get("time", "")
+            payload_data = build_payload(
+                category="digest",
+                title=f"Good morning! {class_count} class{'es' if class_count != 1 else ''} today",
+                body=f"⏰ First class at {first_time}\n📚 Subjects: {subjects_str}",
+                deep_link="/app/notices",
+                priority="standard",
+            )
+            notification_queue.enqueue(
+                "push_send",
+                {"roll_number": roll_number, "notification": payload_data},
+                target_roll=roll_number,
+                scheduled_at=digest_time.astimezone(timezone.utc),
+            )
+            enqueued += 1
+
+    # Class reminders
+    if should_send(prefs, "timetable_enabled"):
+        lead_minutes = prefs.reminder_lead_minutes
+        if lead_minutes not in VALID_LEAD_MINUTES:
+            lead_minutes = 15
+
+        for cls in today_classes:
+            hm = _time_sort_to_hour_minute(cls.get("time_sort", ""))
+            if not hm:
+                continue
+            class_start = now_ist.replace(hour=hm[0], minute=hm[1], second=0, microsecond=0)
+            reminder_time = class_start - timedelta(minutes=lead_minutes)
+            if reminder_time <= now_ist:
+                continue
+
+            course = cls.get("course", "?")
+            section = cls.get("section", "")
+            room = cls.get("room", "")
+            faculty = cls.get("faculty", "")
+            body_parts = [f"{course}-{section}" if section else course]
+            if room:
+                body_parts.append(f"Room: {room}")
+            if faculty:
+                body_parts.append(faculty)
+            body_parts.append(f"Starts in {lead_minutes} min")
+
+            payload_data = build_payload(
+                category="timetable",
+                title=f"🔔 {course} in {lead_minutes} min",
+                body=" · ".join(body_parts),
+                deep_link="/app/notices",
+                priority="standard",
+            )
+            notification_queue.enqueue(
+                "push_send",
+                {"roll_number": roll_number, "notification": payload_data},
+                target_roll=roll_number,
+                scheduled_at=reminder_time.astimezone(timezone.utc),
+            )
+            enqueued += 1
+
+    return ApiResponse(
+        status="success",
+        message=f"Scheduled {enqueued} reminder(s) for today ({today_name})",
+        data={
+            "enqueued": enqueued,
+            "today": today_name,
+            "classes_today": [
+                {"time": c["time"], "course": c["course"], "section": c["section"]}
+                for c in today_classes
+            ],
+        },
+    )

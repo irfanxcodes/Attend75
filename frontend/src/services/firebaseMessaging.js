@@ -48,24 +48,22 @@ function getFirebaseMessaging() {
  */
 export async function getFCMToken() {
   try {
-    if (Notification.permission !== 'granted') return 'NO_PERMISSION'
+    if (Notification.permission !== 'granted') return null
     const messaging = getFirebaseMessaging()
 
-    // Let Firebase handle its own SW registration internally
-    // by NOT passing serviceWorkerRegistration
     let token
     try {
       token = await getToken(messaging, {
         vapidKey: FCM_VAPID_KEY,
       })
-    } catch (tokenErr) {
-      return 'TOKEN_ERR:' + (tokenErr.code || tokenErr.message || '').substring(0, 40)
+    } catch {
+      return null
     }
 
     if (!token) return null
     return token
-  } catch (err) {
-    return 'OUTER_ERR:' + (err.code || err.message || String(err)).substring(0, 40)
+  } catch {
+    return null
   }
 }
 

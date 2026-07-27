@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 
 from sqlalchemy import create_engine
@@ -6,24 +7,27 @@ from sqlalchemy.orm import sessionmaker
 
 from db.base import Base
 
-_BASE_DIR = Path(__file__).resolve().parent.parent
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
 if not DATABASE_URL:
-    raise RuntimeError(
-        "DATABASE_URL environment variable is required. "
-        "Set it to a PostgreSQL connection string, e.g.: "
-        "postgresql://user:password@localhost:5432/attend75"
+    print(
+        "FATAL: DATABASE_URL environment variable is not set.\n"
+        "Set it to your PostgreSQL connection string, e.g.:\n"
+        "  DATABASE_URL=postgresql://user:password@host:5432/dbname\n"
+        "SQLite is not supported in production.",
+        file=sys.stderr,
     )
+    sys.exit(1)
 
 if not DATABASE_URL.startswith("postgresql"):
-    raise RuntimeError(
-        f"Only PostgreSQL is supported. Got DATABASE_URL starting with: "
-        f"{DATABASE_URL.split('://')[0]!r}. "
-        "Please set DATABASE_URL to a postgresql:// connection string."
+    print(
+        f"FATAL: DATABASE_URL must be a PostgreSQL connection string "
+        f"(got: {DATABASE_URL[:40]}...).\n"
+        "SQLite is not supported.",
+        file=sys.stderr,
     )
+    sys.exit(1)
 
-# Always PostgreSQL
 IS_POSTGRES = True
 
 engine = create_engine(
@@ -32,6 +36,7 @@ engine = create_engine(
     pool_size=10,
     max_overflow=20,
 )
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -61,5 +66,6 @@ def init_database() -> None:
     from db.models import push_subscription  # noqa: F401
     from db.models import pwa_install  # noqa: F401
 
-    # Schema is managed exclusively by Alembic migrations in production.
-    # create_all is intentionally not called here to prevent silent schema drift.
+    # Schema is managed exclusively by Alembic migrations.
+    # create_all is intentionally NOT called here — run `alembic upgrade head`
+    # before starting the server.
