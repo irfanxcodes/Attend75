@@ -58,10 +58,11 @@ def register_fcm_token(roll_number: str, fcm_token: str, device_info: str = "") 
             return {"id": None, "updated": False}
 
 
-def send_fcm_notification(fcm_token: str, data: dict) -> bool:
+def send_fcm_notification(fcm_token: str, data: dict, subscription_id: int | None = None) -> bool:
     """
     Send a notification via Firebase Admin SDK.
     Returns True if sent successfully, False otherwise.
+    If the token is NotRegistered/invalid, clears it from the DB so it stops being retried.
     """
     try:
         import firebase_admin
@@ -102,11 +103,28 @@ def send_fcm_notification(fcm_token: str, data: dict) -> bool:
 
     except Exception as e:
         error_str = str(e)
-        if "NOT_FOUND" in error_str or "UNREGISTERED" in error_str:
-            logger.warning("FCM token invalid/expired: %s", error_str[:100])
+        if "NOT_FOUND" in error_str or "UNREGISTERED" in error_str or "not a valid FCM" in error_str:
+            logger.warning("FCM token invalid/expired — clearing from DB: %s", error_str[:100])
+            # Clear the stale token so it doesn't get retried on every notification
+            _clear_fcm_token(fcm_token, subscription_id)
         else:
             logger.warning("FCM send failed: %s", error_str[:200])
         return False
+
+
+def _clear_fcm_token(fcm_token: str, subscription_id: int | None = None) -> None:
+    """Remove a stale FCM token from the push_subscriptions table."""
+    try:
+        with SessionLocal() as session:
+            query = session.query(PushSubscription)
+            if subscription_id:
+                query = query.filter(PushSubscription.id == subscription_id)
+            else:
+                query = query.filter(PushSubscription.fcm_token == fcm_token)
+            query.update({"fcm_token": None}, synchronize_session=False)
+            session.commit()
+    except Exception as clear_err:
+        logger.debug("Failed to clear FCM token: %s", clear_err)
 
 
 def get_fcm_tokens_for_roll(roll_number: str) -> list[dict]:

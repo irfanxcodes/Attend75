@@ -105,7 +105,11 @@ def _process_job(job: dict) -> None:
         from services.fcm_service import get_fcm_tokens_for_roll, send_fcm_notification
         fcm_tokens = get_fcm_tokens_for_roll(roll_number)
         for token_info in fcm_tokens:
-            success = send_fcm_notification(token_info["fcm_token"], notification_data)
+            success = send_fcm_notification(
+                token_info["fcm_token"],
+                notification_data,
+                subscription_id=token_info["id"],
+            )
             if success:
                 fcm_delivered = True
                 subscription_manager.touch_last_used(token_info["id"])
