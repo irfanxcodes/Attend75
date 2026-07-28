@@ -613,6 +613,7 @@ def get_full_admin_analytics() -> dict:
         "pwaInstalls": get_pwa_install_metrics(),
         "notices": get_notice_analytics(),
         "waitlist": get_waitlist_analytics(),
+        "arcade": get_arcade_analytics(),
     }
 
 
@@ -863,4 +864,92 @@ def get_waitlist_analytics() -> dict:
         "last7days": last7days,
         "trend": trend,
         "recent": recent,
+    }
+
+
+def get_arcade_analytics() -> dict:
+    """Arcade game analytics — total players, total games played, per-game breakdown, and daily activity (last 14 days)."""
+    from db.models.game_score import GameScore
+    from db.models.user import User
+
+    today = date.today()
+    window_start = today - timedelta(days=13)  # last 14 days inclusive
+
+    with SessionLocal() as session:
+        # Total unique players (distinct user_ids that have at least one score)
+        total_players = int(
+            session.query(func.count(func.distinct(GameScore.user_id))).scalar() or 0
+        )
+
+        # Total games played (total score rows)
+        total_games_played = int(
+            session.query(func.count(GameScore.id)).scalar() or 0
+        )
+
+        # Per-game breakdown: unique players + total plays per game
+        per_game_rows = (
+            session.query(
+                GameScore.game_name,
+                func.count(func.distinct(GameScore.user_id)).label("unique_players"),
+                func.count(GameScore.id).label("total_plays"),
+                func.max(GameScore.score).label("top_score"),
+            )
+            .group_by(GameScore.game_name)
+            .order_by(func.count(func.distinct(GameScore.user_id)).desc())
+            .all()
+        )
+        per_game = [
+            {
+                "game": row.game_name,
+                "uniquePlayers": int(row.unique_players),
+                "totalPlays": int(row.total_plays),
+                "topScore": int(row.top_score) if row.top_score is not None else 0,
+            }
+            for row in per_game_rows
+        ]
+
+        # Players who joined in the last 7 days (first score within window)
+        week_ago = today - timedelta(days=7)
+        new_players_7d = int(
+            session.query(func.count(func.distinct(GameScore.user_id)))
+            .filter(
+                GameScore.user_id.in_(
+                    session.query(GameScore.user_id)
+                    .group_by(GameScore.user_id)
+                    .having(func.min(func.date(GameScore.created_at)) >= week_ago.isoformat())
+                )
+            )
+            .scalar() or 0
+        )
+
+        # Daily plays for the last 14 days
+        daily_rows = (
+            session.query(
+                func.date(GameScore.created_at).label("day"),
+                func.count(GameScore.id).label("plays"),
+                func.count(func.distinct(GameScore.user_id)).label("players"),
+            )
+            .filter(func.date(GameScore.created_at) >= window_start.isoformat())
+            .group_by(func.date(GameScore.created_at))
+            .order_by(func.date(GameScore.created_at))
+            .all()
+        )
+
+        # Build a full 14-day series (fill missing days with 0)
+        daily_map = {str(row.day): {"plays": int(row.plays), "players": int(row.players)} for row in daily_rows}
+        daily_trend = []
+        for i in range(14):
+            d = (window_start + timedelta(days=i)).isoformat()
+            daily_trend.append({
+                "date": d,
+                "plays": daily_map.get(d, {}).get("plays", 0),
+                "players": daily_map.get(d, {}).get("players", 0),
+            })
+
+    return {
+        "totalPlayers": total_players,
+        "totalGamesPlayed": total_games_played,
+        "newPlayers7d": new_players_7d,
+        "perGame": per_game,
+        "dailyTrend": daily_trend,
     }

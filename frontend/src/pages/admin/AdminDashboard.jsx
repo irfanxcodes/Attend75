@@ -19,7 +19,7 @@ import FeedbackPage from '../../components/admin/FeedbackPage'
 import PremiumAnalyticsPage from '../../components/admin/PremiumAnalyticsPage'
 import SubjectRequestsPage from '../../components/admin/SubjectRequestsPage'
 import CollegeInterestPage from '../../components/admin/CollegeInterestPage'
-import WaitlistPage from '../../components/admin/WaitlistPage'
+import ArcadePage from '../../components/admin/ArcadePage'
 import PushNotificationHealthPage from '../../components/admin/PushNotificationHealthPage'
 
 function AdminDashboard() {
@@ -186,8 +186,8 @@ function AdminDashboard() {
             />
           ) : activeSection === 'push-health' ? (
             <PushNotificationHealthPage />
-          ) : activeSection === 'waitlist' ? (
-            <WaitlistPage
+          ) : activeSection === 'arcade' ? (
+            <ArcadePage
               analytics={analytics}
               onRefresh={fetchAllData}
               isLoading={isLoading}

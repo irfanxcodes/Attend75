@@ -63,6 +63,7 @@ def get_leaderboard(game_name: str, db_session: Session, user_id: int | None = N
             "rank": idx,
             "username": row.display_name or "Anonymous",
             "score": row.best_score,
+            "user_id": row.user_id,
         })
 
     # If user_id provided and user has scores, include their entry
@@ -84,6 +85,7 @@ def get_leaderboard(game_name: str, db_session: Session, user_id: int | None = N
                 "rank": user_rank,
                 "username": user_display_name,
                 "score": user_best,
+                "user_id": user_id,
             }
 
     return {"entries": entries, "user_entry": user_entry, "metadata": {}}

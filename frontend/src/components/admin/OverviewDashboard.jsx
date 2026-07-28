@@ -325,6 +325,7 @@ function OverviewDashboard({ data, analytics, feedback, onRefresh, isLoading, on
   const ratings = analytics?.ratings || {}
   const pwaInstalls = analytics?.pwaInstalls || {}
   const waitlist = analytics?.waitlist || {}
+  const arcade = analytics?.arcade || {}
 
   const growthSeries = useMemo(() => {
     const series = data?.userAnalytics?.userGrowth?.series || []
@@ -414,38 +415,36 @@ function OverviewDashboard({ data, analytics, feedback, onRefresh, isLoading, on
         </div>
       </div>
 
-      {/* Waitlist mini row */}
+      {/* Arcade mini row */}
       <div className="rounded-2xl border border-white/[0.06] bg-[#2a2440] px-5 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#FF916C]/15">
-              <svg viewBox="0 0 24 24" className="h-4 w-4 text-[#FF916C]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M2 20h20M5 20V10l7-7 7 7v10" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#4EF0A0]/15">
+              <svg viewBox="0 0 24 24" className="h-4 w-4 text-[#4EF0A0]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="6" width="20" height="12" rx="3" /><path d="M6 12h4M8 10v4" /><circle cx="15" cy="11" r="1" fill="currentColor" stroke="none" /><circle cx="18" cy="13" r="1" fill="currentColor" stroke="none" />
               </svg>
             </div>
             <div>
-              <p className="text-xs font-semibold text-[#f0ece4]">Premium Waitlist</p>
-              <p className="text-[9px] text-[#7a6f94]">Students who tapped "Join Waitlist" on the Premium page</p>
+              <p className="text-xs font-semibold text-[#f0ece4]">Arcade</p>
+              <p className="text-[9px] text-[#7a6f94]">Students playing arcade games on Attend75</p>
             </div>
           </div>
           <div className="flex items-center gap-6">
             <div className="text-center">
-              <p className="text-lg font-bold text-[#f0ece4]">{waitlist.total ?? '—'}</p>
-              <p className="text-[8px] font-semibold uppercase text-[#7a6f94]">Total</p>
+              <p className="text-lg font-bold text-[#f0ece4]">{arcade.totalPlayers ?? '—'}</p>
+              <p className="text-[8px] font-semibold uppercase text-[#7a6f94]">Total Players</p>
             </div>
             <div className="text-center">
-              <p className="text-lg font-bold text-[#FF916C]">{waitlist.last7days ?? '—'}</p>
-              <p className="text-[8px] font-semibold uppercase text-[#7a6f94]">Last 7d</p>
+              <p className="text-lg font-bold text-[#4EF0A0]">{arcade.newPlayers7d ?? '—'}</p>
+              <p className="text-[8px] font-semibold uppercase text-[#7a6f94]">New (7d)</p>
             </div>
             <div className="text-center">
-              <p className="text-lg font-bold text-[#4EF0A0]">
-                {waitlist.total ? `₹${formatNumber(waitlist.total * 19)}` : '—'}
-              </p>
-              <p className="text-[8px] font-semibold uppercase text-[#7a6f94]">Est. MRR</p>
+              <p className="text-lg font-bold text-[#6CB4FF]">{arcade.totalGamesPlayed ?? '—'}</p>
+              <p className="text-[8px] font-semibold uppercase text-[#7a6f94]">Games Played</p>
             </div>
             <button
               type="button"
-              onClick={() => onNavigate('waitlist')}
+              onClick={() => onNavigate('arcade')}
               className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-semibold text-[#d8d4e7] transition hover:bg-white/10"
             >
               View →

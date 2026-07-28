@@ -30,7 +30,7 @@ const NAV_SECTIONS = [
     items: [
       { id: 'subject-requests', label: 'Subject Requests', icon: 'git-pull-request' },
       { id: 'college-interest', label: 'College Interest', icon: 'building' },
-      { id: 'waitlist', label: 'Premium Waitlist', icon: 'crown' },
+      { id: 'arcade', label: 'Arcade Analytics', icon: 'gamepad' },
     ],
   },
 ]
@@ -50,6 +50,7 @@ function NavIcon({ name, className = 'h-4 w-4' }) {
     building: <><rect x="4" y="2" width="16" height="20" rx="2" ry="2" /><line x1="9" y1="6" x2="9" y2="6.01" /><line x1="15" y1="6" x2="15" y2="6.01" /><line x1="9" y1="10" x2="9" y2="10.01" /><line x1="15" y1="10" x2="15" y2="10.01" /><line x1="9" y1="14" x2="9" y2="14.01" /><line x1="15" y1="14" x2="15" y2="14.01" /><line x1="9" y1="18" x2="15" y2="18" /></>,
     crown: <><path d="M2 20h20M5 20V10l7-7 7 7v10" /><polyline points="5 10 12 3 19 10" /></>,
     bell: <><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></>,
+    gamepad: <><rect x="2" y="6" width="20" height="12" rx="3" /><path d="M6 12h4M8 10v4" /><circle cx="15" cy="11" r="1" fill="currentColor" stroke="none" /><circle cx="18" cy="13" r="1" fill="currentColor" stroke="none" /></>,
   }
 
   return (

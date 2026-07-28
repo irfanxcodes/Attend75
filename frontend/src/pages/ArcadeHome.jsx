@@ -163,12 +163,12 @@ function ArcadeHome() {
           {!lbLoading && !lbError && leaderboard.entries.length > 0 && (
             <div className="space-y-1.5">
               {leaderboard.entries.map((entry) => (
-                <LeaderboardRow key={entry.rank} entry={entry} isCurrentUser={leaderboard.userEntry?.rank === entry.rank} />
+                <LeaderboardRow key={entry.rank} entry={entry} isCurrentUser={leaderboard.userEntry?.user_id === entry.user_id} />
               ))}
             </div>
           )}
         </div>
-        {!lbLoading && !lbError && leaderboard.userEntry && !leaderboard.entries.some(e => e.rank === leaderboard.userEntry.rank) && (
+        {!lbLoading && !lbError && leaderboard.userEntry && !leaderboard.entries.some(e => e.user_id === leaderboard.userEntry.user_id) && (
           <div className="border-t border-[#FF916C]/30 bg-[#3E3A5C] px-3 py-2">
             <LeaderboardRow entry={leaderboard.userEntry} isCurrentUser />
           </div>

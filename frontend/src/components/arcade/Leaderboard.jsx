@@ -39,7 +39,7 @@ function Leaderboard({ gameSlug, token, onClose }) {
 
   // Check if the user's entry is already visible in the main list
   const userVisibleInList =
-    userEntry && entries.some((entry) => entry.rank === userEntry.rank)
+    userEntry && entries.some((entry) => entry.user_id === userEntry.user_id)
 
   return (
     <div className="flex flex-col rounded-2xl bg-[#4A466A] ring-1 ring-white/5 overflow-hidden">
@@ -70,7 +70,7 @@ function Leaderboard({ gameSlug, token, onClose }) {
               <LeaderboardRow
                 key={entry.rank}
                 entry={entry}
-                isCurrentUser={userEntry != null && entry.rank === userEntry.rank}
+                isCurrentUser={userEntry != null && entry.user_id === userEntry.user_id}
               />
             ))}
           </div>
