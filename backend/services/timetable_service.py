@@ -493,8 +493,17 @@ def _find_latest_timetable_notice(student_subjects: list[dict] | None = None) ->
                 if fallback_candidate is None and schedule:
                     fallback_candidate = notice
                 continue
-            # This looks like a regular class timetable
-            return notice
+
+            # No subject matching requested — return this notice only if it has
+            # parseable content. Skip empty/unparseable notices so we don't
+            # return a blank notice as "latest".
+            if notice.cleaned_text and len(notice.cleaned_text) > 100:
+                schedule = _parse_timetable_from_text(notice.cleaned_text)
+                if schedule:
+                    return notice
+                # Has text but unparseable — try next notice
+                continue
+            # Empty cleaned_text — PDF not yet processed, skip and try next
 
         if fallback_candidate is not None:
             return fallback_candidate
