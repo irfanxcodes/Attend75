@@ -283,6 +283,27 @@ def list_all_subscription_ids_for_roll(roll_number: str) -> list[int]:
         return [r[0] for r in rows]
 
 
+def get_best_subscription_id_for_roll(roll_number: str) -> int | None:
+    """
+    Return the single best subscription id for a student.
+    Picks the most recently used subscription (last_used_at DESC),
+    falling back to most recently created. Used by push_worker to avoid
+    sending duplicate notifications to users with multiple subscription rows
+    (e.g. same phone re-subscribed, or briefly had two devices).
+    """
+    with SessionLocal() as session:
+        row = (
+            session.query(PushSubscription.id)
+            .filter(PushSubscription.roll_number == roll_number)
+            .order_by(
+                PushSubscription.last_used_at.desc().nullslast(),
+                PushSubscription.created_at.desc(),
+            )
+            .first()
+        )
+        return row[0] if row else None
+
+
 def set_has_timetable(roll_number: str, has_timetable: bool) -> None:
     """Update the has_timetable flag on all of a student's subscription rows."""
     with SessionLocal() as session:

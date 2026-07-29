@@ -92,12 +92,17 @@ def _process_job(job: dict) -> None:
         sub_info = subscription_manager.get_decrypted_subscription_info(subscription_id)
         targets = [sub_info] if sub_info else []
     else:
-        sub_ids = subscription_manager.list_all_subscription_ids_for_roll(roll_number)
-        targets = []
-        for sid in sub_ids:
-            info = subscription_manager.get_decrypted_subscription_info(sid)
-            if info:
-                targets.append(info)
+        # Deliver to the single best subscription per roll — the most recently
+        # used one. This prevents multi-device users (e.g. 2 phone entries)
+        # from getting duplicate push notifications for the same job.
+        # Each unique device session should have its own subscription_id if
+        # targeting a specific device is needed.
+        best_id = subscription_manager.get_best_subscription_id_for_roll(roll_number)
+        if best_id:
+            info = subscription_manager.get_decrypted_subscription_info(best_id)
+            targets = [info] if info else []
+        else:
+            targets = []
 
     # Try FCM delivery first (more reliable on Android — uses Google Play Services)
     fcm_delivered = False

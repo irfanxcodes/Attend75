@@ -78,20 +78,27 @@ def dispatch_for_new_notices(notice_ids: list[int]) -> int:
         enqueued_count = 0
 
         # Handle timetable-change notifications (Req 13)
-        for notice in timetable_notices:
-            targets = _subscribed_students_for_program(notice.source_program)
-            for roll in targets:
+        # Collect unique targets across ALL timetable notices in this batch to
+        # avoid sending duplicate "Timetable Updated" when multiple timetable
+        # notices are processed in the same scrape cycle.
+        if timetable_notices:
+            all_timetable_targets: set[str] = set()
+            best_timetable_title = timetable_notices[-1].title  # most recent
+            for notice in timetable_notices:
+                targets = _subscribed_students_for_program(notice.source_program)
+                all_timetable_targets.update(targets)
+                notice.notification_sent_at = now
+
+            for roll in all_timetable_targets:
                 payload = build_payload(
                     category="timetable",
                     title="Timetable Updated",
-                    body=notice.title[:100],
+                    body=best_timetable_title[:100],
                     deep_link="/app/notices",
                     priority="standard",
                 )
                 notification_queue.enqueue("push_send", {"roll_number": roll, "notification": payload}, target_roll=roll)
                 enqueued_count += 1
-
-            notice.notification_sent_at = now
 
         # Invalidate timetable cache if any timetable notices were processed
         if timetable_notices:
