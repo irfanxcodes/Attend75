@@ -242,8 +242,8 @@ def refresh_all_subscribers_from_timetable(notice_id: int | None = None) -> dict
     stats["updated_no_match"] = len(rolls_without_match)
 
     logger.info(
-        "refresh_all_subscribers: notice=%d total=%d matched=%d no_match=%d skipped=%d",
-        notice.notice_id,
+        "refresh_all_subscribers: notice_id=%s total=%d matched=%d no_match=%d skipped=%d",
+        notice_id,
         stats["total"],
         stats["updated_has_match"],
         stats["updated_no_match"],
