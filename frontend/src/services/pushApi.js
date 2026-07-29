@@ -84,3 +84,19 @@ export async function registerFCMToken({ token, fcmToken, deviceInfo }) {
     body: JSON.stringify({ token, fcm_token: fcmToken, device_info: deviceInfo }),
   })
 }
+
+export async function uploadTimetable({ token, file }) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const response = await fetch(`${API_BASE_URL}/push/upload-timetable?token=${encodeURIComponent(token)}`, {
+    method: 'POST',
+    body: formData,
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok || data.status === 'error') {
+    const err = new Error(data.message || 'Upload failed')
+    err.status = response.status
+    throw err
+  }
+  return data.data || data
+}

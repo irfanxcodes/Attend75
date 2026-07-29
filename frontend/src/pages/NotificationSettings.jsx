@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
-import { Bell, BellOff, ChevronLeft } from 'lucide-react'
+import { useEffect, useState, useRef } from 'react'
+import { Bell, BellOff, ChevronLeft, Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import useAppStore from '../hooks/useAppStore'
-import { getPreferences, updatePreferences } from '../services/pushApi'
+import { getPreferences, updatePreferences, uploadTimetable } from '../services/pushApi'
 import { requestPushSubscription, isPushSubscribed, getNotificationPermission, ensurePushRegistered } from '../pwa/push/subscribe'
 
 const CATEGORY_LABELS = [
@@ -89,6 +89,134 @@ function BatteryOptimizationTip() {
   )
 }
 
+function TimetableUploadCard({ token, onSuccess }) {
+  const fileInputRef = useRef(null)
+  const [state, setState] = useState('idle') // idle | uploading | success | error
+  const [message, setMessage] = useState('')
+  const [result, setResult] = useState(null)
+  const [dragging, setDragging] = useState(false)
+
+  const handleFile = async (file) => {
+    if (!file) return
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      setState('error')
+      setMessage('Only PDF files are supported.')
+      return
+    }
+    setState('uploading')
+    setMessage('')
+    setResult(null)
+    try {
+      const data = await uploadTimetable({ token, file })
+      setState('success')
+      setResult(data)
+      setMessage(`Found ${data.matchedClasses} classes across ${data.daysWithClasses?.length || 0} days. You'll now get class reminders!`)
+      if (onSuccess) onSuccess()
+    } catch (err) {
+      setState('error')
+      setMessage(err.message || 'Upload failed. Please try again.')
+    }
+  }
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    setDragging(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) handleFile(file)
+  }
+
+  return (
+    <div className="mt-3 rounded-2xl bg-gradient-to-br from-[#6CB4FF]/10 to-[#A78BFA]/10 p-4 ring-1 ring-[#6CB4FF]/25">
+      {/* Header */}
+      <div className="flex items-start gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#6CB4FF]/15">
+          <span className="text-base">📅</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-semibold text-[#F7F4FF]">Get class reminders</p>
+          <p className="mt-0.5 text-[10px] leading-relaxed text-[#9F9AB5]">
+            Your program's timetable isn't on the portal yet. Upload your PDF timetable to get notified before every class.
+          </p>
+        </div>
+      </div>
+
+      {/* Upload area */}
+      {state !== 'success' && (
+        <div
+          className={`mt-3 rounded-xl border-2 border-dashed transition cursor-pointer ${
+            dragging
+              ? 'border-[#6CB4FF] bg-[#6CB4FF]/10'
+              : 'border-white/15 bg-white/[0.03] hover:border-[#6CB4FF]/50 hover:bg-[#6CB4FF]/5'
+          }`}
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={handleDrop}
+        >
+          <div className="flex flex-col items-center justify-center py-5 px-3">
+            {state === 'uploading' ? (
+              <>
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#6CB4FF] border-t-transparent" />
+                <p className="mt-2 text-[11px] text-[#9F9AB5]">Analysing your timetable…</p>
+              </>
+            ) : (
+              <>
+                <Upload className="h-6 w-6 text-[#6CB4FF]/60" strokeWidth={1.5} />
+                <p className="mt-2 text-[12px] font-semibold text-[#F7F4FF]">Tap to upload timetable PDF</p>
+                <p className="mt-0.5 text-[10px] text-[#9F9AB5]">or drag and drop here</p>
+                <p className="mt-2 text-[9px] text-[#7a6f94]">Only text-based PDFs · Max 10 MB</p>
+              </>
+            )}
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,application/pdf"
+            className="hidden"
+            onChange={(e) => handleFile(e.target.files?.[0])}
+          />
+        </div>
+      )}
+
+      {/* Result feedback */}
+      {state === 'success' && (
+        <div className="mt-3 flex items-start gap-2.5 rounded-xl bg-[#4EF0A0]/10 p-3 ring-1 ring-[#4EF0A0]/20">
+          <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#4EF0A0]" strokeWidth={2} />
+          <div>
+            <p className="text-[11px] font-semibold text-[#4EF0A0]">Timetable uploaded!</p>
+            <p className="mt-0.5 text-[10px] leading-relaxed text-[#9F9AB5]">{message}</p>
+            <p className="mt-1 text-[9px] text-[#7a6f94]">Reminders will start from tomorrow at 5:30 AM.</p>
+          </div>
+        </div>
+      )}
+      {state === 'error' && (
+        <div className="mt-3 flex items-start gap-2.5 rounded-xl bg-[#FF5B5B]/10 p-3 ring-1 ring-[#FF5B5B]/20">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#FF5B5B]" strokeWidth={2} />
+          <div>
+            <p className="text-[11px] font-semibold text-[#FF5B5B]">Upload failed</p>
+            <p className="mt-0.5 text-[10px] leading-relaxed text-[#9F9AB5]">{message}</p>
+            <button
+              type="button"
+              onClick={() => { setState('idle'); setMessage('') }}
+              className="mt-1.5 text-[10px] font-semibold text-[#6CB4FF]"
+            >
+              Try again
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Help tip */}
+      {state === 'idle' || state === 'error' ? (
+        <p className="mt-3 text-[9px] leading-relaxed text-[#7a6f94]">
+          💡 Get the PDF from your class WhatsApp group or college email, then upload here. Must be the original digital PDF — screenshots won't work.
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+
 function NotificationSettings() {
   const { state: { session } } = useAppStore()
   const token = session.token
@@ -100,6 +228,7 @@ function NotificationSettings() {
   const [permissionState, setPermissionState] = useState('default')
   const [isEnabling, setIsEnabling] = useState(false)
   const [enableMessage, setEnableMessage] = useState(null) // null | 'SUCCESS' | error string
+  const [hasTimetable, setHasTimetable] = useState(true) // assume true until we know otherwise
 
   useEffect(() => {
     if (!token) return
@@ -113,6 +242,17 @@ function NotificationSettings() {
       setPermissionState(getNotificationPermission())
       if (subscribed) {
         await ensurePushRegistered(token)
+        // Check if timetable is matched — to decide whether to show upload card
+        try {
+          const configuredApiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || '').trim()
+          const apiBase = import.meta.env.DEV ? 'http://127.0.0.1:8000' : (configuredApiBaseUrl || '/api')
+          const res = await fetch(`${apiBase}/push/timetable-debug?token=${encodeURIComponent(token)}`)
+          const json = await res.json()
+          const match = json?.data?.timetable_match
+          setHasTimetable(match?.status === 'ok' || match?.status === 'no_subscription')
+        } catch {
+          setHasTimetable(true) // don't show card on error
+        }
       }
     }).catch(() => {})
     .finally(() => setIsLoading(false))
@@ -230,6 +370,8 @@ function NotificationSettings() {
       {isSubscribed && /Android/i.test(navigator.userAgent) && (
         <BatteryOptimizationTip />
       )}
+        <BatteryOptimizationTip />
+      )}
 
       {/* PWA install nudge — installed PWAs get more reliable background push */}
       {isSubscribed && !window.matchMedia('(display-mode: standalone)').matches && /Android/i.test(navigator.userAgent) && (
@@ -276,6 +418,14 @@ function NotificationSettings() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Timetable upload card — shown when subscribed but no timetable match found */}
+      {isSubscribed && !hasTimetable && (
+        <TimetableUploadCard
+          token={token}
+          onSuccess={() => setHasTimetable(true)}
+        />
       )}
 
       {prefs && (

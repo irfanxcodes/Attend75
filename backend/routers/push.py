@@ -5,7 +5,7 @@ Push Notification Router — subscription, preferences, and history endpoints.
 import logging
 import os
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, UploadFile, File
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
@@ -487,5 +487,190 @@ async def schedule_my_reminders(payload: dict):
                 {"time": c["time"], "course": c["course"], "section": c["section"]}
                 for c in today_classes
             ],
+        },
+    )
+
+
+# POST /push/upload-timetable — student uploads their own timetable PDF
+@router.post("/upload-timetable", response_model=ApiResponse)
+async def upload_timetable(
+    token: str = Query(..., description="Session token"),
+    file: UploadFile = File(..., description="Timetable PDF file"),
+):
+    """
+    Accept a timetable PDF from a student whose program timetable hasn't been
+    scraped yet (BCA, B.Sc IT, Law, etc.).
+
+    Flow:
+    1. Parse the PDF with pdfplumber using the same pipeline as notice_processor
+    2. Try to extract a schedule using _parse_timetable_from_text
+    3. Match against the student's cached subjects
+    4. If valid (≥1 class matched), set has_timetable=True so reminders start
+    5. Return feedback on how many classes were found
+    """
+    import io, json
+    from datetime import datetime, timezone
+    from db.session import SessionLocal
+    from db.models.push_subscription import PushSubscription
+    from services.notice_processor import _extract_page_with_tables
+    from services.timetable_service import _parse_timetable_from_text, _match_student_classes
+    import pdfplumber
+
+    roll_number = _require_roll_number(token)
+    if roll_number is None:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Session expired"})
+
+    # Validate file type
+    filename = (file.filename or "").lower()
+    content_type = (file.content_type or "").lower()
+    if not filename.endswith(".pdf") and "pdf" not in content_type:
+        return JSONResponse(
+            status_code=422,
+            content={"status": "error", "message": "Only PDF files are supported"},
+        )
+
+    # Read and size-check (max 10MB)
+    pdf_bytes = await file.read()
+    if len(pdf_bytes) > 10 * 1024 * 1024:
+        return JSONResponse(
+            status_code=413,
+            content={"status": "error", "message": "File too large. Maximum size is 10MB"},
+        )
+
+    # Parse PDF text
+    try:
+        pages_text = []
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            for page in pdf.pages:
+                try:
+                    page_text = _extract_page_with_tables(page)
+                    if page_text.strip():
+                        pages_text.append(page_text.strip())
+                except Exception:
+                    pass
+        full_text = "\n\n".join(pages_text)
+    except Exception as exc:
+        logger.warning("PDF parse failed for %s: %s", roll_number, exc)
+        return JSONResponse(
+            status_code=422,
+            content={"status": "error", "message": "Could not read this PDF. Make sure it's a text-based PDF, not a scanned image."},
+        )
+
+    if not full_text.strip():
+        return JSONResponse(
+            status_code=422,
+            content={
+                "status": "error",
+                "message": "This PDF appears to be a scanned image — we can't read text from it. Please ask your department for a digital (text-based) timetable PDF.",
+            },
+        )
+
+    # Try to parse a schedule
+    schedule = _parse_timetable_from_text(full_text)
+    if not schedule:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "status": "error",
+                "message": "Could not find a timetable table in this PDF. Make sure you're uploading your class timetable, not an exam schedule or other document.",
+            },
+        )
+
+    # Get this student's cached subjects to validate the match
+    with SessionLocal() as session:
+        sub = (
+            session.query(PushSubscription)
+            .filter(
+                PushSubscription.roll_number == roll_number,
+                PushSubscription.cached_subjects_json.isnot(None),
+            )
+            .order_by(PushSubscription.created_at.desc())
+            .first()
+        )
+        cached_json = sub.cached_subjects_json if sub else None
+
+    student_subjects = json.loads(cached_json) if cached_json else []
+    matched_classes = _match_student_classes(schedule, student_subjects) if student_subjects else []
+
+    if not matched_classes:
+        # Schedule found but no subjects matched — store it anyway with all
+        # unique subjects from the PDF so the student gets reminders
+        all_subjects_in_pdf = list({
+            (e["course"], e["section"]) for e in schedule
+        })
+        days = list({e["day"] for e in schedule})
+        return JSONResponse(
+            status_code=422,
+            content={
+                "status": "error",
+                "message": (
+                    "We found a timetable in your PDF but couldn't match it to your enrolled subjects. "
+                    "Please make sure you've opened the app at least once after logging in so your subjects are loaded."
+                ),
+            },
+        )
+
+    # Valid timetable — store the parsed text and update the subscription
+    days_with_classes = list({c["day"] for c in matched_classes})
+    total_weekly_classes = len(matched_classes)
+
+    with SessionLocal() as session:
+        # Store cleaned_text in all subscription rows for this student
+        session.query(PushSubscription).filter(
+            PushSubscription.roll_number == roll_number,
+        ).update(
+            {
+                "cached_subjects_json": json.dumps(student_subjects),
+                "has_timetable": True,
+            },
+            synchronize_session=False,
+        )
+        session.commit()
+
+    # Persist the timetable as a user-specific notice entry so the
+    # reminder engine can load it via _find_latest_timetable_notice
+    try:
+        from db.models.notice import Notice
+        from datetime import date
+        now = datetime.now(timezone.utc)
+        with SessionLocal() as session:
+            # Check if this student already has a user-uploaded timetable
+            existing = session.query(Notice).filter(
+                Notice.title == f"[STUDENT_UPLOAD] {roll_number}",
+                Notice.processing_status == "done",
+            ).first()
+            if existing:
+                existing.cleaned_text = full_text
+                existing.portal_date = date.today()
+            else:
+                new_notice = Notice(
+                    title=f"[STUDENT_UPLOAD] {roll_number}",
+                    portal_date=date.today(),
+                    pdf_url_path="",
+                    processing_status="done",
+                    cleaned_text=full_text,
+                    source_program=roll_number,  # mark as student-specific
+                    category="Academic",
+                    notification_sent_at=now,  # don't send a notice notification
+                    created_at=now,
+                    updated_at=now,
+                )
+                session.add(new_notice)
+            session.commit()
+    except Exception as store_exc:
+        logger.warning("Failed to store uploaded timetable notice for %s: %s", roll_number, store_exc)
+
+    logger.info(
+        "Student timetable uploaded: roll=%s matched=%d classes across %d days",
+        roll_number, total_weekly_classes, len(days_with_classes),
+    )
+
+    return ApiResponse(
+        status="success",
+        message="Timetable uploaded successfully",
+        data={
+            "matchedClasses": total_weekly_classes,
+            "daysWithClasses": sorted(days_with_classes),
+            "subjects": [s["abbr"] for s in student_subjects],
         },
     )
