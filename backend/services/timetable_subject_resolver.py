@@ -68,12 +68,13 @@ def resolve_and_cache_subjects_for_student(
         _match_student_classes,
     )
 
-    notice = _find_latest_timetable_notice(student_subjects=None)
-    if not notice or not notice.cleaned_text:
+    # Step 1: find any timetable notice to build the abbr lookup
+    bootstrap_notice = _find_latest_timetable_notice(student_subjects=None)
+    if not bootstrap_notice or not bootstrap_notice.cleaned_text:
         logger.debug("resolve_and_cache: no timetable notice in DB for %s", roll_number)
         return False
 
-    abbr_lookup = _build_abbr_lookup(notice.cleaned_text)
+    abbr_lookup = _build_abbr_lookup(bootstrap_notice.cleaned_text)
     subjects = _extract_subjects(attendance_rows, abbr_lookup)
     if not subjects:
         subjects = _extract_subjects(attendance_rows, {})
@@ -85,19 +86,44 @@ def resolve_and_cache_subjects_for_student(
         )
         return False
 
-    schedule = _parse_timetable_from_text(notice.cleaned_text)
+    # Step 2: find the timetable notice that MATCHES this student's subjects
+    # This is critical — using student_subjects ensures we pick the right notice
+    # (e.g. semester 3/5/7 notice, not an induction/deeksharambh notice)
+    best_notice = _find_latest_timetable_notice(student_subjects=subjects) or bootstrap_notice
+
+    # Re-build lookup from the best notice (may differ from bootstrap_notice)
+    if best_notice.notice_id != bootstrap_notice.notice_id:
+        abbr_lookup = _build_abbr_lookup(best_notice.cleaned_text or "")
+        resolved = _extract_subjects(attendance_rows, abbr_lookup)
+        if resolved:
+            subjects = resolved
+
+    schedule = _parse_timetable_from_text(best_notice.cleaned_text or "")
     has_matches = bool(schedule and _match_student_classes(schedule, subjects))
 
     subjects_json = json.dumps(subjects)
     with SessionLocal() as session:
-        updated = (
-            session.query(PushSubscription)
-            .filter(PushSubscription.roll_number == roll_number)
-            .update(
-                {"cached_subjects_json": subjects_json, "has_timetable": has_matches},
-                synchronize_session=False,
+        if has_matches:
+            # Only update has_timetable when we have a confirmed match
+            updated = (
+                session.query(PushSubscription)
+                .filter(PushSubscription.roll_number == roll_number)
+                .update(
+                    {"cached_subjects_json": subjects_json, "has_timetable": True},
+                    synchronize_session=False,
+                )
             )
-        )
+        else:
+            # No match found — update subjects but DO NOT flip has_timetable to False
+            # if it was already True (a previous run may have matched a different notice)
+            updated = (
+                session.query(PushSubscription)
+                .filter(PushSubscription.roll_number == roll_number)
+                .update(
+                    {"cached_subjects_json": subjects_json},
+                    synchronize_session=False,
+                )
+            )
         session.commit()
 
     logger.info(
@@ -110,22 +136,12 @@ def resolve_and_cache_subjects_for_student(
 
 def refresh_all_subscribers_from_timetable(notice_id: int | None = None) -> dict:
     """
-    Parse the timetable once and bulk-update every push subscriber's subjects.
+    Re-validate every push subscriber's has_timetable flag against timetable notices.
     Zero portal requests — operates entirely on data already in the DB.
 
-    Called by notice_dispatcher whenever a new timetable notice is scraped.
-
-    Strategy per subscriber:
-      - Has cached_subjects_json → re-validate against the new timetable and
-        update has_timetable flag (subjects stay the same; new timetable may
-        have different section mappings).
-      - Has no cached_subjects_json → cannot resolve without attendance rows.
-        These students will be resolved by the background_fetcher on its next
-        cycle, or immediately on their next login via the /push/subscribe hook.
-
-    Args:
-        notice_id: The specific new timetable notice_id (optional). If not
-            provided, the latest timetable notice is used.
+    When notice_id is given, validates against that specific notice first, then
+    falls back to per-student best-match notice for those who don't match.
+    When no notice_id given, uses per-student best-match notice for everyone.
 
     Returns:
         Stats dict: {total, updated_has_match, updated_no_match, skipped_no_subjects}.
@@ -137,29 +153,21 @@ def refresh_all_subscribers_from_timetable(notice_id: int | None = None) -> dict
     )
     from db.models.notice import Notice
 
-    # 1. Load the timetable notice (already in DB — no network)
+    # Pre-load specific notice if given
+    specific_notice = None
+    specific_schedule = None
     if notice_id is not None:
         with SessionLocal() as session:
-            notice = session.query(Notice).filter(Notice.notice_id == notice_id).one_or_none()
-    else:
-        notice = _find_latest_timetable_notice(student_subjects=None)
+            specific_notice = session.query(Notice).filter(Notice.notice_id == notice_id).one_or_none()
+        if specific_notice and specific_notice.cleaned_text:
+            specific_schedule = _parse_timetable_from_text(specific_notice.cleaned_text)
+            if specific_schedule:
+                logger.info(
+                    "refresh_all_subscribers: parsed %d entries from notice %d",
+                    len(specific_schedule), specific_notice.notice_id,
+                )
 
-    if not notice or not notice.cleaned_text:
-        logger.warning("refresh_all_subscribers: no timetable notice available")
-        return {"total": 0, "updated_has_match": 0, "updated_no_match": 0, "skipped_no_subjects": 0}
-
-    # 2. Parse the timetable once — O(1) per notice, not per student
-    schedule = _parse_timetable_from_text(notice.cleaned_text)
-    if not schedule:
-        logger.warning("refresh_all_subscribers: could not parse schedule from notice %d", notice.notice_id)
-        return {"total": 0, "updated_has_match": 0, "updated_no_match": 0, "skipped_no_subjects": 0}
-
-    logger.info(
-        "refresh_all_subscribers: parsed %d schedule entries from notice %d",
-        len(schedule), notice.notice_id,
-    )
-
-    # 3. Load all distinct push subscribers and their cached subjects
+    # Load all distinct push subscribers and their cached subjects
     with SessionLocal() as session:
         rows = (
             session.query(
@@ -177,7 +185,6 @@ def refresh_all_subscribers_from_timetable(notice_id: int | None = None) -> dict
         "skipped_no_subjects": 0,
     }
 
-    # Build bulk-update lists to do this in two DB round-trips instead of N
     rolls_with_match: list[str] = []
     rolls_without_match: list[str] = []
 
@@ -196,9 +203,20 @@ def refresh_all_subscribers_from_timetable(notice_id: int | None = None) -> dict
             stats["skipped_no_subjects"] += 1
             continue
 
-        # Match this student's subjects against the new timetable schedule
-        matches = _match_student_classes(schedule, subjects)
-        if matches:
+        # Try the specific notice first (fast path for timetable-change dispatch)
+        matched = False
+        if specific_schedule:
+            matched = bool(_match_student_classes(specific_schedule, subjects))
+
+        # If specific notice didn't match, find the best notice for this student
+        if not matched:
+            best_notice = _find_latest_timetable_notice(student_subjects=subjects)
+            if best_notice and best_notice.cleaned_text:
+                best_schedule = _parse_timetable_from_text(best_notice.cleaned_text)
+                if best_schedule:
+                    matched = bool(_match_student_classes(best_schedule, subjects))
+
+        if matched:
             rolls_with_match.append(roll_number)
         else:
             rolls_without_match.append(roll_number)
