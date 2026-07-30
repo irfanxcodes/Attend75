@@ -25,6 +25,14 @@ const gameRegistry = {
     maxScore: 200,
     component: lazy(() => import('./games/StackGame')),
   },
+  helix: {
+    slug: 'helix',
+    title: 'Helix Jump',
+    description: 'Drag to rotate platforms, fall through gaps!',
+    thumbnail: '/assets/arcade/helix-thumb.webp',
+    maxScore: 200,
+    component: lazy(() => import('./games/HelixGame')),
+  },
   // Future games added here
 }
 

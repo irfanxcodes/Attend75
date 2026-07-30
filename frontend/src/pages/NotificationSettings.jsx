@@ -370,8 +370,6 @@ function NotificationSettings() {
       {isSubscribed && /Android/i.test(navigator.userAgent) && (
         <BatteryOptimizationTip />
       )}
-        <BatteryOptimizationTip />
-      )}
 
       {/* PWA install nudge — installed PWAs get more reliable background push */}
       {isSubscribed && !window.matchMedia('(display-mode: standalone)').matches && /Android/i.test(navigator.userAgent) && (

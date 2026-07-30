@@ -183,6 +183,7 @@ function GameHeroCard({ game, personalBest, navigate }) {
   if (game.slug === 'flappy') return <FlappyHeroCard game={game} personalBest={personalBest} navigate={navigate} />
   if (game.slug === 'pacman') return <PacmanHeroCard game={game} personalBest={personalBest} navigate={navigate} />
   if (game.slug === 'stack') return <StackHeroCard game={game} personalBest={personalBest} navigate={navigate} />
+  if (game.slug === 'helix') return <HelixHeroCard game={game} personalBest={personalBest} navigate={navigate} />
   return <GenericHeroCard game={game} personalBest={personalBest} navigate={navigate} />
 }
 
@@ -267,6 +268,45 @@ function PacmanHeroCard({ game, personalBest, navigate }) {
         <div className="relative z-10 mt-3">
           <span className="text-lg font-extrabold tracking-wider text-[#FFFF00] drop-shadow-sm">{game.title}</span>
         </div>
+      </div>
+      <CardFooter game={game} personalBest={personalBest} navigate={navigate} />
+    </div>
+  )
+}
+
+function HelixHeroCard({ game, personalBest, navigate }) {
+  return (
+    <div>
+      <div className="relative flex h-52 flex-col items-center justify-center overflow-hidden bg-[#1A1A2E]">
+        {/* Glowing rings */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          {[90, 70, 50, 30].map((r, i) => (
+            <div key={i} className="absolute rounded-full border-2 border-opacity-30"
+              style={{ width: r * 2, height: r * 2, borderColor: ['#FF6B6B','#FF9F43','#48DBFB','#5F27CD'][i], opacity: 0.4 - i * 0.08 }} />
+          ))}
+        </div>
+        {/* Platform slices */}
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="absolute rounded-full"
+            style={{
+              width: 160, height: 22,
+              top: `${28 + i * 22}%`,
+              left: '50%', transform: `translateX(-50%) rotate(${i * 25}deg)`,
+              background: ['#FF6B6B','#FF9F43','#48DBFB','#1DD1A1'][i],
+              opacity: 0.85,
+              clipPath: 'inset(0 30% 0 0 round 50%)',
+            }} />
+        ))}
+        {/* Ball */}
+        <div className="relative z-10 h-5 w-5 rounded-full bg-white shadow-[0_0_12px_4px_rgba(255,255,255,0.6)]" style={{ marginTop: '-10px' }} />
+        <div className="relative z-10 mt-3">
+          <span className="text-lg font-extrabold tracking-wider text-white drop-shadow-md">{game.title}</span>
+        </div>
+        {personalBest != null && (
+          <div className="absolute top-3 left-3 rounded-md bg-black/50 px-2 py-1">
+            <span className="text-[9px] font-bold text-[#48DBFB]">BEST {personalBest}</span>
+          </div>
+        )}
       </div>
       <CardFooter game={game} personalBest={personalBest} navigate={navigate} />
     </div>
@@ -370,6 +410,13 @@ function CardFooter({ game, personalBest, navigate }) {
               <rect x="20" y="32" width="24" height="8" fill="#FFC107" rx="1" />
               <rect x="22" y="24" width="20" height="8" fill="#FF9800" rx="1" />
               <rect x="24" y="16" width="16" height="8" fill="#FF5722" rx="1" />
+            </svg>
+          ) : game.slug === 'helix' ? (
+            <svg width="28" height="28" viewBox="0 0 64 64" fill="none">
+              <circle cx="32" cy="32" r="24" stroke="#48DBFB" strokeWidth="3" fill="none" opacity="0.6"/>
+              <circle cx="32" cy="32" r="16" stroke="#FF6B6B" strokeWidth="3" fill="none" opacity="0.6"/>
+              <circle cx="32" cy="32" r="8" stroke="#FF9F43" strokeWidth="3" fill="none" opacity="0.6"/>
+              <circle cx="32" cy="32" r="4" fill="white"/>
             </svg>
           ) : (
             <span className="text-xl">🎮</span>
