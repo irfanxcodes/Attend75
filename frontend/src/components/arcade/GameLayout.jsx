@@ -59,7 +59,7 @@ async function flushQueue(token) {
  */
 function GameLayout({ gameSlug, children }) {
   const navigate = useNavigate()
-  const { state, actions } = useAppStore()
+  const { state } = useAppStore()
   const token = state.session.token
 
   const game = gameRegistry[gameSlug]
@@ -67,6 +67,7 @@ function GameLayout({ gameSlug, children }) {
 
   // --- State ---
   const [currentScore, setCurrentScore] = useState(0)
+  const [currentCoins, setCurrentCoins] = useState(0)
   const [isGameOver, setIsGameOver] = useState(false)
   const [submissionResult, setSubmissionResult] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -75,16 +76,24 @@ function GameLayout({ gameSlug, children }) {
   const hasSubmittedRef = useRef(false)
 
   // --- Callbacks ---
-  const handleScoreUpdate = useCallback((score) => {
+  const handleScoreUpdate = useCallback((score, coins = 0) => {
     setCurrentScore(score)
+    setCurrentCoins(coins)
   }, [])
 
-  const handleGameEnd = useCallback(async (finalScore) => {
+  const handleGameEnd = useCallback(async (finalScore, finalCoins = 0) => {
     if (hasSubmittedRef.current) return
     hasSubmittedRef.current = true
 
     setCurrentScore(finalScore)
+    setCurrentCoins(finalCoins)
     setIsGameOver(true)
+
+    // Don't attempt score submission for zero or invalid scores
+    if (!finalScore || finalScore <= 0) {
+      setIsSubmitting(false)
+      return
+    }
 
     // Don't attempt score submission if not authenticated
     if (!token) {
@@ -98,9 +107,12 @@ function GameLayout({ gameSlug, children }) {
       const result = await submitScore(token, gameSlug, finalScore)
       setSubmissionResult(result)
     } catch (err) {
+      // On 401: session expired — show a message but do NOT redirect away.
+      // The user is mid-game; silently queue the score instead.
       if (err.status === 401) {
-        actions.logout()
-        navigate('/login', { replace: true })
+        saveToQueue(gameSlug, finalScore)
+        setSubmissionResult(null)
+        setIsSubmitting(false)
         return
       }
 
@@ -110,10 +122,11 @@ function GameLayout({ gameSlug, children }) {
     } finally {
       setIsSubmitting(false)
     }
-  }, [token, gameSlug, navigate, actions])
+  }, [token, gameSlug])
 
   const handleRestart = useCallback(() => {
     setCurrentScore(0)
+    setCurrentCoins(0)
     setIsGameOver(false)
     setSubmissionResult(null)
     setIsSubmitting(false)
@@ -131,9 +144,16 @@ function GameLayout({ gameSlug, children }) {
 
   // --- Render ---
   return (
-    <div className="mx-auto flex max-w-md flex-col items-center gap-3 pb-4">
-      {/* Header: Back button + Title + Score */}
-      <div className="flex w-full items-center justify-between rounded-xl bg-[#4A466A] px-4 py-3">
+    <div
+      className="fixed inset-x-0 flex flex-col bg-[#0a0e1a]"
+      style={{
+        top: 0,
+        bottom: 'calc(72px + env(safe-area-inset-bottom, 0px))',
+        zIndex: 10,
+      }}
+    >
+      {/* Header bar */}
+      <div className="flex shrink-0 items-center justify-between bg-[#2D2845]/95 px-4 py-3 backdrop-blur-sm border-b border-white/10">
         <button
           type="button"
           onClick={() => navigate('/app/arcade')}
@@ -148,71 +168,83 @@ function GameLayout({ gameSlug, children }) {
 
         <div className="min-w-[60px] text-right">
           {!isGameOver && (
-            <span className="text-sm font-semibold text-[#F7F4FF]/80">
-              Score: {currentScore}
+            <span className="text-sm font-semibold text-[#4EF0A0]">
+              {currentScore > 0 ? currentScore : ''}
             </span>
           )}
         </div>
       </div>
 
-      {/* Game area */}
-      <div className="relative w-full">
-        {typeof children === 'function'
-          ? children({
-              onGameEnd: handleGameEnd,
-              onScoreUpdate: handleScoreUpdate,
-              onRestart: handleRestart,
-              isActive: !isGameOver,
-            })
-          : children}
+      {/* Game canvas area — 16:9 container, full width, centered vertically */}
+      <div className="relative flex-1 min-h-0 flex items-center justify-center bg-[#0a0e1a]">
+        {/* 1:1 box matching the game's 480×480 logical world */}
+        <div
+          className="relative w-full"
+          style={{ aspectRatio: '1/1', maxHeight: '100%' }}
+        >
+          {typeof children === 'function'
+            ? children({
+                onGameEnd: handleGameEnd,
+                onScoreUpdate: handleScoreUpdate,
+                onRestart: handleRestart,
+                isActive: !isGameOver,
+              })
+            : children}
 
-        {/* Game-over overlay */}
-        {isGameOver && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-xl">
-            <div className="flex w-[90%] max-w-sm flex-col items-center gap-4 rounded-2xl bg-[#4A466A] p-6 shadow-xl">
-              <h2 className="text-xl font-bold text-[#F7F4FF]">Game Over</h2>
+          {/* Game-over overlay */}
+          {isGameOver && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+              <div className="flex w-[88%] max-w-sm flex-col items-center gap-4 rounded-2xl bg-[#2D2845] p-6 shadow-xl ring-1 ring-white/10">
+                <h2 className="text-xl font-bold text-[#F7F4FF]">Game Over</h2>
 
-              {/* Final score */}
-              <p className="text-3xl font-extrabold text-[#F7F4FF]">{currentScore}</p>
-              <p className="text-xs text-[#F7F4FF]/60">Final Score</p>
+                <p className="text-4xl font-extrabold text-[#F7F4FF]">{currentScore}</p>
+                <p className="text-xs text-[#F7F4FF]/50">Final Score</p>
 
-              {/* Submission result */}
-              {isSubmitting && (
-                <p className="text-sm text-[#F7F4FF]/70">Saving score...</p>
-              )}
+                {currentCoins > 0 && (
+                  <div className="flex items-center gap-2 rounded-full bg-[#ffd700]/15 px-4 py-1.5">
+                    <span className="text-base leading-none">🪙</span>
+                    <span className="text-sm font-bold text-[#ffd700]">
+                      {currentCoins} coin{currentCoins !== 1 ? 's' : ''} collected
+                    </span>
+                  </div>
+                )}
 
-              {submissionResult && (
-                <div className="flex w-full flex-col gap-1 rounded-lg bg-white/5 px-4 py-3 text-center">
-                  <p className="text-sm text-[#F7F4FF]/80">
-                    Personal Best: <span className="font-bold text-[#F7F4FF]">{submissionResult.personal_best}</span>
-                  </p>
-                  <p className="text-sm text-[#F7F4FF]/80">
-                    Rank: <span className="font-bold text-[#F7F4FF]">#{submissionResult.rank}</span>
-                  </p>
+                {isSubmitting && (
+                  <p className="text-sm text-[#F7F4FF]/70">Saving score…</p>
+                )}
+
+                {submissionResult && (
+                  <div className="flex w-full flex-col gap-1 rounded-xl bg-white/5 px-4 py-3 text-center">
+                    <p className="text-sm text-[#F7F4FF]/80">
+                      Personal Best: <span className="font-bold text-[#4EF0A0]">{submissionResult.personal_best}</span>
+                    </p>
+                    <p className="text-sm text-[#F7F4FF]/80">
+                      Rank: <span className="font-bold text-[#4EF0A0]">#{submissionResult.rank}</span>
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex w-full flex-col gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={handleRestart}
+                    className="flex-1 rounded-full bg-[#FF916C] py-3 text-sm font-bold text-[#1D183E] transition active:scale-[0.97]"
+                  >
+                    Play Again
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleViewLeaderboard}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-full border border-[#F7F4FF]/20 py-3 text-sm font-semibold text-[#F7F4FF] transition hover:bg-white/5 active:scale-[0.97]"
+                  >
+                    <Trophy size={16} />
+                    Leaderboard
+                  </button>
                 </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex w-full flex-col gap-2 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={handleRestart}
-                  className="flex-1 rounded-full bg-[#FF916C] py-2.5 text-sm font-bold text-[#1D183E] transition active:scale-[0.97]"
-                >
-                  Play Again
-                </button>
-                <button
-                  type="button"
-                  onClick={handleViewLeaderboard}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-full border border-[#F7F4FF]/20 py-2.5 text-sm font-semibold text-[#F7F4FF] transition hover:bg-white/5 active:scale-[0.97]"
-                >
-                  <Trophy size={16} />
-                  Leaderboard
-                </button>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   )

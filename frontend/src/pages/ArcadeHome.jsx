@@ -183,6 +183,7 @@ function GameHeroCard({ game, personalBest, navigate }) {
   if (game.slug === 'flappy') return <FlappyHeroCard game={game} personalBest={personalBest} navigate={navigate} />
   if (game.slug === 'pacman') return <PacmanHeroCard game={game} personalBest={personalBest} navigate={navigate} />
   if (game.slug === 'stack') return <StackHeroCard game={game} personalBest={personalBest} navigate={navigate} />
+  if (game.slug === 'geodash') return <GeodashHeroCard game={game} personalBest={personalBest} navigate={navigate} />
   return <GenericHeroCard game={game} personalBest={personalBest} navigate={navigate} />
 }
 
@@ -267,6 +268,45 @@ function PacmanHeroCard({ game, personalBest, navigate }) {
         <div className="relative z-10 mt-3">
           <span className="text-lg font-extrabold tracking-wider text-[#FFFF00] drop-shadow-sm">{game.title}</span>
         </div>
+      </div>
+      <CardFooter game={game} personalBest={personalBest} navigate={navigate} />
+    </div>
+  )
+}
+
+function GeodashHeroCard({ game, personalBest, navigate }) {
+  return (
+    <div>
+      <div className="relative flex h-52 flex-col items-center justify-center overflow-hidden bg-[#0a1628]">
+        {/* Grid lines */}
+        <div className="absolute inset-0 opacity-10">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="absolute top-0 bottom-0 w-px bg-[#00ff87]" style={{ left: `${15 + i * 14}%` }} />
+          ))}
+        </div>
+        {/* Ground */}
+        <div className="absolute bottom-0 left-0 right-0 h-8 bg-[#1a4a7a]" />
+        <div className="absolute bottom-8 left-0 right-0 h-0.5 bg-white" />
+        {/* Spikes */}
+        {[20, 35, 55, 70].map((left, i) => (
+          <div key={i} className="absolute bottom-8" style={{ left: `${left}%` }}>
+            <div className="w-0 h-0" style={{ borderLeft: '8px solid transparent', borderRight: '8px solid transparent', borderBottom: '14px solid #ccc' }} />
+          </div>
+        ))}
+        {/* Player cube */}
+        <div className="absolute bottom-[38px] left-[12%] h-7 w-7 rounded-sm bg-[#00ff87] border-2 border-black flex items-center justify-center">
+          <div className="h-3 w-3 bg-white rounded-sm opacity-60" />
+        </div>
+        {/* Title */}
+        <div className="relative z-10 mb-12 text-center">
+          <span className="text-lg font-extrabold tracking-wider text-[#00ff87] drop-shadow-[0_0_8px_rgba(0,255,135,0.5)]">{game.title}</span>
+        </div>
+        {/* Score badge */}
+        {personalBest != null && (
+          <div className="absolute top-3 left-3 rounded-md bg-[#00ff87]/15 px-2 py-1">
+            <span className="text-[9px] font-bold text-[#00ff87]">BEST {personalBest}</span>
+          </div>
+        )}
       </div>
       <CardFooter game={game} personalBest={personalBest} navigate={navigate} />
     </div>
@@ -370,6 +410,14 @@ function CardFooter({ game, personalBest, navigate }) {
               <rect x="20" y="32" width="24" height="8" fill="#FFC107" rx="1" />
               <rect x="22" y="24" width="20" height="8" fill="#FF9800" rx="1" />
               <rect x="24" y="16" width="16" height="8" fill="#FF5722" rx="1" />
+            </svg>
+          ) : game.slug === 'geodash' ? (
+            <svg width="28" height="28" viewBox="0 0 64 64" fill="none">
+              <rect x="8" y="44" width="48" height="6" fill="#1a4a7a" rx="1"/>
+              <polygon points="16,44 22,30 28,44" fill="#ccc"/>
+              <polygon points="32,44 38,30 44,44" fill="#ccc"/>
+              <rect x="8" y="34" width="10" height="10" fill="#00ff87" rx="2"/>
+              <rect x="11" y="37" width="4" height="4" fill="white" rx="1" opacity="0.6"/>
             </svg>
           ) : (
             <span className="text-xl">🎮</span>

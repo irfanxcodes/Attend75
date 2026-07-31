@@ -25,6 +25,14 @@ const gameRegistry = {
     maxScore: 200,
     component: lazy(() => import('./games/StackGame')),
   },
+  geodash: {
+    slug: 'geodash',
+    title: 'Geometry Dash',
+    description: 'Jump and fly through obstacles!',
+    thumbnail: '/assets/arcade/geodash-thumb.webp',
+    maxScore: 9999,
+    component: lazy(() => import('./games/GeodashGame')),
+  },
   // Future games added here
   // Future games added here
 }

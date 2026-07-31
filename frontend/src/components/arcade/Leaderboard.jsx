@@ -120,8 +120,13 @@ function LeaderboardRow({ entry, isCurrentUser, isPinned }) {
         {isCurrentUser && <span className="ml-1.5 text-[10px] font-semibold text-[#FF916C]">(you)</span>}
       </span>
 
-      {/* Score */}
-      <span className="shrink-0 text-base font-bold text-[#4EF0A0]">{entry.score}</span>
+      {/* Score + coins */}
+      <div className="shrink-0 flex flex-col items-end gap-0.5">
+        <span className="text-base font-bold text-[#4EF0A0]">{entry.score}</span>
+        {entry.coins > 0 && (
+          <span className="text-[10px] font-semibold text-[#ffd700]">🪙 {entry.coins}</span>
+        )}
+      </div>
     </div>
   )
 }
