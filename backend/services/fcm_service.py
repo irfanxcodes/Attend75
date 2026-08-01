@@ -33,6 +33,13 @@ def register_fcm_token(roll_number: str, fcm_token: str, device_info: str = "") 
     now = datetime.now(timezone.utc)
 
     with SessionLocal() as session:
+        # Remove this FCM token from any OTHER roll number to prevent
+        # cross-account notification leakage after account switching.
+        session.query(PushSubscription).filter(
+            PushSubscription.roll_number != roll_number,
+            PushSubscription.fcm_token == fcm_token,
+        ).update({"fcm_token": None}, synchronize_session=False)
+
         # Find existing Web Push subscription for this roll + device
         existing = (
             session.query(PushSubscription)

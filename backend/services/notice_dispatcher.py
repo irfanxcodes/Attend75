@@ -87,7 +87,8 @@ def dispatch_for_new_notices(notice_ids: list[int]) -> int:
             for notice in timetable_notices:
                 targets = _subscribed_students_for_program(notice.source_program)
                 all_timetable_targets.update(targets)
-                notice.notification_sent_at = now
+                notice.notification_sent_at = now  # stamp eagerly before enqueuing
+            session.flush()  # persist stamps before enqueuing jobs
 
             for roll in all_timetable_targets:
                 payload = build_payload(
@@ -125,15 +126,17 @@ def dispatch_for_new_notices(notice_ids: list[int]) -> int:
                 logger.warning("Failed to start timetable reschedule thread: %s", refresh_exc)
 
         # Handle regular notices — with batch consolidation
+        # Stamp notification_sent_at BEFORE enqueuing so a mid-loop exception
+        # cannot leave a notice unguarded (causing re-dispatch on next cycle).
+        for notice in regular_notices:
+            notice.notification_sent_at = now
+        session.flush()  # write stamps to DB before enqueuing jobs
+
         if len(regular_notices) > BATCH_CONSOLIDATION_THRESHOLD:
             enqueued_count += _dispatch_consolidated(regular_notices, now, session)
         else:
             for notice in regular_notices:
                 enqueued_count += _dispatch_single_notice(notice, now)
-
-        # Mark all as sent
-        for notice in regular_notices:
-            notice.notification_sent_at = now
 
         session.commit()
 

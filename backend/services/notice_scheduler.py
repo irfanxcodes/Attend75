@@ -142,14 +142,13 @@ class NoticeScheduler:
 
 
 def _filter_new_notices(notices: list[dict]) -> list[dict]:
-    """Return only notices not yet in the database."""
+    """Return only notices not yet in the database (any processing status)."""
     notice_ids = [n["notice_id"] for n in notices]
     with SessionLocal() as session:
         existing_ids = set(
             row[0] for row in
             session.query(Notice.notice_id)
             .filter(Notice.notice_id.in_(notice_ids))
-            .filter(Notice.processing_status == "done")
             .all()
         )
     return [n for n in notices if n["notice_id"] not in existing_ids]

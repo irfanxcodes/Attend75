@@ -271,6 +271,12 @@ def _store_notice(*, notice_id, title, portal_date, category, category_confidenc
             existing.processing_status = "done"
             existing.source_program = source_program
             existing.updated_at = now
+            # Preserve notification_sent_at — if it was already stamped, keep it.
+            # If it's still NULL on an existing notice, stamp it now to prevent
+            # re-dispatching a notice that was processed before the notification
+            # system existed (or was previously failed and retried).
+            if existing.notification_sent_at is None:
+                existing.notification_sent_at = now
         else:
             notice = Notice(
                 notice_id=notice_id,
@@ -308,6 +314,10 @@ def _mark_failed(notice_id, title, portal_date, pdf_url_path, source_program):
         if existing:
             existing.processing_status = "failed"
             existing.updated_at = now
+            # Stamp notification_sent_at so the dispatcher never sends a
+            # notification for a failed (unparseable) notice.
+            if existing.notification_sent_at is None:
+                existing.notification_sent_at = now
         else:
             notice = Notice(
                 notice_id=notice_id,

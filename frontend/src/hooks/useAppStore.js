@@ -56,19 +56,36 @@ function useAppStore() {
           }
         } catch {
           // Ensure local logout still proceeds if Firebase sign-out fails.
-        } finally {
-          window.localStorage.removeItem('attend75.selectedSemester')
-          window.localStorage.setItem(
-            'attend75.authEvent',
-            JSON.stringify({ type: 'logout', ts: Date.now() }),
-          )
-
-          // Clear persisted PWA session and cached data
-          clearPersistedSession()
-          clearAllCachedData()
-
-          dispatch({ type: 'LOGOUT' })
         }
+
+        // Unsubscribe push notifications for this device before clearing session.
+        // This removes the device endpoint from the backend so this roll number
+        // stops receiving push notifications after logout.
+        try {
+          const token = state.session?.token
+          if (token && 'serviceWorker' in navigator && 'PushManager' in window) {
+            const registration = await navigator.serviceWorker.ready
+            const subscription = await registration.pushManager.getSubscription()
+            if (subscription) {
+              const { unsubscribePush } = await import('../services/pushApi')
+              await unsubscribePush({ token, endpoint: subscription.endpoint })
+            }
+          }
+        } catch {
+          // Non-critical — local logout still proceeds even if push unsubscribe fails.
+        }
+
+        window.localStorage.removeItem('attend75.selectedSemester')
+        window.localStorage.setItem(
+          'attend75.authEvent',
+          JSON.stringify({ type: 'logout', ts: Date.now() }),
+        )
+
+        // Clear persisted PWA session and cached data
+        clearPersistedSession()
+        clearAllCachedData()
+
+        dispatch({ type: 'LOGOUT' })
       },
       setAttendanceData: (attendanceData) => {
         dispatch({ type: 'SET_ATTENDANCE_DATA', payload: attendanceData })

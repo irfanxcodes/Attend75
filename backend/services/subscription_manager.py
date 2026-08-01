@@ -113,6 +113,33 @@ def register_subscription(
     encrypted_auth = credential_crypto_service.encrypt(auth_key)
 
     with SessionLocal() as session:
+        # Before upserting, remove this endpoint from any OTHER roll number.
+        # This prevents the same device from receiving notifications for a
+        # previously logged-in account after the user has switched accounts.
+        # (Belt-and-suspenders: logout already unsubscribes, but this catches
+        # cases where logout failed — browser closed, network error, etc.)
+        all_other_rows = (
+            session.query(PushSubscription)
+            .filter(PushSubscription.roll_number != roll_number)
+            .all()
+        )
+        for other_row in all_other_rows:
+            try:
+                if credential_crypto_service.decrypt(other_row.endpoint) == endpoint:
+                    session.delete(other_row)
+                    logger.info(
+                        "register_subscription: removed stale endpoint from roll=%s (new owner: %s)",
+                        other_row.roll_number,
+                        roll_number,
+                    )
+            except Exception:
+                continue
+        if any(
+            True for r in all_other_rows
+            if r in session.deleted
+        ):
+            session.flush()
+
         # Upsert by matching decrypted endpoint. Since endpoints are encrypted
         # at rest with a deterministic-per-value but non-comparable ciphertext
         # (Fernet includes a random IV), we cannot query by encrypted_endpoint

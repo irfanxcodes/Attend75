@@ -34,6 +34,34 @@ app = FastAPI(title="Attend75 Backend", version="0.1.0")
 logger = logging.getLogger("attend75.request")
 
 
+def _backfill_notification_sent_at() -> None:
+    """
+    One-time startup fix: stamp notification_sent_at = now on every notice row
+    that still has it NULL. These are notices that were scraped/processed before
+    the push notification system existed, or were previously in a failed state.
+    Without this, the dispatcher would see them as unsent and fire notifications
+    for all of them on the next scrape cycle.
+    """
+    try:
+        from datetime import datetime
+        from db.session import SessionLocal
+        from db.models.notice import Notice
+        now = datetime.utcnow()
+        with SessionLocal() as session:
+            updated = (
+                session.query(Notice)
+                .filter(Notice.notification_sent_at.is_(None))
+                .update({"notification_sent_at": now}, synchronize_session=False)
+            )
+            session.commit()
+        if updated:
+            logging.getLogger(__name__).info(
+                "Startup: stamped notification_sent_at on %d existing notices (one-time backfill)", updated
+            )
+    except Exception as exc:
+        logging.getLogger(__name__).warning("Startup backfill failed (non-fatal): %s", exc)
+
+
 def _cors_origins() -> list[str]:
     raw = os.getenv("CORS_ALLOW_ORIGINS", "").strip()
     if raw:
@@ -57,6 +85,10 @@ def _cors_origin_regex() -> str:
 @app.on_event("startup")
 async def startup_event() -> None:
     init_database()
+    # One-time cleanup: stamp notification_sent_at on all existing notices that
+    # have it NULL. These are notices that existed before the notification system
+    # or were previously failed/retried — they should never trigger new alerts.
+    _backfill_notification_sent_at()
     # Start the notice scheduler (30-min background refresh)
     from services.notice_scheduler import notice_scheduler
     notice_scheduler.start()
