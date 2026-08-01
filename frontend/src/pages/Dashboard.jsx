@@ -17,6 +17,11 @@ import { calculateTotalAbsents } from '../utils/dashboardMetrics'
 import { loadAttendanceSnapshot } from '../services/sessionPersistence'
 import StaleDataBadge from '../components/common/StaleDataBadge'
 import ArcadeBanner from '../components/arcade/ArcadeBanner'
+import { fetchActiveAdvertisement } from '../services/advertisementApi'
+
+const AD_MEDIA_BASE = import.meta.env.DEV
+  ? 'http://127.0.0.1:8000'
+  : (String(import.meta.env.VITE_API_BASE_URL || '').trim() || '/api')
 
 function formatPercentage(value) {
   const num = Number(value) || 0
@@ -164,6 +169,7 @@ function Dashboard() {
   const prediction = useMemo(() => calculatePrediction(subjects, selectedTarget), [subjects, selectedTarget])
   const hasSyncedSavedSemester = useRef(false)
   const [mailsSent, setMailsSent] = useState(0)
+  const [activeAd, setActiveAd] = useState(null)
   const [mobileTargetExpanded, setMobileTargetExpanded] = useState(false)
   const totals = useMemo(
     () =>
@@ -187,6 +193,11 @@ function Dashboard() {
     if (!session.token || isDemo) { setMailsSent(0); return }
     fetchMailsSentCount(session.token).then(setMailsSent)
   }, [session.token, subjects, isDemo])
+
+  // Fetch active advertisement — silently falls back to null if none
+  useEffect(() => {
+    fetchActiveAdvertisement().then(setActiveAd)
+  }, [])
 
   const status = useMemo(() => {
     if (overallPercentage > 75) return 'safe'
@@ -365,18 +376,58 @@ function Dashboard() {
           <div className="rounded-lg border border-[#FF5B5B]/40 bg-[#FF5B5B]/15 px-3 py-1.5 text-[11px] text-[#F7F4FF]">{ui.error}</div>
         ) : null}
 
-        {/* Quick stats banner */}
-        <div data-walkthrough="quick-stats" className="flex items-center gap-3 rounded-xl bg-[#4A466A] px-3 py-2.5 ring-1 ring-white/5">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#49706D]">
-            <Check className="h-4 w-4 text-[#4EF0A0]" strokeWidth={2.5} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-[#F7F4FF]">
-              {prediction.canMiss > 0 ? `${prediction.canMiss}-day buffer` : `${prediction.toAttend} to attend`}
-            </p>
-            <p className="text-[10px] text-[#9F9AB5]">{subjectsBelowTarget} below target · {mailsSent} mails sent</p>
+        {/* Quick stats banner — replaced by ad banner when an active ad exists */}
+        {activeAd ? (
+          <div data-walkthrough="quick-stats" className="relative overflow-hidden rounded-xl ring-1 ring-white/5">
+            {/* Sponsored label */}
+            <span className="absolute left-2 top-1.5 z-10 rounded-full bg-black/50 px-2 py-0.5 text-[8px] font-bold uppercase tracking-wide text-white/60">
+              Sponsored
+            </span>
+            {activeAd.link_url ? (
+              <a href={activeAd.link_url} target="_blank" rel="noopener noreferrer" className="block">
+                {activeAd.media_type === 'video' ? (
+                  <video
+                    src={`${AD_MEDIA_BASE}/uploads/ads/${activeAd.file_path}`}
+                    className="h-[72px] w-full object-cover"
+                    muted autoPlay loop playsInline
+                  />
+                ) : (
+                  <img
+                    src={`${AD_MEDIA_BASE}/uploads/ads/${activeAd.file_path}`}
+                    alt={activeAd.advertiser_name || 'Sponsored'}
+                    className="h-[72px] w-full object-cover"
+                  />
+                )}
+              </a>
+            ) : (
+              activeAd.media_type === 'video' ? (
+                <video
+                  src={`${AD_MEDIA_BASE}/uploads/ads/${activeAd.file_path}`}
+                  className="h-[72px] w-full object-cover"
+                  muted autoPlay loop playsInline
+                />
+              ) : (
+                <img
+                  src={`${AD_MEDIA_BASE}/uploads/ads/${activeAd.file_path}`}
+                  alt={activeAd.advertiser_name || 'Sponsored'}
+                  className="h-[72px] w-full object-cover"
+                />
+              )
+            )}
           </div>
-        </div>
+        ) : (
+          <div data-walkthrough="quick-stats" className="flex items-center gap-3 rounded-xl bg-[#4A466A] px-3 py-2.5 ring-1 ring-white/5">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#49706D]">
+              <Check className="h-4 w-4 text-[#4EF0A0]" strokeWidth={2.5} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-[#F7F4FF]">
+                {prediction.canMiss > 0 ? `${prediction.canMiss}-day buffer` : `${prediction.toAttend} to attend`}
+              </p>
+              <p className="text-[10px] text-[#9F9AB5]">{subjectsBelowTarget} below target · {mailsSent} mails sent</p>
+            </div>
+          </div>
+        )}
 
         {/* Attendance card with mesh gradient glow */}
         <div

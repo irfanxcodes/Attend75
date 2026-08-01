@@ -12,13 +12,17 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi import Request
+from fastapi.staticfiles import StaticFiles
 
 from db.session import init_database
+from routers.advertisement import router as advertisement_router
 from routers.arcade import router as arcade_router
 from routers.auth import router as auth_router
 from routers.admin import router as admin_router
@@ -221,6 +225,7 @@ async def health_check():
 
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(advertisement_router)
 app.include_router(arcade_router)
 app.include_router(feedback_router)
 app.include_router(firebase_auth_router)
@@ -228,3 +233,8 @@ app.include_router(notices_router)
 app.include_router(push_router)
 app.include_router(premium_router)
 app.include_router(studyme_router)
+
+# Serve uploaded ad media (images/videos) as static files
+_uploads_dir = Path(__file__).resolve().parent / "uploads"
+_uploads_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(_uploads_dir)), name="uploads")

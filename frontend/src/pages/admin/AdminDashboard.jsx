@@ -21,6 +21,7 @@ import SubjectRequestsPage from '../../components/admin/SubjectRequestsPage'
 import CollegeInterestPage from '../../components/admin/CollegeInterestPage'
 import ArcadePage from '../../components/admin/ArcadePage'
 import PushNotificationHealthPage from '../../components/admin/PushNotificationHealthPage'
+import AdvertisementsPage from '../../components/admin/AdvertisementsPage'
 
 function AdminDashboard() {
   const navigate = useNavigate()
@@ -192,6 +193,8 @@ function AdminDashboard() {
               onRefresh={fetchAllData}
               isLoading={isLoading}
             />
+          ) : activeSection === 'advertisements' ? (
+            <AdvertisementsPage sessionToken={sessionToken} />
           ) : (
             <div className="flex h-64 items-center justify-center rounded-xl border border-white/5 bg-[#252136]">
               <div className="text-center">

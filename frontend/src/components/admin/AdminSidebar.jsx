@@ -33,6 +33,12 @@ const NAV_SECTIONS = [
       { id: 'arcade', label: 'Arcade Analytics', icon: 'gamepad' },
     ],
   },
+  {
+    label: 'MONETISATION',
+    items: [
+      { id: 'advertisements', label: 'Advertisements', icon: 'image' },
+    ],
+  },
 ]
 
 function NavIcon({ name, className = 'h-4 w-4' }) {
@@ -51,6 +57,7 @@ function NavIcon({ name, className = 'h-4 w-4' }) {
     crown: <><path d="M2 20h20M5 20V10l7-7 7 7v10" /><polyline points="5 10 12 3 19 10" /></>,
     bell: <><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></>,
     gamepad: <><rect x="2" y="6" width="20" height="12" rx="3" /><path d="M6 12h4M8 10v4" /><circle cx="15" cy="11" r="1" fill="currentColor" stroke="none" /><circle cx="18" cy="13" r="1" fill="currentColor" stroke="none" /></>,
+    image: <><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></>,
   }
 
   return (
