@@ -2,20 +2,85 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="manifest" href="/manifest.json" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Attend75 helps students track attendance and plan classes smartly." />
+
+    <!-- Primary SEO -->
+    <title>Attend75 — Attendance Tracker for ICFAI / IBS Students</title>
+    <meta name="description" content="Attend75 helps ICFAI and IBS college students track attendance, view marks, plan classes smartly, and stay above the 75% requirement. Free PWA with study tools and arcade." />
+    <meta name="keywords" content="attendance tracker, ICFAI attendance, IBS attendance, college attendance app, 75% attendance, ICFAI student app, IBS student portal, marks tracker, study app, attendance manager" />
+    <meta name="author" content="Attend75" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://attend75.xyz/" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://attend75.xyz/" />
+    <meta property="og:site_name" content="Attend75" />
+    <meta property="og:title" content="Attend75 — Attendance Tracker for ICFAI / IBS Students" />
+    <meta property="og:description" content="Track your college attendance and stay above 75%. Built for ICFAI and IBS students — with marks, study tools, notices, and smart attendance planning." />
+    <meta property="og:image" content="https://attend75.xyz/icons/og-image.png" />
+    <meta property="og:image:width" content="1731" />
+    <meta property="og:image:height" content="909" />
+    <meta property="og:image:alt" content="Attend75 — Attendance Tracker app screenshot" />
+    <meta property="og:locale" content="en_IN" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Attend75 — Attendance Tracker for ICFAI / IBS Students" />
+    <meta name="twitter:description" content="Track your college attendance and stay above 75%. Built for ICFAI and IBS students — with marks, study tools, notices, and smart attendance planning." />
+    <meta name="twitter:image" content="https://attend75.xyz/icons/og-image.png" />
+    <meta name="twitter:image:alt" content="Attend75 app screenshot" />
+
+    <!-- PWA / App -->
+    <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#5B5878" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Attend75" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+
+    <!-- Structured Data: WebApplication -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Attend75",
+      "url": "https://attend75.xyz/",
+      "description": "Attend75 helps ICFAI and IBS college students track attendance, view marks, plan classes smartly, and stay above the 75% requirement.",
+      "applicationCategory": "EducationApplication",
+      "operatingSystem": "Any",
+      "browserRequirements": "Requires JavaScript",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "INR"
+      },
+      "author": {
+        "@type": "Organization",
+        "name": "Attend75",
+        "url": "https://attend75.xyz/"
+      },
+      "featureList": [
+        "Attendance tracking",
+        "Marks viewer",
+        "Class planning",
+        "Study materials",
+        "College notices",
+        "Attendance alerts"
+      ],
+      "audience": {
+        "@type": "EducationalAudience",
+        "educationalRole": "student"
+      }
+    }
+    </script>
+
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Francois+One&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <title>Attend75</title>
   </head>
   <body>
     <div id="root"></div>

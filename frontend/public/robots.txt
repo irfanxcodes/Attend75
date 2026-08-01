@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Allow: /login
+Allow: /study
+Allow: /study/
+
+# Keep authenticated app routes and admin out of crawl
+Disallow: /app/
+Disallow: /admin/
+Disallow: /loading
+
+# Sitemap
+Sitemap: https://attend75.xyz/sitemap.xml
