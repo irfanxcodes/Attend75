@@ -28,7 +28,7 @@ from services.preference_filter import get_or_create_preferences, should_send_no
 
 logger = logging.getLogger(__name__)
 
-BATCH_CONSOLIDATION_THRESHOLD = 3
+BATCH_CONSOLIDATION_THRESHOLD = 5  # >5 new notices in one cycle → single summary
 
 
 def is_timetable_change_title(title: str) -> bool:

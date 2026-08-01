@@ -41,23 +41,57 @@ def _backfill_notification_sent_at() -> None:
     the push notification system existed, or were previously in a failed state.
     Without this, the dispatcher would see them as unsent and fire notifications
     for all of them on the next scrape cycle.
+    Also cancels any pending 'timetable' category jobs scheduled for late evening
+    (the old 9 PM tomorrow-preview feature that was removed to reduce spam).
     """
     try:
-        from datetime import datetime
+        from datetime import datetime, timezone, timedelta
         from db.session import SessionLocal
         from db.models.notice import Notice
+        from db.models.notification_job import NotificationJob
+        import json
         now = datetime.utcnow()
+        now_utc = datetime.now(timezone.utc)
         with SessionLocal() as session:
+            # Backfill notification_sent_at
             updated = (
                 session.query(Notice)
                 .filter(Notice.notification_sent_at.is_(None))
                 .update({"notification_sent_at": now}, synchronize_session=False)
             )
-            session.commit()
-        if updated:
-            logging.getLogger(__name__).info(
-                "Startup: stamped notification_sent_at on %d existing notices (one-time backfill)", updated
+            # Cancel any pending tomorrow-preview jobs (scheduled between 3 PM and midnight UTC,
+            # which is 8:30 PM to 5:30 AM IST — the old evening slot).
+            evening_start = now_utc.replace(hour=15, minute=0, second=0, microsecond=0)
+            evening_end = now_utc.replace(hour=23, minute=59, second=59, microsecond=0)
+            pending_evening = (
+                session.query(NotificationJob)
+                .filter(
+                    NotificationJob.job_type == "push_send",
+                    NotificationJob.status == "pending",
+                    NotificationJob.scheduled_at >= evening_start,
+                    NotificationJob.scheduled_at <= evening_end,
+                )
+                .all()
             )
+            cancelled_preview = 0
+            for job in pending_evening:
+                try:
+                    payload = json.loads(job.payload)
+                    category = (payload.get("notification") or {}).get("category", "")
+                    title = (payload.get("notification") or {}).get("title", "")
+                    # Cancel only the "tomorrow preview" jobs (title starts with "📅 Tomorrow:")
+                    if category == "timetable" and "Tomorrow" in title:
+                        job.status = "cancelled"
+                        job.completed_at = now_utc
+                        cancelled_preview += 1
+                except Exception:
+                    continue
+            session.commit()
+        log = logging.getLogger(__name__)
+        if updated:
+            log.info("Startup: stamped notification_sent_at on %d existing notices (one-time backfill)", updated)
+        if cancelled_preview:
+            log.info("Startup: cancelled %d stale tomorrow-preview timetable jobs", cancelled_preview)
     except Exception as exc:
         logging.getLogger(__name__).warning("Startup backfill failed (non-fatal): %s", exc)
 

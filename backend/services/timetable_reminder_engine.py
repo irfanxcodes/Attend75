@@ -259,20 +259,16 @@ class TimetableReminderScheduler:
     def __init__(self):
         self._running = False
         self._timer: threading.Timer | None = None
-        self._evening_timer: threading.Timer | None = None
 
     def start(self) -> None:
         self._running = True
         self._schedule_next()
-        self._schedule_evening()
         logger.info("TimetableReminderScheduler started")
 
     def stop(self) -> None:
         self._running = False
         if self._timer:
             self._timer.cancel()
-        if self._evening_timer:
-            self._evening_timer.cancel()
 
     def _schedule_next(self) -> None:
         if not self._running:
@@ -287,19 +283,6 @@ class TimetableReminderScheduler:
         self._timer.daemon = True
         self._timer.start()
 
-    def _schedule_evening(self) -> None:
-        """Schedule the 9 PM 'tomorrow preview' notification."""
-        if not self._running:
-            return
-        now_ist = datetime.now(IST)
-        target = now_ist.replace(hour=21, minute=0, second=0, microsecond=0)
-        if now_ist >= target:
-            target += timedelta(days=1)
-        delay = (target - now_ist).total_seconds()
-        self._evening_timer = threading.Timer(delay, self._run_evening_cycle)
-        self._evening_timer.daemon = True
-        self._evening_timer.start()
-
     def _run_cycle(self) -> None:
         try:
             schedule_reminders_for_today()
@@ -307,14 +290,6 @@ class TimetableReminderScheduler:
             logger.exception("TimetableReminderScheduler cycle failed")
         finally:
             self._schedule_next()
-
-    def _run_evening_cycle(self) -> None:
-        try:
-            send_tomorrow_preview()
-        except Exception:
-            logger.exception("TimetableReminderScheduler evening cycle failed")
-        finally:
-            self._schedule_evening()
 
 
 def send_tomorrow_preview() -> int:
