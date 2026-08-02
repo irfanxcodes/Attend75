@@ -12,6 +12,10 @@ class StudentRegistry(Base):
     roll_number: Mapped[str] = mapped_column(String(32), primary_key=True)
     display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     program: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Semester label as shown in the portal (e.g. "Semester I", "Semester III").
+    # Updated on every login so the notification dispatcher can target notices
+    # at students in the right semester.
+    current_semester: Mapped[str | None] = mapped_column(String(64), nullable=True)
     first_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     login_count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)

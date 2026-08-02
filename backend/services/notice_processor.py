@@ -17,6 +17,7 @@ from services.notice_classifier import (
     clean_text,
     detect_deadline,
     detect_program,
+    detect_target_semesters,
     extract_keywords,
     generate_summary,
     score_priority,
@@ -184,6 +185,9 @@ def process_notice(notice_id: int, title: str, portal_date, pdf_url_path: str, s
         # Step 9: Detect program
         target_program, confidence_score = detect_program(title, cleaned, source_program)
 
+        # Step 9b: Detect target semesters from title and text
+        target_semesters = detect_target_semesters(title, cleaned)
+
         # Step 10: Extract keywords
         keywords = extract_keywords(title, cleaned, category)
 
@@ -203,6 +207,7 @@ def process_notice(notice_id: int, title: str, portal_date, pdf_url_path: str, s
             priority=priority,
             is_important=is_important,
             target_program=target_program,
+            target_semesters=target_semesters,
             confidence_score=confidence_score,
             pdf_url_path=pdf_url_path,
             source_program=source_program,
@@ -249,7 +254,7 @@ def process_batch(notices: list[dict], scraper: PortalScraper, source_program: s
 
 def _store_notice(*, notice_id, title, portal_date, category, category_confidence, summary,
                   extracted_text, cleaned_text, keywords, deadline, deadline_raw, priority,
-                  is_important, target_program, confidence_score, pdf_url_path, source_program):
+                  is_important, target_program, target_semesters, confidence_score, pdf_url_path, source_program):
     """Insert or update a notice in the database."""
     now = datetime.utcnow()
     with SessionLocal() as session:
@@ -267,6 +272,7 @@ def _store_notice(*, notice_id, title, portal_date, category, category_confidenc
             existing.priority = priority
             existing.is_important = is_important
             existing.target_program = target_program
+            existing.target_semesters = target_semesters
             existing.confidence_score = confidence_score
             existing.processing_status = "done"
             existing.source_program = source_program
@@ -293,6 +299,7 @@ def _store_notice(*, notice_id, title, portal_date, category, category_confidenc
                 priority=priority,
                 is_important=is_important,
                 target_program=target_program,
+                target_semesters=target_semesters,
                 confidence_score=confidence_score,
                 viewed_count=0,
                 pdf_url_path=pdf_url_path,

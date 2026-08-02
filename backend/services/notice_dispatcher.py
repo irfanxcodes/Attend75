@@ -85,7 +85,7 @@ def dispatch_for_new_notices(notice_ids: list[int]) -> int:
             all_timetable_targets: set[str] = set()
             best_timetable_title = timetable_notices[-1].title  # most recent
             for notice in timetable_notices:
-                targets = _subscribed_students_for_program(notice.source_program)
+                targets = _subscribed_students_for_program(notice.source_program, notice.target_semesters)
                 all_timetable_targets.update(targets)
                 notice.notification_sent_at = now  # stamp eagerly before enqueuing
             session.flush()  # persist stamps before enqueuing jobs
@@ -145,7 +145,7 @@ def dispatch_for_new_notices(notice_ids: list[int]) -> int:
 
 def _dispatch_single_notice(notice: Notice, now: datetime) -> int:
     """Enqueue push_send jobs for a single notice to all matching subscribers."""
-    targets = _subscribed_students_for_program(notice.source_program)
+    targets = _subscribed_students_for_program(notice.source_program, notice.target_semesters)
     priority = "high" if is_high_priority(notice.category, notice.priority) else "standard"
     count = 0
 
@@ -182,11 +182,11 @@ def _dispatch_consolidated(notices: list, now: datetime, session) -> int:
     has_high = any(is_high_priority(n.category, n.priority) for n in notices)
     priority = "high" if has_high else "standard"
 
-    # Get the union of all targeted programs
-    programs = set(n.source_program for n in notices)
+    # Get the union of all targeted programs, keyed by (program, target_semesters) pair
+    # so semester-specific notices don't bleed into other semesters.
     all_targets: set[str] = set()
-    for prog in programs:
-        all_targets.update(_subscribed_students_for_program(prog))
+    for notice in notices:
+        all_targets.update(_subscribed_students_for_program(notice.source_program, notice.target_semesters))
 
     count = 0
     for roll in all_targets:
@@ -212,10 +212,18 @@ def _dispatch_consolidated(notices: list, now: datetime, session) -> int:
     return count
 
 
-def _subscribed_students_for_program(program: str | None) -> list[str]:
+def _subscribed_students_for_program(program: str | None, target_semesters: str | None = None) -> list[str]:
     """
-    Get all push-subscribed students whose program matches the given program.
-    If program is None, return all push-subscribed students.
+    Get all push-subscribed students whose program and semester match the notice.
+
+    - program: the source/target program of the notice (e.g. "BCA").
+      If None, all subscribers are considered.
+    - target_semesters: comma-separated semester labels from the notice
+      (e.g. "Semester I,Semester III"). If None, all semesters receive it.
+
+    Students whose current_semester is NULL in student_registry are always
+    included as a safe fallback (they haven't logged in since the semester
+    column was added, so we don't know their semester yet).
     """
     with SessionLocal() as session:
         query = session.query(PushSubscription.roll_number)
@@ -230,6 +238,24 @@ def _subscribed_students_for_program(program: str | None) -> list[str]:
                     StudentRegistry.program.is_(None),
                 )
             )
+
+        # Apply semester filter when the notice targets specific semesters
+        if target_semesters:
+            semester_list = [s.strip() for s in target_semesters.split(",") if s.strip()]
+            if semester_list:
+                # Ensure the join is in place even if program filter wasn't applied
+                if not program:
+                    query = query.join(
+                        StudentRegistry, StudentRegistry.roll_number == PushSubscription.roll_number, isouter=True
+                    )
+                query = query.filter(
+                    or_(
+                        # Student's semester matches one of the notice's target semesters
+                        StudentRegistry.current_semester.in_(semester_list),
+                        # NULL = semester not yet recorded → include as safe fallback
+                        StudentRegistry.current_semester.is_(None),
+                    )
+                )
 
         rows = query.distinct().all()
         return [row[0] for row in rows]

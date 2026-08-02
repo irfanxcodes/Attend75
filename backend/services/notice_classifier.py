@@ -414,3 +414,156 @@ def extract_keywords(title: str, text: str, category: str) -> str:
                 break
 
     return ", ".join(sorted(all_keywords)[:15])
+
+
+# ---------------------------------------------------------------------------
+# Semester Detection
+# ---------------------------------------------------------------------------
+
+# Roman numeral ordinals as used in Indian college portals
+_ROMAN_MAP = {
+    "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5,
+    "VI": 6, "VII": 7, "VIII": 8, "IX": 9, "X": 10,
+}
+
+# Pattern: "SEMESTER I", "SEM-III", "SEM III", "SEMESTER - IV", "1ST SEMESTER", "2ND SEM"
+_SEM_ROMAN_RE = re.compile(
+    r"\bSEM(?:ESTER)?\s*[-–]?\s*(I{1,3}|IV|VI{0,3}|IX|X)\b",
+    re.IGNORECASE,
+)
+# Pattern: "SEMESTER V AND VI", "SEM III AND IV" — catches the second ordinal after AND/&/,
+_SEM_ROMAN_CONJ_RE = re.compile(
+    r"\bSEM(?:ESTER)?\s*[-–]?\s*(?:I{1,3}|IV|VI{0,3}|IX|X)\b"       # first reference
+    r"(?:\s*(?:AND|&|,)\s*)"                                            # separator
+    r"(I{1,3}|IV|VI{0,3}|IX|X)\b",                                     # second roman numeral
+    re.IGNORECASE,
+)
+# Pattern: "1ST SEMESTER", "2ND SEM", "3RD SEMESTER", "4TH SEM"
+_SEM_ORDINAL_RE = re.compile(
+    r"\b(\d+)(?:ST|ND|RD|TH)?\s*SEM(?:ESTER)?\b",
+    re.IGNORECASE,
+)
+# Pattern: "2ND AND 4TH SEM", "1ST & 3RD SEMESTER"
+_SEM_ORDINAL_CONJ_RE = re.compile(
+    r"\b(\d+)(?:ST|ND|RD|TH)?\s*(?:AND|&|,)\s*(\d+)(?:ST|ND|RD|TH)?\s*SEM(?:ESTER)?\b",
+    re.IGNORECASE,
+)
+
+# Portal-style labels (what we store in student_registry.current_semester)
+_SEMESTER_LABELS = {
+    1: "Semester I",
+    2: "Semester II",
+    3: "Semester III",
+    4: "Semester IV",
+    5: "Semester V",
+    6: "Semester VI",
+    7: "Semester VII",
+    8: "Semester VIII",
+}
+
+
+def detect_target_semesters(title: str, text: str) -> str | None:
+    """
+    Detect which semesters a notice targets.
+
+    Scans the notice title (weighted more) and first 3000 chars of cleaned text
+    for semester references. Returns a comma-separated string of standard
+    semester labels (e.g. "Semester I,Semester III") or None if the notice
+    appears to target all semesters.
+
+    Title matches are given priority: if only the title mentions specific
+    semesters, those are returned. If neither title nor text mentions any
+    semester, returns None (broadcast to all).
+
+    This result is stored in notices.target_semesters and used by the
+    notification dispatcher to skip students not in the matching semester.
+    """
+    title_upper = (title or "").upper()
+    text_upper = (text or "").upper()[:3000]
+
+    title_semesters: set[int] = set()
+    text_semesters: set[int] = set()
+
+    # Scan title for roman numeral semester references
+    for match in _SEM_ROMAN_RE.finditer(title_upper):
+        roman = match.group(1).upper()
+        num = _ROMAN_MAP.get(roman)
+        if num:
+            title_semesters.add(num)
+
+    # Catch "SEMESTER V AND VI" style — the second numeral after AND/&/,
+    for match in _SEM_ROMAN_CONJ_RE.finditer(title_upper):
+        roman = match.group(1).upper()
+        num = _ROMAN_MAP.get(roman)
+        if num:
+            title_semesters.add(num)
+
+    # Scan title for ordinal semester references
+    for match in _SEM_ORDINAL_RE.finditer(title_upper):
+        try:
+            num = int(match.group(1))
+            if 1 <= num <= 10:
+                title_semesters.add(num)
+        except ValueError:
+            pass
+
+    # Catch "2ND AND 4TH SEM" style conjunctions in title
+    for match in _SEM_ORDINAL_CONJ_RE.finditer(title_upper):
+        for grp in (match.group(1), match.group(2)):
+            try:
+                num = int(grp)
+                if 1 <= num <= 10:
+                    title_semesters.add(num)
+            except ValueError:
+                pass
+
+    # Scan text body (first 3000 chars)
+    for match in _SEM_ROMAN_RE.finditer(text_upper):
+        roman = match.group(1).upper()
+        num = _ROMAN_MAP.get(roman)
+        if num:
+            text_semesters.add(num)
+
+    for match in _SEM_ROMAN_CONJ_RE.finditer(text_upper):
+        roman = match.group(1).upper()
+        num = _ROMAN_MAP.get(roman)
+        if num:
+            text_semesters.add(num)
+
+    for match in _SEM_ORDINAL_RE.finditer(text_upper):
+        try:
+            num = int(match.group(1))
+            if 1 <= num <= 10:
+                text_semesters.add(num)
+        except ValueError:
+            pass
+
+    # Catch "2ND AND 4TH SEM" style conjunctions in text body
+    for match in _SEM_ORDINAL_CONJ_RE.finditer(text_upper):
+        for grp in (match.group(1), match.group(2)):
+            try:
+                num = int(grp)
+                if 1 <= num <= 10:
+                    text_semesters.add(num)
+            except ValueError:
+                pass
+
+    # Decision logic:
+    # - If title explicitly names specific semesters, trust that (most reliable signal)
+    # - Else if text names semesters, use those
+    # - If >5 different semesters mentioned → likely a general/all-semesters notice
+    # - If nothing found → None (all semesters)
+    if title_semesters:
+        # Title is the most reliable signal
+        combined = title_semesters
+    elif text_semesters:
+        combined = text_semesters
+    else:
+        return None  # No semester found → broadcast to everyone
+
+    # If more than 5 distinct semesters are referenced, treat as all-semesters
+    if len(combined) > 5:
+        return None
+
+    labels = [_SEMESTER_LABELS[n] for n in sorted(combined) if n in _SEMESTER_LABELS]
+    return ",".join(labels) if labels else None

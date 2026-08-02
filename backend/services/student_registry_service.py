@@ -11,7 +11,7 @@ from db.models.student_registry import StudentRegistry
 from db.session import SessionLocal
 
 
-def register_student_login(roll_number: str, method: str = "guest", display_name: str | None = None, attendance_percent: float | None = None, user_agent: str | None = None, program: str | None = None) -> None:
+def register_student_login(roll_number: str, method: str = "guest", display_name: str | None = None, attendance_percent: float | None = None, user_agent: str | None = None, program: str | None = None, current_semester: str | None = None) -> None:
     """
     Register or update a student's login record.
 
@@ -22,6 +22,9 @@ def register_student_login(roll_number: str, method: str = "guest", display_name
         attendance_percent: Overall attendance percentage at login time.
         user_agent: Browser/device user-agent string.
         program: Full program name from portal (e.g. 'Faculty of Management').
+        current_semester: Semester label the student is currently in
+            (e.g. 'Semester III'). Updated on every login so the notice
+            dispatcher can target notifications to the right semester.
     """
     normalized_roll = (roll_number or "").strip().upper()
     if not normalized_roll:
@@ -30,6 +33,7 @@ def register_student_login(roll_number: str, method: str = "guest", display_name
     normalized_method = (method or "guest").strip().lower()
     normalized_name = (display_name or "").strip() or None
     normalized_program = (program or "").strip() or None
+    normalized_semester = (current_semester or "").strip() or None
     device = _parse_device(user_agent)
     now = datetime.utcnow()
 
@@ -43,6 +47,7 @@ def register_student_login(roll_number: str, method: str = "guest", display_name
                 roll_number=normalized_roll,
                 display_name=normalized_name,
                 program=normalized_program,
+                current_semester=normalized_semester,
                 first_seen_at=now,
                 last_seen_at=now,
                 login_count=1,
@@ -65,6 +70,10 @@ def register_student_login(roll_number: str, method: str = "guest", display_name
             # Always update program when we have it from the portal
             if normalized_program:
                 record.program = normalized_program
+
+            # Always update semester — it changes each academic term
+            if normalized_semester:
+                record.current_semester = normalized_semester
 
             if attendance_percent is not None:
                 record.last_attendance_percent = attendance_percent

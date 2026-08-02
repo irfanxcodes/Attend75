@@ -23,6 +23,9 @@ class Notice(Base):
     priority: Mapped[int] = mapped_column(Integer, default=0)
     is_important: Mapped[bool] = mapped_column(Boolean, default=False)
     target_program: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Comma-separated semester labels this notice targets (e.g. "Semester I,Semester III").
+    # NULL means the notice is for all semesters.
+    target_semesters: Mapped[str | None] = mapped_column(String(512), nullable=True)
     confidence_score: Mapped[float] = mapped_column(Float, default=0.0)
     viewed_count: Mapped[int] = mapped_column(Integer, default=0)
     pdf_url_path: Mapped[str] = mapped_column(String(64), nullable=False)
