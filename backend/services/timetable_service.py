@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 _timetable_cache: dict[int, dict] = {}  # notice_id -> {parsed_at, schedule}
 
 # Increment this whenever the parser logic changes so stale cache entries are dropped.
-_PARSER_VERSION = 3
+_PARSER_VERSION = 4
 
 
 def get_personalized_timetable(token: str, semester_id: str | None = None) -> dict | None:
@@ -153,8 +153,7 @@ def get_personalized_timetable(token: str, semester_id: str | None = None) -> di
                 if best_sem:
                     sem_filtered = [
                         c for c in section_classes
-                        # Include the matched semester AND entries with no semester (garbled PDF)
-                        if c.get('semester', '') == best_sem or not c.get('semester', '')
+                        if c.get('semester', '') == best_sem
                     ]
                     if sem_filtered:
                         section_classes = sem_filtered
@@ -285,9 +284,7 @@ def _infer_full_subjects_from_schedule(schedule: list[dict], matched_classes: li
     if student_sem:
         inferred = sorted(set(
             e['course'] for e in schedule
-            if e['section'] == student_section
-            # Include entries that match the semester OR have no semester (garbled PDF)
-            and (e['semester'] == student_sem or not e['semester'])
+            if e['section'] == student_section and e['semester'] == student_sem
         ))
     else:
         # No semester info in this notice format — match by section alone.
