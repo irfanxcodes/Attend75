@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 _timetable_cache: dict[int, dict] = {}  # notice_id -> {parsed_at, schedule}
 
 # Increment this whenever the parser logic changes so stale cache entries are dropped.
-_PARSER_VERSION = 2
+_PARSER_VERSION = 3
 
 
 def get_personalized_timetable(token: str, semester_id: str | None = None) -> dict | None:
@@ -151,7 +151,11 @@ def get_personalized_timetable(token: str, semester_id: str | None = None) -> di
                         best_sem = max(all_sems, key=_sem_sort_key)
 
                 if best_sem:
-                    sem_filtered = [c for c in section_classes if c.get('semester', '') == best_sem]
+                    sem_filtered = [
+                        c for c in section_classes
+                        # Include the matched semester AND entries with no semester (garbled PDF)
+                        if c.get('semester', '') == best_sem or not c.get('semester', '')
+                    ]
                     if sem_filtered:
                         section_classes = sem_filtered
 
@@ -281,7 +285,9 @@ def _infer_full_subjects_from_schedule(schedule: list[dict], matched_classes: li
     if student_sem:
         inferred = sorted(set(
             e['course'] for e in schedule
-            if e['section'] == student_section and e['semester'] == student_sem
+            if e['section'] == student_section
+            # Include entries that match the semester OR have no semester (garbled PDF)
+            and (e['semester'] == student_sem or not e['semester'])
         ))
     else:
         # No semester info in this notice format — match by section alone.
@@ -774,7 +780,22 @@ def _parse_timetable_from_text(text: str) -> list[dict]:
             while i < len(data_cells) and day_idx < len(days):
                 course_raw = data_cells[i].strip()
                 faculty = data_cells[i + 1].strip() if i + 1 < len(data_cells) else ""
-                sem = data_cells[i + 2].strip() if i + 2 < len(data_cells) else ""
+                sem_raw = data_cells[i + 2].strip() if i + 2 < len(data_cells) else ""
+
+                # Clean semester: pdfplumber sometimes merges adjacent cell text
+                # into the semester column, producing garbage like "AD5HA" or "DY1".
+                # A valid semester is a 1-2 digit number or a Roman numeral (I–VIII).
+                # Extract the leading digit(s); if none, try a Roman numeral prefix.
+                sem = sem_raw
+                if sem_raw:
+                    digit_match = re.match(r'^(\d{1,2})', sem_raw)
+                    roman_match = re.match(r'^(I{1,3}V?|IV|VI{0,3}|VIII?)(?:\b|$)', sem_raw, re.IGNORECASE)
+                    if digit_match:
+                        sem = digit_match.group(1)
+                    elif roman_match:
+                        sem = roman_match.group(1).upper()
+                    else:
+                        sem = ""  # garbled — discard rather than store garbage
 
                 m = course_pattern.match(course_raw)
                 if m:
