@@ -92,17 +92,21 @@ def _rows_to_ascii_table(rows: list[list[str | None]]) -> str:
         while len(row) < max_cols:
             row.append("")
 
-    # Calculate column widths (cap at 40 to keep things readable on mobile)
+    # Calculate column widths (cap at 60 to keep things readable; was 40 but
+    # that truncated long faculty names and caused the ellipsis replacement in
+    # clean_text to corrupt the stored text).
     col_widths = []
     for col_idx in range(max_cols):
         max_w = max(len(row[col_idx]) for row in cleaned_rows)
-        col_widths.append(min(max_w, 40))
+        col_widths.append(min(max_w, 60))
 
-    # Truncate cells that exceed column width
+    # Truncate cells that exceed column width — use plain ASCII "~" so that
+    # clean_text (which strips non-ASCII) does not replace it with a space and
+    # create spurious cell content.
     for row in cleaned_rows:
         for i, cell in enumerate(row):
             if len(cell) > col_widths[i]:
-                row[i] = cell[:col_widths[i] - 1] + "…"
+                row[i] = cell[:col_widths[i] - 1] + "~"
 
     # Build the table
     def separator():

@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
-import { Calendar, Clock, MapPin, User, X, ChevronRight, AlertCircle, RefreshCw, Search } from 'lucide-react'
-import { fetchTimetable, fetchTimetableCandidates, selectTimetable, refreshNotices, uploadTimetablePdf } from '../../services/noticesApi'
+import { useEffect, useState, useRef } from 'react'
+import { Calendar, Clock, MapPin, User, X, ChevronRight, AlertCircle, RefreshCw, Search, ChevronDown } from 'lucide-react'
+import { fetchTimetable, fetchTimetableCandidates, selectTimetable, refreshNotices, uploadTimetablePdf, setTimetableSection } from '../../services/noticesApi'
 import useAppStore from '../../hooks/useAppStore'
 
 const DAY_COLORS = {
@@ -13,22 +13,29 @@ const DAY_COLORS = {
 }
 
 // ── Timetable Picker Modal ──────────────────────────────────────────────────
-function TimetablePicker({ token, semesterId, onSelect, onDismiss }) {
+function TimetablePicker({ token, semesterId, onSelect, onDismiss, initialSectionData = null }) {
   const [candidates, setCandidates] = useState([])
-  const [isFetchingCandidates, setIsFetchingCandidates] = useState(true)
+  const [isFetchingCandidates, setIsFetchingCandidates] = useState(!initialSectionData)
   const [selecting, setSelecting] = useState(null)
   const [error, setError] = useState(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  // Section picker state — shown when upload finds timetable but can't auto-match section
+  const [sectionPickerData, setSectionPickerData] = useState(initialSectionData)
+  const [chosenCombo, setChosenCombo] = useState(null)
+  const [manualSection, setManualSection] = useState('')
+  const [isSettingSection, setIsSettingSection] = useState(false)
+  const sectionInputRef = useRef(null)
 
-  // Fetch candidates when modal opens
+  // Fetch candidates when modal opens — skip if showing section picker directly
   useEffect(() => {
+    if (initialSectionData) return  // already have section data, skip candidate fetch
     setIsFetchingCandidates(true)
     fetchTimetableCandidates({ token })
       .then((data) => setCandidates(data?.candidates || []))
       .catch(() => setCandidates([]))
       .finally(() => setIsFetchingCandidates(false))
-  }, [token])
+  }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSelect = async (noticeId) => {
     setSelecting(noticeId)
@@ -65,31 +72,77 @@ function TimetablePicker({ token, semesterId, onSelect, onDismiss }) {
     }
   }
 
+  // Supported types: PDF, images, XLSX
+  const ACCEPTED_TYPES = '.pdf,.jpg,.jpeg,.png,.webp,.bmp,.tiff,.xlsx,.xls'
+  const MAX_SIZE_MB = 20 // images up to 20MB, others 10MB
+
+  const validateFile = (file) => {
+    const name = file.name.toLowerCase()
+    const isImage = /\.(jpg|jpeg|png|webp|bmp|tiff?)$/.test(name)
+    const isDoc = /\.(pdf|xlsx|xls)$/.test(name)
+    if (!isImage && !isDoc) {
+      return 'Unsupported file type. Please upload a PDF, image (JPG/PNG/WEBP), or spreadsheet (XLSX).'
+    }
+    const maxBytes = (isImage ? 20 : 10) * 1024 * 1024
+    if (file.size > maxBytes) {
+      return `File too large (max ${isImage ? 20 : 10}MB)`
+    }
+    return null
+  }
+
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (!file.name.toLowerCase().endsWith('.pdf')) {
-      setError('Please select a PDF file')
-      return
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      setError('File too large (max 10MB)')
+    const validationError = validateFile(file)
+    if (validationError) {
+      setError(validationError)
       return
     }
     setIsUploading(true)
     setError(null)
     try {
       const data = await uploadTimetablePdf({ token, file })
-      if (data && data.schedule) {
+      if (data && data.needsSection) {
+        // Timetable found but section unknown — show section picker
+        setSectionPickerData({
+          availableSections: data.availableSections || [],
+          availableCombos: data.availableCombos || [],
+          noticeTitle: data.noticeTitle || file.name,
+        })
+        setChosenCombo(null)
+        setManualSection('')
+      } else if (data && data.schedule) {
         onSelect(data)
       } else {
-        setError("Couldn't find timetable data in this PDF. Make sure it's your class timetable.")
+        setError("Couldn't find timetable data in this file. Make sure it's your class timetable.")
       }
     } catch (err) {
-      setError(err?.message || 'Failed to process the PDF. Please try a different file.')
+      setError(err?.message || 'Failed to process the file. Please try a different format.')
     } finally {
       setIsUploading(false)
-      e.target.value = '' // Reset file input
+      e.target.value = ''
+    }
+  }
+
+  const handleSectionConfirm = async () => {
+    const section = chosenCombo ? chosenCombo.section : manualSection.trim()
+    const year    = chosenCombo ? chosenCombo.year    : ''
+    const dept    = chosenCombo ? chosenCombo.dept    : ''
+    if (!section) return
+    setIsSettingSection(true)
+    setError(null)
+    try {
+      const data = await setTimetableSection({ token, section, year, dept })
+      if (data && data.schedule) {
+        setSectionPickerData(null)
+        onSelect(data)
+      } else {
+        setError("Couldn't find classes for that section. Try a different one.")
+      }
+    } catch (err) {
+      setError(err?.message || 'Something went wrong. Please try again.')
+    } finally {
+      setIsSettingSection(false)
     }
   }
 
@@ -114,10 +167,14 @@ function TimetablePicker({ token, semesterId, onSelect, onDismiss }) {
               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#FF916C]/15">
                 <Calendar className="h-3.5 w-3.5 text-[#FF916C]" />
               </div>
-              <h3 className="text-[15px] font-bold text-[#F7F4FF]">Pick Your Timetable</h3>
+              <h3 className="text-[15px] font-bold text-[#F7F4FF]">
+                {isFetchingCandidates ? 'Find My Timetable' : candidates.length > 0 ? 'Pick Your Timetable' : 'Upload Timetable'}
+              </h3>
             </div>
             <p className="mt-1.5 pl-9 text-[11px] leading-relaxed text-[#9F9AB5]">
-              Select the notice that matches your semester
+              {isFetchingCandidates || candidates.length > 0
+                ? 'Select the notice that matches your semester'
+                : 'Upload your timetable PDF to get started'}
             </p>
           </div>
           <button
@@ -142,30 +199,147 @@ function TimetablePicker({ token, semesterId, onSelect, onDismiss }) {
 
         {/* Body */}
         <div className="px-4 pt-3 pb-6">
-          {isFetchingCandidates ? (
+          {/* ── Section picker (shown after upload finds timetable but not section) ── */}
+          {sectionPickerData ? (
+            <div className="flex flex-col items-center py-3 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#A78BFA]/10 mb-3">
+                <Calendar className="h-5 w-5 text-[#A78BFA]" />
+              </div>
+              <p className="text-[14px] font-bold text-[#F7F4FF]">Select your section</p>
+              <p className="mt-1 max-w-[270px] text-[11px] leading-relaxed text-[#9F9AB5]">
+                We found your timetable. Pick your section and year/department below.
+              </p>
+
+              {/* Combo list — section + year + dept */}
+              {sectionPickerData.availableCombos.length > 0 ? (
+                <div className="mt-4 w-full max-h-56 overflow-y-auto space-y-1.5 -mx-1 px-1">
+                  {sectionPickerData.availableCombos.map((combo, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => { setChosenCombo(combo); setManualSection('') }}
+                      className={`w-full rounded-2xl px-4 py-3 text-left transition active:scale-[0.98] ${
+                        chosenCombo === combo
+                          ? 'bg-[#A78BFA]/20 ring-1 ring-[#A78BFA]/60'
+                          : 'bg-white/[0.05] ring-1 ring-white/[0.07] hover:bg-white/[0.09]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-[13px] font-bold text-[#F7F4FF] shrink-0">
+                            Sec {combo.section}
+                          </span>
+                          {combo.room && (
+                            <span className="rounded-full bg-white/10 px-2 py-0.5 text-[9px] font-semibold text-[#9F9AB5] shrink-0">
+                              {combo.room}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {combo.year && (
+                            <span className="rounded-full bg-[#A78BFA]/15 px-2 py-0.5 text-[9px] font-semibold text-[#A78BFA]">
+                              Yr {combo.year}
+                            </span>
+                          )}
+                          {combo.dept && (
+                            <span className="rounded-full bg-[#6CB4FF]/15 px-2 py-0.5 text-[9px] font-semibold text-[#6CB4FF] max-w-[80px] truncate">
+                              {combo.dept}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                /* Fallback: plain section chips when no combos */
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                  {sectionPickerData.availableSections.slice(0, 16).map((sec) => (
+                    <button
+                      key={sec}
+                      type="button"
+                      onClick={() => { setManualSection(sec); setChosenCombo(null) }}
+                      className={`rounded-full px-3.5 py-1.5 text-[11px] font-semibold transition active:scale-95 ${
+                        manualSection === sec
+                          ? 'bg-[#A78BFA] text-white'
+                          : 'bg-white/8 text-[#9F9AB5] hover:bg-white/15 hover:text-[#F7F4FF]'
+                      }`}
+                    >
+                      {sec}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Manual override input */}
+              <div className="mt-3 w-full max-w-[220px]">
+                <input
+                  ref={sectionInputRef}
+                  type="text"
+                  value={chosenCombo ? `Sec ${chosenCombo.section}${chosenCombo.room ? ` (${chosenCombo.room})` : ''}` : manualSection}
+                  onChange={(e) => { setManualSection(e.target.value.toUpperCase()); setChosenCombo(null) }}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSectionConfirm()}
+                  placeholder="Or type section (e.g. A, BCA-B)"
+                  className="w-full rounded-2xl bg-white/[0.07] px-4 py-2.5 text-[12px] text-[#F7F4FF] placeholder-[#9F9AB5]/50 outline-none ring-1 ring-white/10 focus:ring-[#A78BFA]/50 transition"
+                  readOnly={!!chosenCombo}
+                />
+              </div>
+
+              {/* Confirm button */}
+              <button
+                type="button"
+                onClick={handleSectionConfirm}
+                disabled={(!chosenCombo && !manualSection.trim()) || isSettingSection}
+                className="mt-4 flex items-center gap-2 rounded-full bg-[#A78BFA] px-6 py-2.5 text-[12px] font-bold text-white shadow-lg shadow-[#A78BFA]/20 transition hover:bg-[#9f7ffa] active:scale-95 disabled:opacity-40"
+              >
+                {isSettingSection ? (
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+                {isSettingSection ? 'Loading...' : 'Load My Timetable'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setSectionPickerData(null); setChosenCombo(null); setManualSection(''); setError(null) }}
+                className="mt-3 text-[10px] text-[#9F9AB5] underline underline-offset-2 transition hover:text-[#F7F4FF]"
+              >
+                Upload a different file
+              </button>
+            </div>
+          ) : isFetchingCandidates ? (
             /* Loading state */
             <div className="flex flex-col items-center py-8">
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#FF916C] border-t-transparent" />
               <p className="mt-3 text-[11px] text-[#9F9AB5]">Looking for timetable notices…</p>
             </div>
           ) : isEmpty ? (
-            /* Empty state — no timetable notices found */
+            /* Empty state — no timetable notices found for this program */
             <div className="flex flex-col items-center py-5 text-center">
               <div className="relative mb-4">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#FF916C]/10">
-                  <Search className="h-6 w-6 text-[#FF916C]/60" />
+                  <svg viewBox="0 0 24 24" className="h-6 w-6 text-[#FF916C]/60" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
                 </div>
               </div>
 
-              <p className="text-[14px] font-bold text-[#F7F4FF]">No timetable in your notices</p>
-              <p className="mt-1.5 max-w-[250px] text-[11px] leading-relaxed text-[#9F9AB5]">
-                Your college may share timetables via email or WhatsApp instead.
-                Upload your timetable PDF below.
+              <p className="text-[14px] font-bold text-[#F7F4FF]">Upload your timetable</p>
+              <p className="mt-1.5 max-w-[260px] text-[11px] leading-relaxed text-[#9F9AB5]">
+                Your program's timetable is shared separately — upload it to get your personalised schedule.
               </p>
 
+              {/* Format chips */}
+              <div className="mt-3 flex items-center justify-center gap-1.5 flex-wrap">
+                {['PDF', 'JPG/PNG', 'XLSX'].map((fmt) => (
+                  <span key={fmt} className="rounded-full bg-white/8 px-2 py-0.5 text-[9px] font-semibold text-[#9F9AB5]">{fmt}</span>
+                ))}
+              </div>
+
               {/* Upload CTA */}
-              <label className="mt-5 cursor-pointer">
-                <input type="file" accept=".pdf" onChange={handleFileUpload} className="hidden" disabled={isUploading} />
+              <label className="mt-4 cursor-pointer">
+                <input type="file" accept={ACCEPTED_TYPES} onChange={handleFileUpload} className="hidden" disabled={isUploading} />
                 <div className="flex items-center gap-2 rounded-full bg-[#FF916C] px-5 py-2.5 text-[12px] font-bold text-white shadow-lg shadow-[#FF916C]/20 transition hover:bg-[#ff7a50] active:scale-95">
                   {isUploading ? (
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -174,20 +348,9 @@ function TimetablePicker({ token, semesterId, onSelect, onDismiss }) {
                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
                     </svg>
                   )}
-                  {isUploading ? 'Processing...' : 'Upload Timetable PDF'}
+                  {isUploading ? 'Processing...' : 'Upload Timetable'}
                 </div>
               </label>
-
-              {/* Refresh option */}
-              <button
-                type="button"
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                className="mt-3 flex items-center gap-1.5 text-[11px] text-[#9F9AB5] transition hover:text-[#F7F4FF]"
-              >
-                <RefreshCw className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
-                {isRefreshing ? 'Checking...' : 'Or check notices again'}
-              </button>
             </div>
           ) : (
             /* Candidates list */
@@ -250,10 +413,10 @@ function TimetablePicker({ token, semesterId, onSelect, onDismiss }) {
               {/* Feedback footer + Upload option */}
               <div className="mt-3 pt-3 border-t border-white/[0.05]">
                 <p className="text-center text-[10px] text-[#9F9AB5]/70 mb-2">
-                  Can't find yours? Upload your timetable PDF:
+                  Can't find yours? Upload PDF, image, or XLSX:
                 </p>
                 <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-white/[0.05] ring-1 ring-white/[0.07] px-4 py-3 text-[11px] font-semibold text-[#F7F4FF] transition hover:bg-white/[0.09] active:scale-[0.98]">
-                  <input type="file" accept=".pdf" onChange={handleFileUpload} className="hidden" disabled={isUploading} />
+                  <input type="file" accept={ACCEPTED_TYPES} onChange={handleFileUpload} className="hidden" disabled={isUploading} />
                   {isUploading ? (
                     <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#FF916C] border-t-transparent" />
                   ) : (
@@ -261,7 +424,7 @@ function TimetablePicker({ token, semesterId, onSelect, onDismiss }) {
                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
                     </svg>
                   )}
-                  {isUploading ? 'Processing PDF...' : 'Upload Timetable PDF'}
+                  {isUploading ? 'Processing...' : 'Upload Timetable (PDF / Image / XLSX)'}
                 </label>
               </div>
             </div>
@@ -271,20 +434,46 @@ function TimetablePicker({ token, semesterId, onSelect, onDismiss }) {
     </div>
   )
 }
-
 // ── Main TimetableView ──────────────────────────────────────────────────────
+const TIMETABLE_STORAGE_KEY = 'attend75_timetable_cache'
+
+function saveTimetableToStorage(data) {
+  try { sessionStorage.setItem(TIMETABLE_STORAGE_KEY, JSON.stringify(data)) } catch {}
+}
+function loadTimetableFromStorage() {
+  try {
+    const raw = sessionStorage.getItem(TIMETABLE_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+function clearTimetableStorage() {
+  try { sessionStorage.removeItem(TIMETABLE_STORAGE_KEY) } catch {}
+}
+
 function TimetableView({ token }) {
   const {
     state: { session },
   } = useAppStore()
-  const [timetable, setTimetable] = useState(null)
-  const [isLoading, setIsLoading] = useState(true)
+
+  // Seed state from sessionStorage so timetable survives nav away/back
+  const [timetable, setTimetable] = useState(() => loadTimetableFromStorage())
+  const [isLoading, setIsLoading] = useState(!loadTimetableFromStorage())
   const [activeDay, setActiveDay] = useState(null)
   const [showPicker, setShowPicker] = useState(false)
+  // When Wrong? is clicked on an uploaded timetable — show section picker directly
+  const [wrongPickerCombos, setWrongPickerCombos] = useState(null)
 
-  // Main timetable fetch
+  // Main timetable fetch — skip if already loaded from sessionStorage
   useEffect(() => {
     if (!token) {
+      setIsLoading(false)
+      return
+    }
+    // Already have data from storage — set active day and skip network call
+    if (timetable && timetable.schedule) {
+      const today = new Date().toLocaleDateString('en-US', { weekday: 'long' })
+      const days = Object.keys(timetable.schedule)
+      setActiveDay(prev => prev || (timetable.schedule[today] ? today : days[0] || null))
       setIsLoading(false)
       return
     }
@@ -293,6 +482,7 @@ function TimetableView({ token }) {
       .then((data) => {
         if (data && data.schedule) {
           setTimetable(data)
+          saveTimetableToStorage(data)
           const today = new Date().toLocaleDateString('en-US', { weekday: 'long' })
           const days = Object.keys(data.schedule)
           setActiveDay(data.schedule[today] ? today : days[0] || null)
@@ -302,13 +492,32 @@ function TimetableView({ token }) {
       })
       .catch(() => setTimetable(null))
       .finally(() => setIsLoading(false))
-  }, [token, session.selectedSemester])
+  }, [token, session.selectedSemester]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Pre-fetch candidates in background — removed, now done lazily inside picker
+  // Wrong? button handler — if timetable was uploaded, show section picker with combos
+  const handleWrong = async () => {
+    // If we have a pending schedule in session (uploaded file), show section picker
+    if (timetable?.uploaded) {
+      try {
+        const resp = await fetch(
+          `${import.meta.env.VITE_API_BASE_URL || ''}/notices/timetable/upload/combos?token=${token}`
+        )
+        const json = await resp.json().catch(() => ({}))
+        if (json?.data?.availableCombos?.length > 0) {
+          setWrongPickerCombos(json.data)
+          return
+        }
+      } catch {}
+    }
+    // Default: open normal picker
+    setShowPicker(true)
+  }
 
   const handlePickerSelect = (data) => {
     setShowPicker(false)
+    setWrongPickerCombos(null)
     setTimetable(data)
+    saveTimetableToStorage(data)
     const today = new Date().toLocaleDateString('en-US', { weekday: 'long' })
     const days = Object.keys(data.schedule)
     setActiveDay(data.schedule[today] ? today : days[0] || null)
@@ -341,7 +550,7 @@ function TimetableView({ token }) {
               <p className="mt-1.5 text-[12px] leading-relaxed text-[#9F9AB5]">
                 We couldn&apos;t automatically match your timetable.
                 <br />
-                Pick it manually from recent college notices.
+                Pick it manually or upload your timetable PDF.
               </p>
               <button
                 type="button"
@@ -349,7 +558,7 @@ function TimetableView({ token }) {
                 className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#FF916C] px-5 py-2.5 text-[13px] font-bold text-white shadow-lg shadow-[#FF916C]/20 transition hover:bg-[#ff7a50] active:scale-95"
               >
                 <Calendar className="h-4 w-4" />
-                Find My Timetable
+                Find / Upload Timetable
               </button>
             </div>
           </div>
@@ -378,8 +587,34 @@ function TimetableView({ token }) {
         <div>
           <h2 className="text-lg font-bold text-[#F7F4FF]">My Timetable</h2>
           <p className="mt-0.5 text-[10px] text-[#9F9AB5]">
-            {timetable.noticeTitle?.slice(0, 50)}
-            {timetable.noticeTitle?.length > 50 ? '...' : ''}
+            {(() => {
+              const title = timetable.noticeTitle || ''
+              const date = timetable.noticeDate // "2026-08-02"
+
+              // Extract semester part: "Semester-1, Semester-3 ... Time Table From 3rd August"
+              // Pattern: grab everything from the first "Semester" up to end of title
+              const semMatch = title.match(/Semester[- ]?\d[\w\s,–\-&andAND]*(Time\s*Table[^$]*)/i)
+                ?? title.match(/(Semester.*)/i)
+
+              let subtitle = semMatch ? semMatch[0].trim() : title
+
+              // If no semester info found at all, fall back to short title
+              if (!semMatch) {
+                subtitle = title.length > 50 ? title.slice(0, 50) + '…' : title
+              }
+
+              // Append formatted date if it's not already in the subtitle and we have one
+              if (date && !/\d{1,2}(st|nd|rd|th)?\s+\w+\s+\d{4}/i.test(subtitle)) {
+                const d = new Date(date)
+                const formatted = d.toLocaleDateString('en-IN', {
+                  day: 'numeric', month: 'long', year: 'numeric'
+                })
+                subtitle = subtitle.replace(/from\s*$/i, '').trimEnd()
+                subtitle = `${subtitle} — ${formatted}`
+              }
+
+              return subtitle
+            })()}
           </p>
         </div>
         <div className="flex items-center gap-2.5">
@@ -388,7 +623,7 @@ function TimetableView({ token }) {
           </span>
           <button
             type="button"
-            onClick={() => setShowPicker(true)}
+            onClick={handleWrong}
             className="text-[11px] font-medium text-[#9F9AB5] underline underline-offset-2 transition hover:text-[#F7F4FF]"
           >
             Wrong?
@@ -478,6 +713,17 @@ function TimetableView({ token }) {
           semesterId={session.selectedSemester}
           onSelect={handlePickerSelect}
           onDismiss={() => setShowPicker(false)}
+        />
+      )}
+
+      {/* Wrong? section re-picker for uploaded timetables */}
+      {wrongPickerCombos && (
+        <TimetablePicker
+          token={token}
+          semesterId={session.selectedSemester}
+          onSelect={handlePickerSelect}
+          onDismiss={() => setWrongPickerCombos(null)}
+          initialSectionData={wrongPickerCombos}
         />
       )}
     </div>

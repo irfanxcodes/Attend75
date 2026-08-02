@@ -458,3 +458,254 @@ async def admin_notification_health(_: dict = Depends(require_admin_user)):
 	except Exception:
 		logger.exception("Failed to fetch push notification health")
 		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to fetch push notification health"})
+
+
+@router.post("/notices/{notice_id}/reprocess-timetable", response_model=ApiResponse)
+async def admin_reprocess_timetable(notice_id: int, _: dict = Depends(require_admin_user)):
+	"""
+	Force-reprocess a notice's PDF and update its cleaned_text in the database.
+	Use this after parser fixes to refresh the stored timetable data without
+	waiting for the next scrape cycle.
+	"""
+	import io
+	import pdfplumber
+	from db.models.notice import Notice
+	from db.session import SessionLocal
+	from services.notice_processor import _extract_page_with_tables
+	from services.notice_classifier import clean_text
+	from services.timetable_service import _timetable_cache
+	from scrapers.portal_scraper import PortalScraper
+
+	def _reprocess():
+		with SessionLocal() as session:
+			notice = session.query(Notice).filter(Notice.notice_id == notice_id).one_or_none()
+			if not notice:
+				raise ValueError(f"Notice {notice_id} not found")
+
+			# Download PDF directly (no auth needed for public portal PDFs)
+			import os
+			import requests
+			portal_base_url = os.getenv("PORTAL_BASE_URL", "http://111.93.16.209/sz")
+			pdf_url = f"{portal_base_url.rstrip('/')}/{notice.pdf_url_path}"
+			r = requests.get(pdf_url, timeout=20)
+			if r.status_code != 200:
+				raise RuntimeError(f"PDF download failed: HTTP {r.status_code}")
+
+			pdf_bytes = io.BytesIO(r.content)
+			extracted_text = ""
+			with pdfplumber.open(pdf_bytes) as pdf:
+				for page in pdf.pages[:10]:
+					page_text = _extract_page_with_tables(page)
+					if page_text:
+						extracted_text += page_text + "\n"
+
+			cleaned = clean_text(extracted_text)
+
+			# Update the notice
+			notice.extracted_text = extracted_text
+			notice.cleaned_text = cleaned
+			notice.processing_status = "done"
+			from datetime import datetime
+			notice.updated_at = datetime.utcnow()
+			session.commit()
+
+			# Invalidate cache for this notice
+			_timetable_cache.pop(notice_id, None)
+
+			# Count parseable entries
+			from services.timetable_service import _parse_timetable_from_text
+			schedule = _parse_timetable_from_text(cleaned)
+			return {
+				"notice_id": notice_id,
+				"text_length": len(cleaned),
+				"parsed_entries": len(schedule),
+			}
+
+	try:
+		data = await run_in_threadpool(_reprocess)
+		return ApiResponse(
+			status="success",
+			message=f"Notice {notice_id} reprocessed successfully",
+			data=data,
+		)
+	except ValueError as e:
+		return JSONResponse(status_code=404, content={"status": "error", "message": str(e)})
+	except Exception:
+		logger.exception("Failed to reprocess notice %d", notice_id)
+		return JSONResponse(status_code=500, content={"status": "error", "message": "Reprocess failed"})
+
+
+@router.post("/timetable/clear-cache", response_model=ApiResponse)
+async def admin_clear_timetable_cache(_: dict = Depends(require_admin_user)):
+	"""Clear the in-memory timetable parse cache. Forces all subsequent requests
+	to re-parse from stored cleaned_text. Use after a reprocess or parser update."""
+	from services.timetable_service import _timetable_cache
+	count = len(_timetable_cache)
+	_timetable_cache.clear()
+	return ApiResponse(
+		status="success",
+		message=f"Cleared {count} cached timetable entries",
+		data={"cleared": count},
+	)
+
+
+@router.get("/notices/{notice_id}/timetable-parse", response_model=ApiResponse)
+async def admin_timetable_parse_debug(
+    notice_id: int,
+    section: str | None = Query(default=None, description="Filter by section (e.g. 'E')"),
+    semester: str | None = Query(default=None, description="Filter by semester (e.g. '7')"),
+    _: dict = Depends(require_admin_user),
+):
+	"""
+	Show the parsed timetable schedule for a notice, optionally filtered by section/semester.
+	Use this to diagnose why certain sections show incomplete timetables.
+	"""
+	from db.models.notice import Notice
+	from db.session import SessionLocal
+	from services.timetable_service import _parse_timetable_from_text, _btech_section_matches
+	from collections import Counter
+
+	def _parse():
+		with SessionLocal() as sess:
+			notice = sess.query(Notice).filter(Notice.notice_id == notice_id).one_or_none()
+			if not notice:
+				raise ValueError(f"Notice {notice_id} not found")
+
+			schedule = _parse_timetable_from_text(notice.cleaned_text or "")
+
+			# Summary: sections and semesters found
+			sections_found = Counter(e.get('section', '') for e in schedule)
+			sems_found = Counter(e.get('semester', '') for e in schedule)
+
+			# Filter for requested section/semester
+			filtered = schedule
+			if section:
+				filtered = [e for e in filtered if _btech_section_matches(e.get('section', ''), section.upper())]
+			if semester:
+				filtered = [e for e in filtered if e.get('semester', '') == semester]
+
+			# Group by day
+			by_day: dict[str, list] = {}
+			for e in filtered:
+				by_day.setdefault(e['day'], []).append({
+					'time': e['time'],
+					'course': e['course'],
+					'section': e['section'],
+					'faculty': e['faculty'],
+					'semester': e['semester'],
+					'room': e['room'],
+				})
+
+			return {
+				"notice_id": notice_id,
+				"notice_title": notice.title,
+				"text_length": len(notice.cleaned_text or ""),
+				"total_entries": len(schedule),
+				"sections_found": dict(sections_found.most_common()),
+				"semesters_found": dict(sems_found.most_common()),
+				"filtered_entries": len(filtered),
+				"by_day": by_day,
+			}
+
+	try:
+		data = await run_in_threadpool(_parse)
+		return ApiResponse(status="success", message="Parse result", data=data)
+	except ValueError as e:
+		return JSONResponse(status_code=404, content={"status": "error", "message": str(e)})
+	except Exception:
+		logger.exception("Failed to parse notice %d timetable", notice_id)
+		return JSONResponse(status_code=500, content={"status": "error", "message": "Parse failed"})
+
+
+@router.post("/timetable/reprocess-recent", response_model=ApiResponse)
+async def admin_reprocess_recent_timetables(
+    days: int = Query(default=7, ge=1, le=60, description="Reprocess timetable notices from the last N days"),
+    _: dict = Depends(require_admin_user),
+):
+	"""
+	Re-download and reparse all timetable notices from the last N days.
+	Use this after a parser fix to refresh stored cleaned_text for recently
+	posted timetables (e.g. a new semester's timetable that was stored with
+	an older parser version).
+
+	Also clears the in-memory timetable cache so all students get fresh data.
+	"""
+	import io
+	import os
+	import requests as _requests
+	from datetime import datetime, timedelta
+	import pdfplumber
+
+	from db.models.notice import Notice
+	from db.session import SessionLocal
+	from services.notice_processor import _extract_page_with_tables
+	from services.notice_classifier import clean_text
+	from services.timetable_service import _timetable_cache, _parse_timetable_from_text
+
+	def _reprocess_batch():
+		portal_base_url = os.getenv("PORTAL_BASE_URL", "http://111.93.16.209/sz")
+		cutoff = datetime.utcnow().date() - timedelta(days=days)
+
+		with SessionLocal() as session:
+			notices = (
+				session.query(Notice)
+				.filter(Notice.processing_status == "done")
+				.filter(Notice.portal_date >= cutoff)
+				.filter(Notice.title.isnot(None))
+				.all()
+			)
+
+			timetable_notices = [
+				n for n in notices
+				if ("TIMETABLE" in (n.title or "").upper() or "TIME TABLE" in (n.title or "").upper())
+				and "EXAM" not in (n.title or "").upper()
+			]
+
+		results = []
+		for notice in timetable_notices:
+			try:
+				pdf_url = f"{portal_base_url.rstrip('/')}/{notice.pdf_url_path}"
+				r = _requests.get(pdf_url, timeout=20)
+				if r.status_code != 200:
+					results.append({"notice_id": notice.notice_id, "status": "download_failed", "http": r.status_code})
+					continue
+
+				pdf_bytes = io.BytesIO(r.content)
+				extracted_text = ""
+				with pdfplumber.open(pdf_bytes) as pdf:
+					for page in pdf.pages[:10]:
+						page_text = _extract_page_with_tables(page)
+						if page_text:
+							extracted_text += page_text + "\n"
+
+				cleaned = clean_text(extracted_text)
+				schedule = _parse_timetable_from_text(cleaned)
+
+				with SessionLocal() as session:
+					db_notice = session.query(Notice).filter(Notice.notice_id == notice.notice_id).one_or_none()
+					if db_notice:
+						db_notice.extracted_text = extracted_text
+						db_notice.cleaned_text = cleaned
+						db_notice.updated_at = datetime.utcnow()
+						session.commit()
+
+				# Invalidate cache
+				_timetable_cache.pop(notice.notice_id, None)
+
+				results.append({
+					"notice_id": notice.notice_id,
+					"title": notice.title[:60],
+					"status": "ok",
+					"parsed_entries": len(schedule),
+				})
+			except Exception as exc:
+				results.append({"notice_id": notice.notice_id, "status": "error", "error": str(exc)})
+
+		return {"processed": len(results), "results": results}
+
+	try:
+		data = await run_in_threadpool(_reprocess_batch)
+		return ApiResponse(status="success", message="Reprocess complete", data=data)
+	except Exception:
+		logger.exception("Failed to reprocess timetable notices")
+		return JSONResponse(status_code=500, content={"status": "error", "message": "Reprocess failed"})
