@@ -96,11 +96,25 @@ function TimetableUploadCard({ token, onSuccess }) {
   const [result, setResult] = useState(null)
   const [dragging, setDragging] = useState(false)
 
+  const ACCEPTED_TYPES = '.pdf,.jpg,.jpeg,.png,.webp,.bmp,.tiff,.xlsx,.xls'
+
+  const validateFile = (file) => {
+    if (!file) return 'No file selected.'
+    const name = file.name.toLowerCase()
+    const isImage = /\.(jpg|jpeg|png|webp|bmp|tiff?)$/.test(name)
+    const isDoc = /\.(pdf|xlsx|xls)$/.test(name)
+    if (!isImage && !isDoc) return 'Unsupported file type. Upload a PDF, image (JPG/PNG/WEBP), or XLSX.'
+    const maxBytes = (isImage ? 20 : 10) * 1024 * 1024
+    if (file.size > maxBytes) return `File too large (max ${isImage ? 20 : 10}MB)`
+    return null
+  }
+
   const handleFile = async (file) => {
     if (!file) return
-    if (!file.name.toLowerCase().endsWith('.pdf')) {
+    const validationError = validateFile(file)
+    if (validationError) {
       setState('error')
-      setMessage('Only PDF files are supported.')
+      setMessage(validationError)
       return
     }
     setState('uploading')
@@ -135,7 +149,7 @@ function TimetableUploadCard({ token, onSuccess }) {
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-semibold text-[#F7F4FF]">Get class reminders</p>
           <p className="mt-0.5 text-[10px] leading-relaxed text-[#9F9AB5]">
-            Your program's timetable isn't on the portal yet. Upload your PDF timetable to get notified before every class.
+            Your program's timetable isn't on the portal yet. Upload your timetable (PDF, photo, or Excel) to get notified before every class.
           </p>
         </div>
       </div>
@@ -162,16 +176,20 @@ function TimetableUploadCard({ token, onSuccess }) {
             ) : (
               <>
                 <Upload className="h-6 w-6 text-[#6CB4FF]/60" strokeWidth={1.5} />
-                <p className="mt-2 text-[12px] font-semibold text-[#F7F4FF]">Tap to upload timetable PDF</p>
+                <p className="mt-2 text-[12px] font-semibold text-[#F7F4FF]">Tap to upload your timetable</p>
                 <p className="mt-0.5 text-[10px] text-[#9F9AB5]">or drag and drop here</p>
-                <p className="mt-2 text-[9px] text-[#7a6f94]">Only text-based PDFs · Max 10 MB</p>
+                <div className="mt-2 flex items-center gap-1.5">
+                  {['PDF', 'JPG/PNG', 'XLSX'].map((f) => (
+                    <span key={f} className="rounded-full bg-white/8 px-2 py-0.5 text-[9px] font-semibold text-[#7a6f94]">{f}</span>
+                  ))}
+                </div>
               </>
             )}
           </div>
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pdf,application/pdf"
+            accept={ACCEPTED_TYPES}
             className="hidden"
             onChange={(e) => handleFile(e.target.files?.[0])}
           />

@@ -491,88 +491,116 @@ async def schedule_my_reminders(payload: dict):
     )
 
 
-# POST /push/upload-timetable — student uploads their own timetable PDF
+# POST /push/upload-timetable — student uploads their own timetable (PDF, image, or XLSX)
 @router.post("/upload-timetable", response_model=ApiResponse)
 async def upload_timetable(
     token: str = Query(..., description="Session token"),
-    file: UploadFile = File(..., description="Timetable PDF file"),
+    file: UploadFile = File(..., description="Timetable file (PDF, JPG/PNG, XLSX)"),
 ):
     """
-    Accept a timetable PDF from a student whose program timetable hasn't been
+    Accept a timetable from a student whose program timetable hasn't been
     scraped yet (BCA, B.Sc IT, Law, etc.).
 
-    Flow:
-    1. Parse the PDF with pdfplumber using the same pipeline as notice_processor
-    2. Try to extract a schedule using _parse_timetable_from_text
-    3. Match against the student's cached subjects
-    4. If valid (≥1 class matched), set has_timetable=True so reminders start
-    5. Return feedback on how many classes were found
+    Supports: PDF, images (JPG/PNG/WEBP via OCR), XLSX spreadsheets.
     """
     import io, json
     from datetime import datetime, timezone
     from db.session import SessionLocal
     from db.models.push_subscription import PushSubscription
     from services.notice_processor import _extract_page_with_tables
-    from services.timetable_service import _parse_timetable_from_text, _match_student_classes
+    from services.timetable_service import _parse_timetable_from_text, _match_student_classes, _parse_timetable_pdf
+    from services.timetable_ocr import is_image, is_xlsx, extract_timetable_from_upload
     import pdfplumber
 
     roll_number = _require_roll_number(token)
     if roll_number is None:
         return JSONResponse(status_code=401, content={"status": "error", "message": "Session expired"})
 
+    filename = (file.filename or "").strip()
+    fname_lower = filename.lower()
+    is_pdf = fname_lower.endswith(".pdf")
+
     # Validate file type
-    filename = (file.filename or "").lower()
-    content_type = (file.content_type or "").lower()
-    if not filename.endswith(".pdf") and "pdf" not in content_type:
+    if not (is_pdf or is_image(fname_lower) or is_xlsx(fname_lower)):
         return JSONResponse(
             status_code=422,
-            content={"status": "error", "message": "Only PDF files are supported"},
+            content={"status": "error", "message": "Unsupported file type. Upload a PDF, image (JPG/PNG/WEBP), or spreadsheet (XLSX)."},
         )
 
-    # Read and size-check (max 10MB)
-    pdf_bytes = await file.read()
-    if len(pdf_bytes) > 10 * 1024 * 1024:
+    # Read and size-check
+    file_bytes = await file.read()
+    max_bytes = 20 * 1024 * 1024 if is_image(fname_lower) else 10 * 1024 * 1024
+    if len(file_bytes) > max_bytes:
         return JSONResponse(
             status_code=413,
-            content={"status": "error", "message": "File too large. Maximum size is 10MB"},
+            content={"status": "error", "message": f"File too large (max {max_bytes // (1024*1024)}MB)"},
         )
 
-    # Parse PDF text
-    try:
-        pages_text = []
-        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-            for page in pdf.pages:
-                try:
-                    page_text = _extract_page_with_tables(page)
-                    if page_text.strip():
-                        pages_text.append(page_text.strip())
-                except Exception:
-                    pass
-        full_text = "\n\n".join(pages_text)
-    except Exception as exc:
-        logger.warning("PDF parse failed for %s: %s", roll_number, exc)
-        return JSONResponse(
-            status_code=422,
-            content={"status": "error", "message": "Could not read this PDF. Make sure it's a text-based PDF, not a scanned image."},
-        )
+    # ── Parse file into a schedule ──────────────────────────────────────────
+    schedule = []
+    full_text = ""
 
-    if not full_text.strip():
-        return JSONResponse(
-            status_code=422,
-            content={
-                "status": "error",
-                "message": "This PDF appears to be a scanned image — we can't read text from it. Please ask your department for a digital (text-based) timetable PDF.",
-            },
-        )
+    if is_pdf:
+        # PDF path: extract text via pdfplumber, then run format-aware parser
+        try:
+            pages_text = []
+            with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+                for page in pdf.pages:
+                    try:
+                        page_text = _extract_page_with_tables(page)
+                        if page_text.strip():
+                            pages_text.append(page_text.strip())
+                    except Exception:
+                        pass
+            full_text = "\n\n".join(pages_text)
+        except Exception as exc:
+            logger.warning("PDF parse failed for %s: %s", roll_number, exc)
+            return JSONResponse(
+                status_code=422,
+                content={"status": "error", "message": "Could not read this PDF. Make sure it's a text-based PDF, not a scanned image."},
+            )
 
-    # Try to parse a schedule
-    schedule = _parse_timetable_from_text(full_text)
+        if not full_text.strip():
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "status": "error",
+                    "message": "This PDF appears to be a scanned image. Try uploading a photo or ask your department for a digital PDF.",
+                },
+        )
+        schedule = _parse_timetable_from_text(full_text)
+
+    else:
+        # Image or XLSX — use OCR / spreadsheet parser
+        try:
+            from fastapi.concurrency import run_in_threadpool
+            schedule = await run_in_threadpool(
+                extract_timetable_from_upload, file_bytes, filename, None
+            )
+            # Also capture text representation for storage (best-effort)
+            if is_xlsx(fname_lower):
+                from services.timetable_ocr import parse_xlsx_bytes
+                _, full_text = parse_xlsx_bytes(file_bytes, filename)
+            else:
+                from services.timetable_ocr import ocr_image_bytes
+                full_text = ocr_image_bytes(file_bytes, filename)
+        except RuntimeError as exc:
+            return JSONResponse(
+                status_code=422,
+                content={"status": "error", "message": str(exc)},
+            )
+        except Exception as exc:
+            logger.warning("Non-PDF timetable parse failed for %s: %s", roll_number, exc)
+            return JSONResponse(
+                status_code=422,
+                content={"status": "error", "message": "Could not process this file. Try a different format."},
+            )
     if not schedule:
         return JSONResponse(
             status_code=422,
             content={
                 "status": "error",
-                "message": "Could not find a timetable table in this PDF. Make sure you're uploading your class timetable, not an exam schedule or other document.",
+                "message": "Could not find a timetable in this file. Make sure you're uploading your class timetable, not an exam schedule or other document.",
             },
         )
 
@@ -633,14 +661,14 @@ async def upload_timetable(
         from db.models.notice import Notice
         from datetime import date
         now = datetime.now(timezone.utc)
+        store_text = full_text or " ".join(f"{e['day']} {e['course']}" for e in schedule[:20])
         with SessionLocal() as session:
-            # Check if this student already has a user-uploaded timetable
             existing = session.query(Notice).filter(
                 Notice.title == f"[STUDENT_UPLOAD] {roll_number}",
                 Notice.processing_status == "done",
             ).first()
             if existing:
-                existing.cleaned_text = full_text
+                existing.cleaned_text = store_text
                 existing.portal_date = date.today()
             else:
                 new_notice = Notice(
@@ -648,10 +676,10 @@ async def upload_timetable(
                     portal_date=date.today(),
                     pdf_url_path="",
                     processing_status="done",
-                    cleaned_text=full_text,
-                    source_program=roll_number,  # mark as student-specific
+                    cleaned_text=store_text,
+                    source_program=roll_number,
                     category="Academic",
-                    notification_sent_at=now,  # don't send a notice notification
+                    notification_sent_at=now,
                     created_at=now,
                     updated_at=now,
                 )

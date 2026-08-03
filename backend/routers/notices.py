@@ -70,21 +70,39 @@ async def notices_stats(token: str = Query(..., description="Session token")):
 def get_timetable_candidates(token: str) -> list[dict]:
     """
     Return recent timetable notices that could be the student's timetable.
+    Only returns notices from the student's own program — non-BBA/non-BCA students
+    should never see BBA timetable notices here.
     Used when automatic matching fails, so the student can pick their own.
     """
     from db.models.notice import Notice
     from db.session import SessionLocal
     from services.timetable_service import _parse_timetable_from_text
+    from services.notice_service import get_student_program
+    from sqlalchemy import or_
 
     record = session_store.get(token)
     if record is None:
         raise PermissionError("Session expired")
 
+    # Determine student's own program — same logic as fetch_notices_for_user
+    program = get_student_program(record.roll_number) or record.program_full or record.program_sn
+
     with SessionLocal() as session:
-        notices = (
+        query = (
             session.query(Notice)
             .filter(Notice.processing_status == "done")
             .filter(Notice.title.isnot(None))
+        )
+
+        # Filter by program — students should only see timetable notices
+        # from their own program's portal scrape, not other programs'.
+        if program:
+            query = query.filter(
+                or_(Notice.source_program == program, Notice.source_program == None)
+            )
+
+        notices = (
+            query
             .order_by(Notice.portal_date.desc(), Notice.notice_id.desc())
             .limit(200)
             .all()
@@ -271,64 +289,172 @@ async def get_timetable(
         return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to load timetable"})
 
 
-# POST /notices/timetable/upload — Upload a timetable PDF for parsing
+# POST /notices/timetable/upload — Upload a timetable PDF, image, or spreadsheet
 @router.post("/timetable/upload", response_model=ApiResponse)
 async def upload_timetable(token: str = Form(...), file: UploadFile = File(...)):
-    """Parse an uploaded timetable PDF and return personalized schedule."""
+    """
+    Parse an uploaded timetable and return personalized schedule.
+    Accepts: PDF, JPG/PNG/WEBP images (OCR), XLSX/XLS spreadsheets.
+    """
     import io
-    from services.timetable_service import _parse_timetable_pdf, _match_student_classes, _infer_full_subjects_from_schedule
+    from collections import Counter
+    from services.timetable_service import (
+        _parse_timetable_pdf, _match_student_classes,
+        _infer_full_subjects_from_schedule,
+    )
+    from services.timetable_ocr import (
+        is_image, is_xlsx, extract_timetable_from_upload,
+        ALL_SUPPORTED,
+    )
     from services.session_store import session_store as _ss
 
     record = _ss.get(token)
     if record is None:
         return JSONResponse(status_code=401, content={"status": "error", "message": "Session expired"})
 
-    # Validate file
-    if not file.filename or not file.filename.lower().endswith('.pdf'):
-        return JSONResponse(status_code=422, content={"status": "error", "message": "Please upload a PDF file"})
+    fname = (file.filename or "").strip()
+    fname_lower = fname.lower()
+
+    # Validate file type
+    is_pdf = fname_lower.endswith(".pdf")
+    if not fname or not (is_pdf or is_image(fname_lower) or is_xlsx(fname_lower)):
+        return JSONResponse(
+            status_code=422,
+            content={
+                "status": "error",
+                "message": "Unsupported file type. Please upload a PDF, image (JPG/PNG/WEBP), or spreadsheet (XLSX).",
+            },
+        )
 
     content = await file.read()
-    if len(content) > 10 * 1024 * 1024:  # 10MB limit
-        return JSONResponse(status_code=422, content={"status": "error", "message": "File too large (max 10MB)"})
 
+    # Size limits: images 20MB, xlsx 10MB, pdf 10MB
+    max_size = 20 * 1024 * 1024 if is_image(fname_lower) else 10 * 1024 * 1024
+    if len(content) > max_size:
+        return JSONResponse(
+            status_code=422,
+            content={"status": "error", "message": f"File too large (max {max_size // (1024*1024)}MB)"},
+        )
     if len(content) < 100:
         return JSONResponse(status_code=422, content={"status": "error", "message": "File appears to be empty"})
 
+    # Determine student section + year hint for matching (NOT for parsing)
+    student_subjects = record.cached_subjects or []
+    student_section_hint = None
+    student_year_hint = ""
+    if student_subjects:
+        sec_counts = Counter(s.get('section', '').upper() for s in student_subjects if s.get('section'))
+        if sec_counts:
+            student_section_hint = max(sec_counts, key=sec_counts.get)
+    # Derive year from semester label: "Semester 3" → "II", "5th Sem" → "III"
+    sem_label = getattr(record, 'selected_semester_label', None) or ""
+    if sem_label:
+        from services.timetable_service import _semester_to_year
+        student_year_hint = _semester_to_year(sem_label)
+
+    # ── Parse full schedule (NO section filter — always parse everything) ───
+    # Section filtering happens AFTER parsing so needs_section has all options.
     try:
-        schedule = await run_in_threadpool(_parse_timetable_pdf, io.BytesIO(content))
+        if is_pdf:
+            schedule = await run_in_threadpool(
+                _parse_timetable_pdf, io.BytesIO(content), None, ""
+            )
+        else:
+            schedule = await run_in_threadpool(
+                extract_timetable_from_upload, content, fname, None
+            )
+    except RuntimeError as exc:
+        return JSONResponse(status_code=422, content={"status": "error", "message": str(exc)})
     except Exception:
-        logger.exception("Failed to parse uploaded timetable PDF")
-        return JSONResponse(status_code=422, content={"status": "error", "message": "Could not parse this PDF. Make sure it's a valid timetable."})
+        logger.exception("Failed to parse uploaded timetable")
+        return JSONResponse(
+            status_code=422,
+            content={"status": "error", "message": "Could not parse this file. Make sure it's a valid timetable."},
+        )
 
     if not schedule:
-        return JSONResponse(status_code=422, content={"status": "error", "message": "No timetable data found in this PDF. Make sure it's your class timetable."})
+        return JSONResponse(
+            status_code=422,
+            content={"status": "error", "message": "No timetable data found in this file. Make sure it's your class timetable."},
+        )
 
-    # Try to match to student's subjects
-    student_subjects = record.cached_subjects or []
-    my_classes = _match_student_classes(schedule, student_subjects) if student_subjects else []
+    # ── Filter to student's section using hints from session ────────────────
+    my_classes = []
 
-    # If subject matching fails, try section-based fallback
-    if not my_classes and student_subjects:
-        sections = set(s.get('section', '').upper() for s in student_subjects if s.get('section'))
-        if sections:
-            student_section = max(sections, key=lambda s: sum(1 for subj in student_subjects if subj.get('section', '').upper() == s))
-            my_classes = [
-                cls for cls in schedule
-                if cls.get('section', '').upper() == student_section
-                or cls.get('section', '').upper().startswith(student_section)
-                or student_section.startswith(cls.get('section', '').upper())
-            ]
+    # Try subject matching first (most precise)
+    if student_subjects:
+        my_classes = _match_student_classes(schedule, student_subjects)
 
-    # If still no match, try augmentation
+    # Section-based fallback using section + year + dept hints
+    if not my_classes and student_section_hint:
+        from services.timetable_service import _btech_section_matches, _dept_matches
+        my_classes = [
+            cls for cls in schedule
+            if _btech_section_matches(
+                cls.get('section', ''), student_section_hint,
+                pdf_year=cls.get('pdf_year', ''), student_year=student_year_hint,
+            )
+        ]
+
+    # Subject augmentation
     if my_classes:
         augmented = _infer_full_subjects_from_schedule(schedule, my_classes)
         if len(augmented) > len(student_subjects):
             student_subjects = augmented
             my_classes = _match_student_classes(schedule, student_subjects)
 
-    # If absolutely no matching possible, show all classes (user can figure out which are theirs)
+    # Hard stop — never dump all classes. Return needs_section response instead.
     if not my_classes:
-        my_classes = schedule
+        # Extract unique sections and depts from the parsed schedule
+        from services.timetable_service import _normalize_pdf_section
+        raw_sections = set(cls.get('section', '') for cls in schedule if cls.get('section', ''))
+        available_sections = sorted(set(
+            _normalize_pdf_section(s) for s in raw_sections if _normalize_pdf_section(s)
+        ))
+
+        # Build dept options: unique (section_norm, year, dept, room) combos for display
+        seen = set()
+        available_combos = []
+        for cls in schedule:
+            sec_norm = _normalize_pdf_section(cls.get('section', ''))
+            yr   = cls.get('pdf_year', '')
+            dept = cls.get('pdf_dept', '')
+            room = cls.get('room', '')
+            raw_sec = cls.get('section', '')
+            # Extract room from raw section string like "A (G-16)" → "G-16"
+            if not room:
+                import re as _re
+                rm = _re.search(r'\(([A-Z][A-Z0-9\-]+)\)', raw_sec)
+                if rm:
+                    room = rm.group(1)
+            key = (sec_norm, yr, dept)
+            if key not in seen and sec_norm:
+                seen.add(key)
+                available_combos.append({
+                    "section": sec_norm,
+                    "year": yr,
+                    "dept": dept,
+                    "room": room,
+                    "label": f"Section {sec_norm} ({room}) — Year {yr} {dept}".strip(" —()").replace("()", "").strip(),
+                })
+        available_combos.sort(key=lambda x: (x['year'], x['section']))
+        # Store parsed schedule in session for the section-override retry
+        record.pending_timetable_schedule = schedule
+        record.pending_timetable_filename = fname
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "needs_section",
+                "message": "Timetable found — please tell us your section and department.",
+                "data": {
+                    "needsSection": True,
+                    "availableSections": available_sections,
+                    "availableCombos": available_combos,
+                    "noticeTitle": f"Uploaded: {fname}",
+                },
+            },
+        )
 
     # Organize by day
     days_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
@@ -345,7 +471,7 @@ async def upload_timetable(token: str = Form(...), file: UploadFile = File(...))
         return JSONResponse(status_code=422, content={"status": "error", "message": "No classes found in the uploaded timetable."})
 
     result = {
-        "noticeTitle": f"Uploaded: {file.filename}",
+        "noticeTitle": f"Uploaded: {fname}",
         "noticeDate": None,
         "noticeId": None,
         "schedule": by_day,
@@ -354,8 +480,169 @@ async def upload_timetable(token: str = Form(...), file: UploadFile = File(...))
         "uploaded": True,
     }
 
-    logger.info("Timetable upload: parsed %d classes from %s for %s", len(my_classes), file.filename, record.roll_number)
+    logger.info("Timetable upload: parsed %d classes from %s for %s", len(my_classes), fname, record.roll_number)
     return ApiResponse(status="success", message="Timetable parsed successfully", data=result)
+
+
+class TimetableSectionOverrideRequest(BaseModel):
+    token: str = Field(..., description="Session token")
+    section: str = Field(..., description="Section chosen by the student")
+    year: str | None = Field(default=None, description="Year hint e.g. II, III")
+    dept: str | None = Field(default=None, description="Department e.g. CSE, AI&ML")
+
+
+# GET /notices/timetable/upload/combos?token=... — re-fetch combos for Wrong? flow
+@router.get("/timetable/upload/combos", response_model=ApiResponse)
+async def get_upload_combos(token: str = Query(..., description="Session token")):
+    """Return the section/year/dept combos from the last uploaded timetable (for Wrong? re-pick)."""
+    import re as _re
+    from services.timetable_service import _normalize_pdf_section
+
+    record = session_store.get(token)
+    if record is None:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Session expired"})
+
+    schedule = getattr(record, 'pending_timetable_schedule', None)
+    if not schedule:
+        return ApiResponse(status="success", message="No pending schedule", data={"availableCombos": []})
+
+    seen = set()
+    combos = []
+    for cls in schedule:
+        sec_norm = _normalize_pdf_section(cls.get('section', ''))
+        yr   = cls.get('pdf_year', '')
+        dept = cls.get('pdf_dept', '')
+        room = cls.get('room', '')
+        raw_sec = cls.get('section', '')
+        if not room:
+            rm = _re.search(r'\(([A-Z][A-Z0-9\-]+)\)', raw_sec)
+            if rm:
+                room = rm.group(1)
+        key = (sec_norm, yr, dept)
+        if key not in seen and sec_norm:
+            seen.add(key)
+            combos.append({"section": sec_norm, "year": yr, "dept": dept, "room": room})
+
+    combos.sort(key=lambda x: (x['year'], x['section']))
+    return ApiResponse(
+        status="success", message="Combos fetched",
+        data={"availableCombos": combos, "availableSections": sorted(set(c['section'] for c in combos))}
+    )
+
+
+# POST /notices/timetable/upload/set-section
+@router.post("/timetable/upload/set-section", response_model=ApiResponse)
+async def upload_timetable_set_section(payload: TimetableSectionOverrideRequest):
+    """
+    Called after the upload endpoint returns needsSection=true.
+    Uses the cached parsed schedule from the session, filtered by the student's chosen section.
+    """
+    from services.timetable_service import _btech_section_matches, _semester_to_year, _dept_matches
+
+    record = session_store.get(payload.token)
+    if record is None:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Session expired"})
+
+    schedule = getattr(record, 'pending_timetable_schedule', None)
+    fname = getattr(record, 'pending_timetable_filename', 'timetable')
+
+    if not schedule:
+        return JSONResponse(
+            status_code=422,
+            content={"status": "error", "message": "No pending timetable found. Please upload your file again."},
+        )
+
+    chosen_section = payload.section.strip().upper()
+    chosen_dept = (payload.dept or "").strip()
+    # Use year from payload if provided, else derive from session's semester label
+    student_year = payload.year or ""
+    if not student_year:
+        sem_label = getattr(record, 'selected_semester_label', None) or ""
+        if sem_label:
+            from services.timetable_service import _semester_to_year
+            student_year = _semester_to_year(sem_label)
+
+    # Filter schedule to the chosen section + year + dept
+    my_classes = [
+        cls for cls in schedule
+        if _btech_section_matches(
+            cls.get('section', ''),
+            chosen_section,
+            pdf_year=cls.get('pdf_year', ''),
+            student_year=student_year,
+        )
+        and (not chosen_dept or _dept_matches(cls.get('pdf_dept', ''), chosen_dept))
+    ]
+
+    # If nothing matched with dept filter, try without dept (be lenient)
+    if not my_classes:
+        my_classes = [
+            cls for cls in schedule
+            if _btech_section_matches(
+                cls.get('section', ''), chosen_section,
+                pdf_year=cls.get('pdf_year', ''), student_year=student_year,
+            )
+        ]
+
+    # If still nothing, try without year constraint
+    if not my_classes:
+        my_classes = [
+            cls for cls in schedule
+            if _btech_section_matches(cls.get('section', ''), chosen_section)
+        ]
+
+    if not my_classes:
+        # Try direct section string match as last resort
+        my_classes = [
+            cls for cls in schedule
+            if cls.get('section', '').upper() == chosen_section
+        ]
+
+    if not my_classes:
+        available = sorted(set(cls.get('section', '') for cls in schedule if cls.get('section')))
+        return JSONResponse(
+            status_code=422,
+            content={
+                "status": "error",
+                "message": f"Section '{payload.section}' not found in this timetable. Available: {', '.join(available)}",
+            },
+        )
+
+    # Organize by day
+    days_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    by_day = {day: [] for day in days_order}
+    for cls in my_classes:
+        day = cls.get("day", "")
+        if day in by_day:
+            by_day[day].append(cls)
+    for day in by_day:
+        by_day[day].sort(key=lambda c: c.get("time_sort", ""))
+    by_day = {day: classes for day, classes in by_day.items() if classes}
+
+    if not by_day:
+        return JSONResponse(
+            status_code=422,
+            content={"status": "error", "message": "No classes found for this section."},
+        )
+
+    # Clear the pending schedule from session
+    record.pending_timetable_schedule = None
+    record.pending_timetable_filename = None
+
+    result = {
+        "noticeTitle": f"Uploaded: {fname}",
+        "noticeDate": None,
+        "noticeId": None,
+        "schedule": by_day,
+        "totalClasses": len(my_classes),
+        "subjects": [],
+        "uploaded": True,
+        "section": chosen_section,
+    }
+
+    logger.info("Timetable section override: %d classes for section=%s from %s for %s",
+                len(my_classes), chosen_section, fname, record.roll_number)
+    return ApiResponse(status="success", message="Timetable loaded", data=result)
 
 
 # GET /notices/{id}?token=...

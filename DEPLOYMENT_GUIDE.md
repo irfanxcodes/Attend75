@@ -12,31 +12,27 @@
 After pushing code to GitHub:
 
 ```bash
-# 1. SSH into the server
-ssh ubuntu@129.159.239.36
+# 1. From your LOCAL machine — upload the .env safely via scp (never copy-paste hashes in terminal)
+scp -i ~/Downloads/oracle-vps.key backend/.env ubuntu@129.159.239.36:/tmp/attend75_new.env
+ssh -i ~/Downloads/oracle-vps.key ubuntu@129.159.239.36 "sudo mv /tmp/attend75_new.env /opt/attend75/backend/.env && sudo chmod 600 /opt/attend75/backend/.env"
 
-# 2. Pull latest code
+# 2. SSH into the server
+ssh -i ~/Downloads/oracle-vps.key ubuntu@129.159.239.36
+
+# 3. Pull latest code
 cd /opt/attend75/repo
 git pull origin main
 
-# 3. Copy backend files to deployment directory
-sudo cp -r /opt/attend75/repo/backend/* /opt/attend75/backend/
-
-# 4. Restore the production .env (git pull may overwrite it)
-sudo cat > /opt/attend75/backend/.env << 'EOF'
-DATABASE_URL=postgresql://attend75user:attend75db2026@localhost:5432/attend75
-CREDENTIAL_ENCRYPTION_KEY=aRC25brJebPQXJq9cH6OmzRJ3krZYpFVP2yglU2NmMM=
-FIREBASE_SERVICE_ACCOUNT_FILE=/opt/attend75/backend/firebase-service-account.json
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD_HASH=pbkdf2_sha256$260000$2f475f778aec15b186cc5ebf187952c0c4b6b3a8114d2447f6ac7483f411958f$6f448b8fe01a3d22d0cf26efb276d91332aff90b4c5271830f5fb6236136d7c0
-CORS_ALLOW_ORIGINS=https://attend75.xyz,https://www.attend75.xyz,http://localhost:5173
-CORS_ALLOW_ORIGIN_REGEX=https?://(.*\.)?attend75\.xyz$
-EOF
+# 4. Copy backend files to deployment directory (excludes .env — already uploaded above)
+sudo rsync -a --exclude='.env' --exclude='.venv/' --exclude='__pycache__/' --exclude='*.db' /opt/attend75/repo/backend/ /opt/attend75/backend/
 
 # 5. (Optional) Install new Python packages if requirements.txt changed
 cd /opt/attend75/backend
 source .venv/bin/activate
 pip install -r requirements.txt
+
+# 5a. (One-time) Install Tesseract OCR for timetable image uploads
+sudo apt-get install -y tesseract-ocr
 
 # 6. Restart the backend
 sudo systemctl restart attend75
@@ -45,6 +41,10 @@ sudo systemctl restart attend75
 sudo systemctl status attend75
 curl http://localhost:8000/health
 ```
+
+> **IMPORTANT — Never use `cat > .env << 'EOF'` with the hash inline.**
+> Shell heredocs and `export` statements interpret `$` as variable expansion, which corrupts the PBKDF2 hash silently.
+> Always use `scp` to copy the `.env` from your local machine to the server.
 
 ---
 
@@ -136,16 +136,28 @@ scp /path/to/firebase-service-account.json ubuntu@129.159.239.36:/opt/attend75/b
 
 ### Step 5: Production Environment Variables
 
+> **IMPORTANT:** Always copy `.env` via `scp` from your local machine. Never use `cat > .env << 'EOF'`
+> or `export` in the shell — the `$` characters in the PBKDF2 hash will be silently corrupted by shell expansion.
+
 ```bash
-cat > /opt/attend75/backend/.env << 'EOF'
-DATABASE_URL=postgresql://attend75user:attend75db2026@localhost:5432/attend75
-CREDENTIAL_ENCRYPTION_KEY=aRC25brJebPQXJq9cH6OmzRJ3krZYpFVP2yglU2NmMM=
-FIREBASE_SERVICE_ACCOUNT_FILE=/opt/attend75/backend/firebase-service-account.json
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD_HASH=pbkdf2_sha256$260000$2f475f778aec15b186cc5ebf187952c0c4b6b3a8114d2447f6ac7483f411958f$6f448b8fe01a3d22d0cf26efb276d91332aff90b4c5271830f5fb6236136d7c0
-CORS_ALLOW_ORIGINS=https://attend75.xyz,https://www.attend75.xyz,http://localhost:5173
-CORS_ALLOW_ORIGIN_REGEX=https?://(.*\.)?attend75\.xyz$
-EOF
+# From your LOCAL machine (run this, not on the server):
+scp -i ~/Downloads/oracle-vps.key backend/.env ubuntu@129.159.239.36:/tmp/attend75_new.env
+
+# Then on the server, move it into place:
+sudo mv /tmp/attend75_new.env /opt/attend75/backend/.env
+sudo chmod 600 /opt/attend75/backend/.env
+
+# Verify the hash loaded correctly (should print 4 parts, no error):
+cd /opt/attend75/backend
+source .venv/bin/activate
+python3 -c "
+from dotenv import load_dotenv; load_dotenv()
+import os
+h = os.getenv('ADMIN_PASSWORD_HASH', '')
+parts = h.split('\$', 3)
+assert len(parts) == 4 and not any(c in h for c in [' ', '\n', '\r']), f'CORRUPTED: {repr(h[:60])}'
+print(f'OK — {parts[0]}, {parts[1]} iterations, {len(parts[2])}‑char salt, {len(parts[3])}‑char digest')
+"
 ```
 
 ### Step 6: Restore Database (from old server)

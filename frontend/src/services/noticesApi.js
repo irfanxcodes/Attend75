@@ -115,5 +115,17 @@ export async function uploadTimetablePdf({ token, file }) {
     err.status = response.status
     throw err
   }
+  // Return the raw response — caller handles needsSection
+  if (data.status === 'needs_section') {
+    return { needsSection: true, ...(data.data || {}) }
+  }
   return data.data || data
+}
+
+export async function setTimetableSection({ token, section, year = null, dept = null }) {
+  return request(`${API_BASE_URL}/notices/timetable/upload/set-section`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, section, year, dept }),
+  })
 }

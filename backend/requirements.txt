@@ -24,6 +24,14 @@ python-dotenv==1.2.2
 # PDF parsing (timetable)
 pdfplumber==0.11.10
 
+# Image OCR for timetable uploads (requires system tesseract: apt install tesseract-ocr)
+pytesseract==0.3.13
+# Pillow already pulled in transitively; pin for safety
+Pillow==12.3.0
+
+# Spreadsheet parsing for timetable XLSX uploads
+openpyxl==3.1.5
+
 # Web Push
 pywebpush==2.3.0
 py-vapid
