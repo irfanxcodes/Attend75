@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 _timetable_cache: dict[int, dict] = {}  # notice_id -> {parsed_at, schedule}
 
 # Increment this whenever the parser logic changes so stale cache entries are dropped.
-_PARSER_VERSION = 5
+_PARSER_VERSION = 8
 
 
 def get_personalized_timetable(token: str, semester_id: str | None = None) -> dict | None:
@@ -151,13 +151,15 @@ def get_personalized_timetable(token: str, semester_id: str | None = None) -> di
                         best_sem = max(all_sems, key=_sem_sort_key)
 
                 if best_sem:
+                    # Include exact-semester matches + blank-semester entries
+                    # for courses the student is already confirmed to have
+                    # (handles garbled PDF semester cells for known subjects).
+                    confirmed_courses = {m.get('course', '').upper() for m in my_classes}
                     sem_filtered = [
                         c for c in section_classes
                         if c.get('semester', '') == best_sem
-                        # Also include blank-semester entries whose course was
-                        # already matched (garbled PDF cell from long faculty names)
                         or (not c.get('semester', '')
-                            and c.get('course', '') in {m.get('course', '') for m in my_classes})
+                            and c.get('course', '').upper() in confirmed_courses)
                     ]
                     if sem_filtered:
                         section_classes = sem_filtered
@@ -292,16 +294,17 @@ def _infer_full_subjects_from_schedule(schedule: list[dict], matched_classes: li
             if e['section'] == student_section and e['semester'] == student_sem
         ))
         # Also include entries with blank semester (garbled PDF cell) for this
-        # section — they almost certainly belong to the same semester since the
-        # section only has one active semester at a time.  Cap at 3 extra courses
-        # to avoid pulling in unrelated cross-section entries.
+        # section — but ONLY if the course is in the student's known subjects
+        # (i.e. portal confirmed the student takes it) to avoid pulling in
+        # unrelated courses whose semester was also garbled.
+        known_abbrs = {e['course'].upper() for e in matched_classes}
         blank_sem_courses = sorted(set(
             e['course'] for e in schedule
             if e['section'] == student_section
             and not e['semester']
-            and e['course'] not in inferred
+            and e['course'].upper() in known_abbrs
         ))
-        if blank_sem_courses and len(blank_sem_courses) <= 3:
+        if blank_sem_courses:
             inferred = sorted(set(inferred) | set(blank_sem_courses))
     else:
         # No semester info in this notice format — match by section alone.
@@ -812,19 +815,29 @@ def _parse_timetable_from_text(text: str) -> list[dict]:
                         sem = ""  # garbled — discard rather than store garbage
 
                 m = course_pattern.match(course_raw)
+                # If exact match fails, the cell may be garbled (pdfplumber merged
+                # adjacent cell text, e.g. "VEI TLFAMT-HEA" from "ETFM-E" + faculty).
+                # Try to find a valid COURSE-SECTION pattern anywhere in the cell.
+                if not m and course_raw:
+                    m = re.search(r'\b([A-Z][A-Z0-9]{1,6})-([A-Z0-9]{1,4})\b', course_raw)
                 if m:
                     course, section = m.group(1), m.group(2)
-                    all_classes.append({
-                        "day": days[day_idx],
-                        "time": time_slot,
-                        "time_sort": time_sort,
-                        "course_key": f"{course}-{section}",
-                        "course": course,
-                        "section": section,
-                        "faculty": faculty,
-                        "semester": sem,
-                        "room": room,
-                    })
+                    # Sanity check: reject room-like patterns (BB-4, CR-17, etc.)
+                    room_prefixes = {'BB', 'CR', 'LT', 'LH', 'CL', 'SH', 'FR'}
+                    if course in room_prefixes and re.match(r'^\d+$', section):
+                        pass  # skip — this is a room code, not a course
+                    else:
+                        all_classes.append({
+                            "day": days[day_idx],
+                            "time": time_slot,
+                            "time_sort": time_sort,
+                            "course_key": f"{course}-{section}",
+                            "course": course,
+                            "section": section,
+                            "faculty": faculty,
+                            "semester": sem,
+                            "room": room,
+                        })
 
                 day_idx += 1
                 i += 3  # advance by 3 columns per day
