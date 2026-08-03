@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 _timetable_cache: dict[int, dict] = {}  # notice_id -> {parsed_at, schedule}
 
 # Increment this whenever the parser logic changes so stale cache entries are dropped.
-_PARSER_VERSION = 4
+_PARSER_VERSION = 5
 
 
 def get_personalized_timetable(token: str, semester_id: str | None = None) -> dict | None:
@@ -154,6 +154,10 @@ def get_personalized_timetable(token: str, semester_id: str | None = None) -> di
                     sem_filtered = [
                         c for c in section_classes
                         if c.get('semester', '') == best_sem
+                        # Also include blank-semester entries whose course was
+                        # already matched (garbled PDF cell from long faculty names)
+                        or (not c.get('semester', '')
+                            and c.get('course', '') in {m.get('course', '') for m in my_classes})
                     ]
                     if sem_filtered:
                         section_classes = sem_filtered
@@ -282,10 +286,23 @@ def _infer_full_subjects_from_schedule(schedule: list[dict], matched_classes: li
 
     # Collect all unique courses for this section (+ semester if available)
     if student_sem:
+        # Primary: exact semester match
         inferred = sorted(set(
             e['course'] for e in schedule
             if e['section'] == student_section and e['semester'] == student_sem
         ))
+        # Also include entries with blank semester (garbled PDF cell) for this
+        # section — they almost certainly belong to the same semester since the
+        # section only has one active semester at a time.  Cap at 3 extra courses
+        # to avoid pulling in unrelated cross-section entries.
+        blank_sem_courses = sorted(set(
+            e['course'] for e in schedule
+            if e['section'] == student_section
+            and not e['semester']
+            and e['course'] not in inferred
+        ))
+        if blank_sem_courses and len(blank_sem_courses) <= 3:
+            inferred = sorted(set(inferred) | set(blank_sem_courses))
     else:
         # No semester info in this notice format — match by section alone.
         # Cap at 10 to avoid returning every course in the timetable for
