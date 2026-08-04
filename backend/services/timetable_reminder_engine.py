@@ -75,6 +75,40 @@ def _time_sort_to_hour_minute(time_sort: str) -> tuple[int, int] | None:
     return None
 
 
+def _has_pending_job_for_roll_today(roll_number: str, category: str, scheduled_at_utc: datetime) -> bool:
+    """
+    Return True if there is already a pending push_send job for this student
+    with the given category scheduled within ±5 minutes of scheduled_at_utc.
+    Used to prevent duplicate reminder/digest jobs when schedule_reminders_for_today
+    is called more than once on the same day (e.g. after a timetable update).
+    """
+    from db.models.notification_job import NotificationJob
+    import json
+    window = timedelta(minutes=5)
+    earliest = scheduled_at_utc - window
+    latest = scheduled_at_utc + window
+    with SessionLocal() as session:
+        jobs = (
+            session.query(NotificationJob)
+            .filter(
+                NotificationJob.job_type == "push_send",
+                NotificationJob.status == "pending",
+                NotificationJob.target_roll == roll_number,
+                NotificationJob.scheduled_at >= earliest,
+                NotificationJob.scheduled_at <= latest,
+            )
+            .all()
+        )
+        for job in jobs:
+            try:
+                payload = json.loads(job.payload)
+                if (payload.get("notification") or {}).get("category") == category:
+                    return True
+            except (json.JSONDecodeError, TypeError):
+                continue
+    return False
+
+
 def get_todays_classes_for_student(cached_subjects: list[dict]) -> list[dict]:
     """
     Get today's timetable classes for a student using their cached subjects.
@@ -195,13 +229,17 @@ def schedule_reminders_for_today() -> int:
                     )
 
                     scheduled_at_utc = digest_time.astimezone(timezone.utc)
-                    notification_queue.enqueue(
-                        "push_send",
-                        {"roll_number": roll_number, "notification": payload},
-                        target_roll=roll_number,
-                        scheduled_at=scheduled_at_utc,
-                    )
-                    enqueued += 1
+                    # Only enqueue if no digest job is already pending for this student today.
+                    # Prevents duplicates when this function is called multiple times
+                    # (e.g. once by the daily scheduler and once by the timetable reschedule thread).
+                    if not _has_pending_job_for_roll_today(roll_number, "digest", scheduled_at_utc):
+                        notification_queue.enqueue(
+                            "push_send",
+                            {"roll_number": roll_number, "notification": payload},
+                            target_roll=roll_number,
+                            scheduled_at=scheduled_at_utc,
+                        )
+                        enqueued += 1
 
         # Individual class reminders (Req 5)
         if should_send(prefs, "timetable_enabled"):
@@ -241,13 +279,15 @@ def schedule_reminders_for_today() -> int:
                 )
 
                 scheduled_at_utc = reminder_time.astimezone(timezone.utc)
-                notification_queue.enqueue(
-                    "push_send",
-                    {"roll_number": roll_number, "notification": payload},
-                    target_roll=roll_number,
-                    scheduled_at=scheduled_at_utc,
-                )
-                enqueued += 1
+                # Only enqueue if no reminder is already pending for this student at this exact time.
+                if not _has_pending_job_for_roll_today(roll_number, "timetable", scheduled_at_utc):
+                    notification_queue.enqueue(
+                        "push_send",
+                        {"roll_number": roll_number, "notification": payload},
+                        target_roll=roll_number,
+                        scheduled_at=scheduled_at_utc,
+                    )
+                    enqueued += 1
 
     logger.info("Timetable reminder engine: %d jobs enqueued for today", enqueued)
     return enqueued

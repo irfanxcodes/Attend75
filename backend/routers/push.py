@@ -408,6 +408,12 @@ async def schedule_my_reminders(payload: dict):
         )
 
     prefs = await run_in_threadpool(preference_filter.get_or_create_preferences, roll_number)
+
+    # Cancel any already-pending timetable/digest jobs for today so we never
+    # double-up with the 5:30 AM scheduler or a previous call to this endpoint.
+    from services.notification_queue import cancel_pending_timetable_jobs_for_today, cancel_pending_timetable_jobs_for_roll_today
+    await run_in_threadpool(cancel_pending_timetable_jobs_for_roll_today, roll_number)
+
     enqueued = 0
 
     # Daily digest

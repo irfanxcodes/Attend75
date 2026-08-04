@@ -233,6 +233,53 @@ def cancel_pending_timetable_jobs_for_today() -> int:
     return cancelled
 
 
+def cancel_pending_timetable_jobs_for_roll_today(roll_number: str) -> int:
+    """
+    Cancel all pending timetable/digest push_send jobs scheduled for TODAY
+    for a specific student (roll_number). Used by /push/schedule-my-reminders
+    to prevent duplicate reminders when the endpoint is called more than once
+    or after the 5:30 AM scheduler has already run.
+
+    Returns the number of jobs cancelled.
+    """
+    now = _utcnow()
+    end_of_today_utc = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+    with SessionLocal() as session:
+        jobs = (
+            session.query(NotificationJob)
+            .filter(
+                NotificationJob.job_type == "push_send",
+                NotificationJob.status == "pending",
+                NotificationJob.target_roll == roll_number,
+                NotificationJob.scheduled_at > now,
+                NotificationJob.scheduled_at <= end_of_today_utc,
+            )
+            .all()
+        )
+
+        cancelled = 0
+        for job in jobs:
+            try:
+                payload = json.loads(job.payload)
+                category = (payload.get("notification") or {}).get("category", "")
+                if category in ("timetable", "digest"):
+                    job.status = "cancelled"
+                    job.completed_at = now
+                    cancelled += 1
+            except (json.JSONDecodeError, TypeError, AttributeError):
+                continue
+
+        if cancelled > 0:
+            session.commit()
+
+    logger.info(
+        "cancel_pending_timetable_jobs_for_roll_today: cancelled %d stale jobs for %s",
+        cancelled, roll_number,
+    )
+    return cancelled
+
+
 def cleanup_old_jobs(days: int = 7) -> int:
     """Remove completed/failed/cancelled jobs older than N days."""
     cutoff = _utcnow() - timedelta(days=days)

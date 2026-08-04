@@ -51,6 +51,9 @@ def dispatch_for_new_notices(notice_ids: list[int]) -> int:
     Returns count of push_send jobs enqueued.
 
     Idempotent: only processes notices where notification_sent_at is NULL.
+    Stamps notification_sent_at BEFORE enqueuing so that any exception in the
+    dispatch logic cannot leave notices unguarded (which would cause re-dispatch
+    on the next 30-minute scrape cycle).
     """
     if not notice_ids:
         return 0
@@ -71,6 +74,16 @@ def dispatch_for_new_notices(notice_ids: list[int]) -> int:
         if not notices:
             return 0
 
+        # ── STAMP ALL NOTICES FIRST ──────────────────────────────────────────
+        # Set notification_sent_at on every qualifying notice immediately, before
+        # any enqueue logic runs. This is the critical idempotency gate: even if
+        # the enqueue loop raises an exception partway through, no notice can be
+        # re-dispatched on the next scrape cycle because the stamp is already
+        # committed. A missed push is far less harmful than a spam push.
+        for n in notices:
+            n.notification_sent_at = now
+        session.flush()  # write all stamps to DB in one go
+
         # Separate timetable-change notices from regular notices
         timetable_notices = [n for n in notices if is_timetable_change_title(n.title)]
         regular_notices = [n for n in notices if not is_timetable_change_title(n.title)]
@@ -87,8 +100,8 @@ def dispatch_for_new_notices(notice_ids: list[int]) -> int:
             for notice in timetable_notices:
                 targets = _subscribed_students_for_program(notice.source_program, notice.target_semesters)
                 all_timetable_targets.update(targets)
-                notice.notification_sent_at = now  # stamp eagerly before enqueuing
-            session.flush()  # persist stamps before enqueuing jobs
+                # notification_sent_at already stamped above
+            # flush already done above — no second flush needed
 
             for roll in all_timetable_targets:
                 payload = build_payload(
@@ -126,12 +139,7 @@ def dispatch_for_new_notices(notice_ids: list[int]) -> int:
                 logger.warning("Failed to start timetable reschedule thread: %s", refresh_exc)
 
         # Handle regular notices — with batch consolidation
-        # Stamp notification_sent_at BEFORE enqueuing so a mid-loop exception
-        # cannot leave a notice unguarded (causing re-dispatch on next cycle).
-        for notice in regular_notices:
-            notice.notification_sent_at = now
-        session.flush()  # write stamps to DB before enqueuing jobs
-
+        # notification_sent_at already stamped for all notices above.
         if len(regular_notices) > BATCH_CONSOLIDATION_THRESHOLD:
             enqueued_count += _dispatch_consolidated(regular_notices, now, session)
         else:
