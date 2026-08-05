@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 _timetable_cache: dict[int, dict] = {}  # notice_id -> {parsed_at, schedule}
 
 # Increment this whenever the parser logic changes so stale cache entries are dropped.
-_PARSER_VERSION = 8
+_PARSER_VERSION = 10
 
 
 def get_personalized_timetable(token: str, semester_id: str | None = None) -> dict | None:
@@ -134,10 +134,46 @@ def get_personalized_timetable(token: str, semester_id: str | None = None) -> di
                     if sem_counts:
                         best_sem = sem_counts.most_common(1)[0][0]
 
-                # If we still don't know, pick the highest semester number for this
-                # section — multi-semester notices always include the newest semester
-                # as the target, and higher semester = more recent enrollment.
+                # If we still don't know, try to infer from the student's known semester
+                # (semester_id passed by the caller, or selected_semester_label from session,
+                # or the semester embedded in the cached_attendance_rows).
+                # This is critical for programs like BBA where a single timetable notice
+                # contains multiple semesters for the same sections (Sem 1 + 3 + 5 under A/B/C/D/E).
+                # Picking the HIGHEST semester (old behaviour) was showing Sem 5 classes to
+                # Sem 1 students when subject-matching failed.
                 if not best_sem:
+                    # 1. Try semester_id passed directly by the caller (e.g. "3" or "2024_odd_3")
+                    if semester_id:
+                        m = re.search(r'\b(\d{1,2})\b', semester_id)
+                        if m:
+                            best_sem = m.group(1)
+
+                if not best_sem:
+                    # 2. Try selected_semester_label from session (e.g. "Semester 3" → "3")
+                    sem_label = getattr(record, 'selected_semester_label', None) or ""
+                    if sem_label:
+                        m = re.search(r'\b(\d{1,2})\b', sem_label)
+                        if m:
+                            best_sem = m.group(1)
+
+                if not best_sem:
+                    # 3. Try to infer from cached_attendance_rows semester fields
+                    cached_rows = getattr(record, 'cached_attendance_rows', None) or []
+                    row_sems = [
+                        str(r.get('semester', r.get('sem', ''))).strip()
+                        for r in cached_rows
+                        if r.get('semester') or r.get('sem')
+                    ]
+                    if row_sems:
+                        from collections import Counter as _RowSemCounter
+                        most_common = _RowSemCounter(row_sems).most_common(1)
+                        if most_common:
+                            best_sem = most_common[0][0]
+
+                if not best_sem:
+                    # 4. Last resort: pick the lowest semester present for this section
+                    # (BBA notices are issued per active semester batch, so the target
+                    # students are usually in the earlier semesters, not the highest).
                     all_sems = set(c.get('semester', '') for c in section_classes if c.get('semester'))
                     if len(all_sems) > 1:
                         def _sem_sort_key(s: str) -> int:
@@ -148,7 +184,7 @@ def get_personalized_timetable(token: str, semester_id: str | None = None) -> di
                                 roman = {'I': 1, 'II': 2, 'III': 3, 'IV': 4,
                                          'V': 5, 'VI': 6, 'VII': 7, 'VIII': 8}
                                 return roman.get(s.upper(), 0)
-                        best_sem = max(all_sems, key=_sem_sort_key)
+                        best_sem = min(all_sems, key=_sem_sort_key)
 
                 if best_sem:
                     # Include exact-semester matches + blank-semester entries
@@ -693,14 +729,24 @@ def _get_parsed_schedule(notice: Notice, record) -> list[dict] | None:
 def _parse_timetable_from_text(text: str) -> list[dict]:
     """
     Parse timetable from the stored ASCII-table text produced by notice_processor's
-    _rows_to_ascii_table(). Each PDF page → one table; each table row has 16 columns:
-      [0] TIME  [1..3] Monday(course,faculty,sem) [4..6] Tue [7..9] Wed
-      [10..12] Thu [13..15] Fri  [16] Room (optional)
+    _rows_to_ascii_table().
 
-    Rows look like:
-      | 9:30 – 10:20 AM | ABCD-A1 | John Doe | 2 | ... | LT-01 |
+    Supports two layouts:
 
-    Falls back to a plain-text heuristic when the ASCII table format is not detected.
+    Layout A — Old format (one combined table, TIME in first column):
+      [0] TIME  [1..3] Mon(Course|Faculty|Sem) ... [16] Room
+
+    Layout B — BBA/B.Com multi-page format (this is the current PDF format):
+      Each PDF page = one time slot.  The page's non-table text contains the time
+      string, e.g.  "09.30 AM to 10.20 AM".  The table itself has NO time column:
+        [0] Course  [1] Faculty Name  [2] Sem  ... [15] Room
+      Columns repeat: 3 data columns per day × 5 days = 15 data cols + 1 room col.
+      The header row contains "Course" and "Faculty Name" but NOT "TIME".
+
+    Subject-lookup lines (pages 8–10 of the PDF):
+      | 1 | EEC | SHAE403 | Effective English... | BBA |
+      These are NOT class entries — they're parsed by _build_abbr_lookup separately
+      and must be skipped here to avoid polluting the schedule.
     """
     days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
     PAGE_TIME_SLOTS = [
@@ -713,71 +759,144 @@ def _parse_timetable_from_text(text: str) -> list[dict]:
         "3:10 – 4:00 PM",
     ]
 
+    # Map raw time strings from non-table text → slot index
+    # Handles "09.30 AM to 10.20 AM", "10.25 AM to 11.15 AM", etc.
+    _TIME_TEXT_TO_SLOT = [
+        (re.compile(r'9[.:]30', re.IGNORECASE), 0),
+        (re.compile(r'10[.:]25', re.IGNORECASE), 1),
+        (re.compile(r'11[.:]20', re.IGNORECASE), 2),
+        (re.compile(r'12[.:]20', re.IGNORECASE), 3),
+        (re.compile(r'(?:1[.:]15|13[.:]15)', re.IGNORECASE), 4),
+        (re.compile(r'(?:2[.:]10|14[.:]10)', re.IGNORECASE), 5),
+        (re.compile(r'(?:3[.:]10|15[.:]10)', re.IGNORECASE), 6),
+    ]
+
     course_pattern = re.compile(r'^([A-Z][A-Z0-9]{1,6})-([A-Z0-9]{1,4})$')
+    ROOM_PREFIXES = {'BB', 'CR', 'LT', 'LH', 'CL', 'SH', 'FR'}
 
-    # ── ASCII table parser (primary path) ──────────────────────────────────────
-    # notice_processor stores tables as pipe-delimited ASCII: | cell | cell | ...
-    if "|" in text:
+    def _clean_sem(sem_raw: str) -> str:
+        """Extract a valid semester string (digit or Roman numeral) from a raw cell."""
+        if not sem_raw:
+            return ""
+        digit_match = re.match(r'^(\d{1,2})', sem_raw)
+        roman_match = re.match(r'^(I{1,3}V?|IV|VI{0,3}|VIII?)(?:\b|$)', sem_raw, re.IGNORECASE)
+        if digit_match:
+            return digit_match.group(1)
+        if roman_match:
+            return roman_match.group(1).upper()
+        return ""
+
+    def _extract_course(course_raw: str) -> tuple[str, str] | None:
+        """
+        Parse 'COURSE-SECTION' from a cell value.
+        Returns (course, section) or None if it doesn't look like a class entry.
+        """
+        if not course_raw:
+            return None
+        m = course_pattern.match(course_raw)
+        if not m:
+            m = re.search(r'\b([A-Z][A-Z0-9]{1,6})-([A-Z0-9]{1,4})\b', course_raw)
+        if not m:
+            return None
+        course, section = m.group(1), m.group(2)
+        # Reject room codes masquerading as course-section (BB-4, CR-17, etc.)
+        if course in ROOM_PREFIXES and re.match(r'^\d+$', section):
+            return None
+        return course, section
+
+    # ── ASCII table parser ──────────────────────────────────────────────────────
+    if "|" not in text:
+        # No ASCII table — jump straight to plain-text fallback
+        pass
+    else:
         all_classes = []
-        slot_idx = -1
+        slot_idx = -1   # index into PAGE_TIME_SLOTS
+        in_bba_mode = False   # True once we detect the BBA no-TIME-column format
 
-        for line in text.split('\n'):
-            # Skip separator lines like +---+---+
+        lines = text.split('\n')
+        line_no = 0
+        while line_no < len(lines):
+            line = lines[line_no]
+            line_no += 1
+
+            # ── Non-table text: look for time-slot labels (BBA format) ──────
+            # The notice_processor writes non-table page text before the table.
+            # For BBA PDFs this contains e.g. "09.30 AM to 10.20 AM".
             if not line.startswith("|"):
+                for pat, idx in _TIME_TEXT_TO_SLOT:
+                    if pat.search(line):
+                        slot_idx = idx
+                        in_bba_mode = True
+                        break
                 continue
 
+            # ── Pipe-delimited table row ─────────────────────────────────────
             cells = [c.strip() for c in line.split("|")[1:-1]]
             if not cells:
                 continue
 
-            # Detect header row (contains TIME/COURSE/FACULTY)
             joined = " ".join(cells).upper()
-            if "TIME" in joined and ("COURSE" in joined or "FACULTY" in joined):
-                slot_idx += 1
+
+            # ── Header detection ─────────────────────────────────────────────
+            # Layout A header: contains "TIME" AND ("COURSE" OR "FACULTY")
+            # Layout B header: contains "COURSE" AND "FACULTY NAME" but NOT "TIME"
+            has_time_col = "TIME" in joined
+            has_course_col = "COURSE" in joined
+            has_faculty_col = "FACULTY" in joined or "FACULTY NAME" in joined
+
+            # Skip the subject-lookup table rows (Sem | Sname | Code | Course | Program)
+            # These appear on pages 8-10 and look like: | 1 | EEC | SHAE403 | ... | BBA |
+            # Detect: first cell is a pure number (semester), second cell is a short abbr (2-5 chars)
+            if (len(cells) >= 5
+                    and re.match(r'^\d{1,2}$', cells[0])
+                    and re.match(r'^[A-Z][A-Z0-9]{1,6}$', cells[1])
+                    and len(cells[2]) >= 6  # course code like SHAE403
+                    and not re.search(r'-[A-Z]$', cells[1])):  # not a COURSE-SECTION
                 continue
 
-            # Skip rows with no useful course pattern in them
+            if has_time_col and (has_course_col or has_faculty_col):
+                # Layout A: old format — each header marks a new slot
+                slot_idx += 1
+                in_bba_mode = False
+                continue
+
+            if (not has_time_col) and has_course_col and has_faculty_col:
+                # Layout B: BBA format header — slot_idx already set from non-table text
+                # If we haven't seen a time label yet, increment as fallback counter
+                if not in_bba_mode:
+                    slot_idx += 1
+                continue  # skip header row — don't parse it as data
+
+            # ── Data row ─────────────────────────────────────────────────────
+            if slot_idx < 0:
+                continue  # no slot established yet
+
+            time_slot = PAGE_TIME_SLOTS[slot_idx] if slot_idx < len(PAGE_TIME_SLOTS) else f"Period {slot_idx + 1}"
+            time_sort = f"{slot_idx:02d}"
+
+            # Detect Layout A (first cell is a time value or blank) vs Layout B
             first_cell = cells[0] if cells else ""
+            time_in_first = re.search(r'\d{1,2}[:.]\d{2}', first_cell)
 
-            # Determine time slot from first cell or use counter
-            time_slot = PAGE_TIME_SLOTS[slot_idx] if 0 <= slot_idx < len(PAGE_TIME_SLOTS) else f"Period {slot_idx + 1}"
-            time_sort = f"{max(slot_idx, 0):02d}"
-
-            # Detect if first cell is a time value → this is a time-keyed row format
-            time_match = re.search(r'\d{1,2}[:.]\d{2}', first_cell)
-            if time_match:
-                # First column is the time value — map it to the fixed slot index
+            if time_in_first:
+                # Layout A, time-keyed row: first cell IS the time
                 raw_time = first_cell
-                if re.search(r'9[:.:]?30|9\.30', raw_time):
-                    slot_idx = 0
-                elif re.search(r'10[:.:]?25|10\.25', raw_time):
-                    slot_idx = 1
-                elif re.search(r'11[:.:]?20|11\.20', raw_time):
-                    slot_idx = 2
-                elif re.search(r'12[:.:]?20|12\.20', raw_time):
-                    slot_idx = 3
-                elif re.search(r'1[:.:]?15|13[:.:]?15|13\.15', raw_time):
-                    slot_idx = 4
-                elif re.search(r'2[:.:]?10|14[:.:]?10|14\.10', raw_time):
-                    slot_idx = 5
-                elif re.search(r'3[:.:]?10|15[:.:]?10|15\.10', raw_time):
-                    slot_idx = 6
-                # else: unrecognised time — leave slot_idx as-is (previous value)
-                time_slot = PAGE_TIME_SLOTS[slot_idx] if 0 <= slot_idx < len(PAGE_TIME_SLOTS) else first_cell
-                time_sort = f"{max(slot_idx, 0):02d}"
+                for pat, idx in _TIME_TEXT_TO_SLOT:
+                    if pat.search(raw_time):
+                        slot_idx = idx
+                        break
+                time_slot = PAGE_TIME_SLOTS[slot_idx] if slot_idx < len(PAGE_TIME_SLOTS) else first_cell
+                time_sort = f"{slot_idx:02d}"
                 data_cells = cells[1:]
             elif not first_cell:
-                # TIME column is blank (most PDFs) — data starts at cell[1]
-                if slot_idx < 0:
-                    continue  # haven't seen a header yet, skip
+                # Layout A, blank TIME cell — data starts at cell[1]
                 data_cells = cells[1:]
             else:
-                # Non-empty, non-time first cell (e.g. artifact text) — skip row
-                continue
+                # Layout B: no TIME column at all — all cells are data
+                data_cells = list(cells)
 
-            # Room is the last cell if it's a pure room code (BB-1, CR-13, LH-2)
-            # Room codes: 1–4 letters, a hyphen, then only digits.
-            # Course+section entries always have a letter section suffix (OM-A, HRM-E, ETFM-A1).
+            # Room is the last cell if it matches a room code pattern (BB-1, CR-13, LH-2)
+            # Room codes: 1–4 alpha chars, hyphen, digits only.
             room = ""
             if data_cells:
                 last = data_cells[-1]
@@ -785,65 +904,40 @@ def _parse_timetable_from_text(text: str) -> list[dict]:
                     room = last
                     data_cells = data_cells[:-1]
 
-            # BBA tables always have 5 days × 3 cols = 15 data cells (after stripping room).
-            # When pdfplumber merges or drops cells, the count can vary.
-            # Pad to a multiple of 3 so day-grouping doesn't mis-align.
+            # Pad to a multiple of 3 (5 days × 3 cols = 15 expected)
             while len(data_cells) % 3 != 0:
                 data_cells.append("")
 
-            # Now parse groups of 3 per day: (course-section, faculty, sem)
+            # Parse groups of 3 per day: (course-section, faculty, sem)
             day_idx = 0
             i = 0
             while i < len(data_cells) and day_idx < len(days):
                 course_raw = data_cells[i].strip()
-                faculty = data_cells[i + 1].strip() if i + 1 < len(data_cells) else ""
-                sem_raw = data_cells[i + 2].strip() if i + 2 < len(data_cells) else ""
+                faculty    = data_cells[i + 1].strip() if i + 1 < len(data_cells) else ""
+                sem_raw    = data_cells[i + 2].strip() if i + 2 < len(data_cells) else ""
+                sem        = _clean_sem(sem_raw)
 
-                # Clean semester: pdfplumber sometimes merges adjacent cell text
-                # into the semester column, producing garbage like "AD5HA" or "DY1".
-                # A valid semester is a 1-2 digit number or a Roman numeral (I–VIII).
-                # Extract the leading digit(s); if none, try a Roman numeral prefix.
-                sem = sem_raw
-                if sem_raw:
-                    digit_match = re.match(r'^(\d{1,2})', sem_raw)
-                    roman_match = re.match(r'^(I{1,3}V?|IV|VI{0,3}|VIII?)(?:\b|$)', sem_raw, re.IGNORECASE)
-                    if digit_match:
-                        sem = digit_match.group(1)
-                    elif roman_match:
-                        sem = roman_match.group(1).upper()
-                    else:
-                        sem = ""  # garbled — discard rather than store garbage
-
-                m = course_pattern.match(course_raw)
-                # If exact match fails, the cell may be garbled (pdfplumber merged
-                # adjacent cell text, e.g. "VEI TLFAMT-HEA" from "ETFM-E" + faculty).
-                # Try to find a valid COURSE-SECTION pattern anywhere in the cell.
-                if not m and course_raw:
-                    m = re.search(r'\b([A-Z][A-Z0-9]{1,6})-([A-Z0-9]{1,4})\b', course_raw)
-                if m:
-                    course, section = m.group(1), m.group(2)
-                    # Sanity check: reject room-like patterns (BB-4, CR-17, etc.)
-                    room_prefixes = {'BB', 'CR', 'LT', 'LH', 'CL', 'SH', 'FR'}
-                    if course in room_prefixes and re.match(r'^\d+$', section):
-                        pass  # skip — this is a room code, not a course
-                    else:
-                        all_classes.append({
-                            "day": days[day_idx],
-                            "time": time_slot,
-                            "time_sort": time_sort,
-                            "course_key": f"{course}-{section}",
-                            "course": course,
-                            "section": section,
-                            "faculty": faculty,
-                            "semester": sem,
-                            "room": room,
-                        })
+                parsed = _extract_course(course_raw)
+                if parsed:
+                    course, section = parsed
+                    all_classes.append({
+                        "day":        days[day_idx],
+                        "time":       time_slot,
+                        "time_sort":  time_sort,
+                        "course_key": f"{course}-{section}",
+                        "course":     course,
+                        "section":    section,
+                        "faculty":    faculty,
+                        "semester":   sem,
+                        "room":       room,
+                    })
 
                 day_idx += 1
-                i += 3  # advance by 3 columns per day
+                i += 3
 
         if all_classes:
-            logger.info("Timetable ASCII parser: extracted %d entries", len(all_classes))
+            logger.info("Timetable ASCII parser: extracted %d entries (bba_mode=%s)",
+                        len(all_classes), in_bba_mode)
             return all_classes
 
     # ── Plain-text fallback (when ASCII table not present) ─────────────────────
@@ -1346,6 +1440,13 @@ def _btech_section_matches(pdf_section: str, student_section: str,
     if len(ss) == 1 and ps.startswith(ss) and len(ps) > 1 and ps[1:].isalpha():
         return True
 
+    # "A1" / "A2" = subsection of section "A" (BBA batch divisions)
+    # e.g. timetable has "ETFM-A1" for Section A batch 1, portal returns "A"
+    if len(ss) == 1 and len(ps) == 2 and ps[0] == ss[0] and ps[1].isdigit():
+        return True
+    if len(ps) == 1 and len(ss) == 2 and ss[0] == ps[0] and ss[1].isdigit():
+        return True
+
     return False
 
 
@@ -1393,7 +1494,7 @@ def _parse_bba_timetable_pdf(pdf_bytes: io.BytesIO, student_section: str | None 
                         continue
                     course = course_raw.split("-")[0] if "-" in course_raw else course_raw
                     section = course_raw.split("-")[1] if "-" in course_raw else ""
-                    if student_section and section and section.upper() != student_section.upper():
+                    if student_section and section and not _btech_section_matches(section, student_section):
                         continue
                     all_classes.append({
                         "day": day_name,
