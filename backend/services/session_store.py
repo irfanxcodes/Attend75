@@ -38,6 +38,13 @@ class SessionStore:
         self._max_sessions = int(os.getenv("SESSION_STORE_MAX_SESSIONS", "5000"))
         self._session_ttl_seconds = int(os.getenv("SESSION_STORE_TTL_SECONDS", "43200"))
 
+    def _close_scraper(self, record: "SessionRecord") -> None:
+        """Close the underlying requests.Session to release socket file descriptors."""
+        try:
+            record.scraper.session.close()
+        except Exception:
+            pass
+
     def _prune_expired_locked(self, now: float) -> None:
         expired_tokens = [
             token
@@ -45,7 +52,9 @@ class SessionStore:
             if (now - record.last_accessed_at) > self._session_ttl_seconds
         ]
         for token in expired_tokens:
-            self._sessions.pop(token, None)
+            record = self._sessions.pop(token, None)
+            if record is not None:
+                self._close_scraper(record)
 
     def _prune_overflow_locked(self) -> None:
         overflow = len(self._sessions) - self._max_sessions
@@ -57,8 +66,9 @@ class SessionStore:
             key=lambda pair: pair[1].last_accessed_at,
         )[:overflow]
 
-        for token, _ in oldest_tokens:
+        for token, record in oldest_tokens:
             self._sessions.pop(token, None)
+            self._close_scraper(record)
 
     def create(self, roll_number: str, scraper: PortalScraper, user_name: str | None = None, photo_url: str | None = None, attendance_percent: float | None = None, user_agent: str | None = None, program_sn: str | None = None, program_full: str | None = None, selected_semester_label: str | None = None) -> SessionRecord:
         token = secrets.token_urlsafe(24)
