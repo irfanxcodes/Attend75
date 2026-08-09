@@ -1,6 +1,6 @@
 """add username to face_rater_scores (handled by 0014 upgrade, this is a no-op)
 
-Revision ID: 20260804_0015_add_username_to_face_rater_scores
+Revision ID: 20260804_0015
 Revises: 20260804_0014
 Create Date: 2026-08-04
 """
@@ -8,7 +8,7 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.engine.reflection import Inspector
 
-revision = '20260804_0015_add_username_to_face_rater_scores'
+revision = '20260804_0015'
 down_revision = '20260804_0014'
 branch_labels = None
 depends_on = None

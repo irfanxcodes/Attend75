@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers
 revision = "20260807_0016"
-down_revision = "20260804_0015_add_username_to_face_rater_scores"
+down_revision = "20260804_0015"
 branch_labels = None
 depends_on = None
 
