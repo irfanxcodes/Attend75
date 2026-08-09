@@ -57,7 +57,7 @@ export default function ChapterUpload() {
         setStatus(s)
         if (['ready', 'ready_low_coverage'].includes(s.upload_status)) {
           clearInterval(pollRef.current)
-          if (s.script_id) setTimeout(() => navigate(`/app/study/${subjectId}/${s.script_id}/play`), 1500)
+          if (s.script_id) setTimeout(() => navigate(`/app/study/${subjectId}/${s.script_id}/workspace`), 1500)
         } else if (s.upload_status === 'failed') {
           clearInterval(pollRef.current)
           setError(s.error_message || 'Processing failed. Please try again.')
@@ -102,7 +102,7 @@ export default function ChapterUpload() {
       if (result.already_processed && result.script_id) {
         setStatus({ upload_status: 'duplicate', script_id: result.script_id })
         setUploading(false)
-        setTimeout(() => navigate(`/app/study/${subjectId}/${result.script_id}/play`), 2000)
+        setTimeout(() => navigate(`/app/study/${subjectId}/${result.script_id}/workspace`), 2000)
         return
       }
       setStatus({ upload_status: 'pending', chapter_key: chapterKey.trim() })
@@ -213,7 +213,7 @@ export default function ChapterUpload() {
                   <motion.button
                     key={ch.script_id}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => navigate(`/app/study/${subjectId}/${ch.script_id}/play`)}
+                    onClick={() => navigate(`/app/study/${subjectId}/${ch.script_id}/workspace`)}
                     className="w-full bg-[#4A4769] border border-white/[0.08] rounded-2xl p-4
                                flex items-center gap-3 text-left hover:border-white/15 transition-colors"
                   >
