@@ -21,7 +21,7 @@ firebase-admin==7.5.0
 # Environment
 python-dotenv==1.2.2
 
-# PDF parsing (timetable)
+# PDF parsing (timetable OCR — pdfplumber still used by timetable_ocr.py)
 pdfplumber==0.11.10
 
 # Image OCR for timetable uploads (requires system tesseract: apt install tesseract-ocr)
@@ -35,3 +35,29 @@ openpyxl==3.1.5
 # Web Push
 pywebpush==2.3.0
 py-vapid
+
+# ── AI Lesson Player ───────────────────────────────────────────────────────
+
+# LLM gateway — unified API for Gemini, Groq, Cerebras, NVIDIA NIM, OpenRouter, etc.
+litellm==1.72.6
+
+# Structured LLM output — forces models to return valid Pydantic models
+instructor==1.8.3
+
+# PDF parsing — better table/image/metadata extraction alongside pdfplumber
+# pymupdf still used by timetable_ocr.py for image/OCR timetable uploads
+pymupdf==1.26.1
+
+# ── Docling — unified document parser for AI Lesson Player ────────────────
+# docling-slim: pure-Python wheel, no Rust compilation needed.
+# Uses pypdfium2 (already a dep) for PDF, built-in backends for DOCX/PPTX.
+# Full docling (with docling-parse Rust extension) is NOT used — requires
+# Rust toolchain and multi-GB ML models which are unsuitable for this server.
+docling-slim==2.118.1
+
+# pgvector — PostgreSQL vector similarity search (RAG embeddings)
+pgvector==0.3.6
+
+# DOCX/PPTX parsing — kept for course handout uploads (handoutApi, not lesson player)
+python-docx==1.1.2
+python-pptx==1.0.2

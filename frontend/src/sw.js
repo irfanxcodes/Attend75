@@ -66,6 +66,22 @@ registerRoute(
   })
 )
 
+// ── Face Rater — MediaPipe model + WASM files (CacheFirst, 30 days) ─────────
+registerRoute(
+  /face_landmarker\.task$/,
+  new CacheFirst({
+    cacheName: 'face-rater-model-v1',
+    plugins: [new ExpirationPlugin({ maxEntries: 2, maxAgeSeconds: 60 * 60 * 24 * 30 })],
+  })
+)
+registerRoute(
+  /mediapipe.*\.wasm$/,
+  new CacheFirst({
+    cacheName: 'face-rater-wasm-v1',
+    plugins: [new ExpirationPlugin({ maxEntries: 4, maxAgeSeconds: 60 * 60 * 24 * 30 })],
+  })
+)
+
 // ── Push Notification Handlers ──────────────────────────────────────────────
 
 const CATEGORY_ICONS = {

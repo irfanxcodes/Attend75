@@ -33,8 +33,15 @@ const gameRegistry = {
     maxScore: 9999,
     component: lazy(() => import('./games/GeodashGame')),
   },
-  // Future games added here
-  // Future games added here
+  getmogged: {
+    slug: 'getmogged',
+    title: 'Get Mogged',
+    description: 'AI rates your face. How do you stack up?',
+    thumbnail: null,
+    maxScore: 10,
+    component: null,   // navigates to /app/mog — not an in-arcade game component
+    externalRoute: '/app/mog',
+  },
 }
 
 export default gameRegistry

@@ -7,7 +7,7 @@ const configuredApiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || '').tri
 function resolveApiBaseUrl() {
   if (import.meta.env.DEV) return 'http://127.0.0.1:8000'
   if (configuredApiBaseUrl) return configuredApiBaseUrl
-  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') return '/api'
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') return 'https://api.attend75.xyz'
   return 'http://127.0.0.1:8000'
 }
 

@@ -49,11 +49,12 @@ def _get_database_url() -> str:
     if not url:
         raise RuntimeError(
             "DATABASE_URL environment variable must be set to run migrations. "
-            "Example: export DATABASE_URL=postgresql://user:pass@localhost:5432/attend75"
+            "Example: export DATABASE_URL=postgresql://user:pass@localhost:5432/attend75\n"
+            "For local dev: DATABASE_URL=sqlite:///./attend75.db"
         )
-    if not url.startswith("postgresql"):
+    if not url.startswith("postgresql") and not url.startswith("sqlite"):
         raise RuntimeError(
-            f"Only PostgreSQL is supported. Got: {url.split('://')[0]!r}"
+            f"Only PostgreSQL or SQLite is supported. Got: {url.split('://')[0]!r}"
         )
     return url
 

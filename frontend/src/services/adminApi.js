@@ -12,7 +12,7 @@ function resolveApiBaseUrl() {
 
   // In deployed environments, use same-origin API rewrites to avoid CORS and mixed-content failures.
   if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-    return '/api'
+    return 'https://api.attend75.xyz'
   }
 
   return 'http://127.0.0.1:8000'

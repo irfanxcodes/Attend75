@@ -10,7 +10,7 @@ function resolveApiBaseUrl() {
   }
 
   if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-    return '/api'
+    return 'https://api.attend75.xyz'
   }
 
   return 'http://127.0.0.1:8000'

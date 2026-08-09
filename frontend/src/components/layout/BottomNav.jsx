@@ -4,12 +4,12 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 const STUDYME_BETA_NOTICE_KEY = 'attend75.studyme.betaNotice.v2'
 
 const navItems = [
-  { label: 'Home', to: '/app/dashboard', icon: '/dashboard-icon.png' },
-  { label: 'History', to: '/app/history', icon: '/history-icon.svg' },
-  { label: 'Study', to: '/app/study', icon: null, useInlineSvg: 'study' },
-  { label: 'Notices', to: '/app/notices', icon: '/notices-icon.svg' },
-  { label: 'Marks', to: '/app/marks', icon: '/marks.png' },
-  { label: 'Me', to: '/app/profile', icon: '/profile-icon.svg' },
+  { label: 'Home',    to: '/app/dashboard', icon: '/dashboard-icon.png' },
+  { label: 'History', to: '/app/history',   icon: '/history-icon.svg' },
+  { label: 'Study',   to: '/app/study',     icon: null, useInlineSvg: 'study' },
+  { label: 'Notices', to: '/app/notices',   icon: '/notices-icon.svg' },
+  { label: 'Marks',   to: '/app/marks',     icon: '/marks.png' },
+  { label: 'Me',      to: '/app/profile',   icon: '/profile-icon.svg' },
 ]
 
 function BottomNav() {

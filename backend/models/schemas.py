@@ -395,3 +395,309 @@ class LeaderboardResponse(BaseModel):
     entries: list[LeaderboardEntry]
     user_entry: LeaderboardEntry | None = None
     metadata: dict = Field(default_factory=dict)
+
+
+# ── AI Lesson Player Schemas ───────────────────────────────────────────────
+
+class FormulaSchema(BaseModel):
+    """A mathematical or accounting formula extracted from course material."""
+    name: str = Field(..., description="Formula name, e.g. 'Net Working Capital'")
+    text: str = Field(..., description="Plain text version, e.g. 'NWC = CA - CL'")
+    latex: str | None = Field(default=None, description="LaTeX version if mathematical")
+    variables: list[dict] = Field(
+        default_factory=list,
+        description="Variable breakdown: [{symbol, meaning}]"
+    )
+
+
+class WorkedExampleStep(BaseModel):
+    """One step in a worked numerical example."""
+    step: str = Field(..., description="Step description, e.g. 'Calculate Cost of Debt'")
+    calculation: str = Field(default="", description="The actual calculation or formula used")
+    note: str = Field(default="", description="Optional explanation of why this step is done")
+
+
+class WorkedExampleSchema(BaseModel):
+    """A full step-by-step worked numerical example."""
+    question: str = Field(..., description="The numerical problem statement")
+    steps: list[WorkedExampleStep] = Field(default_factory=list)
+    answer: str = Field(default="", description="Final answer")
+    source_page: int = Field(default=0, description="Page/slide number in source")
+
+
+class SourceElementSchema(BaseModel):
+    """A reference back to the original document element this concept came from."""
+    slide_or_page: int = Field(default=0)
+    element_type: str = Field(default="text", description="text | heading | table | image | formula")
+    text: str = Field(default="", description="The actual text content of that element")
+
+
+class ConceptSchema(BaseModel):
+    """
+    One teachable concept extracted from a chapter.
+    Used by instructor library to force structured LLM output.
+    """
+    title: str = Field(..., description="Concept title, e.g. 'Working Capital Management'")
+    explanation: str = Field(..., description="Simplified explanation, max 150 words, student-friendly language")
+    definition: str | None = Field(default=None, description="Exact definition as stated in source material")
+    keywords: list[str] = Field(default_factory=list, description="Key terms for this concept")
+    formulas: list[FormulaSchema] = Field(default_factory=list, description="Formulas relevant to this concept")
+    examples: list[str] = Field(default_factory=list, description="Theory/illustrative examples")
+    misconceptions: list[str] = Field(default_factory=list, description="Common mistakes students make about this concept")
+    exam_questions: list[str] = Field(default_factory=list, description="Likely exam/quiz questions on this concept")
+    source_page: int = Field(default=0, description="Page number in source PDF where this concept appears")
+    source_heading: str = Field(default="", description="Section heading under which this concept appears")
+    prerequisites: list[str] = Field(default_factory=list, description="Titles of other concepts that must be understood first")
+
+    # ── StudyMe 2.0 additions ──────────────────────────────────────────────
+    content_type: str = Field(
+        default="theory",
+        description="'theory' | 'numerical' | 'mixed' — drives Canvas rendering strategy"
+    )
+    worked_examples: list[WorkedExampleSchema] = Field(
+        default_factory=list,
+        description="Step-by-step numerical examples extracted from source"
+    )
+    source_elements: list[SourceElementSchema] = Field(
+        default_factory=list,
+        description="References back to original document elements for PPT mode"
+    )
+
+
+class ChapterConceptList(BaseModel):
+    """
+    Full extraction result from one chapter.
+    Returned by LLM via instructor — validated Pydantic output.
+    """
+    chapter_title: str = Field(..., description="Title of the chapter")
+    concepts: list[ConceptSchema] = Field(..., description="All extracted concepts in document order")
+
+
+class IngestionStatusOut(BaseModel):
+    """Response for GET /studyme/chapters/:chapter_key/status"""
+    chapter_key: str
+    upload_status: str          # pending | processing | ready | ready_low_coverage | failed
+    coverage_score: float | None = None
+    concept_count: int | None = None
+    block_count: int | None = None
+    uploaded_by_label: str | None = None  # "You" or "a classmate" — never expose roll number
+    script_id: str | None = None          # set when status is ready
+    error_message: str | None = None
+
+
+class AvailableChapterOut(BaseModel):
+    """One entry in GET /studyme/chapters/:subject_id/available"""
+    chapter_key: str
+    chapter_title: str
+    subject_id: str
+    script_id: str
+    upload_id: str                  # exposed so WorkspacePlayer can call /curriculum
+    uploaded_by_label: str          # always "a classmate" or "You" — never raw roll number
+    coverage_score: float | None = None
+    concept_count: int
+    block_count: int
+
+
+class LessonBlockOut(BaseModel):
+    """One block in the Teaching Script — returned by GET /studyme/lessons/:id/script"""
+    id: str
+    sequence_order: int
+    block_type: str             # narration | keyword_highlight | definition | formula | example | diagram_spec | quiz | recap
+    content: str
+    voice_text: str | None = None
+    expected_answer: str | None = None
+    concept_id: str | None = None
+
+
+class LessonScriptOut(BaseModel):
+    """Full Teaching Script for a chapter — returned by GET /studyme/lessons/:id/script"""
+    script_id: str
+    subject_id: str
+    chapter_key: str
+    title: str
+    total_blocks: int
+    estimated_duration_seconds: int | None = None
+    concept_count: int
+    blocks: list[LessonBlockOut]
+
+
+class DoubtRequest(BaseModel):
+    """POST /studyme/lessons/:id/doubt"""
+    token: str = Field(..., description="Session token")
+    question: str = Field(..., description="Student's doubt question")
+    current_block_index: int = Field(default=0, description="Which block the student was on when they asked")
+
+    @field_validator("token", "question")
+    @classmethod
+    def validate_doubt_fields(cls, value: str, info: ValidationInfo) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError(f"{info.field_name} must not be empty")
+        return cleaned
+
+
+class DoubtResponse(BaseModel):
+    """Response from POST /studyme/lessons/:id/doubt"""
+    answer: str
+    model_used: str             # which LLM provider answered (for observability)
+
+
+class ProgressUpdate(BaseModel):
+    """POST /studyme/lessons/:id/progress"""
+    token: str
+    last_block_index: int = Field(..., ge=0)
+    completed: bool = False
+    concepts_seen: list[str] = Field(default_factory=list)
+    quiz_results: dict[str, str] = Field(default_factory=dict)
+    doubts_asked: int = Field(default=0, ge=0)
+
+    @field_validator("token")
+    @classmethod
+    def validate_progress_token(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("token must not be empty")
+        return cleaned
+
+
+class ProgressOut(BaseModel):
+    """GET /studyme/lessons/:id/progress"""
+    script_id: str
+    last_block_index: int
+    completed: bool
+    concepts_seen: list[str]
+    quiz_results: dict[str, str]
+    doubts_asked: int
+    started_at: str | None = None
+    completed_at: str | None = None
+
+
+# ── StudyMe 2.0 API Schemas ────────────────────────────────────────────────
+
+class ConceptSectionOut(BaseModel):
+    """One section of a concept in the Canvas — part of GET /studyme/concepts/:id"""
+    id: str
+    section_type: str
+    sequence_order: int
+    content: dict
+    source_references: list[dict]
+    voice_text: str | None = None
+
+
+class ConceptOut(BaseModel):
+    """
+    Full concept data for the Canvas.
+    GET /studyme/concepts/:concept_id
+    """
+    id: str
+    title: str
+    explanation: str
+    definition: str | None = None
+    keywords: list[str]
+    formulas: list[dict]           # [{name, text, latex, variables}]
+    examples: list[str]
+    misconceptions: list[str]
+    exam_questions: list[str]
+    source_page: int | None = None
+    source_heading: str | None = None
+    prerequisites: list[str]
+    content_type: str              # theory | numerical | mixed
+    worked_examples: list[dict]    # [{question, steps, answer, source_page}]
+    source_elements: list[dict]    # [{slide_or_page, element_type, text}]
+    sequence_order: int
+    # Sections compiled for Canvas rendering (from concept_sections table)
+    # Empty list for legacy concepts that only have lesson_blocks
+    sections: list[ConceptSectionOut] = Field(default_factory=list)
+
+
+class CurriculumConceptItem(BaseModel):
+    """One concept in the curriculum outline — used by GET /studyme/chapters/:id/curriculum"""
+    id: str
+    title: str
+    sequence_order: int
+    content_type: str              # theory | numerical | mixed
+    source_heading: str | None = None
+    prerequisites: list[str]
+    has_sections: bool             # True = new Canvas model; False = legacy blocks only
+    # Student progress state (injected per request)
+    student_status: str = "unseen"  # unseen | learning | understood | struggling | review_due | mastered
+
+
+class CurriculumOut(BaseModel):
+    """
+    Chapter curriculum with ordered concepts.
+    GET /studyme/chapters/:upload_id/curriculum
+    """
+    upload_id: str
+    chapter_key: str
+    chapter_title: str
+    subject_id: str
+    concepts: list[CurriculumConceptItem]
+    total_concepts: int
+    # Legacy script_id — still used by LessonPlayer v1 for block-based playback
+    script_id: str | None = None
+
+
+class ConceptProgressUpdate(BaseModel):
+    """POST /studyme/concepts/:concept_id/progress"""
+    token: str
+    status: str = Field(..., description="unseen|learning|understood|struggling|review_due|mastered")
+    attempts: int = Field(default=0, ge=0)
+    correct_attempts: int = Field(default=0, ge=0)
+
+    @field_validator("token")
+    @classmethod
+    def validate_token(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("token must not be empty")
+        return cleaned
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str) -> str:
+        valid = {"unseen", "learning", "understood", "struggling", "review_due", "mastered"}
+        if value not in valid:
+            raise ValueError(f"status must be one of: {', '.join(sorted(valid))}")
+        return value
+
+
+class TutorRequest(BaseModel):
+    """
+    POST /studyme/tutor
+    Persistent tutor — superset of the old /doubt endpoint.
+    Includes concept context, conversation history, and optional tutor mode.
+    """
+    token: str
+    question: str
+    script_id: str | None = Field(default=None, description="Lesson script being studied")
+    concept_id: str | None = Field(default=None, description="Current concept in Canvas")
+    upload_id: str | None = Field(default=None, description="Chapter upload (for RAG)")
+    current_block_index: int = Field(default=0)
+    conversation: list[dict] = Field(
+        default_factory=list,
+        description="Previous messages: [{role: 'user'|'tutor', content: str}]"
+    )
+    mode: str = Field(
+        default="answer",
+        description="'answer' | 'socratic' | 'quiz' | 'hint'"
+    )
+
+    @field_validator("token", "question")
+    @classmethod
+    def validate_required(cls, value: str, info: ValidationInfo) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError(f"{info.field_name} must not be empty")
+        return cleaned
+
+
+class TutorResponse(BaseModel):
+    """Response from POST /studyme/tutor"""
+    answer: str
+    model_used: str
+    mode: str = "answer"
+    # Optional tutor-initiated actions the frontend can interpret safely
+    # e.g. {"action": "open_concept", "concept_id": "..."}
+    # or   {"action": "focus_slide", "slide_no": 7}
+    suggested_action: dict | None = None

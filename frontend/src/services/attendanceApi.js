@@ -9,11 +9,10 @@ function resolveApiBaseUrl() {
     return configuredApiBaseUrl
   }
 
-  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-    return '/api'
-  }
-
-  return 'http://127.0.0.1:8000'
+  // Always use the absolute backend URL in production.
+  // Using relative '/api' causes Vercel to 308-redirect attend75.xyz → www.attend75.xyz,
+  // which breaks CORS on POST requests (browser drops the request on redirect).
+  return 'https://api.attend75.xyz'
 }
 
 const API_BASE_URL = resolveApiBaseUrl()

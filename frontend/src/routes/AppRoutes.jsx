@@ -20,11 +20,10 @@ const Notices = lazy(() => import('../pages/Notices'))
 const Profile = lazy(() => import('../pages/Profile'))
 const Splash = lazy(() => import('../pages/Splash'))
 const StudyMe = lazy(() => import('../pages/StudyMe'))
-const StudyLessons = lazy(() => import('../pages/StudyLessons'))
-const StudyLessonDetail = lazy(() => import('../pages/StudyLessonDetail'))
-const StudyLessonYoutube = lazy(() => import('../pages/StudyLessonYoutube'))
-const StudyPdfViewer = lazy(() => import('../pages/StudyPdfViewer'))
-const StudyTopicPractice = lazy(() => import('../pages/StudyTopicPractice'))
+const SubjectDetail = lazy(() => import('../pages/SubjectDetail'))
+const LessonPlayer = lazy(() => import('../pages/LessonPlayer'))
+const WorkspacePlayer = lazy(() => import('../pages/WorkspacePlayer'))
+const ChapterUpload = lazy(() => import('../pages/ChapterUpload'))
 const AdminLogin = lazy(() => import('../pages/admin/AdminLogin'))
 const AdminDashboard = lazy(() => import('../pages/admin/AdminDashboard'))
 const NotificationSettings = lazy(() => import('../pages/NotificationSettings'))
@@ -32,6 +31,7 @@ const NotificationHistory = lazy(() => import('../pages/NotificationHistory'))
 const Premium = lazy(() => import('../pages/Premium'))
 const ArcadeHome = lazy(() => import('../pages/ArcadeHome'))
 const ArcadeGamePage = lazy(() => import('../pages/ArcadeGamePage'))
+const FaceRater = lazy(() => import('../pages/FaceRater'))
 
 function RouteFallback({ message = 'Loading page...' }) {
   return (
@@ -100,27 +100,12 @@ function StudyRedirectOrPublic() {
   } = useAppStore()
   const location = useLocation()
 
-  // If user is logged in, redirect to /app/study/... so they get the nav
   if (user.isAuthenticated) {
     const appPath = `/app${location.pathname}${location.search}`
     return <Navigate to={appPath} replace />
   }
 
   return <StudyMe />
-}
-
-function StudySubRouteOrPublic({ element }) {
-  const {
-    state: { user },
-  } = useAppStore()
-  const location = useLocation()
-
-  if (user.isAuthenticated) {
-    const appPath = `/app${location.pathname}${location.search}`
-    return <Navigate to={appPath} replace />
-  }
-
-  return element
 }
 
 function AppRoutes() {
@@ -321,12 +306,6 @@ function AppRoutes() {
         <Route path="/history" element={<Navigate to="/app/history" replace />} />
         <Route path="/marks" element={<Navigate to="/app/marks" replace />} />
         <Route path="/study" element={<StudyRedirectOrPublic />} />
-        <Route path="/study/:subjectId" element={<StudySubRouteOrPublic element={<StudyLessons />} />} />
-        <Route path="/study/:subjectId/:lessonId" element={<StudySubRouteOrPublic element={<StudyLessonDetail />} />} />
-        <Route path="/study/:subjectId/:lessonId/youtube" element={<StudySubRouteOrPublic element={<StudyLessonYoutube />} />} />
-        <Route path="/study/:subjectId/:lessonId/pdf" element={<StudySubRouteOrPublic element={<StudyPdfViewer />} />} />
-        <Route path="/study/:subjectId/:lessonId/practice" element={<StudySubRouteOrPublic element={<StudyTopicPractice />} />} />
-        <Route path="/study/:subjectId/:lessonId/practice/:topicId" element={<StudySubRouteOrPublic element={<StudyTopicPractice />} />} />
         <Route path="/profile" element={<Navigate to="/app/profile" replace />} />
         <Route path="/app" element={<ProtectedAppRoutes isAuthBootstrapComplete={isAuthBootstrapComplete} />}>
           <Route index element={<Navigate to="dashboard" replace />} />
@@ -335,16 +314,15 @@ function AppRoutes() {
           <Route path="marks" element={<Marks />} />
           <Route path="notices" element={<Notices />} />
           <Route path="study" element={<StudyMe />} />
-          <Route path="study/:subjectId" element={<StudyLessons />} />
-          <Route path="study/:subjectId/:lessonId" element={<StudyLessonDetail />} />
-          <Route path="study/:subjectId/:lessonId/youtube" element={<StudyLessonYoutube />} />
-          <Route path="study/:subjectId/:lessonId/pdf" element={<StudyPdfViewer />} />
-          <Route path="study/:subjectId/:lessonId/practice" element={<StudyTopicPractice />} />
-          <Route path="study/:subjectId/:lessonId/practice/:topicId" element={<StudyTopicPractice />} />
+          <Route path="study/:subjectId" element={<SubjectDetail />} />
+          <Route path="study/:subjectId/upload" element={<ChapterUpload />} />
+          <Route path="study/:subjectId/:lessonId/play" element={<LessonPlayer />} />
+          <Route path="study/:subjectId/:lessonId/workspace" element={<WorkspacePlayer />} />
           <Route path="profile" element={<Profile />} />
           <Route path="premium" element={<Premium />} />
           <Route path="arcade" element={<ArcadeHome />} />
           <Route path="arcade/:gameSlug" element={<ArcadeGamePage />} />
+          <Route path="mog" element={<FaceRater />} />
           <Route path="notification-settings" element={<NotificationSettings />} />
           <Route path="notifications" element={<NotificationHistory />} />
         </Route>

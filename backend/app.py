@@ -26,12 +26,16 @@ from routers.advertisement import router as advertisement_router
 from routers.arcade import router as arcade_router
 from routers.auth import router as auth_router
 from routers.admin import router as admin_router
+from routers.face_rater import router as face_rater_router
 from routers.feedback import router as feedback_router
 from routers.firebase_auth import router as firebase_auth_router
+from routers.handout import router as handout_router
+from routers.lesson import router as lesson_router
 from routers.notices import router as notices_router
 from routers.push import router as push_router
 from routers.premium import router as premium_router
 from routers.studyme import router as studyme_router
+from routers.workspace import router as workspace_router  # StudyMe 2.0
 from services.request_metrics import observe_request
 
 app = FastAPI(title="Attend75 Backend", version="0.1.0")
@@ -227,8 +231,12 @@ app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(advertisement_router)
 app.include_router(arcade_router)
+app.include_router(face_rater_router)
 app.include_router(feedback_router)
 app.include_router(firebase_auth_router)
+app.include_router(handout_router)
+app.include_router(lesson_router)
+app.include_router(workspace_router)   # StudyMe 2.0 Canvas endpoints
 app.include_router(notices_router)
 app.include_router(push_router)
 app.include_router(premium_router)

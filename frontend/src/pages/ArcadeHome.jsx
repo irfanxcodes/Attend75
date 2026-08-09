@@ -180,10 +180,11 @@ function ArcadeHome() {
 
 // --- Game Hero Card (per game) ---
 function GameHeroCard({ game, personalBest, navigate }) {
-  if (game.slug === 'flappy') return <FlappyHeroCard game={game} personalBest={personalBest} navigate={navigate} />
-  if (game.slug === 'pacman') return <PacmanHeroCard game={game} personalBest={personalBest} navigate={navigate} />
-  if (game.slug === 'stack') return <StackHeroCard game={game} personalBest={personalBest} navigate={navigate} />
-  if (game.slug === 'geodash') return <GeodashHeroCard game={game} personalBest={personalBest} navigate={navigate} />
+  if (game.slug === 'flappy')     return <FlappyHeroCard    game={game} personalBest={personalBest} navigate={navigate} />
+  if (game.slug === 'pacman')     return <PacmanHeroCard    game={game} personalBest={personalBest} navigate={navigate} />
+  if (game.slug === 'stack')      return <StackHeroCard     game={game} personalBest={personalBest} navigate={navigate} />
+  if (game.slug === 'geodash')    return <GeodashHeroCard   game={game} personalBest={personalBest} navigate={navigate} />
+  if (game.slug === 'getmogged')  return <GetMoggedHeroCard game={game} personalBest={personalBest} navigate={navigate} />
   return <GenericHeroCard game={game} personalBest={personalBest} navigate={navigate} />
 }
 
@@ -313,6 +314,61 @@ function GeodashHeroCard({ game, personalBest, navigate }) {
   )
 }
 
+function GetMoggedHeroCard({ game, personalBest, navigate }) {
+  return (
+    <div>
+      <div
+        className="relative flex h-52 flex-col items-center justify-center overflow-hidden"
+        style={{ background: 'linear-gradient(135deg, #1C1830 0%, #2D1F3E 50%, #3D2A52 100%)' }}
+      >
+        {/* Animated glow orbs */}
+        <div className="absolute top-4 left-8 h-20 w-20 rounded-full opacity-30" style={{ background: 'radial-gradient(circle, #FF916C, transparent)' }} />
+        <div className="absolute bottom-6 right-6 h-16 w-16 rounded-full opacity-25" style={{ background: 'radial-gradient(circle, #a78bfa, transparent)' }} />
+
+        {/* Face scan visual */}
+        <div className="relative z-10 flex flex-col items-center gap-3">
+          {/* Face outline with scan line */}
+          <div className="relative flex h-24 w-20 items-center justify-center rounded-full border-2 border-dashed border-[#FF916C]/60">
+            <span className="text-4xl">🪞</span>
+            {/* Corner brackets */}
+            <div className="absolute top-0 left-0 h-4 w-4 border-t-2 border-l-2 border-[#FF916C] rounded-tl-sm" />
+            <div className="absolute top-0 right-0 h-4 w-4 border-t-2 border-r-2 border-[#FF916C] rounded-tr-sm" />
+            <div className="absolute bottom-0 left-0 h-4 w-4 border-b-2 border-l-2 border-[#FF916C] rounded-bl-sm" />
+            <div className="absolute bottom-0 right-0 h-4 w-4 border-b-2 border-r-2 border-[#FF916C] rounded-br-sm" />
+          </div>
+
+          {/* Tier pills */}
+          <div className="flex gap-1.5">
+            {[
+              { label: 'Gigachad', color: 'bg-yellow-400/20 text-yellow-300 border-yellow-400/30' },
+              { label: 'Normie',   color: 'bg-purple-400/20 text-purple-300 border-purple-400/30' },
+            ].map(({ label, color }) => (
+              <span key={label} className={`rounded-full border px-2 py-0.5 text-[9px] font-bold ${color}`}>
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Title */}
+        <div className="absolute bottom-4 left-0 right-0 text-center">
+          <span className="text-base font-extrabold tracking-wide text-[#F7F4FF] drop-shadow-lg">
+            {game.title}
+          </span>
+        </div>
+
+        {/* Personal best badge */}
+        {personalBest != null && (
+          <div className="absolute top-3 right-3 rounded-xl bg-[#FF916C]/20 px-2 py-1">
+            <span className="text-[9px] font-bold text-[#FF916C]">BEST {personalBest}/10</span>
+          </div>
+        )}
+      </div>
+      <CardFooter game={game} personalBest={personalBest} navigate={navigate} />
+    </div>
+  )
+}
+
 function GenericHeroCard({ game, personalBest, navigate }) {
   return (
     <div>
@@ -388,6 +444,8 @@ function StackHeroCard({ game, personalBest, navigate }) {
 }
 
 function CardFooter({ game, personalBest, navigate }) {
+  const destination = game.externalRoute ?? `/app/arcade/${game.slug}`
+  const isExternal  = !!game.externalRoute
   return (
     <div className="bg-[#4A466A] px-4 py-4 pb-8">
       <div className="flex items-center gap-3">
@@ -419,27 +477,31 @@ function CardFooter({ game, personalBest, navigate }) {
               <rect x="8" y="34" width="10" height="10" fill="#00ff87" rx="2"/>
               <rect x="11" y="37" width="4" height="4" fill="white" rx="1" opacity="0.6"/>
             </svg>
+          ) : game.slug === 'getmogged' ? (
+            <span className="text-2xl">🪞</span>
           ) : (
             <span className="text-xl">🎮</span>
           )}
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-[#9F9AB5]">
-            {game.slug === 'flappy' ? "This week's game" : 'Classic arcade'}
+            {isExternal ? 'Face rating' : game.slug === 'flappy' ? "This week's game" : 'Classic arcade'}
           </p>
           <h2 className="text-base font-bold text-[#F7F4FF]">{game.title}</h2>
         </div>
         <span className="text-xs font-semibold text-[#4EF0A0]">
-          {personalBest != null ? `Best: ${personalBest}` : ''}
+          {personalBest != null
+            ? isExternal ? `Best: ${personalBest}/10` : `Best: ${personalBest}`
+            : ''}
         </span>
       </div>
       <button
         type="button"
-        onClick={() => navigate(`/app/arcade/${game.slug}`)}
+        onClick={() => navigate(destination)}
         className="mt-3 w-full rounded-full py-3 text-sm font-bold text-[#1C2030] transition-all active:scale-[0.97]"
         style={{ background: 'linear-gradient(135deg, #B8F77D 0%, #7BE056 100%)', boxShadow: '0 4px 14px rgba(123, 224, 86, 0.3)' }}
       >
-        Play Now
+        {isExternal ? 'Get Mogged 🪞' : 'Play Now'}
       </button>
     </div>
   )
