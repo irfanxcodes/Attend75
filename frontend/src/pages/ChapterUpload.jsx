@@ -86,14 +86,10 @@ function findMatchingTitle(typed, validTitles) {
 // ── Chapter Picker — 4 visible + "more" dropdown ─────────────────────────────
 
 function ChapterPicker({ titles, selected, onSelect }) {
-  const [open, setOpen] = useState(false)
-  const visible = titles.slice(0, 4)
-  const rest    = titles.slice(4)
-
-  const chipClass = (t) =>
-    selected.toLowerCase().trim() === t.toLowerCase().trim()
-      ? 'bg-[#E8956D]/15 text-[#E8956D] border border-[#E8956D]/40'
-      : 'bg-white/5 text-[#A8A5C0] border border-white/10 hover:border-white/20 hover:text-white'
+  const [showAll, setShowAll] = useState(false)
+  const INITIAL_COUNT = 5
+  const visible = showAll ? titles : titles.slice(0, INITIAL_COUNT)
+  const hasMore = titles.length > INITIAL_COUNT
 
   return (
     <div className="mb-4 text-left">
@@ -101,60 +97,46 @@ function ChapterPicker({ titles, selected, onSelect }) {
         Chapters in this subject
       </p>
 
-      <div className="flex flex-wrap gap-1.5 items-center">
-        {visible.map(t => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => onSelect(t)}
-            className={`px-3 py-1.5 rounded-full text-[11px] font-medium transition-all truncate max-w-[200px] ${chipClass(t)}`}
-          >
-            {t}
-          </button>
-        ))}
-
-        {rest.length > 0 && (
-          <div className="relative">
+      <div className="rounded-2xl border border-white/[0.08] overflow-hidden">
+        {visible.map((t, i) => {
+          const isSelected = selected.toLowerCase().trim() === t.toLowerCase().trim()
+          const isLast = i === visible.length - 1 && !hasMore
+          return (
             <button
+              key={t}
               type="button"
-              onClick={() => setOpen(v => !v)}
-              className="px-3 py-1.5 rounded-full text-[11px] font-medium transition-all
-                         bg-white/5 text-[#A8A5C0] border border-white/10 hover:border-white/20 hover:text-white
-                         flex items-center gap-1"
+              onClick={() => onSelect(t)}
+              className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors
+                ${!isLast ? 'border-b border-white/[0.06]' : ''}
+                ${isSelected
+                  ? 'bg-[#E8956D]/10'
+                  : 'bg-[#3A3660] hover:bg-white/5 active:bg-white/10'
+                }`}
             >
-              +{rest.length} more
-              <span className={`transition-transform duration-150 ${open ? 'rotate-180' : ''}`}>▾</span>
-            </button>
-
-            <AnimatePresence>
-              {open && (
-                <motion.div
-                  initial={{ opacity: 0, y: -4, scale: 0.97 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -4, scale: 0.97 }}
-                  transition={{ duration: 0.12 }}
-                  className="absolute left-0 top-full mt-1.5 z-20 w-[min(16rem,calc(100vw-2.5rem))]
-                             bg-[#3A3660] border border-white/10 rounded-2xl shadow-xl
-                             overflow-hidden"
-                >
-                  {rest.map(t => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => { onSelect(t); setOpen(false) }}
-                      className={`w-full text-left px-4 py-2.5 text-[12px] transition-colors
-                        ${selected.toLowerCase().trim() === t.toLowerCase().trim()
-                          ? 'bg-[#E8956D]/15 text-[#E8956D]'
-                          : 'text-[#D4D1EC] hover:bg-white/5'
-                        }`}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </motion.div>
+              <span className={`text-[13px] font-medium leading-snug pr-3
+                ${isSelected ? 'text-[#E8956D]' : 'text-[#D4D1EC]'}`}>
+                {t}
+              </span>
+              {isSelected && (
+                <span className="text-[#E8956D] flex-shrink-0 text-[16px] leading-none">✓</span>
               )}
-            </AnimatePresence>
-          </div>
+            </button>
+          )
+        })}
+
+        {hasMore && (
+          <button
+            type="button"
+            onClick={() => setShowAll(v => !v)}
+            className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5
+                       bg-[#2E2B4A] text-[#9895B5] text-[12px] font-medium
+                       hover:text-white transition-colors border-t border-white/[0.06]"
+          >
+            {showAll
+              ? <>Show less <span className="text-[10px]">▲</span></>
+              : <>+{titles.length - INITIAL_COUNT} more <span className="text-[10px]">▼</span></>
+            }
+          </button>
         )}
       </div>
     </div>
