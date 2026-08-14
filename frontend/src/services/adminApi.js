@@ -137,6 +137,12 @@ export async function fetchStorageCaps(sessionToken) {
   return requestAdminJson(`${API_BASE_URL}/admin/storage/caps`, { method: 'GET', headers: authHeaders(sessionToken) })
 }
 
+// ── StudyMe Analytics ─────────────────────────────────────────────────────────
+
+export async function fetchStudyMeAdminAnalytics(sessionToken) {
+  return requestAdminJson(`${API_BASE_URL}/admin/studyme/analytics`, { method: 'GET', headers: authHeaders(sessionToken) })
+}
+
 export async function resetStorageCapBlock(sessionToken, guard = 'all') {
   return requestAdminJson(`${API_BASE_URL}/admin/storage/reset-cap-block`, {
     method: 'POST', headers: authHeaders(sessionToken), body: JSON.stringify({ guard }),

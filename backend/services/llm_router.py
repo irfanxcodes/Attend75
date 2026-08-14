@@ -32,6 +32,45 @@ _GEMINI_REST_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 _GEMINI_TIMEOUT = 60
 
 
+def _extract_provider(model: str) -> str:
+    """'groq/llama-3.3-70b-versatile' → 'groq'"""
+    return model.split("/")[0].lower() if "/" in model else "unknown"
+
+
+def _log_llm_call(
+    call_type: str,
+    model: str,
+    success: bool,
+    fallback_index: int = 0,
+    duration_ms: int | None = None,
+    prompt_tokens: int | None = None,
+    completion_tokens: int | None = None,
+    error_snippet: str | None = None,
+) -> None:
+    """Fire-and-forget: write one row to llm_call_log. Never raises."""
+    try:
+        from db.session import SessionLocal
+        from db.models.llm_call_log import LlmCallLog
+        import uuid
+        row = LlmCallLog(
+            id=str(uuid.uuid4()),
+            call_type=call_type,
+            model=model,
+            provider=_extract_provider(model),
+            success=success,
+            fallback_index=fallback_index,
+            duration_ms=duration_ms,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            error_snippet=(error_snippet or "")[:256] if error_snippet else None,
+        )
+        with SessionLocal() as session:
+            session.add(row)
+            session.commit()
+    except Exception as exc:
+        logger.debug("[LLMRouter] Could not write llm_call_log: %s", exc)
+
+
 def _setup_provider_env() -> None:
     """Normalize provider API key env var names that LiteLLM expects."""
     nvidia = os.getenv("NVIDIA_API_KEY", "").strip()
@@ -145,17 +184,19 @@ def chat_with_fallback(
     chain: list[str],
     max_tokens: int = 4096,
     temperature: float = 0.1,
+    call_type: str = "unknown",
 ) -> tuple[str, str]:
     """
     Try each model in the chain until one succeeds.
     Returns (response_text, model_used).
     Raises RuntimeError if all providers fail.
     """
+    import time
     last_error: Exception | None = None
 
-    for model in chain:
+    for idx, model in enumerate(chain):
+        t0 = time.monotonic()
         try:
-            # Gemini: use direct REST to avoid LiteLLM Vertex routing
             if _is_gemini_model(model):
                 logger.info("[LLMRouter] Trying Gemini (direct REST): %s", model)
                 text = _call_gemini_direct(
@@ -164,10 +205,11 @@ def chat_with_fallback(
                     max_tokens=max_tokens,
                     temperature=temperature,
                 )
-                logger.info("[LLMRouter] Gemini success: %s", model)
+                ms = int((time.monotonic() - t0) * 1000)
+                logger.info("[LLMRouter] Gemini success: %s (%dms)", model, ms)
+                _log_llm_call(call_type, model, success=True, fallback_index=idx, duration_ms=ms)
                 return text, model
 
-            # All other providers: LiteLLM
             logger.info("[LLMRouter] Trying model: %s", model)
             response = completion(
                 model=model,
@@ -177,11 +219,21 @@ def chat_with_fallback(
                 timeout=30,
             )
             content = response.choices[0].message.content or ""
-            logger.info("[LLMRouter] Success: %s", model)
+            ms = int((time.monotonic() - t0) * 1000)
+            usage = getattr(response, "usage", None)
+            _log_llm_call(
+                call_type, model, success=True, fallback_index=idx, duration_ms=ms,
+                prompt_tokens=getattr(usage, "prompt_tokens", None),
+                completion_tokens=getattr(usage, "completion_tokens", None),
+            )
+            logger.info("[LLMRouter] Success: %s (%dms)", model, ms)
             return content, model
 
         except Exception as exc:
+            ms = int((time.monotonic() - t0) * 1000)
             logger.warning("[LLMRouter] Model %s failed: %s", model, str(exc)[:120])
+            _log_llm_call(call_type, model, success=False, fallback_index=idx,
+                          duration_ms=ms, error_snippet=str(exc))
             last_error = exc
             continue
 
@@ -194,12 +246,12 @@ def embed_with_fallback(text: str) -> tuple[list[float], str]:
     """
     Embed text using the embedding fallback chain.
     Returns (embedding_vector, model_used).
-    Raises RuntimeError if all providers fail.
     """
+    import time
     last_error: Exception | None = None
 
-    for model in EMBEDDING_FALLBACK_CHAIN:
-        # Gemini embeddings via direct REST
+    for idx, model in enumerate(EMBEDDING_FALLBACK_CHAIN):
+        t0 = time.monotonic()
         if _is_gemini_model(model):
             try:
                 key = os.getenv("GEMINI_API_KEY", "").strip()
@@ -210,30 +262,36 @@ def embed_with_fallback(text: str) -> tuple[list[float], str]:
                 resp = requests.post(
                     url,
                     headers={"x-goog-api-key": key, "Content-Type": "application/json"},
-                    json={
-                        "model": f"models/{model_name}",
-                        "content": {"parts": [{"text": text[:8000]}]},
-                    },
+                    json={"model": f"models/{model_name}", "content": {"parts": [{"text": text[:8000]}]}},
                     timeout=30,
                 )
                 resp.raise_for_status()
                 vector = resp.json()["embedding"]["values"]
+                ms = int((time.monotonic() - t0) * 1000)
                 logger.info("[LLMRouter] Gemini embedding success: %s (dims=%d)", model, len(vector))
+                _log_llm_call("embedding", model, success=True, fallback_index=idx, duration_ms=ms)
                 return vector, model
             except Exception as exc:
+                ms = int((time.monotonic() - t0) * 1000)
                 logger.warning("[LLMRouter] Gemini embedding failed: %s", str(exc)[:120])
+                _log_llm_call("embedding", model, success=False, fallback_index=idx,
+                              duration_ms=ms, error_snippet=str(exc))
                 last_error = exc
                 continue
 
-        # Other embedding providers via LiteLLM
         try:
             logger.info("[LLMRouter] Trying embedding: %s", model)
             response = embedding(model=model, input=[text])
             vector = response.data[0]["embedding"]
+            ms = int((time.monotonic() - t0) * 1000)
             logger.info("[LLMRouter] Embedding success: %s (dims=%d)", model, len(vector))
+            _log_llm_call("embedding", model, success=True, fallback_index=idx, duration_ms=ms)
             return vector, model
         except Exception as exc:
+            ms = int((time.monotonic() - t0) * 1000)
             logger.warning("[LLMRouter] Embedding %s failed: %s", model, str(exc)[:120])
+            _log_llm_call("embedding", model, success=False, fallback_index=idx,
+                          duration_ms=ms, error_snippet=str(exc))
             last_error = exc
             continue
 
@@ -249,6 +307,7 @@ def chat_ingestion(messages: list[dict], max_tokens: int = 8192) -> tuple[str, s
         chain=INGESTION_FALLBACK_CHAIN,
         max_tokens=max_tokens,
         temperature=0.1,
+        call_type="ingestion",
     )
 
 
@@ -259,4 +318,5 @@ def chat_doubt(messages: list[dict], max_tokens: int = 512) -> tuple[str, str]:
         chain=DOUBT_FALLBACK_CHAIN,
         max_tokens=max_tokens,
         temperature=0.3,
+        call_type="doubt",
     )

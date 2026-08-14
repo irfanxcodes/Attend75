@@ -23,6 +23,7 @@ import ArcadePage from '../../components/admin/ArcadePage'
 import PushNotificationHealthPage from '../../components/admin/PushNotificationHealthPage'
 import AdvertisementsPage from '../../components/admin/AdvertisementsPage'
 import StorageCapPage from '../../components/admin/StorageCapPage'
+import StudyMeAnalyticsPage from '../../components/admin/StudyMeAnalyticsPage'
 
 function AdminDashboard() {
   const navigate = useNavigate()
@@ -196,6 +197,8 @@ function AdminDashboard() {
             />
           ) : activeSection === 'advertisements' ? (
             <AdvertisementsPage sessionToken={sessionToken} />
+          ) : activeSection === 'studyme-analytics' ? (
+            <StudyMeAnalyticsPage />
           ) : activeSection === 'storage-safety' ? (
             <StorageCapPage />
           ) : (

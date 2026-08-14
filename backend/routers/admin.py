@@ -117,8 +117,27 @@ async def admin_feedback_status_update(
 		)
 
 
-@router.get("/analytics", response_model=ApiResponse)
-async def admin_analytics(_: dict = Depends(require_admin_user)):
+@router.get("/studyme/analytics", response_model=ApiResponse)
+async def admin_studyme_analytics(_: dict = Depends(require_admin_user)):
+    """
+    StudyMe Analytics:
+    1. Upload counts (handouts + chapters) by program/semester
+    2. Subject inventory by program/semester
+    3. Slide script feedback summary
+    4. Failure rate + recent errors with program/semester context
+    5. LLM usage stats (all providers, call types, daily trend)
+    6. Live chain status (which model is active, which are exhausted)
+    """
+    from services.studyme_admin_service import get_studyme_admin_analytics
+    try:
+        data = await run_in_threadpool(get_studyme_admin_analytics)
+        return ApiResponse(status="success", message="StudyMe analytics fetched", data=data)
+    except Exception:
+        logger.exception("Failed to fetch StudyMe analytics")
+        return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to fetch StudyMe analytics"})
+
+
+
 	"""Expanded analytics: ratings, engagement, retention, feature adoption, subject requests, college interests."""
 	try:
 		data = await run_in_threadpool(get_full_admin_analytics)
