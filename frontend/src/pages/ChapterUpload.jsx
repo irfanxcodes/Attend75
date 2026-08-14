@@ -370,17 +370,19 @@ export default function ChapterUpload() {
   }
 
   const handleUpload = async () => {
+    let matched = null
+
     if (!isMasterUpload) {
       // Per-chapter: chapter name is required and must match
       if (!chapterTitle.trim()) {
-        setTitleError('Please enter the chapter name before uploading.')
+        setTitleError('Please select a chapter before uploading.')
         return
       }
-      const matched = findMatchingTitle(chapterTitle, validTitles)
+      matched = findMatchingTitle(chapterTitle, validTitles)
       if (validTitles.length > 0 && !matched) {
         setTitleError(
           `"${chapterTitle}" doesn't match any chapter in this subject. ` +
-          `Please use the exact chapter name from the list below.`
+          `Please select from the list below.`
         )
         return
       }
