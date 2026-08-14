@@ -381,15 +381,6 @@ export default function ChapterUpload() {
     if (!ACCEPTED_EXTENSIONS.includes(ext)) { setError('Only PDF, DOCX, PPTX files are accepted'); return }
     if (f.size > 20 * 1024 * 1024)          { setError('File too large. Maximum 20MB.'); return }
 
-    // Master upload: skip filename validation entirely
-    if (!isMasterUpload && chapterTitle.trim() && !filenameMatchesChapter(f.name, chapterTitle)) {
-      setError(
-        `File name doesn't seem to match "${chapterTitle}". ` +
-        `Please rename your file to include the chapter name.`
-      )
-      return
-    }
-
     setError(null)
     setFile(f)
     if (!chapterKey && !urlChapterKey)
@@ -415,15 +406,6 @@ export default function ChapterUpload() {
 
     if (!file || !chapterKey.trim()) { setError('Please select a file'); return }
 
-    // Per-chapter only: file name must match the chapter title
-    if (!isMasterUpload && !filenameMatchesChapter(file.name, chapterTitle)) {
-      setError(
-        `File name doesn't seem to match "${chapterTitle}". ` +
-        `Please rename your file to include the chapter name.`
-      )
-      return
-    }
-
     // For master upload: use the file name as the chapter key/title if none provided
     const finalChapterKey   = chapterKey.trim() ||
       file.name.replace(/\.[^/.]+$/, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 64)
@@ -437,7 +419,7 @@ export default function ChapterUpload() {
         token, subjectId,
         chapterKey: finalChapterKey,
         chapterTitle: finalChapterTitle,
-        skipFilenameCheck: isMasterUpload,
+        skipFilenameCheck: true,
         file,
       })
       if (result.already_processed && result.script_id) {
@@ -686,7 +668,7 @@ export default function ChapterUpload() {
               </p>
             ) : (
               <p className="text-[#6B6888] text-[11px] mt-1">
-                File name must match the chapter name
+                Any filename accepted
               </p>
             )}
           </div>
