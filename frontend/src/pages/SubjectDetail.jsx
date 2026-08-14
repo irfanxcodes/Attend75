@@ -54,7 +54,7 @@ function ChapterRow({ chapter, subjectId, lesson, navigate, isLast, allChapterTi
 
       {/* Text */}
       <div className="flex-1 min-w-0">
-        <p className="text-white text-[13px] font-medium leading-snug">{chapter.title}</p>
+        <p className="text-white text-[13px] font-medium leading-snug truncate">{chapter.title}</p>
         <p className="text-[#A8A5C0] text-[11px] mt-0.5 truncate">
           {[
             chapter.sessions ? `Sessions ${chapter.sessions}` : null,
@@ -299,18 +299,6 @@ export default function SubjectDetail() {
         </button>
 
         <div className="flex items-center gap-2">
-          {/* Master upload — same chapter upload but without filename matching */}
-          <button
-            onClick={() => navigate(`/app/study/${subjectId}/upload?masterUpload=true`)}
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#2E2B4A]
-                       text-[#9895B5] text-xs font-medium active:scale-95 transition-all
-                       border border-white/10 hover:border-white/20 hover:text-white"
-            title="Upload any PDF for a chapter — no filename match required"
-          >
-            <Upload size={12} />
-            Upload notes
-          </button>
-
           {/* Per-chapter upload */}
           <button
             onClick={() => {
@@ -334,7 +322,7 @@ export default function SubjectDetail() {
 
         {/* ── Title ── */}
         <div className="mt-1">
-          <h1 className="text-white text-[28px] font-bold leading-tight tracking-tight">{subjectName}</h1>
+          <h1 className="text-white text-[22px] sm:text-[28px] font-bold leading-tight tracking-tight">{subjectName}</h1>
           <p className="text-[#A8A5C0] text-[13px] mt-1">
             {[
               handout.program,
@@ -348,7 +336,7 @@ export default function SubjectDetail() {
         {/* ── Course info card ── */}
         {(handout.course_description || handout.instructor_name) && (
           <div className="bg-[#4A4769] border border-white/[0.08] rounded-2xl px-4 py-3.5">
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
               <div className="flex-1 min-w-0">
                 {handout.course_description && (
                   <p className="text-[#D4D1EC] text-[13px] leading-relaxed mb-2.5 line-clamp-3">
@@ -363,7 +351,7 @@ export default function SubjectDetail() {
                 )}
               </div>
               {/* "Handout by You" badge */}
-              <div className="flex-shrink-0 bg-[#2E2B4A] border border-white/10 rounded-full px-3.5 py-1.5">
+              <div className="self-start flex-shrink-0 bg-[#2E2B4A] border border-white/10 rounded-full px-3.5 py-1.5">
                 <p className="text-white text-[11px] font-medium whitespace-nowrap">
                   Handout by {handout.uploaded_by_label === 'you' ? 'You' : handout.uploaded_by_label}
                 </p>
@@ -400,12 +388,54 @@ export default function SubjectDetail() {
               className="bg-[#4A4769] border border-white/[0.08] rounded-2xl"
             >
               {/* Panel header */}
-              <div className="flex items-center justify-between px-4 py-3.5 border-b border-white/[0.07]">
-                <p className="text-white text-[14px] font-semibold">{activeModule.title}</p>
-                {activeModule.session_range && (
-                  <p className="text-[#A8A5C0] text-xs">Sessions {activeModule.session_range}</p>
-                )}
-              </div>
+              {(() => {
+                // First: check if any chapter in this module has a matched lesson
+                const moduleLesson = (activeModule.chapters || [])
+                  .map(ch => getLesson(ch.title))
+                  .find(l => l != null)
+
+                // Fallback: find any "orphan" upload (master upload with a custom key
+                // that doesn't match any handout chapter title) — it still has a script_id
+                const allMatchedKeys = new Set(
+                  (handout?.modules || [])
+                    .flatMap(m => m.chapters || [])
+                    .map(ch => getLesson(ch.title))
+                    .filter(Boolean)
+                    .map(l => l.chapter_key)
+                )
+                const orphanLesson = !moduleLesson
+                  ? availableChapters.find(ch => ch.script_id && !allMatchedKeys.has(ch.chapter_key))
+                  : null
+
+                const activeLesson = moduleLesson || orphanLesson
+
+                return (
+                  <div className="flex items-center justify-between px-4 py-3.5 border-b border-white/[0.07]">
+                    <p className="text-white text-[14px] font-semibold">{activeModule.title}</p>
+                    {activeLesson ? (
+                      <button
+                        onClick={() => navigate(`/app/study/${subjectId}/${activeLesson.script_id}/workspace`)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#2E2B4A]
+                                   text-white text-[11px] font-medium active:scale-95 transition-all
+                                   border border-white/10 hover:border-white/20"
+                      >
+                        <Sparkles size={11} className="text-[#4EF0A0]" />
+                        Start
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => navigate(`/app/study/${subjectId}/upload?masterUpload=true`)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#2E2B4A]
+                                   text-[#9895B5] text-[11px] font-medium active:scale-95 transition-all
+                                   border border-white/10 hover:border-white/20 hover:text-white"
+                      >
+                        <Upload size={11} />
+                        One upload
+                      </button>
+                    )}
+                  </div>
+                )
+              })()}
 
               {/* Chapter rows */}
               <div className="px-4">

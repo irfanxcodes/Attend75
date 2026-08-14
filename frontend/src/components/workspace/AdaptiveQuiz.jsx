@@ -281,8 +281,8 @@ export function AdaptiveQuiz({ token, conceptId, conceptTitle, onClose, onProgre
             </button>
             <button
               onClick={onClose}
-              className="px-4 py-2 rounded-full bg-[#6CB4FF]/15 border border-[#6CB4FF]/30
-                         text-[#6CB4FF] text-[12px] active:scale-95 transition-all"
+              className="px-4 py-2 rounded-full bg-[#FF916C]/15 border border-[#FF916C]/30
+                         text-[#FF916C] text-[12px] active:scale-95 transition-all"
             >
               Done
             </button>
@@ -310,12 +310,12 @@ export function AdaptiveQuiz({ token, conceptId, conceptTitle, onClose, onProgre
       </div>
 
       {/* Concept label */}
-      <p className="text-[#6CB4FF] text-[11px] font-medium truncate">{conceptTitle}</p>
+      <p className="text-[#FF916C] text-[11px] font-medium truncate">{conceptTitle}</p>
 
       {/* Loading */}
       {phase === 'loading' && (
         <div className="flex items-center gap-2 py-3">
-          <Loader size={13} className="text-[#6CB4FF] animate-spin" />
+          <Loader size={13} className="text-[#FF916C] animate-spin" />
           <span className="text-[#9895B5] text-[12px]">Generating question…</span>
         </div>
       )}
@@ -361,7 +361,7 @@ export function AdaptiveQuiz({ token, conceptId, conceptTitle, onClose, onProgre
                   disabled={!answer.trim() || phase === 'submitting'}
                   className="mt-2 w-full py-2 rounded-xl text-[12px] font-medium transition-all
                              disabled:opacity-35 active:scale-98
-                             bg-[#6CB4FF] text-[#1D183E]"
+                             bg-[#FF916C] text-[#1D183E]"
                 >
                   {phase === 'submitting' ? (
                     <span className="flex items-center justify-center gap-2">

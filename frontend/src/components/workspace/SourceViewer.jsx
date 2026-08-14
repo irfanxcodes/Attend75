@@ -108,7 +108,7 @@ function SlideCard({
       layout
       className={`w-full rounded-2xl border transition-all duration-200 overflow-hidden cursor-pointer
         ${isHighlighted
-          ? 'border-[#6CB4FF]/60 shadow-lg shadow-[#6CB4FF]/15'
+          ? 'border-[#FF916C]/60 shadow-lg shadow-[#FF916C]/15'
           : isActive
           ? 'border-white/20'
           : 'border-white/[0.07] hover:border-white/15'
@@ -117,14 +117,14 @@ function SlideCard({
     >
       {/* ── Slide label row ── */}
       <div className={`flex items-center justify-between px-4 pt-3 pb-2
-        ${isHighlighted ? 'bg-[#6CB4FF]/10' : isActive ? 'bg-[#2A2650]' : 'bg-[#1E1B3A]'}`}>
+        ${isHighlighted ? 'bg-[#FF916C]/10' : isActive ? 'bg-[#2A2650]' : 'bg-[#1E1B3A]'}`}>
         <div className="flex items-center gap-2">
           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded
-            ${isHighlighted ? 'bg-[#6CB4FF]/25 text-[#6CB4FF]' : 'bg-white/8 text-[#9895B5]'}`}>
+            ${isHighlighted ? 'bg-[#FF916C]/25 text-[#FF916C]' : 'bg-white/8 text-[#9895B5]'}`}>
             {slide.element_type === 'slide' ? 'SLIDE' : 'PAGE'} {slide.number}
           </span>
           {isHighlighted && (
-            <span className="text-[10px] text-[#6CB4FF] font-medium">← current</span>
+            <span className="text-[10px] text-[#FF916C] font-medium">← current</span>
           )}
         </div>
 
@@ -136,7 +136,7 @@ function SlideCard({
           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium
             transition-all active:scale-95 border
             ${isCurrentlyExplaining
-              ? 'bg-[#6CB4FF]/20 border-[#6CB4FF]/50 text-[#6CB4FF]'
+              ? 'bg-[#FF916C]/20 border-[#FF916C]/50 text-[#FF916C]'
               : audioState === 'loading'
               ? 'bg-white/5 border-white/10 text-[#9895B5] cursor-wait'
               : 'bg-white/5 border-white/10 text-[#9895B5] hover:border-white/25 hover:text-[#C8C5E8]'
@@ -154,7 +154,7 @@ function SlideCard({
       </div>
 
       {/* ── Slide visual body (white card feel) ── */}
-      <div className={`px-4 pb-4 pt-3 ${isHighlighted ? 'bg-[#6CB4FF]/5' : isActive ? 'bg-[#231F44]' : 'bg-[#1A1730]'}`}>
+      <div className={`px-4 pb-4 pt-3 ${isHighlighted ? 'bg-[#FF916C]/5' : isActive ? 'bg-[#231F44]' : 'bg-[#1A1730]'}`}>
         {/* Title */}
         <h3 className={`text-[14px] font-bold leading-snug mb-2.5
           ${isHighlighted ? 'text-white' : isActive ? 'text-white' : 'text-[#E8E5FF]'}`}>
@@ -167,7 +167,7 @@ function SlideCard({
             {bodyLines.map((line, i) => (
               <li key={i} className="flex items-start gap-2">
                 <span className={`w-1 h-1 rounded-full flex-shrink-0 mt-2
-                  ${isHighlighted ? 'bg-[#6CB4FF]' : 'bg-[#6B6888]'}`} />
+                  ${isHighlighted ? 'bg-[#FF916C]' : 'bg-[#6B6888]'}`} />
                 <span className="text-[#8B88A8] text-[12px] leading-relaxed line-clamp-2">
                   {line}
                 </span>
@@ -204,7 +204,7 @@ function SlideCard({
             >
               <div className="flex items-start gap-2">
                 <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5
-                  ${isCurrentlyExplaining ? 'bg-[#6CB4FF] animate-pulse' : 'bg-[#6B6888]'}`} />
+                  ${isCurrentlyExplaining ? 'bg-[#FF916C] animate-pulse' : 'bg-[#6B6888]'}`} />
                 <p className="text-[#9895B5] text-[11px] leading-relaxed italic">
                   {explanation}
                 </p>
@@ -288,7 +288,7 @@ export function SourceViewer({
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
-          <Loader size={20} className="text-[#6CB4FF] animate-spin mx-auto mb-2" />
+          <Loader size={20} className="text-[#FF916C] animate-spin mx-auto mb-2" />
           <p className="text-[#9895B5] text-sm">Loading slides…</p>
         </div>
       </div>
@@ -344,7 +344,7 @@ export function SourceViewer({
         {highlightSlideNo && onSlideClick && (
           <button
             onClick={() => onSlideClick(highlightSlideNo)}
-            className="flex items-center gap-1.5 text-[#6CB4FF] text-[11px] hover:text-[#6CB4FF]/80 transition-colors"
+            className="flex items-center gap-1.5 text-[#FF916C] text-[11px] hover:text-[#FF916C]/80 transition-colors"
           >
             <ArrowLeft size={11} />
             Back to Canvas

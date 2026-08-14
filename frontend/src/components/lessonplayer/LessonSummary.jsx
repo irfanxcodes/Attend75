@@ -16,7 +16,7 @@ export function LessonSummary({ script, conceptsSeen, quizResults, doubtsAsked, 
     : null
 
   const stats = [
-    { icon: BookOpen, label: 'Concepts covered', value: `${conceptsSeen.length}/${totalConcepts}`, color: '#6CB4FF' },
+    { icon: BookOpen, label: 'Concepts covered', value: `${conceptsSeen.length}/${totalConcepts}`, color: '#FF916C' },
     { icon: CheckCircle, label: 'Quiz score', value: totalQuizzes > 0 ? `${correctQuizzes}/${totalQuizzes}` : '—', color: '#4EF0A0' },
     { icon: MessageCircle, label: 'Doubts asked', value: doubtsAsked, color: '#FF916C' },
   ]
@@ -47,20 +47,20 @@ export function LessonSummary({ script, conceptsSeen, quizResults, doubtsAsked, 
       </p>
 
       {/* Stats */}
-      <div className="w-full max-w-xs grid grid-cols-3 gap-3 mb-8">
+      <div className="w-full max-w-xs grid grid-cols-3 gap-2 mb-8">
         {stats.map(({ icon: Icon, label, value, color }) => (
           <motion.div
             key={label}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.35 }}
-            className="bg-[#302A52] rounded-2xl p-3 flex flex-col items-center gap-1"
+            className="bg-[#302A52] rounded-2xl p-2.5 flex flex-col items-center gap-1"
           >
-            <Icon size={16} style={{ color }} />
-            <span className="text-[#F4F1FF] text-lg font-semibold" style={{ color }}>
+            <Icon size={15} style={{ color }} />
+            <span className="text-[#F4F1FF] text-base font-semibold leading-tight" style={{ color }}>
               {value}
             </span>
-            <span className="text-[#9F9AB5] text-xs leading-tight text-center">{label}</span>
+            <span className="text-[#9F9AB5] text-[10px] leading-tight text-center">{label}</span>
           </motion.div>
         ))}
       </div>
@@ -69,8 +69,8 @@ export function LessonSummary({ script, conceptsSeen, quizResults, doubtsAsked, 
       <div className="flex flex-col gap-3 w-full max-w-xs">
         <button
           onClick={() => navigate(`/app/study/${subjectId}`)}
-          className="w-full py-3 rounded-2xl bg-[#6CB4FF] text-[#1D183E] font-semibold text-sm
-                     active:scale-98 transition-transform"
+          className="w-full py-3 rounded-2xl bg-[#FF916C] text-white font-semibold text-sm
+                     active:scale-[0.98] transition-transform"
         >
           Back to Chapter List
         </button>

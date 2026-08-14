@@ -80,7 +80,7 @@ function SourceRefCard({ sourceRef, onViewSource }) {
                  hover:bg-[#252241] hover:border-white/[0.12] transition-all duration-150 group text-left"
     >
       {/* Icon */}
-      <div className="flex-shrink-0 mt-0.5 text-[#6CB4FF]">
+      <div className="flex-shrink-0 mt-0.5 text-[#FF916C]">
         <BookOpen size={16} />
       </div>
 

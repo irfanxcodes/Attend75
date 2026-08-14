@@ -113,15 +113,15 @@ function TeacherBubble({ text, isActive, currentWordIdx }) {
       className="absolute bottom-0 left-0 right-0 px-4 pb-3 pointer-events-none z-30"
     >
       <div className="max-w-2xl mx-auto w-full">
-        <div className="bg-[#0D0B1F] border border-[#6CB4FF]/20
+        <div className="bg-[#0D0B1F] border border-[#FF916C]/20
                         rounded-2xl px-4 py-3 shadow-2xl overflow-hidden">
           <div className="flex items-center gap-2 mb-1.5">
             <motion.div
-              className="w-2 h-2 rounded-full bg-[#6CB4FF] flex-shrink-0"
+              className="w-2 h-2 rounded-full bg-[#FF916C] flex-shrink-0"
               animate={isActive ? { opacity: [1, 0.3, 1] } : { opacity: 0.3 }}
               transition={{ duration: 1.2, repeat: Infinity }}
             />
-            <span className="text-[#6CB4FF] text-[10px] font-bold uppercase tracking-wider">
+            <span className="text-[#FF916C] text-[10px] font-bold uppercase tracking-wider">
               AI Teacher
             </span>
           </div>
@@ -202,7 +202,7 @@ function SlideFeedback({ token, uploadId, slideNo, onDismiss }) {
       <div className="max-w-2xl mx-auto w-full">
         <div className="bg-[#0D0B1F] border border-white/10 rounded-2xl px-4 py-3 shadow-2xl">
           {submitted ? (
-            <p className="text-[#6CB4FF] text-[12px] text-center py-1">Thanks for the feedback!</p>
+            <p className="text-[#FF916C] text-[12px] text-center py-1">Thanks for the feedback!</p>
           ) : showReasons ? (
             <div>
               <p className="text-[#9895B5] text-[11px] mb-2">What was the issue?</p>
@@ -337,7 +337,7 @@ function SlideView({ imageUrl, slideNo, currentAction, isPlaying, unitLabel = 'S
 
       {!loaded && !error && (
         <div className="absolute inset-0 flex items-center justify-center bg-[#1A1730]">
-          <Loader size={18} className="text-[#6CB4FF] animate-spin" />
+          <Loader size={18} className="text-[#FF916C] animate-spin" />
         </div>
       )}
 
@@ -402,7 +402,7 @@ function ThumbnailStrip({ slides, currentSlide, token, unitLabel = 'Slide', onSe
             aria-label={`${unitLabel} ${slide.slide_number}: ${slide.title}`}
             className={`flex-shrink-0 rounded-lg overflow-hidden border-2 transition-all duration-150
               ${isActive
-                ? 'border-[#6CB4FF] shadow-md shadow-[#6CB4FF]/25 opacity-100'
+                ? 'border-[#FF916C] shadow-md shadow-[#FF916C]/25 opacity-100'
                 : 'border-white/[0.08] opacity-50 hover:opacity-80 hover:border-white/20'
               }`}
             style={{ width: 80, height: 52 }}
@@ -457,7 +457,7 @@ function ControlBar({ current, total, isPlaying, isLoading, speed, onSpeedChange
           className={`w-11 h-11 rounded-full flex items-center justify-center
                       transition-all active:scale-95 font-medium
             ${isPlaying
-              ? 'bg-[#6CB4FF] text-white shadow-lg shadow-[#6CB4FF]/35'
+              ? 'bg-[#FF916C] text-white shadow-lg shadow-[#FF916C]/35'
               : isLoading
               ? 'bg-white/8 text-[#9895B5] cursor-wait'
               : 'bg-white/8 border border-white/12 text-[#C8C5E8] hover:bg-white/15'
@@ -775,7 +775,7 @@ export function SlidePlayer({ token, uploadId, highlightSlideNo, onSlideClick })
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
-          <Loader size={20} className="text-[#6CB4FF] animate-spin mx-auto mb-2" />
+          <Loader size={20} className="text-[#FF916C] animate-spin mx-auto mb-2" />
           <p className="text-[#9895B5] text-sm">Loading {elementType === 'page' ? 'pages' : 'slides'}…</p>
         </div>
       </div>

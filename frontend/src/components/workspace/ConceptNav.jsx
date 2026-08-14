@@ -15,7 +15,7 @@ import { BookOpen, X } from 'lucide-react'
 
 const STATUS_CONFIG = {
   unseen:     { color: '#4a4869', label: '',  ring: '#4a4869' },
-  learning:   { color: '#6CB4FF', label: '·', ring: '#6CB4FF' },
+  learning:   { color: '#FF916C', label: '·', ring: '#FF916C' },
   understood: { color: '#4EF0A0', label: '✓', ring: '#4EF0A0' },
   struggling: { color: '#FF916C', label: '!', ring: '#FF916C' },
   review_due: { color: '#F5C26B', label: '↺', ring: '#F5C26B' },
@@ -49,7 +49,7 @@ function ConceptItem({ concept, isActive, onClick }) {
     >
       {/* Active accent bar */}
       {isActive && (
-        <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-[#6CB4FF]" />
+        <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-[#FF916C]" />
       )}
 
       {/* Status dot */}
@@ -127,7 +127,7 @@ export function ConceptNavSidebar({ concepts, activeConceptId, onConceptClick, t
 
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3.5 border-b border-white/[0.06] flex-shrink-0">
-        <BookOpen size={13} className="text-[#6CB4FF] flex-shrink-0" />
+        <BookOpen size={13} className="text-[#FF916C] flex-shrink-0" />
         <p className="text-white text-[13px] font-semibold truncate" title={title}>
           {title || 'Chapter'}
         </p>
@@ -178,7 +178,7 @@ export function ConceptNavSheet({ concepts, activeConceptId, onConceptClick, tit
           >
             <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-white/[0.06] flex-shrink-0">
               <div className="flex items-center gap-2">
-                <BookOpen size={13} className="text-[#6CB4FF]" />
+                <BookOpen size={13} className="text-[#FF916C]" />
                 <p className="text-white text-[13px] font-semibold truncate max-w-[220px]" title={title}>
                   {title || 'Chapter'}
                 </p>

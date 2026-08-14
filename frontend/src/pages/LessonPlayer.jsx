@@ -47,6 +47,18 @@ export default function LessonPlayer() {
 
   const progress = useLessonProgress({ token, lessonId, enabled: !!token })
 
+  // ── Track last-opened lesson for "Continue your lesson" card ──────────
+  useEffect(() => {
+    if (!subjectId || !lessonId) return
+    try {
+      const prev = JSON.parse(window.localStorage.getItem('attend75.studyme.lastLesson') || '{}')
+      window.localStorage.setItem(
+        'attend75.studyme.lastLesson',
+        JSON.stringify({ subjectId, lessonId, title: prev?.title || '', openedAt: Date.now() })
+      )
+    } catch { /* ignore */ }
+  }, [subjectId, lessonId])
+
   // ── Load script + restore progress ────────────────────────────────────
   useEffect(() => {
     if (!token || !lessonId) return
@@ -72,6 +84,20 @@ export default function LessonPlayer() {
     load()
     return () => { cancelled = true }
   }, [token, lessonId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Update lesson title in lastLesson record once script loads ────────
+  useEffect(() => {
+    if (!subjectId || !lessonId || !script?.title) return
+    try {
+      const prev = JSON.parse(window.localStorage.getItem('attend75.studyme.lastLesson') || '{}')
+      if (prev.subjectId === subjectId && prev.lessonId === lessonId) {
+        window.localStorage.setItem(
+          'attend75.studyme.lastLesson',
+          JSON.stringify({ ...prev, title: script.title })
+        )
+      }
+    } catch { /* ignore */ }
+  }, [subjectId, lessonId, script?.title])
 
   // ── Autosave progress ─────────────────────────────────────────────────
   useEffect(() => {
@@ -162,7 +188,7 @@ export default function LessonPlayer() {
     return (
       <div className="fixed inset-0 bg-[#1D183E] flex items-center justify-center z-50">
         <div className="text-center">
-          <Loader size={24} className="text-[#6CB4FF] animate-spin mx-auto mb-3" />
+          <Loader size={24} className="text-[#FF916C] animate-spin mx-auto mb-3" />
           <p className="text-[#9F9AB5] text-sm">Preparing your lesson...</p>
         </div>
       </div>

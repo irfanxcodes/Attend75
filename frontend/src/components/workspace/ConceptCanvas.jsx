@@ -235,7 +235,7 @@ export function ConceptCanvas({
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
-          <Loader size={20} className="text-[#6CB4FF] animate-spin mx-auto mb-2" />
+          <Loader size={20} className="text-[#FF916C] animate-spin mx-auto mb-2" />
           <p className="text-[#9895B5] text-sm">Loading chapter…</p>
         </div>
       </div>
@@ -252,7 +252,7 @@ export function ConceptCanvas({
 
   const STATUS_COLORS = {
     unseen:     '#d1d5db',
-    learning:   '#6CB4FF',
+    learning:   '#FF916C',
     understood: '#4EF0A0',
     struggling: '#FF916C',
     review_due: '#F5C26B',

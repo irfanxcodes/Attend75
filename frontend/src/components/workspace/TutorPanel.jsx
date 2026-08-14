@@ -14,7 +14,7 @@ import { askTutor } from '../../services/lessonApi'
 import { AdaptiveQuiz } from './AdaptiveQuiz'
 
 const MODE_CONFIG = {
-  answer:   { label: 'Answer',   color: '#6CB4FF' },
+  answer:   { label: 'Answer',   color: '#FF916C' },
   socratic: { label: 'Socratic', color: '#A78BFA' },
   hint:     { label: 'Hint',     color: '#F5C26B' },
   quiz:     { label: 'Quiz me',  color: '#4EF0A0' },
@@ -96,8 +96,8 @@ function MessageBubble({ msg }) {
       className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-3`}
     >
       {!isUser && (
-        <div className="w-6 h-6 rounded-full bg-[#6CB4FF]/20 flex items-center justify-center flex-shrink-0 mr-2 mt-0.5">
-          <Sparkles size={10} className="text-[#6CB4FF]" />
+        <div className="w-6 h-6 rounded-full bg-[#FF916C]/20 flex items-center justify-center flex-shrink-0 mr-2 mt-0.5">
+          <Sparkles size={10} className="text-[#FF916C]" />
         </div>
       )}
       <div
@@ -118,14 +118,14 @@ function MessageBubble({ msg }) {
 function ThinkingIndicator() {
   return (
     <div className="flex justify-start mb-3">
-      <div className="w-6 h-6 rounded-full bg-[#6CB4FF]/20 flex items-center justify-center flex-shrink-0 mr-2 mt-0.5">
-        <Sparkles size={10} className="text-[#6CB4FF]" />
+      <div className="w-6 h-6 rounded-full bg-[#FF916C]/20 flex items-center justify-center flex-shrink-0 mr-2 mt-0.5">
+        <Sparkles size={10} className="text-[#FF916C]" />
       </div>
       <div className="bg-[#1A1640] border border-white/[0.07] rounded-2xl rounded-bl-sm px-3.5 py-2.5 flex gap-1 items-center">
         {[0, 1, 2].map(i => (
           <motion.span
             key={i}
-            className="w-1.5 h-1.5 bg-[#6CB4FF] rounded-full"
+            className="w-1.5 h-1.5 bg-[#FF916C] rounded-full"
             animate={{ y: [0, -4, 0] }}
             transition={{ delay: i * 0.15, repeat: Infinity, duration: 0.6 }}
           />
@@ -288,8 +288,8 @@ export function TutorPanel({
 
       {/* Header */}
       <div className="flex items-center gap-2.5 px-4 py-3 border-b border-white/[0.07] flex-shrink-0">
-        <div className="w-7 h-7 rounded-full bg-[#6CB4FF]/20 flex items-center justify-center flex-shrink-0">
-          <Sparkles size={12} className="text-[#6CB4FF]" />
+        <div className="w-7 h-7 rounded-full bg-[#FF916C]/20 flex items-center justify-center flex-shrink-0">
+          <Sparkles size={12} className="text-[#FF916C]" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-white text-[13px] font-semibold leading-tight">Tutor</p>
@@ -352,12 +352,12 @@ export function TutorPanel({
           onClick={() => sendMessage()}
           disabled={!input.trim() || loading}
           aria-label="Send"
-          className="w-9 h-9 rounded-xl bg-[#6CB4FF] flex items-center justify-center flex-shrink-0
+          className="w-9 h-9 rounded-xl bg-[#FF916C] flex items-center justify-center flex-shrink-0
                      active:scale-95 transition-all disabled:opacity-35"
         >
           {loading
-            ? <Loader size={14} className="text-[#1D183E] animate-spin" />
-            : <Send size={14} className="text-[#1D183E]" />
+            ? <Loader size={14} className="text-white animate-spin" />
+            : <Send size={14} className="text-white" />
           }
         </button>
       </div>
@@ -381,6 +381,7 @@ export function TutorBottomSheet({ isOpen, onClose, token, scriptId, conceptId, 
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 340 }}
             className="fixed bottom-0 left-0 right-0 z-50 h-[72dvh] rounded-t-2xl overflow-hidden flex flex-col"
+            style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
           >
             {/* Drag handle */}
             <div className="bg-[#1E1B3C] px-5 pt-3 pb-1.5 border-b border-white/[0.07] flex-shrink-0 flex items-center justify-center relative">

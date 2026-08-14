@@ -35,7 +35,7 @@ export function NotebookCanvas({
     >
       {/* Notebook header */}
       <div className="mb-6">
-        <div className="w-8 h-0.5 bg-[#6CB4FF]/40 mb-3" />
+        <div className="w-8 h-0.5 bg-[#FF916C]/40 mb-3" />
       </div>
 
       {/* Rendered blocks */}

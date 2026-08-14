@@ -71,7 +71,7 @@ export function DoubtPanel({ isOpen, onClose, onSubmit, isAnswering, answer }) {
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 26, stiffness: 300 }}
-            className="fixed bottom-0 left-0 right-0 z-50 bg-[#302A52] border-t border-white/10 rounded-t-2xl px-5 pt-4 pb-8"
+            className="fixed bottom-0 left-0 right-0 z-50 bg-[#302A52] border-t border-white/10 rounded-t-2xl px-5 pt-4 pb-[max(2rem,env(safe-area-inset-bottom))]"
           >
             {/* Handle */}
             <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-4" />
@@ -97,7 +97,7 @@ export function DoubtPanel({ isOpen, onClose, onSubmit, isAnswering, answer }) {
                   className="mb-3"
                 >
                   <div className="bg-[#1D183E] rounded-xl p-3">
-                    <p className="text-xs text-[#6CB4FF] mb-1 font-medium">Answer</p>
+                    <p className="text-xs text-[#FF916C] mb-1 font-medium">Answer</p>
                     <p className="text-[#D8D4E7] text-sm leading-relaxed">{answer}</p>
                   </div>
                 </motion.div>
@@ -114,7 +114,7 @@ export function DoubtPanel({ isOpen, onClose, onSubmit, isAnswering, answer }) {
                   {[0, 1, 2].map(i => (
                     <motion.span
                       key={i}
-                      className="w-1.5 h-1.5 bg-[#6CB4FF] rounded-full"
+                      className="w-1.5 h-1.5 bg-[#FF916C] rounded-full"
                       animate={{ y: [0, -4, 0] }}
                       transition={{ delay: i * 0.15, repeat: Infinity, duration: 0.6 }}
                     />
@@ -136,7 +136,7 @@ export function DoubtPanel({ isOpen, onClose, onSubmit, isAnswering, answer }) {
                 disabled={isAnswering}
                 className="flex-1 bg-[#1D183E] border border-white/10 rounded-xl px-3 py-2.5
                            text-[#F4F1FF] text-sm placeholder:text-[#9F9AB5] resize-none
-                           focus:outline-none focus:border-[#6CB4FF]/50 transition-colors
+                           focus:outline-none focus:border-[#FF916C]/50 transition-colors
                            disabled:opacity-50"
               />
 
@@ -160,12 +160,12 @@ export function DoubtPanel({ isOpen, onClose, onSubmit, isAnswering, answer }) {
               <button
                 onClick={handleSubmit}
                 disabled={!question.trim() || isAnswering}
-                className="w-10 h-10 rounded-xl bg-[#6CB4FF] flex items-center justify-center
+                className="w-10 h-10 rounded-xl bg-[#FF916C] flex items-center justify-center
                            flex-shrink-0 active:scale-95 transition-all
                            disabled:opacity-40 disabled:cursor-not-allowed"
                 aria-label="Send question"
               >
-                <Send size={15} className="text-[#1D183E]" />
+                <Send size={15} className="text-white" />
               </button>
             </div>
           </motion.div>

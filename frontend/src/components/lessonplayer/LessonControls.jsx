@@ -26,7 +26,7 @@ export function LessonControls({
       {/* Progress bar */}
       <div className="h-0.5 bg-white/5">
         <motion.div
-          className="h-full bg-[#6CB4FF]"
+          className="h-full bg-[#FF916C]"
           animate={{ width: `${progress}%` }}
           transition={{ duration: 0.4, ease: 'easeOut' }}
         />
@@ -43,15 +43,15 @@ export function LessonControls({
         <button
           onClick={onPlayPause}
           disabled={!canControl}
-          className="w-11 h-11 rounded-full bg-[#6CB4FF] flex items-center justify-center
-                     shadow-lg shadow-[#6CB4FF]/20 active:scale-95 transition-transform
+          className="w-11 h-11 rounded-full bg-[#FF916C] flex items-center justify-center
+                     shadow-lg shadow-[#FF916C]/20 active:scale-95 transition-transform
                      disabled:opacity-40"
           aria-label={isPlaying ? 'Pause lesson' : 'Play lesson'}
         >
           {isPlaying ? (
-            <Pause size={18} className="text-[#1D183E]" fill="currentColor" />
+            <Pause size={18} className="text-white" fill="currentColor" />
           ) : (
-            <Play size={18} className="text-[#1D183E] ml-0.5" fill="currentColor" />
+            <Play size={18} className="text-white ml-0.5" fill="currentColor" />
           )}
         </button>
 
@@ -66,7 +66,7 @@ export function LessonControls({
           <MessageCircle size={14} />
           <span>Ask</span>
           {doubtsAsked > 0 && (
-            <span className="text-[#6CB4FF]">{doubtsAsked}</span>
+            <span className="text-[#FF916C]">{doubtsAsked}</span>
           )}
         </button>
       </div>

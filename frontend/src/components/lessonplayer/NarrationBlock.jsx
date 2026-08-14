@@ -134,7 +134,7 @@ export function NarrationBlock({ block, isActive, onComplete }) {
         ))}
         {!isDone && isActive && (
           <motion.span
-            className="inline-block w-0.5 h-4 bg-[#6CB4FF] ml-0.5 align-middle"
+            className="inline-block w-0.5 h-4 bg-[#FF916C] ml-0.5 align-middle"
             animate={{ opacity: [1, 0] }}
             transition={{ duration: 0.6, repeat: Infinity }}
           />

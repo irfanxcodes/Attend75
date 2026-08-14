@@ -14,8 +14,8 @@ export function RecapBlock({ block, onComplete }) {
       onAnimationComplete={() => setTimeout(() => onComplete?.(), 1000)}
       className="py-2"
     >
-      <div className="bg-gradient-to-br from-[#3D3660] to-[#302A52] border border-[#6CB4FF]/20 rounded-2xl p-4">
-        <p className="text-xs text-[#6CB4FF] uppercase tracking-widest mb-3 font-medium">
+      <div className="bg-gradient-to-br from-[#3D3660] to-[#302A52] border border-[#FF916C]/20 rounded-2xl p-4">
+        <p className="text-xs text-[#FF916C] uppercase tracking-widest mb-3 font-medium">
           Chapter Recap
         </p>
         {lines.map((line, i) => (

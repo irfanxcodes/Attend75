@@ -52,23 +52,61 @@ def _generate_voice_text(concept: ConceptSchema) -> str:
 
 
 def _build_diagram_spec(concept: ConceptSchema, all_concepts: list[ConceptSchema]) -> str | None:
-    if not concept.prerequisites:
-        return None
+    """
+    Build a Mermaid flowchart for the concept.
+
+    Strategy:
+    1. If valid prerequisites exist → show "prereq --builds into--> concept"
+       chain, then branch concept's top keywords as sub-nodes with labels.
+    2. If no prerequisites → show concept as root with keywords as children,
+       labelled by their relationship to the concept.
+    Always aims for 3-5 nodes and every edge has a label.
+    """
+    def safe(text: str) -> str:
+        return text.replace('"', "'").strip()
+
     concept_titles = {c.title.lower(): c.title for c in all_concepts}
-    valid_prereqs = []
-    for prereq in concept.prerequisites:
-        if prereq.lower() in concept_titles:
-            valid_prereqs.append(concept_titles[prereq.lower()])
-    if not valid_prereqs:
-        return None
+    valid_prereqs = [
+        concept_titles[p.lower()]
+        for p in concept.prerequisites
+        if p.lower() in concept_titles
+    ]
+
     lines = ["flowchart TD"]
-    safe_title = concept.title.replace('"', "'")
+    safe_title = safe(concept.title)
     lines.append(f'    A["{safe_title}"]')
-    for i, prereq in enumerate(valid_prereqs[:3]):
-        safe_prereq = prereq.replace('"', "'")
-        label = chr(66 + i)
-        lines.append(f'    {label}["{safe_prereq}"]')
-        lines.append(f'    {label} --> A')
+
+    # ── Prerequisite chain ─────────────────────────────────────────────────
+    for i, prereq in enumerate(valid_prereqs[:2]):
+        node = chr(66 + i)          # B, C
+        lines.append(f'    {node}["{safe(prereq)}"]')
+        lines.append(f'    {node} -->|"builds into"| A')
+
+    # ── Keyword sub-nodes branching off the concept ────────────────────────
+    # Pick keywords that are long enough to be meaningful (skip 1-word trivia)
+    meaningful_kw = [
+        kw for kw in concept.keywords
+        if len(kw.split()) >= 2 or len(kw) > 8
+    ][:4]
+
+    # Fallback: use single-word keywords if we have nothing else
+    if not meaningful_kw:
+        meaningful_kw = concept.keywords[:4]
+
+    node_offset = 66 + len(valid_prereqs[:2])   # continue alphabet after prereq nodes
+    edge_labels = ["includes", "covers", "involves", "explains"]
+
+    for j, kw in enumerate(meaningful_kw[:3]):
+        node = chr(node_offset + j)
+        label = edge_labels[j % len(edge_labels)]
+        lines.append(f'    {node}["{safe(kw)}"]')
+        lines.append(f'    A -->|"{label}"| {node}')
+
+    # Need at least 3 nodes total (concept + 2 others) to be worth showing
+    total_nodes = 1 + len(valid_prereqs[:2]) + len(meaningful_kw[:3])
+    if total_nodes < 3:
+        return None
+
     return "\n".join(lines)
 
 

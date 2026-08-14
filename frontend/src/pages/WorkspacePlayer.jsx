@@ -46,7 +46,7 @@ const TABS = [
 
 function TabBar({ active, onChange }) {
   return (
-    <div className="flex gap-1" role="tablist" aria-label="Workspace view">
+    <div className="flex gap-0.5" role="tablist" aria-label="Workspace view">
       {TABS.map(({ id, label, icon: Icon }) => (
         <button
           key={id}
@@ -114,7 +114,7 @@ function WorkspaceLoading() {
   return (
     <div className="fixed inset-0 bg-[#1D183E] flex items-center justify-center z-50">
       <div className="text-center">
-        <div className="w-6 h-6 border-2 border-[#6CB4FF] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        <div className="w-6 h-6 border-2 border-[#FF916C] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
         <p className="text-[#9895B5] text-sm">Preparing workspace…</p>
       </div>
     </div>
@@ -162,6 +162,31 @@ function WorkspacePlayerInner() {
   const [reviewingConcept, setReviewingConcept] = useState(null)
 
   const progress = useLessonProgress({ token, lessonId, enabled: !!token })
+
+  // ── Track last-opened lesson for "Continue your lesson" card ──────────
+  useEffect(() => {
+    if (!subjectId || !lessonId) return
+    try {
+      window.localStorage.setItem(
+        'attend75.studyme.lastLesson',
+        JSON.stringify({ subjectId, lessonId, title: '', openedAt: Date.now() })
+      )
+    } catch { /* ignore */ }
+  }, [subjectId, lessonId])
+
+  // Update title once it's loaded
+  useEffect(() => {
+    if (!subjectId || !lessonId || !chapterTitle) return
+    try {
+      const prev = JSON.parse(window.localStorage.getItem('attend75.studyme.lastLesson') || '{}')
+      if (prev.subjectId === subjectId && prev.lessonId === lessonId) {
+        window.localStorage.setItem(
+          'attend75.studyme.lastLesson',
+          JSON.stringify({ ...prev, title: chapterTitle })
+        )
+      }
+    } catch { /* ignore */ }
+  }, [subjectId, lessonId, chapterTitle])
 
   // ── Data loading ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -329,48 +354,52 @@ function WorkspacePlayerInner() {
 
       {/* ── Header ── */}
       <header
-        className="flex items-center gap-3 px-4 border-b border-white/[0.07] flex-shrink-0 bg-[#1D183E]"
-        style={{ paddingTop: 'max(env(safe-area-inset-top), 10px)', paddingBottom: '10px' }}
+        className="flex-shrink-0 bg-[#1D183E] border-b border-white/[0.07]"
+        style={{ paddingTop: 'max(env(safe-area-inset-top), 10px)' }}
       >
-        {/* Back */}
-        <button
-          onClick={() => navigate(`/app/study/${subjectId}`)}
-          aria-label="Back to subject"
-          className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-[#9895B5]
-                     flex-shrink-0 active:scale-95 transition-transform hover:bg-white/10"
-        >
-          <ArrowLeft size={16} aria-hidden="true" />
-        </button>
+        {/* Row 1: back + title + mobile sheet buttons */}
+        <div className="flex items-center gap-2 px-4 pb-2">
+          {/* Back */}
+          <button
+            onClick={() => navigate(`/app/study/${subjectId}`)}
+            aria-label="Back to subject"
+            className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-[#9895B5]
+                       flex-shrink-0 active:scale-95 transition-transform hover:bg-white/10"
+          >
+            <ArrowLeft size={16} aria-hidden="true" />
+          </button>
 
-        {/* Title + tabs */}
-        <div className="flex-1 min-w-0">
-          <p className="text-white text-[13px] font-semibold truncate leading-tight mb-1" title={title}>
+          {/* Title */}
+          <p className="flex-1 min-w-0 text-white text-[13px] font-semibold truncate leading-tight" title={title}>
             {title}
           </p>
-          <TabBar active={activeTab} onChange={setActiveTab} />
+
+          {/* Mobile sheet toggles — right side, only on mobile */}
+          <div className="flex items-center gap-1.5 flex-shrink-0 lg:hidden">
+            <button
+              onClick={() => setNavOpen(true)}
+              aria-label="Open chapter outline"
+              className="w-8 h-8 rounded-full bg-white/5 border border-white/[0.08] text-[#9895B5]
+                         flex items-center justify-center active:scale-95 transition-all"
+            >
+              <BookOpen size={14} aria-hidden="true" />
+            </button>
+            <button
+              onClick={() => setTutorOpen(true)}
+              aria-label="Open AI tutor"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full
+                         bg-[#FF916C]/10 border border-[#FF916C]/25 text-[#FF916C] text-[12px] font-medium
+                         active:scale-95 transition-all"
+            >
+              <MessageCircle size={13} aria-hidden="true" />
+              <span>Tutor</span>
+            </button>
+          </div>
         </div>
 
-        {/* Mobile toggles */}
-        <div className="flex items-center gap-2 flex-shrink-0 lg:hidden">
-          <button
-            onClick={() => setNavOpen(true)}
-            aria-label="Open chapter outline"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full
-                       bg-white/5 border border-white/[0.08] text-[#9895B5] text-[12px]
-                       active:scale-95 transition-all"
-          >
-            <BookOpen size={13} aria-hidden="true" />
-          </button>
-          <button
-            onClick={() => setTutorOpen(true)}
-            aria-label="Open AI tutor"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full
-                       bg-white/5 border border-white/[0.08] text-[#9895B5] text-[12px]
-                       active:scale-95 transition-all"
-          >
-            <MessageCircle size={13} aria-hidden="true" />
-            <span>Tutor</span>
-          </button>
+        {/* Row 2: tab bar — full width, scrollable */}
+        <div className="px-3 pb-2">
+          <TabBar active={activeTab} onChange={setActiveTab} />
         </div>
       </header>
 

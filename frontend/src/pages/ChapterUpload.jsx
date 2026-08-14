@@ -133,7 +133,7 @@ function ChapterPicker({ titles, selected, onSelect }) {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -4, scale: 0.97 }}
                   transition={{ duration: 0.12 }}
-                  className="absolute left-0 top-full mt-1.5 z-20 w-64
+                  className="absolute left-0 top-full mt-1.5 z-20 w-[min(16rem,calc(100vw-2.5rem))]
                              bg-[#3A3660] border border-white/10 rounded-2xl shadow-xl
                              overflow-hidden"
                 >
@@ -169,11 +169,11 @@ function UndoToast({ message, onUndo, onDismiss }) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 20 }}
-      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3
-                 bg-[#2E2B4A] border border-white/15 rounded-2xl px-4 py-3 shadow-xl
-                 text-sm text-[#E8E5FF] whitespace-nowrap"
+      className="fixed bottom-6 left-4 right-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50
+                 flex items-center gap-3 bg-[#2E2B4A] border border-white/15 rounded-2xl
+                 px-4 py-3 shadow-xl text-sm text-[#E8E5FF]"
     >
-      <span>{message}</span>
+      <span className="flex-1 min-w-0 truncate">{message}</span>
       <button
         onClick={onUndo}
         className="flex items-center gap-1.5 text-[#E8956D] font-semibold hover:text-[#FFAA8D] transition-colors"
@@ -591,7 +591,7 @@ export default function ChapterUpload() {
             <h2 className="text-white text-[18px] font-bold mb-2">
               {isMasterUpload ? 'Upload chapter file' : 'Upload chapter file'}
             </h2>
-            <p className="text-[#A8A5C0] text-[13px] leading-relaxed mb-6 max-w-[260px] mx-auto">
+            <p className="text-[#A8A5C0] text-[13px] leading-relaxed mb-6 max-w-full mx-auto">
               {isMasterUpload
                 ? "Have a PDF that covers the whole chapter? Upload it directly — no filename match needed."
                 : 'AI will build an interactive lesson from your PDF, PPTX, or DOCX.'

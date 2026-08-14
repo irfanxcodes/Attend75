@@ -1318,7 +1318,7 @@ function StudyLessonDetail() {
           <button
             type="button"
             onClick={openLessonAi}
-            className="flex items-center gap-1.5 rounded-full border border-[#6CB4FF]/40 bg-[#6CB4FF]/10 px-4 py-2 text-xs font-semibold text-[#6CB4FF] transition hover:bg-[#6CB4FF]/20"
+            className="flex items-center gap-1.5 rounded-full border border-[#FF916C]/40 bg-[#FF916C]/10 px-4 py-2 text-xs font-semibold text-[#FF916C] transition hover:bg-[#FF916C]/20"
           >
             <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v1m0 16v1m-8-9H3m18 0h-1m-2.636-6.364-.707.707M6.343 17.657l-.707.707m12.728 0-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" /></svg>
             Study with AI

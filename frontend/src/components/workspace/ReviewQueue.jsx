@@ -131,7 +131,7 @@ export function ReviewQueue({ token, uploadId, onReviewConcept }) {
           <p className="text-[#9895B5] text-xs flex-1">Couldn't load review queue.</p>
           <button
             onClick={load}
-            className="text-[#6CB4FF] text-xs hover:underline"
+            className="text-[#FF916C] text-xs hover:underline"
           >
             Retry
           </button>
