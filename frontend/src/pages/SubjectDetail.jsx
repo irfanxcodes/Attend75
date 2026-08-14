@@ -278,7 +278,7 @@ export default function SubjectDetail() {
       <div className="min-h-dvh bg-[#5B5878] flex flex-col items-center justify-center px-5">
         <Loader size={28} className="text-white/50 animate-spin mb-4" />
         <p className="text-white font-semibold">Extracting syllabus…</p>
-        <p className="text-[#A8A5C0] text-sm mt-1">Gemini is reading your course handout (~15 seconds)</p>
+        <p className="text-[#A8A5C0] text-sm mt-1">Our AI is reading your course handout (~15 seconds)</p>
       </div>
     )
   }
