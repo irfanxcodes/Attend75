@@ -337,8 +337,40 @@ def _delete_pdf_safely(upload_id: str, file_path: str | None) -> None:
         logger.warning("[Ingestion] Could not delete PDF '%s': %s", file_path, exc)
 
 
+def _friendly_error(raw: str) -> tuple[str, str]:
+    """
+    Map a raw exception string → (user-friendly message, short error code).
+    Full technical detail is always logged with the code — never shown to users.
+    """
+    import random, string
+    code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+    r = raw.lower()
+
+    if ('column' in r and 'does not exist' in r) or ('relation' in r and 'does not exist' in r):
+        msg = "Something went wrong on our end. We're on it — please try again shortly."
+    elif 'unique' in r or 'duplicate key' in r:
+        msg = "This file has already been processed."
+    elif 'connection' in r or 'timeout' in r or 'refused' in r:
+        msg = "Couldn't reach the database right now. Please try again in a moment."
+    elif 'quota' in r or '429' in raw:
+        msg = "Our AI is busy right now. Please try again in a minute."
+    elif 'zero concepts' in r or 'image-based' in r:
+        msg = "Couldn't extract content from this file — it may be a scanned image. Try a text-based PDF."
+    elif 'storage cap' in r or 'storagecap' in r:
+        msg = "Storage is full right now. Please contact support."
+    else:
+        msg = "Something went wrong while processing your file. Please try again."
+
+    return msg, code
+
+
 def _mark_failed(upload_id: str, error_message: str) -> None:
-    """Mark upload as failed with error message."""
+    """Mark upload as failed — stores a friendly message, logs the full technical error."""
+    friendly, code = _friendly_error(error_message)
+    logger.error(
+        "[Ingestion] FAILED upload_id=%s error_code=%s | %s",
+        upload_id, code, error_message,
+    )
     try:
         from db.session import SessionLocal
         from db.models.chapter_upload import ChapterUpload
@@ -346,7 +378,7 @@ def _mark_failed(upload_id: str, error_message: str) -> None:
             upload = session.get(ChapterUpload, upload_id)
             if upload:
                 upload.upload_status = "failed"
-                upload.error_message = error_message[:1000]
+                upload.error_message = f"{friendly} (ref: {code})"
                 upload.updated_at = datetime.utcnow()
                 session.commit()
     except Exception as exc:

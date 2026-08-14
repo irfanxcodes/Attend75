@@ -690,13 +690,68 @@ def _mark_ready(upload_id: str) -> None:
             session.commit()
 
 
-def _mark_failed(upload_id: str, error_message: str) -> None:
+def _make_friendly_error(raw: str) -> tuple[str, str]:
+    """
+    Convert a raw technical exception string into:
+      - A user-friendly message safe to show in the UI
+      - A short error code developers can grep in logs
+
+    The full raw error is always logged separately — never stored in the DB.
+    """
+    import random
+    import string
+
+    # Generate a short 6-char code so devs can find it in logs
+    code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+
+    raw_lower = raw.lower()
+
+    # DB / schema errors
+    if 'column' in raw_lower and 'does not exist' in raw_lower:
+        friendly = "Something went wrong on our end while saving your notes. We're aware and fixing it."
+    elif 'relation' in raw_lower and 'does not exist' in raw_lower:
+        friendly = "A database table is missing. Please try again in a moment."
+    elif 'unique' in raw_lower or 'duplicate key' in raw_lower:
+        friendly = "This file appears to have been uploaded already."
+    elif 'foreign key' in raw_lower or 'violates' in raw_lower:
+        friendly = "Something went wrong while linking your data. Please try again."
+    elif 'connection' in raw_lower or 'timeout' in raw_lower or 'refused' in raw_lower:
+        friendly = "Couldn't reach the database right now. Please try again in a moment."
+    # LLM / AI errors
+    elif 'quota' in raw_lower or '429' in raw:
+        friendly = "Our AI is a little busy right now. Please try again in a minute."
+    elif 'llm' in raw_lower or 'gemini' in raw_lower or 'model' in raw_lower:
+        friendly = "The AI had trouble reading your file. Try a text-based PDF or DOCX."
+    # File errors
+    elif 'not found on disk' in raw_lower or 'no such file' in raw_lower:
+        friendly = "The uploaded file couldn't be found. Please upload it again."
+    elif 'could not extract' in raw_lower or 'no text' in raw_lower:
+        friendly = "Couldn't extract text from this file — it may be a scanned image. Try a text-based PDF."
+    elif 'no problems' in raw_lower or 'zero problems' in raw_lower:
+        friendly = "No problems were found in this file. Make sure it contains numerical questions."
+    # Generic fallback
+    else:
+        friendly = "Something unexpected happened while processing your notes. Please try again."
+
+    return friendly, code
+
+
+def _mark_failed(upload_id: str, raw_error: str) -> None:
     from db.session import SessionLocal
     from db.models.chapter_upload import ChapterUpload
+
+    friendly, code = _make_friendly_error(raw_error)
+
+    # Log full technical detail with the code so devs can look it up
+    logger.error(
+        "[NotesIngestion] FAILED upload_id=%s error_code=%s | %s",
+        upload_id, code, raw_error,
+    )
+
     with SessionLocal() as session:
         upload = session.get(ChapterUpload, upload_id)
         if upload:
             upload.upload_status = "failed"
-            upload.error_message = error_message
+            # Store friendly message + code — never the raw stack trace
+            upload.error_message = f"{friendly} (ref: {code})"
             session.commit()
-    logger.error("[NotesIngestion] Marked failed upload_id=%s: %s", upload_id, error_message)

@@ -72,33 +72,47 @@ function ProcessingStrip({ status, error, onDismiss }) {
   const isFailed = status === 'failed'
   const accent   = isFailed ? '#EF4444' : isReady ? '#22C55E' : '#6366F1'
 
+  // Split "friendly message (ref: ABCD12)" into message + ref code
+  const refMatch = error?.match(/^(.*)\s+\(ref:\s*([A-Z0-9]{6})\)$/)
+  const friendlyMsg = refMatch ? refMatch[1].trim() : (error || 'Processing failed — please try again')
+  const refCode = refMatch ? refMatch[2] : null
+
   return (
     <div
-      className="mx-4 mt-3 mb-1 rounded-xl px-4 py-3 flex items-center gap-3"
+      className="mx-4 mt-3 mb-1 rounded-xl px-4 py-3 flex items-start gap-3"
       style={{ background: `${accent}12`, border: `1px solid ${accent}30` }}
     >
-      {isReady
-        ? <CheckCircle size={16} style={{ color: accent, flexShrink: 0 }} />
-        : isFailed
-          ? <span style={{ color: accent, flexShrink: 0, fontWeight: 700 }}>✕</span>
-          : <Loader size={16} className="animate-spin flex-shrink-0" style={{ color: accent }} />
-      }
-      <p className="text-[12px] font-medium flex-1" style={{ color: accent }}>
-        {isFailed
-          ? (error || 'Processing failed — please try again')
-          : isReady
-            ? 'Problems extracted successfully!'
-            : status === 'processing'
-              ? 'AI is reading your notes…'
-              : 'Queued for processing…'}
-      </p>
+      <div className="flex-shrink-0 mt-0.5">
+        {isReady
+          ? <CheckCircle size={16} style={{ color: accent }} />
+          : isFailed
+            ? <span style={{ color: accent, fontWeight: 700 }}>✕</span>
+            : <Loader size={16} className="animate-spin" style={{ color: accent }} />
+        }
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[12px] font-medium" style={{ color: accent }}>
+          {isFailed
+            ? friendlyMsg
+            : isReady
+              ? 'Problems extracted successfully!'
+              : status === 'processing'
+                ? 'AI is reading your notes…'
+                : 'Queued for processing…'}
+        </p>
+        {isFailed && refCode && (
+          <p className="text-[10px] mt-0.5 opacity-50" style={{ color: accent }}>
+            Error ref: {refCode}
+          </p>
+        )}
+      </div>
       {(isFailed || isReady) && (
-        <button onClick={onDismiss} className="text-xs opacity-50 hover:opacity-80" style={{ color: accent }}>
+        <button onClick={onDismiss} className="text-xs opacity-50 hover:opacity-80 flex-shrink-0" style={{ color: accent }}>
           ✕
         </button>
       )}
       {!isFailed && !isReady && (
-        <div className="w-20 h-1 rounded-full overflow-hidden flex-shrink-0" style={{ background: `${accent}25` }}>
+        <div className="w-20 h-1 rounded-full overflow-hidden flex-shrink-0 mt-1.5" style={{ background: `${accent}25` }}>
           <motion.div
             className="h-full rounded-full"
             style={{ background: accent }}
@@ -334,7 +348,10 @@ function UploadCard({ onUploaded }) {
       setTitle('')
       onStart(result)
     } catch (err) {
-      setError(err.message)
+      // Show friendly message if backend returned one, otherwise generic
+      const msg = err.message || ''
+      const refMatch = msg.match(/^(.*)\s+\(ref:\s*([A-Z0-9]{6})\)$/)
+      setError(refMatch ? `${refMatch[1].trim()} (ref: ${refMatch[2]})` : (msg || 'Upload failed. Please try again.'))
     } finally {
       setUpl(false)
     }
