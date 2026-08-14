@@ -60,22 +60,21 @@ async def upload_handout(
     if len(data) > _MAX_SIZE_BYTES:
         raise HTTPException(status_code=413, detail="File too large. Maximum 20MB.")
 
-    # Check if active handout already exists for this subject
+    # Check if active handout already exists for this subject.
+    # If so, mark it inactive so the new upload fully replaces it.
     existing = db.query(CourseHandout).filter(
         CourseHandout.subject_id == subject_id.lower(),
         CourseHandout.is_active == "1",
         CourseHandout.parse_status == "ready",
     ).first()
     if existing:
-        return {
-            "handout_id": str(existing.id),
-            "status": "ready",
-            "already_exists": True,
-            "subject_name": existing.subject_name,
-            "module_count": len((existing.structured_syllabus or {}).get("modules", [])),
-            "uploaded_by_label": "you" if existing.uploaded_by == roll else "a classmate",
-            "message": "A handout for this subject already exists.",
-        }
+        existing.is_active = "0"
+        existing.updated_at = datetime.utcnow()
+        db.commit()
+        logger.info(
+            "[HandoutRouter] Replaced existing handout %s for subject %s",
+            existing.id, subject_id,
+        )
 
     # Save file
     handout_id = str(uuid.uuid4())
