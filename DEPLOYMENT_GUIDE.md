@@ -402,3 +402,190 @@ sudo swapon /swapfile
 - [ ] Run certbot for SSL
 - [ ] Verify everything works
 - [ ] Decommission old DigitalOcean droplet
+
+---
+
+## Slide Player Setup (LibreOffice + Cloudflare R2)
+
+### Step A: Install LibreOffice (one-time, on the VPS)
+
+```bash
+ssh ubuntu@129.159.239.36
+
+# ~300 MB install — done once, never again
+sudo apt-get update
+sudo apt-get install -y libreoffice-common libreoffice-impress libreoffice-writer
+
+# Verify
+libreoffice --version
+# Expected: LibreOffice 7.x.x.x ...
+```
+
+LibreOffice gives pixel-perfect PPTX → PDF → image conversion. It preserves original fonts, colors, images, gradients, and tables — exactly what the student uploaded.
+
+Without LibreOffice (dev machines), the renderer falls back to python-pptx + Pillow (plain text reconstruction) and then PyMuPDF for PDFs.
+
+---
+
+### Step B: Set up Cloudflare R2 (free, zero egress fees)
+
+**Why R2 and not local disk?**
+- Slide images are permanent artifacts that survive server redeployments
+- R2 free tier is 10 GB — our internal cap is 7.5 GB (25% safety margin)
+- R2 has zero egress fees — no cost when students view slides
+- S3-compatible API, so integration is trivial (boto3)
+
+**Setup:**
+
+1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com) → R2 Object Storage → Create bucket
+   - Bucket name: `attend75-slides`
+   - Location: Automatic
+
+2. R2 → Manage R2 API Tokens → Create API Token
+   - Permissions: Object Read & Write
+   - Bucket: `attend75-slides` (specific bucket)
+   - Copy the **Access Key ID** and **Secret Access Key**
+
+3. (Recommended) Add a custom domain to the bucket:
+   - R2 → `attend75-slides` → Settings → Custom Domains → Connect Domain
+   - Add: `slides.attend75.xyz`
+   - This gives you clean URLs like `https://slides.attend75.xyz/slides/{upload_id}/slide_001.webp`
+
+4. Add to `/opt/attend75/backend/.env` on the server:
+
+```bash
+# From your LOCAL machine — upload updated .env with R2 credentials:
+scp -i ~/Downloads/oracle-vps.key backend/.env ubuntu@129.159.239.36:/tmp/attend75_new.env
+ssh -i ~/Downloads/oracle-vps.key ubuntu@129.159.239.36 "sudo mv /tmp/attend75_new.env /opt/attend75/backend/.env && sudo chmod 600 /opt/attend75/backend/.env"
+```
+
+The `.env` R2 section looks like:
+```
+R2_ACCOUNT_ID=your_cloudflare_account_id
+R2_ACCESS_KEY=your_r2_access_key_id
+R2_SECRET_KEY=your_r2_secret_access_key
+R2_BUCKET=attend75-slides
+R2_PUBLIC_URL=https://slides.attend75.xyz
+```
+
+5. Restart backend:
+```bash
+sudo systemctl restart attend75
+```
+
+**Verify R2 is active:**
+```bash
+curl "https://api.attend75.xyz/studyme/chapters/test/slides/stats?token=YOUR_TOKEN"
+# Should return: {"storage_mode": "r2", ...}
+```
+
+---
+
+### Step C: Run the Alembic migration (if not already run)
+
+```bash
+ssh ubuntu@129.159.239.36
+cd /opt/attend75/backend
+source .venv/bin/activate
+export DATABASE_URL=postgresql://attend75user:attend75db2026@localhost:5432/attend75
+alembic upgrade head
+# Should print: Running upgrade ... -> 20260810_0019, Create slide player tables
+```
+
+---
+
+### Step D: Storage Hard Cap + Admin Alerts (zero surprise charges)
+
+The slide player has a **hard cap system** that guarantees R2 stays within
+the free tier and sends you a push notification before anything gets close.
+
+**How it works:**
+- A `storage_cap_state` table (single row) tracks the running slide count and
+  alert state atomically — DB-level `SELECT FOR UPDATE` prevents race conditions.
+- Before any batch of slides is rendered, `check_and_increment(n)` runs inside
+  a transaction. If `current + n > cap`, it raises immediately — nothing is stored.
+- Warning pushes fire at **50 %**, **75 %**, **90 %**, then a hard block + alert at **100 %**.
+- The block sticks until you explicitly call `POST /admin/storage/reset-cap-block`.
+
+**Required env vars (add to `.env` before deploying):**
+
+```
+# Hard cap — 3000 slides ≈ 120 MB, R2 free tier is 10 000 MB
+STORAGE_HARD_CAP_SLIDES=3000
+
+# Your roll number — receives push notifications at each threshold
+ADMIN_ROLL_NUMBER=24fmuchh014059
+```
+
+**Run the migration after deploying:**
+
+```bash
+ssh ubuntu@129.159.239.36
+cd /opt/attend75/backend
+source .venv/bin/activate
+export DATABASE_URL=postgresql://attend75user:attend75db2026@localhost:5432/attend75
+alembic upgrade head
+# Should print: Running upgrade 20260812_0021 -> 20260812_0022, Create storage_cap_state table
+```
+
+**Admin endpoints:**
+
+| Endpoint | What it does |
+|----------|-------------|
+| `GET  /admin/storage/caps` | Current usage, % used, remaining, alert level |
+| `POST /admin/storage/reset-cap-block` | Lift the hard block after raising the cap or deleting slides |
+| `POST /admin/storage/sync-count` | Resync counter after manual DB deletions |
+
+**To raise the cap when needed:**
+1. Update `STORAGE_HARD_CAP_SLIDES` in `.env` on the server
+2. Restart the backend: `sudo systemctl restart attend75`
+3. Call `POST /admin/storage/reset-cap-block` (if uploads were blocked)
+
+**Per-upload cap (unchanged):**
+- `MAX_SLIDES_PER_UPLOAD = 120` — per-PPT limit regardless of global cap
+- Deduplication by `upload_id` — same PPT uploaded twice = zero extra renders
+
+---
+
+### How the slide pipeline works end-to-end
+
+```
+Student uploads Accounting.pptx
+         ↓
+Hash check → already processed? → reuse upload_id, skip rendering
+         ↓ (new file)
+LibreOffice converts PPTX → PDF (headless, ~5-15 sec)
+         ↓
+PyMuPDF renders PDF → PNG per page → convert to WebP (actual size varies)
+         ↓
+Upload all WebP images to R2: slides/{upload_id}/slide_001.webp ...
+         ↓
+Save slide metadata to lesson_slides table (URL, title, body_preview)
+         ↓
+Delete original PPTX (no longer needed)
+         ↓
+Mark as ready
+
+
+First student opens Source tab
+         ↓
+GET /studyme/chapters/{upload_id}/slides → full list from DB (fast)
+         ↓
+Student presses Play on slide 3
+         ↓
+GET /slides/3/teaching-script → check slide_teaching_scripts table
+   ├── EXISTS → return cached script (zero LLM cost)
+   └── NEW    → LLM generates action sequence → save to DB → return
+                (one LLM call, ever, for this slide)
+         ↓
+Frontend executes action sequence:
+  spotlight title region (0.6s)
+  → speech "The accounting equation is..."  (TTS)
+  → pause (1.0s)
+  → spotlight body region (0.5s)
+  → speech "Notice that assets always equal..."
+  → auto-advance to slide 4 (1.4s pause)
+```
+
+Every student after the first gets the cached teaching script from DB.
+Zero LLM cost. Zero re-rendering. Everyone sees the same real slides.

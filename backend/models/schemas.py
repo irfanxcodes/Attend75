@@ -492,7 +492,9 @@ class AvailableChapterOut(BaseModel):
     subject_id: str
     script_id: str
     upload_id: str                  # exposed so WorkspacePlayer can call /curriculum
-    uploaded_by_label: str          # always "a classmate" or "You" — never raw roll number
+    uploaded_by_label: str          # always "a classmate" or "you" — never raw roll number
+    uploaded_by_name: str | None = None  # display name from student registry (nullable)
+    is_own_upload: bool = False     # True if the current user uploaded this chapter
     coverage_score: float | None = None
     concept_count: int
     block_count: int
@@ -701,3 +703,59 @@ class TutorResponse(BaseModel):
     # e.g. {"action": "open_concept", "concept_id": "..."}
     # or   {"action": "focus_slide", "slide_no": 7}
     suggested_action: dict | None = None
+
+
+# ── Notes Solver API Schemas ───────────────────────────────────────────────
+
+class NotesSolutionStepOut(BaseModel):
+    """One teaching step within a problem — returned by GET /studyme/notes/problems/:id/steps"""
+    id: str
+    sequence_order: int
+    step_type: str          # context | given | formula | calculation | result | insight
+    content: str
+    content_format: str = "text"   # "text" | "table"
+    voice_text: str | None = None
+    annotation: dict | None = None   # {type, target_text, color} or null
+
+
+class NotesProblemOut(BaseModel):
+    """Full problem with all solution steps — returned by GET /studyme/notes/problems/:id/steps"""
+    id: str
+    sequence_order: int
+    question_text: str
+    topic: str | None = None
+    difficulty: str
+    method: str | None = None
+    answer: str | None = None        # shown after final step on frontend
+    steps: list[NotesSolutionStepOut]
+
+
+class NotesProblemSetOut(BaseModel):
+    """One entry in GET /studyme/notes/:subject_id/available"""
+    upload_id: str
+    problem_set_id: str
+    subject_id: str
+    chapter_key: str | None = None
+    title: str | None = None
+    problem_count: int
+    uploaded_by_label: str           # "you" | "a classmate"
+    uploaded_by_name: str | None = None
+    is_own_upload: bool = False
+
+
+class NotesStatusOut(BaseModel):
+    """GET /studyme/notes/:upload_id/status"""
+    upload_id: str
+    status: str              # pending | processing | ready | failed | deleted
+    problem_count: int = 0
+    error_message: str | None = None
+
+
+class NotesProblemSummaryOut(BaseModel):
+    """Brief problem row shown in the problem list (no steps)"""
+    id: str
+    sequence_order: int
+    question_text: str
+    topic: str | None = None
+    difficulty: str
+    method: str | None = None

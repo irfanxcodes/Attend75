@@ -30,6 +30,18 @@ from db.models.course_handout import CourseHandout
 from db.models.concept_section import ConceptSection
 from db.models.student_concept_progress import StudentConceptProgress
 
+# Slide Player models
+from db.models.lesson_slide import LessonSlide
+from db.models.slide_teaching_script import SlideTeachingScript
+
+# Storage cap
+from db.models.storage_cap_state import StorageCapState
+
+# Notes Solver models
+from db.models.notes_problem_set import NotesProblemSet
+from db.models.notes_problem import NotesProblem
+from db.models.notes_solution_step import NotesSolutionStep
+
 __all__ = [
     "AttendanceAlertState",
     "FaceRaterScore",
@@ -60,4 +72,13 @@ __all__ = [
     # StudyMe 2.0
     "ConceptSection",
     "StudentConceptProgress",
+    # Slide Player
+    "LessonSlide",
+    "SlideTeachingScript",
+    # Storage cap
+    "StorageCapState",
+    # Notes Solver
+    "NotesProblemSet",
+    "NotesProblem",
+    "NotesSolutionStep",
 ]

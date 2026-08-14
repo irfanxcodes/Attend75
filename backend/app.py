@@ -31,6 +31,7 @@ from routers.feedback import router as feedback_router
 from routers.firebase_auth import router as firebase_auth_router
 from routers.handout import router as handout_router
 from routers.lesson import router as lesson_router
+from routers.notes import router as notes_router
 from routers.notices import router as notices_router
 from routers.push import router as push_router
 from routers.premium import router as premium_router
@@ -149,6 +150,9 @@ async def startup_event() -> None:
     # Start the weekly summary scheduler (Monday 9:00 AM IST)
     from services.weekly_summary_service import weekly_summary_scheduler
     weekly_summary_scheduler.start()
+    # Start the storage health check scheduler (Monday 9:30 AM IST)
+    from services.storage_health_scheduler import storage_health_scheduler
+    storage_health_scheduler.start()
     # Start the nudge scheduler (daily 10:00 AM IST)
     from services.nudge_service import nudge_scheduler
     nudge_scheduler.start()
@@ -163,6 +167,8 @@ async def shutdown_event() -> None:
     notice_scheduler.stop()
     from services.retention_service import retention_scheduler
     retention_scheduler.stop()
+    from services.storage_health_scheduler import storage_health_scheduler
+    storage_health_scheduler.stop()
     from services.push_worker import push_worker
     push_worker.stop()
     from services.deadline_service import deadline_scheduler
@@ -236,6 +242,7 @@ app.include_router(feedback_router)
 app.include_router(firebase_auth_router)
 app.include_router(handout_router)
 app.include_router(lesson_router)
+app.include_router(notes_router)       # Notes Solver
 app.include_router(workspace_router)   # StudyMe 2.0 Canvas endpoints
 app.include_router(notices_router)
 app.include_router(push_router)
@@ -246,3 +253,8 @@ app.include_router(studyme_router)
 _uploads_dir = Path(__file__).resolve().parent / "uploads"
 _uploads_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(_uploads_dir)), name="uploads")
+
+# Serve locally rendered slide images (dev mode — in prod, images are served from R2)
+_slide_images_dir = _uploads_dir / "slide_images"
+_slide_images_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/slide-images", StaticFiles(directory=str(_slide_images_dir)), name="slide-images")

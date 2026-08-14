@@ -580,6 +580,37 @@ def _load_student_subjects_with_lookup(record, semester_id: str | None, abbr_loo
     return []
 
 
+def _parse_schedule_from_notice_text(text: str) -> list[dict]:
+    """
+    Parse a schedule from a notice's stored cleaned_text, trying all known formats.
+
+    _parse_timetable_from_text handles BBA/B.Com pipe-delimited ASCII tables.
+    _parse_btech_timetable handles B.Tech/BCA/B.Sc Section:-header + S1–S9 slot format.
+    _parse_law_timetable handles Law/Session-based format.
+
+    This unified helper is used wherever we need to probe whether a notice contains
+    a parseable class timetable (notice discovery, candidate listing, cache check).
+    """
+    # Fast path: BBA/B.Com ASCII table format
+    result = _parse_timetable_from_text(text)
+    if result:
+        return result
+
+    # B.Tech / BCA / B.Sc: Section: headers + S1–S9 slot rows
+    if re.search(r'\bSection\s*[:\-]', text, re.IGNORECASE) and re.search(r'\bS\s*1\b', text):
+        result = _parse_btech_timetable([], text, student_section=None)
+        if result:
+            return result
+
+    # Law / Session format: SESSION 1 column headers + (FacultyName) cells
+    if re.search(r'\bSESSION\s*\d\b', text, re.IGNORECASE) and re.search(r'\([A-Z][a-z]', text):
+        result = _parse_law_timetable([], text, student_section=None)
+        if result:
+            return result
+
+    return []
+
+
 def _find_any_timetable_notice() -> Notice | None:
     """Return the most recent regular class timetable notice without subject matching."""
     return _find_latest_timetable_notice(student_subjects=None)
@@ -607,7 +638,7 @@ def _find_latest_timetable_notice(student_subjects: list[dict] | None = None) ->
             # Must contain TIMETABLE or TIME TABLE
             if "TIMETABLE" not in title_upper and "TIME TABLE" not in title_upper:
                 if fallback_candidate is None and notice.cleaned_text and len(notice.cleaned_text) > 100:
-                    schedule = _parse_timetable_from_text(notice.cleaned_text)
+                    schedule = _parse_schedule_from_notice_text(notice.cleaned_text)
                     if schedule:
                         fallback_candidate = notice
                 continue
@@ -623,7 +654,7 @@ def _find_latest_timetable_notice(student_subjects: list[dict] | None = None) ->
                 continue
 
             if student_subjects and notice.cleaned_text and len(notice.cleaned_text) > 100:
-                schedule = _parse_timetable_from_text(notice.cleaned_text)
+                schedule = _parse_schedule_from_notice_text(notice.cleaned_text)
                 if not schedule:
                     continue
 
@@ -656,7 +687,7 @@ def _find_latest_timetable_notice(student_subjects: list[dict] | None = None) ->
             # parseable content. Skip empty/unparseable notices so we don't
             # return a blank notice as "latest".
             if notice.cleaned_text and len(notice.cleaned_text) > 100:
-                schedule = _parse_timetable_from_text(notice.cleaned_text)
+                schedule = _parse_schedule_from_notice_text(notice.cleaned_text)
                 if schedule:
                     return notice
                 # Has text but unparseable — try next notice
@@ -692,7 +723,7 @@ def _get_parsed_schedule(notice: Notice, record) -> list[dict] | None:
 
     # Try parsing from stored text (no network needed)
     if notice.cleaned_text and len(notice.cleaned_text) > 100:
-        schedule = _parse_timetable_from_text(notice.cleaned_text)
+        schedule = _parse_schedule_from_notice_text(notice.cleaned_text)
         if schedule:
             _timetable_cache[notice_id] = {
                 "parsed_at": datetime.utcnow(),

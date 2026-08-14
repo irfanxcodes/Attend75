@@ -18,12 +18,13 @@ function getBase() {
 
 // ── Upload ─────────────────────────────────────────────────────────────────
 
-export async function uploadChapterPdf({ token, subjectId, chapterKey, chapterTitle, file }) {
+export async function uploadChapterPdf({ token, subjectId, chapterKey, chapterTitle, file, skipFilenameCheck = false }) {
   const formData = new FormData()
   formData.append('token', token)
   formData.append('subject_id', subjectId)
   formData.append('chapter_key', chapterKey)
   formData.append('chapter_title', chapterTitle || '')
+  if (skipFilenameCheck) formData.append('skip_filename_check', 'true')
   formData.append('file', file)
 
   const res = await fetch(`${getBase()}/studyme/chapters/upload`, {
@@ -56,6 +57,34 @@ export async function getAvailableChapters({ token, subjectId }) {
     `${getBase()}/studyme/chapters/${encodeURIComponent(subjectId)}/available?${params}`
   )
   if (!res.ok) throw new Error(`Failed to fetch available chapters (${res.status})`)
+  return res.json()
+}
+
+// ── Delete / Restore Chapter ───────────────────────────────────────────────
+
+export async function deleteChapter({ token, uploadId }) {
+  const params = new URLSearchParams({ token })
+  const res = await fetch(
+    `${getBase()}/studyme/chapters/${encodeURIComponent(uploadId)}?${params}`,
+    { method: 'DELETE' }
+  )
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || `Delete failed (${res.status})`)
+  }
+  return res.json()
+}
+
+export async function restoreChapter({ token, uploadId }) {
+  const params = new URLSearchParams({ token })
+  const res = await fetch(
+    `${getBase()}/studyme/chapters/${encodeURIComponent(uploadId)}/restore?${params}`,
+    { method: 'POST' }
+  )
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || `Restore failed (${res.status})`)
+  }
   return res.json()
 }
 
@@ -312,6 +341,91 @@ export async function getConceptResources({ token, conceptId }) {
   return res.json()
 }
 
+/**
+ * Get the base URL for local slide images (dev) or use the URL from the slides list (prod/R2).
+ * In dev, images are served from the FastAPI static mount at /slide-images/{upload_id}/{n}
+ * In prod (R2), the image_url in the slides list is already a full https:// URL.
+ */
+export function resolveSlideImageUrl(imageUrl, token) {
+  if (!imageUrl) return ''
+  // Already a full URL (R2 production)
+  if (imageUrl.startsWith('http')) {
+    // In dev mode, remap production R2 slide URLs to the local static mount
+    if (import.meta.env.DEV && imageUrl.includes('slides.attend75.xyz')) {
+      // https://slides.attend75.xyz/slides/{upload_id}/slide_NNN.webp
+      // → http://127.0.0.1:8000/slide-images/{upload_id}/slide_NNN.webp
+      const match = imageUrl.match(/slides\/([^/]+\/slide_\d+\.webp)/)
+      if (match) return `${getBase()}/slide-images/${match[1]}`
+    }
+    return imageUrl
+  }
+  // Local dev path — prepend API base and append token for auth via query param
+  return `${getBase()}${imageUrl}?token=${encodeURIComponent(token)}`
+}
+
+/**
+ * Get all slides for a chapter with image URLs and text previews.
+ * Returns {total, slides_ready, slides: [{slide_number, image_url, title, body_preview, concepts}]}
+ */
+export async function getSlidesList({ token, uploadId }) {
+  const params = new URLSearchParams({ token })
+  const res = await fetch(
+    `${getBase()}/studyme/chapters/${encodeURIComponent(uploadId)}/slides?${params}`
+  )
+  if (!res.ok) throw new Error(`Slides list failed (${res.status})`)
+  return res.json()
+}
+
+/**
+ * Get the AI teaching action sequence for a slide.
+ * Generated once on first access, then cached in DB — zero LLM cost after that.
+ * Returns {actions: [{type, text?, coords?, fallback_region?, duration?}], cached}
+ */
+export async function getTeachingScript({ token, uploadId, slideNo }) {
+  const params = new URLSearchParams({ token })
+  const res = await fetch(
+    `${getBase()}/studyme/chapters/${encodeURIComponent(uploadId)}/slides/${slideNo}/teaching-script?${params}`
+  )
+  if (!res.ok) throw new Error(`Teaching script failed (${res.status})`)
+  return res.json()
+}
+
+/**
+ * Submit thumbs up / thumbs down feedback on an AI teaching script.
+ * Fire-and-forget — never throws, failure is silently swallowed.
+ *
+ * @param {string}      uploadId
+ * @param {number}      slideNo
+ * @param {1|-1}        rating   1 = thumbs up, -1 = thumbs down
+ * @param {string|null} reason   "too_fast" | "wrong_content" | "unclear" | "off_topic" | "other"
+ */
+export async function submitSlideFeedback({ token, uploadId, slideNo, rating, reason = null }) {
+  try {
+    await fetch(
+      `${getBase()}/studyme/slides/${encodeURIComponent(uploadId)}/${slideNo}/feedback`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, rating, reason }),
+      },
+    )
+  } catch {
+    // Feedback is optional — never break the player on network errors
+  }
+}
+
+/**
+ * Get storage usage stats (monitoring).
+ */
+export async function getSlideStats({ token, uploadId }) {
+  const params = new URLSearchParams({ token })
+  const res = await fetch(
+    `${getBase()}/studyme/chapters/${encodeURIComponent(uploadId)}/slides/stats?${params}`
+  )
+  if (!res.ok) return null
+  return res.json()
+}
+
 // ── Review System APIs (Phase 8) ───────────────────────────────────────────
 
 /**
@@ -342,5 +456,76 @@ export async function completeReview({ token, conceptId, score }) {
     }
   )
   if (!res.ok) throw new Error(`Review complete failed (${res.status})`)
+  return res.json()
+}
+
+// ── Notes Solver APIs ──────────────────────────────────────────────────────
+
+export async function uploadNotes({ token, subjectId, chapterKey, title, file }) {
+  const formData = new FormData()
+  formData.append('token', token)
+  formData.append('subject_id', subjectId)
+  formData.append('chapter_key', chapterKey || '')
+  formData.append('title', title || '')
+  formData.append('file', file)
+  const res = await fetch(`${getBase()}/studyme/notes/upload`, { method: 'POST', body: formData })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || `Upload failed (${res.status})`)
+  }
+  return res.json()
+}
+
+export async function getNotesStatus({ token, uploadId }) {
+  const params = new URLSearchParams({ token })
+  const res = await fetch(`${getBase()}/studyme/notes/${encodeURIComponent(uploadId)}/status?${params}`)
+  if (!res.ok) throw new Error(`Notes status check failed (${res.status})`)
+  return res.json()
+}
+
+export async function getNotesForSubject({ token, subjectId }) {
+  const params = new URLSearchParams({ token })
+  const res = await fetch(`${getBase()}/studyme/notes/${encodeURIComponent(subjectId)}/available?${params}`)
+  if (!res.ok) throw new Error(`Failed to fetch notes (${res.status})`)
+  return res.json()
+}
+
+export async function getNotesProblemList({ token, problemSetId }) {
+  const params = new URLSearchParams({ token })
+  const res = await fetch(`${getBase()}/studyme/notes/problem-sets/${encodeURIComponent(problemSetId)}/problems?${params}`)
+  if (!res.ok) throw new Error(`Failed to fetch problems (${res.status})`)
+  return res.json()
+}
+
+export async function getNotesProblem({ token, problemId }) {
+  const params = new URLSearchParams({ token })
+  const res = await fetch(`${getBase()}/studyme/notes/problems/${encodeURIComponent(problemId)}/steps?${params}`)
+  if (!res.ok) throw new Error(`Failed to fetch problem (${res.status})`)
+  return res.json()
+}
+
+export async function deleteNotes({ token, uploadId }) {
+  const params = new URLSearchParams({ token })
+  const res = await fetch(
+    `${getBase()}/studyme/notes/${encodeURIComponent(uploadId)}?${params}`,
+    { method: 'DELETE' }
+  )
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || `Delete failed (${res.status})`)
+  }
+  return res.json()
+}
+
+export async function restoreNotes({ token, uploadId }) {
+  const params = new URLSearchParams({ token })
+  const res = await fetch(
+    `${getBase()}/studyme/notes/${encodeURIComponent(uploadId)}/restore?${params}`,
+    { method: 'POST' }
+  )
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || `Restore failed (${res.status})`)
+  }
   return res.json()
 }

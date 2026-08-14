@@ -37,6 +37,15 @@ def _setup_provider_env() -> None:
     nvidia = os.getenv("NVIDIA_API_KEY", "").strip()
     if nvidia and not os.getenv("NVIDIA_NIM_API_KEY", "").strip():
         os.environ["NVIDIA_NIM_API_KEY"] = nvidia
+    # LiteLLM reads these automatically from env — ensure they're set
+    for env_var in ["OPENROUTER_API_KEY", "MISTRAL_API_KEY", "GROQ_API_KEY"]:
+        val = os.getenv(env_var, "").strip()
+        if val:
+            os.environ[env_var] = val
+    # Cohere uses CO_API_KEY in LiteLLM
+    cohere = os.getenv("COHERE_API_KEY", "").strip()
+    if cohere and not os.getenv("CO_API_KEY", "").strip():
+        os.environ["CO_API_KEY"] = cohere
 
 
 _setup_provider_env()

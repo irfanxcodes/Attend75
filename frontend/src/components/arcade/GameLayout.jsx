@@ -107,8 +107,7 @@ function GameLayout({ gameSlug, children }) {
       const result = await submitScore(token, gameSlug, finalScore)
       setSubmissionResult(result)
     } catch (err) {
-      // On 401: session expired — show a message but do NOT redirect away.
-      // The user is mid-game; silently queue the score instead.
+      // On 401: session expired — queue for retry once the user logs back in.
       if (err.status === 401) {
         saveToQueue(gameSlug, finalScore)
         setSubmissionResult(null)
@@ -116,7 +115,15 @@ function GameLayout({ gameSlug, children }) {
         return
       }
 
-      // Save to offline queue so the score is never lost
+      // 422 = validation error (score rejected by server rules) — queuing is pointless,
+      // it will be rejected again on retry. Just silently drop it and show nothing.
+      if (err.status === 422) {
+        setSubmissionResult(null)
+        setIsSubmitting(false)
+        return
+      }
+
+      // Network/server error — queue for offline retry so the score is not lost.
       saveToQueue(gameSlug, finalScore)
       setSubmissionResult(null)
     } finally {

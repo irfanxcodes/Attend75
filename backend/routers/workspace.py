@@ -17,6 +17,7 @@ import logging
 import urllib.parse
 import uuid
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -391,7 +392,339 @@ def get_source_map(
     }
 
 
-# ── Quiz (Phase 5) ────────────────────────────────────────────────────────────
+# ── Slide Player Endpoints ────────────────────────────────────────────────────
+# All slide data is stored in DB (lesson_slides + slide_teaching_scripts).
+# Generated once at ingestion time, shared across all students — zero LLM
+# cost after the first student opens each slide.
+
+@router.get("/chapters/{upload_id}/slides")
+def get_slides_list(
+    upload_id: str,
+    token: str,
+    db: Session = Depends(_get_db),
+):
+    """
+    Return all rendered slide metadata for a chapter.
+    Called once when the Source tab opens — gives the frontend the full
+    slide list with image URLs and text previews.
+    """
+    if not _resolve_roll_number(token):
+        raise HTTPException(status_code=401, detail="Invalid session token")
+
+    upload = db.get(ChapterUpload, upload_id)
+    if not upload:
+        raise HTTPException(status_code=404, detail="Chapter not found")
+
+    from db.models.lesson_slide import LessonSlide
+    from services.slide_storage import using_r2, get_local_image_bytes
+
+    slides = (
+        db.query(LessonSlide)
+        .filter(LessonSlide.upload_id == upload_id)
+        .order_by(LessonSlide.slide_number)
+        .all()
+    )
+
+    # Build concept map: slide_number → list of {id, title}
+    concepts = (
+        db.query(AIConcept.id, AIConcept.title, AIConcept.source_page)
+        .filter(AIConcept.upload_id == upload_id)
+        .all()
+    )
+    concept_map: dict[int, list] = {}
+    for c_id, c_title, c_page in concepts:
+        if c_page:
+            concept_map.setdefault(c_page, []).append({"id": str(c_id), "title": c_title})
+
+    # In dev (no R2), image_url is a local path like /slide-images/{upload_id}/{n}
+    # In prod (R2), image_url is a full https:// URL
+    # element_type: "slide" for PPTX/PPT, "page" for PDF/DOCX/DOC
+    ext = Path(upload.original_filename or "").suffix.lower() if upload.original_filename else ""
+    element_type = "slide" if ext in (".pptx", ".ppt") else "page"
+
+    slide_list = [
+        {
+            "slide_number": s.slide_number,
+            "image_url": s.image_url,
+            "width_px": s.width_px,
+            "height_px": s.height_px,
+            "title": s.title or f"{'Slide' if element_type == 'slide' else 'Page'} {s.slide_number}",
+            "body_preview": s.body_preview or "",
+            "concepts": concept_map.get(s.slide_number, []),
+            "element_type": element_type,
+        }
+        for s in slides
+    ]
+
+    return {
+        "upload_id": upload_id,
+        "total": len(slide_list),
+        "slides_ready": len(slide_list) > 0,
+        "element_type": element_type,
+        "slides": slide_list,
+    }
+
+
+@router.get("/chapters/{upload_id}/slides/stats")
+def get_slide_stats(
+    upload_id: str,
+    token: str,
+    db: Session = Depends(_get_db),
+):
+    """
+    Storage usage stats for monitoring. Prevents runaway renders.
+    Returns total slides stored and R2/local mode.
+    """
+    if not _resolve_roll_number(token):
+        raise HTTPException(status_code=401, detail="Invalid session token")
+
+    from services.slide_storage import get_storage_stats, using_r2
+    from db.models.lesson_slide import LessonSlide
+
+    chapter_count = db.query(LessonSlide).filter(
+        LessonSlide.upload_id == upload_id
+    ).count()
+
+    global_stats = get_storage_stats()
+
+    return {
+        "upload_id": upload_id,
+        "slides_this_chapter": chapter_count,
+        "global_total_slides": global_stats["total_slides"],
+        "storage_mode": "r2" if using_r2() else "local",
+        "global_total_mb": global_stats.get("total_mb"),
+    }
+
+
+@router.get("/chapters/{upload_id}/slides/{slide_no}/image")
+def get_slide_image(
+    upload_id: str,
+    slide_no: int,
+    token: str,
+    db: Session = Depends(_get_db),
+):
+    """
+    Serve a slide image directly (dev mode — local disk).
+    In production with R2, the frontend uses the image_url from /slides directly
+    and never calls this endpoint. In dev, this serves from local disk.
+    """
+    from fastapi.responses import Response
+    if not _resolve_roll_number(token):
+        raise HTTPException(status_code=401, detail="Invalid session token")
+
+    from services.slide_storage import get_local_image_bytes, using_r2
+    if using_r2():
+        # In production, images are served directly from R2 CDN
+        raise HTTPException(status_code=404, detail="Use the image_url from /slides in production")
+
+    img_bytes = get_local_image_bytes(upload_id, slide_no)
+    if not img_bytes:
+        raise HTTPException(status_code=404, detail="Slide image not rendered yet")
+
+    return Response(
+        content=img_bytes,
+        media_type="image/webp",
+        headers={"Cache-Control": "public, max-age=31536000"},
+    )
+
+
+@router.get("/chapters/{upload_id}/slides/{slide_no}/teaching-script")
+def get_teaching_script(
+    upload_id: str,
+    slide_no: int,
+    token: str,
+    db: Session = Depends(_get_db),
+):
+    """
+    Return the AI teaching action sequence for a slide.
+
+    Generate-once, cache-forever pattern:
+      - First student to open this slide → LLM generates the script → saved to DB
+      - Every student after → DB lookup, zero LLM cost
+
+    Returns ordered list of actions:
+      {type: "speech",    text: "..."}
+      {type: "spotlight", coords: {x,y,w,h}, fallback_region: "title"|"body"|"table", duration: 0.6}
+      {type: "pause",     duration: 1.0}
+    """
+    roll_number = _resolve_roll_number(token)
+    if not roll_number:
+        raise HTTPException(status_code=401, detail="Invalid session token")
+
+    upload = db.get(ChapterUpload, upload_id)
+    if not upload:
+        raise HTTPException(status_code=404, detail="Chapter not found")
+
+    if upload.upload_status not in ("ready", "ready_low_coverage"):
+        raise HTTPException(status_code=404, detail="Chapter not ready")
+
+    # Get slide metadata from DB
+    from db.models.lesson_slide import LessonSlide
+    slide_row = db.query(LessonSlide).filter(
+        LessonSlide.upload_id == upload_id,
+        LessonSlide.slide_number == slide_no,
+    ).first()
+
+    slide_title = slide_row.title if slide_row else f"Slide {slide_no}"
+
+    # ── Find concepts that match this slide ───────────────────────────────
+    # We can't rely on source_page because the slide images and concepts
+    # may have come from different uploaded files (different source_page numbering).
+    # Instead: match concepts to slides by title similarity.
+    all_concepts = (
+        db.query(AIConcept.title, AIConcept.explanation, AIConcept.definition,
+                 AIConcept.keywords, AIConcept.examples, AIConcept.source_page)
+        .filter(AIConcept.upload_id == upload_id)
+        .all()
+    )
+
+    def _title_similarity(a: str, b: str) -> float:
+        """Simple word-overlap similarity between two strings."""
+        stopwords = {"a", "an", "the", "of", "and", "or", "by", "in", "to", "is", "are", "cost", "costs"}
+        a_words = set(a.lower().replace(",", " ").replace(".", " ").split()) - stopwords
+        b_words = set(b.lower().replace(",", " ").replace(".", " ").split()) - stopwords
+        if not a_words or not b_words:
+            return 0.0
+        overlap = len(a_words & b_words)
+        return overlap / max(len(a_words), len(b_words))
+
+    def body_sim(concept_c, text: str) -> float:
+        """Score a concept against slide text (title + body)."""
+        t = text.lower()
+        score = 0.0
+        c_words = set((concept_c.title or "").lower().replace(",", " ").split()) - {"a","an","the","of","and","or","cost","costs"}
+        for w in c_words:
+            if len(w) > 3 and w in t:
+                score += 1.0
+        for kw in (concept_c.keywords or [])[:5]:
+            if kw.lower() in t:
+                score += 0.5
+        return score    # Score all concepts against the slide title
+    # Strip domain-generic words (like "cost"/"costs") to avoid false positives
+    scored = [
+        (c, _title_similarity(slide_title, c.title))
+        for c in all_concepts
+    ]
+    scored.sort(key=lambda x: x[1], reverse=True)
+
+    best_c, best_score = scored[0] if scored else (None, 0.0)
+    second_score = scored[1][1] if len(scored) > 1 else 0.0
+
+    # Only use title match if:
+    #   - score is strong (≥ 0.5), OR
+    #   - score is clear winner (best is at least 2x the second best and > 0)
+    use_title_match = (
+        best_score >= 0.5 or
+        (best_score > 0 and best_score >= second_score * 2.0 and best_score >= 0.3)
+    )
+
+    if use_title_match and best_c:
+        matched_concepts = [best_c]
+    else:
+        # Step 2: body text match — use slide DB title + body_preview only
+        # (NOT source map, which may be reconstructed from wrong concept data)
+        slide_text_for_matching = (slide_row.body_preview or "") + " " + slide_title if slide_row else slide_title
+        b_scored = sorted(
+            [(c, body_sim(c, slide_text_for_matching)) for c in all_concepts],
+            key=lambda x: x[1], reverse=True
+        )
+        b_best_c, b_best_s = b_scored[0] if b_scored else (None, 0.0)
+        b_second_s = b_scored[1][1] if len(b_scored) > 1 else 0.0
+
+        # Require score ≥ 2.0 AND clearly better than second best
+        # This prevents false positives from single-word coincidental matches
+        use_body = b_best_s >= 2.0 and b_best_s > b_second_s and b_best_c is not None
+
+        if use_body:
+            matched_concepts = [b_best_c]
+        else:
+            # Step 3: sequence order — Nth slide → Nth concept (by document order)
+            sorted_concepts = sorted(all_concepts, key=lambda c: (c.source_page or 999))
+            idx = slide_no - 1
+            if 0 <= idx < len(sorted_concepts):
+                matched_concepts = [sorted_concepts[idx]]
+            else:
+                # More slides than concepts — reuse the last concept
+                matched_concepts = [sorted_concepts[-1]] if sorted_concepts else []
+
+    concept_dicts = [
+        {
+            "title": c.title,
+            "explanation": c.explanation,
+            "definition": c.definition,
+            "keywords": c.keywords or [],
+            "examples": c.examples or [],
+        }
+        for c in matched_concepts
+    ]
+
+    subject_name = upload.subject_id.replace("-", " ").replace("_", " ").title()
+    chapter_name = upload.chapter_title or upload.chapter_key.replace("-", " ").title()
+
+    # ── Build slide body content ──────────────────────────────────────────
+    # The slide title from LessonSlide is more accurate for image content.
+    # Build body from matched concepts — much richer than source map for
+    # files where original text was sparse.
+    from services.source_map_service import build_source_map
+    src_slides = build_source_map(upload_id)
+    src = next((s for s in src_slides if s["number"] == slide_no), None)
+    src_full_text = src.get("full_text", "") if src else ""
+
+    if len(src_full_text) >= 150:
+        slide_body = src_full_text
+        is_title_slide = False
+    else:
+        # Build rich body from matched concept data
+        body_parts = []
+        for c in concept_dicts:
+            if c.get("title"):
+                body_parts.append(c["title"])
+            if c.get("definition"):
+                body_parts.append(f"Definition: {(c['definition'] or '')[:300]}")
+            elif c.get("explanation"):
+                body_parts.append(f"Explanation: {(c['explanation'] or '')[:300]}")
+            if c.get("keywords"):
+                body_parts.append(f"Key terms: {', '.join(c['keywords'][:6])}")
+            if c.get("examples"):
+                body_parts.append(f"Examples: {'; '.join(c['examples'][:2])}")
+        slide_body = "\n".join(body_parts) if body_parts else src_full_text
+        is_title_slide = (slide_no == 1)  # Slide 1 always gets a chapter intro
+    from services.teaching_script_service import get_or_generate_teaching_script
+
+    # For slide 1 (chapter intro), pass ALL concept titles so the AI can
+    # give a proper overview of everything the chapter covers
+    if is_title_slide:
+        all_concept_dicts = [
+            {"title": c.title}
+            for c in sorted(all_concepts, key=lambda c: (c.source_page or 999))
+        ]
+        intro_concepts = all_concept_dicts
+    else:
+        intro_concepts = concept_dicts
+
+    result = get_or_generate_teaching_script(
+        upload_id=upload_id,
+        slide_number=slide_no,
+        slide_title=slide_title,
+        slide_body=slide_body,
+        slide_concepts=intro_concepts,
+        subject_name=subject_name,
+        chapter_name=chapter_name,
+        is_title_slide=is_title_slide,
+        shape_bboxes=slide_row.shape_bboxes if slide_row else None,
+    )
+
+    return {
+        "upload_id": upload_id,
+        "slide_number": slide_no,
+        "slide_title": slide_title,
+        "actions": result["actions"],
+        "model_used": result["model_used"],
+        "cached": result["cached"],
+    }
+
+
+
 
 from models.schemas import ConceptProgressUpdate  # already imported above
 
@@ -818,3 +1151,105 @@ def complete_review(
         "status": new_status,
         "next_review_at": next_review.isoformat(),
     }
+
+
+# ── Slide Script Feedback ─────────────────────────────────────────────────────
+
+_VALID_REASONS = frozenset({
+    "too_fast", "wrong_content", "unclear", "off_topic", "other"
+})
+
+
+class SlideFeedbackRequest(BaseModel):
+    token: str
+    rating: int = Field(..., description="1 = thumbs up, -1 = thumbs down")
+    reason: str | None = Field(
+        None,
+        description="Optional: too_fast | wrong_content | unclear | off_topic | other",
+    )
+
+
+@router.post("/slides/{upload_id}/{slide_no}/feedback")
+def submit_slide_feedback(
+    upload_id: str,
+    slide_no: int,
+    body: SlideFeedbackRequest,
+    db: Session = Depends(_get_db),
+):
+    """
+    Record a student's thumbs up / thumbs down on the AI teaching script for a slide.
+
+    Rules:
+      - rating must be 1 (up) or -1 (down)
+      - One vote per student per slide per script version — subsequent calls upsert
+      - Stored as raw data; no automatic script regeneration happens here
+
+    Returns immediately — fire-and-forget from the frontend.
+    """
+    roll_number = _resolve_roll_number(body.token)
+    if not roll_number:
+        raise HTTPException(status_code=401, detail="Invalid session token")
+
+    if body.rating not in (1, -1):
+        raise HTTPException(status_code=422, detail="rating must be 1 or -1")
+
+    reason = body.reason
+    if reason and reason not in _VALID_REASONS:
+        reason = "other"
+
+    # Get the current script version for this slide (default 1 if not found)
+    from db.models.slide_teaching_script import SlideTeachingScript
+    from services.teaching_script_service import CURRENT_VERSION
+
+    script_row = (
+        db.query(SlideTeachingScript)
+        .filter(
+            SlideTeachingScript.upload_id == upload_id,
+            SlideTeachingScript.slide_number == slide_no,
+        )
+        .order_by(SlideTeachingScript.version.desc())
+        .first()
+    )
+    script_version = script_row.version if script_row else CURRENT_VERSION
+
+    # Upsert: update existing vote if already rated this version
+    from db.models.slide_script_feedback import SlideScriptFeedback
+
+    existing = (
+        db.query(SlideScriptFeedback)
+        .filter(
+            SlideScriptFeedback.upload_id == upload_id,
+            SlideScriptFeedback.slide_number == slide_no,
+            SlideScriptFeedback.roll_number == roll_number,
+            SlideScriptFeedback.script_version == script_version,
+        )
+        .first()
+    )
+
+    now = datetime.utcnow()
+
+    if existing:
+        existing.rating = body.rating
+        existing.reason = reason
+        existing.created_at = now  # refresh timestamp on update
+    else:
+        row = SlideScriptFeedback(
+            id=str(uuid.uuid4()),
+            upload_id=upload_id,
+            slide_number=slide_no,
+            roll_number=roll_number,
+            rating=body.rating,
+            script_version=script_version,
+            reason=reason,
+            created_at=now,
+        )
+        db.add(row)
+
+    db.commit()
+
+    logger.info(
+        "[SlideFeedback] upload=%s slide=%d roll=%s rating=%+d reason=%s",
+        upload_id, slide_no, roll_number, body.rating, reason,
+    )
+
+    return {"saved": True}

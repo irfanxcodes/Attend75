@@ -211,13 +211,85 @@ def run_ingestion(upload_id: str) -> None:
         )
         logger.info("[Ingestion] RAG indexed %d chunks", indexed)
 
-        # ── Step 9: Pre-generate TTS Audio ────────────────────────────────
-        logger.info("[Ingestion] Step 9: Pre-generating TTS audio for lesson blocks...")
-        from services.tts_service import generate_for_script
-        audio_count = generate_for_script(script_id=script_id, blocks=blocks)
-        logger.info("[Ingestion] TTS generated %d audio files", audio_count)
+        # ── Step 9: Render Slide Images → save to storage + DB ───────────
+        logger.info("[Ingestion] Step 9: Rendering slide images...")
+        try:
+            from pathlib import Path as _Path
+            from services.slide_renderer import render_slides
+            from services.shape_extractor import extract_shape_bboxes
+            from db.models.lesson_slide import LessonSlide
 
-        # ── Step 10: Update Upload Status ─────────────────────────────────
+            file_ext = _Path(upload.original_filename or file_path or "").suffix.lower()
+
+            # Extract PPTX shape bboxes BEFORE LibreOffice conversion so we
+            # still have access to the original shape metadata.  Returns {}
+            # for PDFs and DOCXs — those fall back to semantic regions.
+            shape_bboxes_by_slide = extract_shape_bboxes(file_path, file_ext)
+            if shape_bboxes_by_slide:
+                logger.info("[Ingestion] Extracted shape bboxes for %d slides",
+                            len(shape_bboxes_by_slide))
+
+            rendered = render_slides(
+                upload_id=upload_id,
+                file_path=file_path,
+                file_ext=file_ext,
+            )
+
+            if rendered:
+                # Save slide metadata to DB so all students can look them up.
+                # Also carry over text metadata from the source map (title, body_preview).
+                from services.source_map_service import build_source_map
+                source_slides = {s["number"]: s for s in build_source_map(upload_id)}
+
+                with SessionLocal() as session:
+                    now = datetime.utcnow()
+                    for slide_data in rendered:
+                        sn = slide_data["slide_number"]
+                        src = source_slides.get(sn, {})
+                        # Skip if already saved (idempotent)
+                        exists = session.query(LessonSlide).filter(
+                            LessonSlide.upload_id == upload_id,
+                            LessonSlide.slide_number == sn,
+                        ).first()
+                        if not exists:
+                            session.add(LessonSlide(
+                                id=str(uuid.uuid4()),
+                                upload_id=upload_id,
+                                slide_number=sn,
+                                image_url=slide_data["url"],
+                                width_px=slide_data.get("width_px"),
+                                height_px=slide_data.get("height_px"),
+                                title=src.get("title", f"Slide {sn}"),
+                                body_preview=src.get("body_preview", ""),
+                                shape_bboxes=shape_bboxes_by_slide.get(sn) or None,
+                                created_at=now,
+                            ))
+                    session.commit()
+
+                logger.info("[Ingestion] Rendered and saved %d slide images", len(rendered))
+            else:
+                logger.warning("[Ingestion] Slide rendering produced no images (non-fatal)")
+        except Exception as exc:
+            from services.storage_cap_service import StorageCapExceeded
+            if isinstance(exc, StorageCapExceeded):
+                # Hard cap hit — bubble this up so the upload is marked failed,
+                # not silently swallowed.  The student gets a clear error message.
+                logger.error("[Ingestion] Storage cap exceeded for upload_id=%s: %s", upload_id, exc)
+                raise
+            # All other slide errors are non-fatal — lesson still works without slides.
+            logger.warning("[Ingestion] Slide image rendering failed (non-fatal): %s", exc, exc_info=True)
+
+        # ── Step 10: TTS Audio — DISABLED ─────────────────────────────────
+        # Pre-generated Gemini TTS is disabled to avoid disk storage growth
+        # and Gemini API quota consumption during ingestion.
+        # The frontend uses the Web Speech API (device TTS) which is free,
+        # zero-storage, and already fully wired in useWebSpeech.js.
+        # To re-enable: uncomment the three lines below and remove this comment.
+        # from services.tts_service import generate_for_script
+        # audio_count = generate_for_script(script_id=script_id, blocks=blocks)
+        # logger.info("[Ingestion] TTS generated %d audio files", audio_count)
+
+        # ── Step 11: Update Upload Status ────────────────────────────────
         final_status = "ready" if coverage_score >= INGESTION_COVERAGE_THRESHOLD else "ready_low_coverage"
         with SessionLocal() as session:
             upload = session.get(ChapterUpload, upload_id)

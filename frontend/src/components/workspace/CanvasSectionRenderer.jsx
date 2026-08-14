@@ -8,10 +8,37 @@ import { BlockMath } from 'react-katex'
 import 'katex/dist/katex.min.css'
 import { DiagramBlock } from '../lessonplayer/DiagramBlock'
 import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
-import { useState } from 'react'
+import { Component, useState } from 'react'
 
 function isLatex(str) {
   return str && (/[\\{}^_]/.test(str) || str.startsWith('\\'))
+}
+
+// ── Section-level error boundary ─────────────────────────────────────────
+// Catches render crashes (e.g. bad LaTeX in BlockMath) without taking down
+// the entire WorkspacePlayer.
+
+class SectionErrorBoundary extends Component {
+  constructor(props) {
+    super(props)
+    this.state = { crashed: false }
+  }
+  static getDerivedStateFromError() {
+    return { crashed: true }
+  }
+  componentDidCatch(error, info) {
+    console.error('[SectionErrorBoundary] Section crashed:', error?.message, info?.componentStack?.slice(0, 300))
+  }
+  render() {
+    if (this.state.crashed) {
+      return (
+        <div className="mb-3 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
+          <p className="text-slate-400 text-[12px] italic">Content could not be rendered.</p>
+        </div>
+      )
+    }
+    return this.props.children
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -27,6 +54,7 @@ function SectionLabel({ color = '#6b7280', children }) {
 // ── Explanation ───────────────────────────────────────────────────────────
 
 function ExplanationSection({ content }) {
+  if (!content?.text) return null
   return (
     <p className="text-[#1a1827] text-[15px] leading-[1.9] mb-3">
       {content.text}
@@ -37,6 +65,7 @@ function ExplanationSection({ content }) {
 // ── Definition ────────────────────────────────────────────────────────────
 
 function DefinitionSection({ content }) {
+  if (!content?.text) return null
   return (
     <div className="border-l-[3px] border-[#6366f1] pl-4 mb-4 py-0.5">
       <SectionLabel color="#6366f1">Definition</SectionLabel>
@@ -59,11 +88,17 @@ function FormulaSection({ content }) {
         <SectionLabel color="#0ea5e9">Formula — {content.name}</SectionLabel>
       )}
       {!content.name && <SectionLabel color="#0ea5e9">Formula</SectionLabel>}
-      <div className="bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 overflow-x-auto">
+      {/* Force light background + dark text so KaTeX renders correctly regardless of parent theme */}
+      <div
+        className="bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 overflow-x-auto"
+        style={{ color: '#1e293b', background: '#f8fafc' }}
+      >
         {isLatex(content.latex) ? (
-          <div className="formula-doc">
-            <BlockMath math={content.latex} />
-          </div>
+          <SectionErrorBoundary>
+            <div className="formula-doc" style={{ color: '#1e293b' }}>
+              <BlockMath math={content.latex} />
+            </div>
+          </SectionErrorBoundary>
         ) : (
           <p className="text-slate-800 text-base font-mono text-center">{content.text}</p>
         )}
@@ -97,6 +132,7 @@ function FormulaSection({ content }) {
 // ── Formula Explanation ───────────────────────────────────────────────────
 
 function FormulaExplanationSection({ content }) {
+  if (!content?.text) return null
   return (
     <p className="text-[#3d3a55] text-[14px] leading-relaxed mb-3 pl-1">
       {content.text}
@@ -119,7 +155,7 @@ function WorkedExampleSection({ content }) {
       >
         <div className="flex-1 min-w-0">
           <SectionLabel color="#b45309">Worked Example</SectionLabel>
-          <p className="text-[#1a1827] text-[14px] leading-snug font-medium">{content.question}</p>
+          <p className="text-[#1a1827] text-[14px] leading-snug font-medium">{content.question || 'Example'}</p>
         </div>
         <span className="flex-shrink-0 text-amber-400 mt-1">
           {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -160,6 +196,7 @@ function WorkedExampleSection({ content }) {
 // ── Theory Example ────────────────────────────────────────────────────────
 
 function TheoryExampleSection({ content }) {
+  if (!content?.text) return null
   return (
     <div className="mb-4">
       <SectionLabel color="#d97706">Example</SectionLabel>
@@ -172,8 +209,10 @@ function TheoryExampleSection({ content }) {
 
 function VisualSection({ content }) {
   if (content.spec_type === 'mermaid') {
+    // Stable ID based on spec content — avoids re-render loop from Math.random()
+    const stableId = `visual-${content.spec?.slice(0, 32).replace(/[^a-z0-9]/gi, '') || 'diagram'}`
     const mockBlock = {
-      id: `visual-${Math.random().toString(36).slice(2)}`,
+      id: stableId,
       content: content.spec,
     }
     return (
@@ -181,7 +220,6 @@ function VisualSection({ content }) {
         {content.caption && (
           <SectionLabel color="#6b7280">{content.caption}</SectionLabel>
         )}
-        {/* Mermaid renders dark-themed, wrap with a slightly offset bg */}
         <div className="rounded-xl overflow-hidden border border-slate-200">
           <DiagramBlock block={mockBlock} isActive={true} onComplete={() => {}} />
         </div>
@@ -199,7 +237,7 @@ function VisualSection({ content }) {
         )}
         <div
           className="text-[#1a1827] text-[13px] px-4 pb-3"
-          dangerouslySetInnerHTML={{ __html: content.spec }}
+          dangerouslySetInnerHTML={{ __html: content.spec || '' }}
         />
       </div>
     )
@@ -208,7 +246,85 @@ function VisualSection({ content }) {
   return null
 }
 
-// ── Common Mistake ────────────────────────────────────────────────────────
+// ── Concept Map ───────────────────────────────────────────────────────────
+
+function ConceptMapSection({ content }) {
+  // content.nodes: [{id, label, type}], content.edges: [{from, to, label}]
+  // content.spec: mermaid string (alternative format)
+  // content.caption: optional title
+  const nodes = content.nodes || []
+  const edges = content.edges || []
+
+  // If a mermaid spec is provided, render via DiagramBlock
+  if (content.spec) {
+    // Use stable id derived from content to prevent re-render on every React pass
+    const mockBlock = {
+      id: `cmap-${content.spec?.slice(0, 32).replace(/[^a-z0-9]/gi, '') || 'diagram'}`,
+      content: content.spec,
+    }
+    return (
+      <div className="mb-4">
+        <SectionLabel color="#6b7280">{content.caption || 'Concept Map'}</SectionLabel>
+        <div className="rounded-xl overflow-hidden border border-slate-200">
+          <DiagramBlock block={mockBlock} isActive={true} onComplete={() => {}} />
+        </div>
+      </div>
+    )
+  }
+
+  // Fallback: render nodes as a simple grid of tags
+  if (nodes.length > 0) {
+    return (
+      <div className="mb-4">
+        <SectionLabel color="#6b7280">{content.caption || 'Concept Map'}</SectionLabel>
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+          <div className="flex flex-wrap gap-2 mb-3">
+            {nodes.map((n, i) => (
+              <span
+                key={i}
+                className="px-3 py-1.5 rounded-full text-[12px] font-medium border"
+                style={{
+                  background: n.type === 'main' ? '#dbeafe' : '#f0fdf4',
+                  color: n.type === 'main' ? '#1d4ed8' : '#166534',
+                  borderColor: n.type === 'main' ? '#93c5fd' : '#86efac',
+                }}
+              >
+                {n.label}
+              </span>
+            ))}
+          </div>
+          {edges.length > 0 && (
+            <div className="space-y-1 border-t border-slate-200 pt-2 mt-1">
+              {edges.map((e, i) => (
+                <p key={i} className="text-[12px] text-slate-500">
+                  <span className="text-slate-700 font-medium">{e.from}</span>
+                  {e.label ? ` → ${e.label} → ` : ' → '}
+                  <span className="text-slate-700 font-medium">{e.to}</span>
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Last fallback: render text content if present
+  if (content.text || content.description) {
+    return (
+      <div className="mb-4">
+        <SectionLabel color="#6b7280">{content.caption || 'Concept Map'}</SectionLabel>
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+          <p className="text-slate-700 text-[13px] leading-relaxed">
+            {content.text || content.description}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  return null
+}
 
 function CommonMistakeSection({ content }) {
   return (
@@ -284,21 +400,26 @@ export function CanvasSectionRenderer({ section, onViewSource }) {
     case 'worked_example':      inner = <WorkedExampleSection content={content} />; break
     case 'theory_example':      inner = <TheoryExampleSection content={content} />; break
     case 'visual':              inner = <VisualSection content={content} />; break
+    case 'concept_map':         inner = <ConceptMapSection content={content} />; break
     case 'common_mistake':      inner = <CommonMistakeSection content={content} />; break
     case 'takeaway':            inner = <TakeawaySection content={content} />; break
     case 'key_terms':           inner = <KeyTermsSection content={content} />; break
-    default:
+    default: {
+      // Show readable text if available, otherwise skip silently
+      const fallbackText = content.text || content.description || content.explanation
+      if (!fallbackText) return null
       inner = (
-        <p className="text-slate-500 text-[14px] leading-relaxed mb-3">
-          {content.text || JSON.stringify(content)}
-        </p>
+        <p className="text-slate-600 text-[14px] leading-relaxed mb-3">{fallbackText}</p>
       )
+    }
   }
 
   return (
-    <div>
-      {inner}
-      <SourceRef refs={source_references} onViewSource={onViewSource} />
-    </div>
+    <SectionErrorBoundary key={`${section_type}-${JSON.stringify(content).slice(0, 40)}`}>
+      <div>
+        {inner}
+        <SourceRef refs={source_references} onViewSource={onViewSource} />
+      </div>
+    </SectionErrorBoundary>
   )
 }

@@ -22,6 +22,7 @@ import CollegeInterestPage from '../../components/admin/CollegeInterestPage'
 import ArcadePage from '../../components/admin/ArcadePage'
 import PushNotificationHealthPage from '../../components/admin/PushNotificationHealthPage'
 import AdvertisementsPage from '../../components/admin/AdvertisementsPage'
+import StorageCapPage from '../../components/admin/StorageCapPage'
 
 function AdminDashboard() {
   const navigate = useNavigate()
@@ -195,6 +196,8 @@ function AdminDashboard() {
             />
           ) : activeSection === 'advertisements' ? (
             <AdvertisementsPage sessionToken={sessionToken} />
+          ) : activeSection === 'storage-safety' ? (
+            <StorageCapPage />
           ) : (
             <div className="flex h-64 items-center justify-center rounded-xl border border-white/5 bg-[#252136]">
               <div className="text-center">

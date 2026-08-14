@@ -4,11 +4,10 @@
  * Renders all concepts as a continuous readable document.
  * Inspired by clean note-taking apps — white paper feel on dark bg.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, ChevronRight, Loader, Pause, Volume2, VolumeX } from 'lucide-react'
+import { ChevronDown, ChevronRight, Loader } from 'lucide-react'
 import { CanvasSectionRenderer } from './CanvasSectionRenderer'
-import { useWebSpeech } from '../../hooks/useWebSpeech'
 
 // ── Legacy block → document-style rendering ───────────────────────────────
 
@@ -73,46 +72,6 @@ function LegacyBlockStatic({ block }) {
     default:
       return <p className="text-[#6b7280] text-[14px] leading-relaxed mb-3">{block.content}</p>
   }
-}
-
-// ── Narration controls ────────────────────────────────────────────────────
-
-function NarrationControls({ isPlaying, onPlay, onPause, onStop, speed, onSpeedChange }) {
-  return (
-    <div className="flex items-center gap-2 flex-shrink-0">
-      <button
-        onClick={isPlaying ? onPause : onPlay}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium transition-all active:scale-95 border
-          ${isPlaying
-            ? 'bg-[#6CB4FF]/15 border-[#6CB4FF]/40 text-[#6CB4FF]'
-            : 'bg-white/6 border-white/12 text-[#C8C5E8] hover:border-white/20'
-          }`}
-      >
-        {isPlaying ? <Pause size={11} /> : <Volume2 size={11} />}
-        {isPlaying ? 'Pause' : 'Listen'}
-      </button>
-      {isPlaying && (
-        <button
-          onClick={onStop}
-          className="w-7 h-7 rounded-full bg-white/5 border border-white/10 text-[#9895B5] flex items-center justify-center hover:border-white/20 transition-all active:scale-95"
-          aria-label="Stop narration"
-        >
-          <VolumeX size={11} />
-        </button>
-      )}
-      <select
-        value={speed}
-        onChange={e => onSpeedChange(parseFloat(e.target.value))}
-        aria-label="Narration speed"
-        className="bg-white/5 border border-white/10 rounded-full text-[#9895B5] text-[11px] px-2.5 py-1.5 focus:outline-none cursor-pointer"
-      >
-        <option value={0.75}>0.75×</option>
-        <option value={1.0}>1×</option>
-        <option value={1.25}>1.25×</option>
-        <option value={1.5}>1.5×</option>
-      </select>
-    </div>
-  )
 }
 
 // ── Loading skeleton ──────────────────────────────────────────────────────
@@ -242,11 +201,6 @@ export function ConceptCanvas({
 }) {
   const canvasRef = useRef(null)
   const conceptRefs = useRef({})
-  const { speak, stopSpeaking, isTTSSupported } = useWebSpeech()
-
-  const [narrating, setNarrating] = useState(false)
-  const [narrateSpeed, setNarrateSpeed] = useState(1.0)
-  const [narrateIndex, setNarrateIndex] = useState(0)
 
   // Scroll to active concept when nav is clicked
   useEffect(() => {
@@ -257,7 +211,6 @@ export function ConceptCanvas({
 
   // Track which concept is most visible
   useEffect(() => {
-    if (!onConceptVisible) return
     const observer = new IntersectionObserver(
       entries => {
         const best = entries
@@ -274,31 +227,7 @@ export function ConceptCanvas({
     return () => observer.disconnect()
   }, [concepts, onConceptVisible])
 
-  // Narration
-  const buildNarrationText = useCallback((concept) => {
-    if (!concept.sections?.length) return concept.explanation || concept.title
-    return concept.sections.filter(s => s.voice_text).map(s => s.voice_text).join(' ')
-  }, [])
-
-  const startNarration = useCallback((fromIndex = 0) => {
-    if (!isTTSSupported || !concepts.length) return
-    setNarrating(true)
-    setNarrateIndex(fromIndex)
-    const narrate = (idx) => {
-      if (idx >= concepts.length) { setNarrating(false); return }
-      const text = buildNarrationText(concepts[idx])
-      speak(text, { rate: narrateSpeed, onEnd: () => narrate(idx + 1) })
-      setNarrateIndex(idx)
-      const el = document.getElementById(`concept-${concepts[idx].id}`)
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }
-    narrate(fromIndex)
-  }, [concepts, speak, narrateSpeed, isTTSSupported, buildNarrationText])
-
-  const stopNarration = useCallback(() => {
-    stopSpeaking()
-    setNarrating(false)
-  }, [stopSpeaking])
+  // Narration — removed (replaced by slide AI explanations in SourceViewer)
 
   // ── Loading / empty states ────────────────────────────────────────────
 
@@ -364,16 +293,7 @@ export function ConceptCanvas({
           )}
         </div>
 
-        {isTTSSupported && (
-          <NarrationControls
-            isPlaying={narrating}
-            onPlay={() => startNarration(0)}
-            onPause={stopNarration}
-            onStop={stopNarration}
-            speed={narrateSpeed}
-            onSpeedChange={setNarrateSpeed}
-          />
-        )}
+        
       </div>
 
       {/* ── Scrollable document area ── */}
@@ -397,7 +317,7 @@ export function ConceptCanvas({
                 ref={el => { conceptRefs.current[concept.id] = el }}
                 data-concept-id={concept.id}
               >
-                {isEmpty && loading ? (
+                {isEmpty ? (
                   <ConceptSectionSkeleton />
                 ) : (
                   <ConceptSection

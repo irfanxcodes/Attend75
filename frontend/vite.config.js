@@ -21,4 +21,11 @@ export default defineConfig({
       },
     }),
   ],
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/test/setup.js'],
+    // Use the same JSX transform as the app (React 17+ automatic runtime)
+    // so component files don't need `import React from 'react'`
+  },
 })

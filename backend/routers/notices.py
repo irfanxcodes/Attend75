@@ -76,7 +76,7 @@ def get_timetable_candidates(token: str) -> list[dict]:
     """
     from db.models.notice import Notice
     from db.session import SessionLocal
-    from services.timetable_service import _parse_timetable_from_text
+    from services.timetable_service import _parse_schedule_from_notice_text
     from services.notice_service import get_student_program
     from sqlalchemy import or_
 
@@ -117,7 +117,7 @@ def get_timetable_candidates(token: str) -> list[dict]:
             continue
         if not notice.cleaned_text or len(notice.cleaned_text) < 100:
             continue
-        schedule = _parse_timetable_from_text(notice.cleaned_text)
+        schedule = _parse_schedule_from_notice_text(notice.cleaned_text)
         if not schedule:
             continue
         semesters = sorted(set(e["semester"] for e in schedule if e["semester"]))

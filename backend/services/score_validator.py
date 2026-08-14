@@ -18,9 +18,9 @@ REGISTERED_GAMES: set[str] = {"flappy", "pacman", "stack", "geodash"}
 
 GAME_MAX_SCORES: dict[str, int] = {
     "flappy": 999,
-    "pacman": 5000,
+    "pacman": 999999,  # scores scale with levels; real players regularly exceed 50k — cap at anti-cheat ceiling
     "stack": 200,
-    "geodash": 9999,  # score = floor(dist/10), unbounded run — cap at a generous anti-cheat ceiling
+    "geodash": 99999,  # score = floor(dist/10), unbounded run — cap at a generous anti-cheat ceiling
 }
 
 DUPLICATE_WINDOW_SECONDS: int = 5

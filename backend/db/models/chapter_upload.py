@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Float, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Text
 
 from db.base import Base
 
@@ -21,6 +21,8 @@ class ChapterUpload(Base):
     chapter_title = Column(String(256), nullable=True)
     uploaded_by = Column(String(64), nullable=False, index=True)
     upload_status = Column(String(32), nullable=False, default="pending", index=True)
+    # 'chapter' = AI lesson upload; 'notes' = Notes Solver upload
+    upload_type = Column(String(16), nullable=False, default="chapter")
     coverage_score = Column(Float, nullable=True)
     concept_count = Column(Integer, nullable=True)
     block_count = Column(Integer, nullable=True)
@@ -29,6 +31,11 @@ class ChapterUpload(Base):
     original_filename = Column(String(256), nullable=True)
     file_size_bytes = Column(Integer, nullable=True)
     file_hash = Column(String(64), nullable=True, index=True)
+    # is_public: True = admin-approved, shared with all students in the subject.
+    # Only public uploads participate in chapter_key deduplication so that
+    # two students uploading different versions of the same chapter never
+    # accidentally share slides.
+    is_public = Column(Boolean, nullable=False, default=False)
     file_deleted_at = Column(DateTime, nullable=True)
     processed_at = Column(DateTime, nullable=True)
     error_message = Column(Text, nullable=True)

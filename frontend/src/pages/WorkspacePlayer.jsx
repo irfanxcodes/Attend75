@@ -10,10 +10,10 @@
  * Mobile: single column. Sidebar + tutor open as bottom sheets.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Component, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, BookOpen, Layout, MessageCircle, Package } from 'lucide-react'
+import { ArrowLeft, BookOpen, Layout, MessageCircle, Package, PenLine } from 'lucide-react'
 
 import useAppStore from '../hooks/useAppStore'
 import { useLessonProgress } from '../hooks/useLessonProgress'
@@ -29,10 +29,11 @@ import {
 import { ConceptCanvas } from '../components/workspace/ConceptCanvas'
 import { ConceptNavSidebar, ConceptNavSheet } from '../components/workspace/ConceptNav'
 import { TutorPanel, TutorBottomSheet } from '../components/workspace/TutorPanel'
-import { SourceViewer } from '../components/workspace/SourceViewer'
+import { SlidePlayer } from '../components/workspace/SlidePlayer'
 import { ResourcesViewer } from '../components/workspace/ResourcesViewer'
 import { ReviewQueue } from '../components/workspace/ReviewQueue'
 import { ReviewSession } from '../components/workspace/ReviewSession'
+import NotesView from '../components/study/notes/NotesView'
 
 // ── Tab bar ───────────────────────────────────────────────────────────────
 
@@ -40,6 +41,7 @@ const TABS = [
   { id: 'canvas',    label: 'Canvas',    icon: Layout   },
   { id: 'source',    label: 'Source',    icon: BookOpen },
   { id: 'resources', label: 'Resources', icon: Package  },
+  { id: 'notes',     label: 'Notes',     icon: PenLine  },
 ]
 
 function TabBar({ active, onChange }) {
@@ -63,6 +65,47 @@ function TabBar({ active, onChange }) {
       ))}
     </div>
   )
+}
+
+// ── Top-level error boundary ─────────────────────────────────────────────
+// Catches any uncaught render error in the workspace so a single bad
+// concept/section doesn't go blank — shows a recoverable error UI instead.
+
+class WorkspaceErrorBoundary extends Component {
+  constructor(props) {
+    super(props)
+    this.state = { error: null }
+  }
+  static getDerivedStateFromError(error) {
+    return { error }
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="fixed inset-0 bg-[#1D183E] flex items-center justify-center z-50 px-6">
+          <div className="text-center max-w-xs">
+            <p className="text-white text-[15px] font-semibold mb-2">Something went wrong</p>
+            <p className="text-[#9895B5] text-sm mb-5 leading-relaxed">
+              {this.state.error?.message || 'An unexpected error occurred in the workspace.'}
+            </p>
+            <button
+              onClick={() => this.setState({ error: null })}
+              className="px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-[#9895B5] text-sm mr-3"
+            >
+              Retry
+            </button>
+            <button
+              onClick={() => window.history.back()}
+              className="px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-[#9895B5] text-sm"
+            >
+              Go back
+            </button>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
 }
 
 // ── Loading / Error screens ───────────────────────────────────────────────
@@ -93,7 +136,7 @@ function WorkspaceError({ message, onBack }) {
 
 // ── Main WorkspacePlayer ──────────────────────────────────────────────────
 
-export default function WorkspacePlayer() {
+function WorkspacePlayerInner() {
   const { subjectId, lessonId } = useParams()
   const navigate = useNavigate()
   const { state: appState } = useAppStore()
@@ -363,23 +406,22 @@ export default function WorkspacePlayer() {
               activeConceptId={activeConceptId}
               onConceptVisible={handleConceptVisible}
               onViewSource={handleViewSource}
-              loading={sectionsLoading && concepts.every(c => !c.sections?.length)}
+              loading={sectionsLoading}
             />
           </div>
 
-          {/* Source tab */}
+          {/* Source tab — SlidePlayer (OpenMAIC-style AI teaching) */}
           <div className={`flex-1 flex flex-col overflow-hidden ${activeTab === 'source' ? '' : 'hidden'}`}>
-            <SourceViewer
+            <SlidePlayer
               token={token}
               uploadId={uploadId}
               highlightSlideNo={highlightSlideNo}
               onSlideClick={(slideNo) => {
+                setHighlightSlideNo(slideNo)
                 const match = concepts.find(c => c.source_page === slideNo)
                 if (match) {
                   setActiveConceptId(match.id)
-                  setActiveTab('canvas')
                 }
-                setHighlightSlideNo(slideNo)
               }}
             />
           </div>
@@ -406,6 +448,11 @@ export default function WorkspacePlayer() {
                 onViewSource={handleViewSource}
               />
             </div>
+          </div>
+
+          {/* Notes tab — Notes Solver */}
+          <div className={`flex-1 flex flex-col overflow-hidden ${activeTab === 'notes' ? '' : 'hidden'}`}>
+            <NotesView subjectId={subjectId} chapterKey={script?.chapter_key} />
           </div>
         </main>
 
@@ -465,5 +512,13 @@ export default function WorkspacePlayer() {
         )}
       </AnimatePresence>
     </div>
+  )
+}
+
+export default function WorkspacePlayer(props) {
+  return (
+    <WorkspaceErrorBoundary>
+      <WorkspacePlayerInner {...props} />
+    </WorkspaceErrorBoundary>
   )
 }

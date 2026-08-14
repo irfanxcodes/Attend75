@@ -61,3 +61,6 @@ pgvector==0.3.6
 # DOCX/PPTX parsing — kept for course handout uploads (handoutApi, not lesson player)
 python-docx==1.1.2
 python-pptx==1.0.2
+
+# Cloudflare R2 / S3-compatible object storage — for slide images
+boto3==1.38.0

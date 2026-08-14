@@ -31,7 +31,7 @@ export function useWebSpeech() {
     }
   }, [])
 
-  const speak = useCallback((text, { onEnd, onError, rate = 0.95, pitch = 1.0 } = {}) => {
+  const speak = useCallback((text, { onEnd, onError, onBoundary, rate = 0.95, pitch = 1.0 } = {}) => {
     if (!SUPPORTED_TTS || !text) {
       onEnd?.()
       return
@@ -58,8 +58,11 @@ export function useWebSpeech() {
     }
     utterance.onerror = (e) => {
       setIsSpeaking(false)
-      // 'interrupted' is not a real error — it happens when we cancel intentionally
       if (e.error !== 'interrupted') onError?.(e.error)
+    }
+    // Fire on each word boundary — charIndex is the character offset in text
+    utterance.onboundary = (e) => {
+      if (e.name === 'word') onBoundary?.(e.charIndex, e.charLength)
     }
 
     utteranceRef.current = utterance

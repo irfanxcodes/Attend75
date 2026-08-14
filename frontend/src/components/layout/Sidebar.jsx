@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, Gamepad2 } from 'lucide-react'
+import { BookOpen, CheckCircle2, Gamepad2 } from 'lucide-react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 
 const STUDYME_BETA_NOTICE_KEY = 'attend75.studyme.betaNotice.v2'
@@ -8,7 +8,7 @@ const navItems = [
   { label: 'Dashboard', to: '/app/dashboard', icon: '/dashboard-icon.png' },
   { label: 'History', to: '/app/history', icon: '/history-icon.svg' },
   { label: 'Notices', to: '/app/notices', icon: '/notices-icon.svg' },
-  { label: 'StudyMe', to: '/app/study', icon: '/studyme-icon.svg' },
+  { label: 'Study', to: '/app/study', icon: '/studyme-icon.svg' },
   { label: 'Marks', to: '/app/marks', icon: '/marks.png' },
   { label: 'Arcade', to: '/app/arcade', icon: null, useInlineSvg: 'arcade' },
   { label: 'Profile', to: '/app/profile', icon: '/profile-icon.svg' },
@@ -124,14 +124,12 @@ function Sidebar({ isCollapsed, onToggleCollapse }) {
                         : 'text-[#C8C4D8] hover:bg-white/5 hover:text-[#FF916C]'
                     }`}
                   >
-                    <img
-                      src={item.icon}
-                      alt=""
-                      aria-hidden="true"
-                      className={`h-4.5 w-4.5 shrink-0 rounded-sm object-cover ${
-                        isStudyRouteActive ? 'brightness-125 saturate-150 drop-shadow-[0_0_8px_rgba(255,145,108,0.45)]' : 'opacity-70'
+                    <BookOpen
+                      className={`shrink-0 ${
+                        isStudyRouteActive ? 'drop-shadow-[0_0_8px_rgba(255,145,108,0.45)]' : 'opacity-70'
                       }`}
                       style={{ width: '18px', height: '18px' }}
+                      aria-hidden="true"
                     />
                     <span className={labelClass}>{item.label}</span>
                   </button>

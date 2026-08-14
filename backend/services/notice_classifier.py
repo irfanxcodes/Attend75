@@ -320,7 +320,7 @@ def _parse_date_match(match, fmt: str) -> date | None:
 _PROGRAM_KEYWORDS = {
     "BBA": ["BBA", "BACHELOR OF BUSINESS"],
     "MBA": ["MBA", "MASTER OF BUSINESS"],
-    "B.Tech": ["B.TECH", "BTECH", "B TECH", "ENGINEERING"],
+    "B.Tech": ["B.TECH", "BTECH", "B TECH", "ENGINEERING", "FACULTY OF SCIENCE", "FACULTY OF TECHNOLOGY", "SCIENCE & TECHNOLOGY", "SCIENCE AND TECHNOLOGY"],
     "M.Tech": ["M.TECH", "MTECH"],
     "BCA": ["BCA"],
     "B.Com": ["BCOM", "B.COM", "B COM"],

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import useAppStore from '../hooks/useAppStore'
 import { parseAdminSession } from '../services/adminApi'
 import { fetchSessionStatus, loginWithFirebase } from '../services/attendanceApi'
@@ -57,6 +57,25 @@ function ProtectedAppRoutes({ isAuthBootstrapComplete }) {
   }
 
   return <AppLayout />
+}
+
+// Layout-less protected wrapper for full-screen pages (WorkspacePlayer, LessonPlayer).
+// These pages use fixed inset-0 and must NOT be nested inside AppLayout because
+// AppLayout's transition-[padding] creates a CSS stacking context that traps fixed children.
+function ProtectedFullScreen({ isAuthBootstrapComplete }) {
+  const {
+    state: { user },
+  } = useAppStore()
+
+  if (!isAuthBootstrapComplete) {
+    return <RouteFallback message="Restoring session..." />
+  }
+
+  if (!user.isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+
+  return <Outlet />
 }
 
 function PublicLoginRoute({ isAuthBootstrapComplete }) {
@@ -307,6 +326,13 @@ function AppRoutes() {
         <Route path="/marks" element={<Navigate to="/app/marks" replace />} />
         <Route path="/study" element={<StudyRedirectOrPublic />} />
         <Route path="/profile" element={<Navigate to="/app/profile" replace />} />
+        {/* Full-screen routes — outside AppLayout to avoid stacking context from transition-[padding] */}
+        <Route element={<ProtectedFullScreen isAuthBootstrapComplete={isAuthBootstrapComplete} />}>
+          <Route path="/app/study/:subjectId/:lessonId/play" element={<LessonPlayer />} />
+          <Route path="/app/study/:subjectId/:lessonId/workspace" element={<WorkspacePlayer />} />
+        </Route>
+
+        {/* Standard app routes — wrapped in AppLayout with sidebar + bottom nav */}
         <Route path="/app" element={<ProtectedAppRoutes isAuthBootstrapComplete={isAuthBootstrapComplete} />}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
@@ -316,8 +342,6 @@ function AppRoutes() {
           <Route path="study" element={<StudyMe />} />
           <Route path="study/:subjectId" element={<SubjectDetail />} />
           <Route path="study/:subjectId/upload" element={<ChapterUpload />} />
-          <Route path="study/:subjectId/:lessonId/play" element={<LessonPlayer />} />
-          <Route path="study/:subjectId/:lessonId/workspace" element={<WorkspacePlayer />} />
           <Route path="profile" element={<Profile />} />
           <Route path="premium" element={<Premium />} />
           <Route path="arcade" element={<ArcadeHome />} />

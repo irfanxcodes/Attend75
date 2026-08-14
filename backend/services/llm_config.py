@@ -21,29 +21,37 @@ import os
 # ── INGESTION CHAIN ────────────────────────────────────────────────────────
 # Used during PDF processing: concept extraction only.
 # Called ONCE per chapter upload — not per student, not per request.
-# Strategy: Gemini 3.6 Flash first (best quality + large context), Groq fallback.
+# Strategy: Gemini first (best quality + large context), Groq as solid fallback.
+# Gemini models marked with quota issues are demoted to avoid slow failures.
 INGESTION_FALLBACK_CHAIN = [
-    # Gemini 3.x — confirmed working free tier, called via direct REST
-    "gemini/gemini-3.6-flash",       # best quality, 1M context, free
-    "gemini/gemini-3.5-flash",       # slightly smaller, also free
-    "gemini/gemini-3.5-flash-lite",  # fastest Gemini, free
-    # Groq — fallback if Gemini is rate limited
-    "groq/llama-3.3-70b-versatile",
+    # Tier 1 — primary (fast, free)
+    "gemini/gemini-3.5-flash-lite",                          # 15 RPM free, 1M ctx
+    "groq/llama-3.3-70b-versatile",                          # fast, 8K output
+    # Tier 2 — secondary Gemini
+    "gemini/gemini-3.5-flash",
+    "gemini/gemini-3.6-flash",
+    # Tier 3 — additional providers (tested & working)
+    "mistral/mistral-small-latest",
+    "cohere/command-r",
     "groq/llama-3.1-8b-instant",
-    # Last resort
-    "openrouter/mistralai/mistral-7b-instruct:free",
+    # Tier 4 — last resort
+    "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
 ]
 
 # ── DOUBT CHAIN ───────────────────────────────────────────────────────────
 # Called per student doubt during lesson playback.
-# Strategy: Groq first (sub-second latency), Gemini as fallback.
-# Gemini lite models used here to stay well within 15 RPM limit.
 DOUBT_FALLBACK_CHAIN = [
-    "groq/llama-3.3-70b-versatile",   # primary: fastest, free
-    "groq/llama-3.1-8b-instant",      # groq fallback
-    "gemini/gemini-3.1-flash-lite",   # gemini fallback: lightest model
-    "gemini/gemini-3.5-flash-lite",   # gemini fallback 2
-    "openrouter/mistralai/mistral-7b-instruct:free",
+    # Tier 1 — fast response
+    "groq/llama-3.3-70b-versatile",
+    "groq/llama-3.1-8b-instant",
+    # Tier 2 — Gemini
+    "gemini/gemini-3.5-flash-lite",
+    "gemini/gemini-3.5-flash",
+    # Tier 3 — additional
+    "mistral/mistral-small-latest",
+    "cohere/command-r",
+    # Tier 4 — last resort
+    "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
 ]
 
 # ── EMBEDDING CHAIN ───────────────────────────────────────────────────────

@@ -1,20 +1,257 @@
 /**
- * ChapterUpload — pixel-matched to design spec
- * Background #4A4668, centered dashed card, ← STUDYME nav pill
+ * ChapterUpload — "Edit chapters" page
+ * Shows all uploaded chapters for the subject with delete/undo,
+ * plus the upload form with file-name validation.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, CheckCircle, Loader, Sparkles, Upload, Users } from 'lucide-react'
+import { ArrowLeft, CheckCircle, Loader, Sparkles, Trash2, Undo2, Upload, Users } from 'lucide-react'
 
 import useAppStore from '../hooks/useAppStore'
-import { uploadChapterPdf, getChapterStatus, getAvailableChapters } from '../services/lessonApi'
+import {
+  uploadChapterPdf,
+  getChapterStatus,
+  getAvailableChapters,
+  deleteChapter,
+  restoreChapter,
+} from '../services/lessonApi'
 
 const POLL_INTERVAL_MS = 4000
 const MAX_POLLS = 90
 const ACCEPTED_EXTENSIONS = ['.pdf', '.docx', '.doc', '.pptx', '.ppt']
 const ACCEPTED_MIME = '.pdf,.docx,.doc,.pptx,.ppt'
+const UNDO_TIMEOUT_MS = 6000 // how long the undo toast stays visible
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Returns significant words (>2 chars) from a string, lowercased. */
+function sigWords(text) {
+  return new Set(
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length > 2)
+  )
+}
+
+/** Check whether the filename stem shares at least one word with chapterTitle. */
+function filenameMatchesChapter(filename, chapterTitle) {
+  if (!chapterTitle.trim()) return true
+  const stem = filename.replace(/\.[^/.]+$/, '')
+  const fileWords = sigWords(stem)
+  const titleWords = sigWords(chapterTitle)
+  if (!titleWords.size || !fileWords.size) return true
+  for (const w of fileWords) {
+    if (titleWords.has(w)) return true
+  }
+  return false
+}
+
+/**
+ * Check whether a user-typed title matches one of the valid chapter titles
+ * from the subject handout (case-insensitive, word-overlap).
+ * Returns the matched title string, or null if no match.
+ */
+function findMatchingTitle(typed, validTitles) {
+  if (!validTitles || validTitles.length === 0) return typed || null
+  const typedLow = typed.toLowerCase().trim()
+  if (!typedLow) return null
+  const typedWords = sigWords(typed)
+
+  // 1. Exact (case-insensitive)
+  const exact = validTitles.find(t => t.toLowerCase().trim() === typedLow)
+  if (exact) return exact
+
+  // 2. Substring either way
+  const sub = validTitles.find(t => {
+    const tl = t.toLowerCase()
+    return tl.includes(typedLow) || typedLow.includes(tl)
+  })
+  if (sub) return sub
+
+  // 3. Word overlap — at least 1 significant word matches
+  const overlap = validTitles.find(t => {
+    const tWords = sigWords(t)
+    for (const w of typedWords) {
+      if (tWords.has(w)) return true
+    }
+    return false
+  })
+  return overlap || null
+}
+
+// ── Chapter Picker — 4 visible + "more" dropdown ─────────────────────────────
+
+function ChapterPicker({ titles, selected, onSelect }) {
+  const [open, setOpen] = useState(false)
+  const visible = titles.slice(0, 4)
+  const rest    = titles.slice(4)
+
+  const chipClass = (t) =>
+    selected.toLowerCase().trim() === t.toLowerCase().trim()
+      ? 'bg-[#E8956D]/15 text-[#E8956D] border border-[#E8956D]/40'
+      : 'bg-white/5 text-[#A8A5C0] border border-white/10 hover:border-white/20 hover:text-white'
+
+  return (
+    <div className="mb-4 text-left">
+      <p className="text-[#9895B5] text-[10px] uppercase tracking-widest mb-2">
+        Chapters in this subject
+      </p>
+
+      <div className="flex flex-wrap gap-1.5 items-center">
+        {visible.map(t => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => onSelect(t)}
+            className={`px-3 py-1.5 rounded-full text-[11px] font-medium transition-all truncate max-w-[200px] ${chipClass(t)}`}
+          >
+            {t}
+          </button>
+        ))}
+
+        {rest.length > 0 && (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setOpen(v => !v)}
+              className="px-3 py-1.5 rounded-full text-[11px] font-medium transition-all
+                         bg-white/5 text-[#A8A5C0] border border-white/10 hover:border-white/20 hover:text-white
+                         flex items-center gap-1"
+            >
+              +{rest.length} more
+              <span className={`transition-transform duration-150 ${open ? 'rotate-180' : ''}`}>▾</span>
+            </button>
+
+            <AnimatePresence>
+              {open && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                  transition={{ duration: 0.12 }}
+                  className="absolute left-0 top-full mt-1.5 z-20 w-64
+                             bg-[#3A3660] border border-white/10 rounded-2xl shadow-xl
+                             overflow-hidden"
+                >
+                  {rest.map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => { onSelect(t); setOpen(false) }}
+                      className={`w-full text-left px-4 py-2.5 text-[12px] transition-colors
+                        ${selected.toLowerCase().trim() === t.toLowerCase().trim()
+                          ? 'bg-[#E8956D]/15 text-[#E8956D]'
+                          : 'text-[#D4D1EC] hover:bg-white/5'
+                        }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Undo Toast ────────────────────────────────────────────────────────────────
+
+function UndoToast({ message, onUndo, onDismiss }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 20 }}
+      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3
+                 bg-[#2E2B4A] border border-white/15 rounded-2xl px-4 py-3 shadow-xl
+                 text-sm text-[#E8E5FF] whitespace-nowrap"
+    >
+      <span>{message}</span>
+      <button
+        onClick={onUndo}
+        className="flex items-center gap-1.5 text-[#E8956D] font-semibold hover:text-[#FFAA8D] transition-colors"
+      >
+        <Undo2 size={13} />
+        Undo
+      </button>
+      <button
+        onClick={onDismiss}
+        className="text-[#9895B5] hover:text-white transition-colors text-xs"
+        aria-label="Dismiss"
+      >
+        ✕
+      </button>
+    </motion.div>
+  )
+}
+
+// ── Chapter item in the list ──────────────────────────────────────────────────
+
+function ChapterListItem({ chapter, subjectId, navigate, onDelete, isDeleting }) {
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      className="w-full bg-[#4A4769] border border-white/[0.08] rounded-2xl p-4
+                 flex items-center gap-3"
+    >
+      <div className="w-9 h-9 rounded-xl bg-[#4EF0A0]/10 flex items-center justify-center flex-shrink-0">
+        <Sparkles size={16} className="text-[#4EF0A0]" />
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <p className="text-[#E8E5FF] text-[13px] font-medium truncate">{chapter.chapter_title}</p>
+        <p className="text-[#9895B5] text-xs flex items-center gap-1 mt-0.5">
+          <Users size={9} />
+          {chapter.is_own_upload
+            ? 'Uploaded by you'
+            : chapter.uploaded_by_name
+              ? `Uploaded by ${chapter.uploaded_by_name}`
+              : 'Uploaded by a classmate'}
+          {' · '}{chapter.concept_count} concepts
+        </p>
+      </div>
+
+      {/* Start button — always shown */}
+      {chapter.script_id && (
+        <button
+          onClick={() => navigate(`/app/study/${subjectId}/${chapter.script_id}/workspace`)}
+          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full
+                     bg-[#4EF0A0]/10 text-[#4EF0A0] text-[11px] font-medium
+                     hover:bg-[#4EF0A0]/20 active:scale-95 transition-all"
+        >
+          <Sparkles size={11} />
+          Start
+        </button>
+      )}
+
+      {/* Only show delete for own uploads */}
+      {chapter.is_own_upload && (
+        <button
+          onClick={() => onDelete(chapter)}
+          disabled={isDeleting}
+          className="flex-shrink-0 p-2 rounded-xl text-[#9895B5] hover:text-[#FF7B7B]
+                     hover:bg-[#FF7B7B]/10 transition-all disabled:opacity-40"
+          aria-label={`Delete ${chapter.chapter_title}`}
+        >
+          {isDeleting ? <Loader size={15} className="animate-spin" /> : <Trash2 size={15} />}
+        </button>
+      )}
+    </motion.div>
+  )
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function ChapterUpload() {
   const { subjectId } = useParams()
@@ -25,28 +262,85 @@ export default function ChapterUpload() {
 
   const urlChapterKey   = searchParams.get('chapterKey')   || ''
   const urlChapterTitle = searchParams.get('chapterTitle') || ''
+  const isMasterUpload  = searchParams.get('masterUpload') === 'true'
+  const validTitles = (() => {
+    try { return JSON.parse(searchParams.get('validTitles') || '[]') }
+    catch { return [] }
+  })()
 
   const [chapterKey,   setChapterKey]   = useState(urlChapterKey)
   const [chapterTitle, setChapterTitle] = useState(urlChapterTitle)
+  const [titleError,   setTitleError]   = useState(null)
   const [file,         setFile]         = useState(null)
   const [available,    setAvailable]    = useState([])
   const [uploading,    setUploading]    = useState(false)
   const [status,       setStatus]       = useState(null)
   const [error,        setError]        = useState(null)
+  const [deletingId,   setDeletingId]   = useState(null)
+  const [undoEntry,    setUndoEntry]    = useState(null) // { chapter, timeoutId }
+
   const pollRef   = useRef(null)
   const pollCount = useRef(0)
 
-  useEffect(() => {
+  const loadChapters = useCallback(() => {
     if (!token || !subjectId) return
     getAvailableChapters({ token, subjectId })
       .then(chapters =>
-        setAvailable(urlChapterKey
-          ? chapters.filter(ch => ch.chapter_key === urlChapterKey)
-          : chapters
+        setAvailable(
+          urlChapterKey
+            ? chapters.filter(ch => ch.chapter_key === urlChapterKey)
+            : chapters
         )
       )
       .catch(() => {})
   }, [token, subjectId, urlChapterKey])
+
+  useEffect(() => { loadChapters() }, [loadChapters])
+  useEffect(() => () => clearInterval(pollRef.current), [])
+
+  // ── Delete with undo ────────────────────────────────────────────────────
+
+  const handleDelete = async (chapter) => {
+    setDeletingId(chapter.upload_id)
+    try {
+      await deleteChapter({ token, uploadId: chapter.upload_id })
+      // Optimistically remove from list
+      setAvailable(prev => prev.filter(c => c.upload_id !== chapter.upload_id))
+
+      // Show undo toast
+      const timeoutId = setTimeout(() => {
+        setUndoEntry(null)
+      }, UNDO_TIMEOUT_MS)
+
+      setUndoEntry({ chapter, timeoutId })
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  const handleUndo = async () => {
+    if (!undoEntry) return
+    clearTimeout(undoEntry.timeoutId)
+    const { chapter } = undoEntry
+    setUndoEntry(null)
+    try {
+      await restoreChapter({ token, uploadId: chapter.upload_id })
+      // Re-add to list at the front
+      setAvailable(prev => [chapter, ...prev])
+    } catch (err) {
+      setError('Could not undo deletion. Please refresh the page.')
+    }
+  }
+
+  const dismissUndo = () => {
+    if (!undoEntry) return
+    clearTimeout(undoEntry.timeoutId)
+    setUndoEntry(null)
+  }
+
+  // ── Upload flow ─────────────────────────────────────────────────────────
 
   const startPolling = useCallback((key) => {
     pollCount.current = 0
@@ -71,8 +365,6 @@ export default function ChapterUpload() {
     }, POLL_INTERVAL_MS)
   }, [token, subjectId, navigate])
 
-  useEffect(() => () => clearInterval(pollRef.current), [])
-
   const getFileIcon = () => {
     if (!file) return null
     const ext = file.name.split('.').pop().toLowerCase()
@@ -88,6 +380,16 @@ export default function ChapterUpload() {
     const ext = '.' + f.name.split('.').pop().toLowerCase()
     if (!ACCEPTED_EXTENSIONS.includes(ext)) { setError('Only PDF, DOCX, PPTX files are accepted'); return }
     if (f.size > 20 * 1024 * 1024)          { setError('File too large. Maximum 20MB.'); return }
+
+    // Master upload: skip filename validation entirely
+    if (!isMasterUpload && chapterTitle.trim() && !filenameMatchesChapter(f.name, chapterTitle)) {
+      setError(
+        `File name doesn't seem to match "${chapterTitle}". ` +
+        `Please rename your file to include the chapter name.`
+      )
+      return
+    }
+
     setError(null)
     setFile(f)
     if (!chapterKey && !urlChapterKey)
@@ -95,19 +397,62 @@ export default function ChapterUpload() {
   }
 
   const handleUpload = async () => {
-    if (!file || !chapterKey.trim()) { setError('Please select a file and enter a chapter name'); return }
-    setError(null); setUploading(true)
+    if (!isMasterUpload) {
+      // Per-chapter: chapter name is required and must match
+      if (!chapterTitle.trim()) {
+        setTitleError('Please enter the chapter name before uploading.')
+        return
+      }
+      const matched = findMatchingTitle(chapterTitle, validTitles)
+      if (validTitles.length > 0 && !matched) {
+        setTitleError(
+          `"${chapterTitle}" doesn't match any chapter in this subject. ` +
+          `Please use the exact chapter name from the list below.`
+        )
+        return
+      }
+    }
+
+    if (!file || !chapterKey.trim()) { setError('Please select a file'); return }
+
+    // Per-chapter only: file name must match the chapter title
+    if (!isMasterUpload && !filenameMatchesChapter(file.name, chapterTitle)) {
+      setError(
+        `File name doesn't seem to match "${chapterTitle}". ` +
+        `Please rename your file to include the chapter name.`
+      )
+      return
+    }
+
+    // For master upload: use the file name as the chapter key/title if none provided
+    const finalChapterKey   = chapterKey.trim() ||
+      file.name.replace(/\.[^/.]+$/, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 64)
+    const finalChapterTitle = isMasterUpload
+      ? (chapterTitle.trim() || file.name.replace(/\.[^/.]+$/, ''))
+      : (matched || chapterTitle).trim()
+
+    setError(null); setTitleError(null); setUploading(true)
     try {
-      const result = await uploadChapterPdf({ token, subjectId, chapterKey: chapterKey.trim(), chapterTitle: chapterTitle.trim(), file })
+      const result = await uploadChapterPdf({
+        token, subjectId,
+        chapterKey: finalChapterKey,
+        chapterTitle: finalChapterTitle,
+        skipFilenameCheck: isMasterUpload,
+        file,
+      })
       if (result.already_processed && result.script_id) {
         setStatus({ upload_status: 'duplicate', script_id: result.script_id })
         setUploading(false)
         setTimeout(() => navigate(`/app/study/${subjectId}/${result.script_id}/workspace`), 2000)
         return
       }
-      setStatus({ upload_status: 'pending', chapter_key: chapterKey.trim() })
-      startPolling(chapterKey.trim())
-    } catch (err) { setError(err.message); setUploading(false) }
+      setStatus({ upload_status: 'pending', chapter_key: finalChapterKey })
+      startPolling(finalChapterKey)
+    } catch (err) {
+      const msg = err.message || ''
+      setError(msg)
+      setUploading(false)
+    }
   }
 
   const STATUS_LABEL = {
@@ -120,7 +465,8 @@ export default function ChapterUpload() {
   }
   const STATUS_PROGRESS = { duplicate: 100, pending: 10, processing: 60, ready: 100, ready_low_coverage: 100, failed: 0 }
 
-  // ── Shared nav pill ───────────────────────────────────────────────────────
+  // ── Nav pill ────────────────────────────────────────────────────────────
+
   const NavPill = () => (
     <div className="flex items-center border border-white/15 rounded-full px-4 py-2.5">
       <button
@@ -128,12 +474,13 @@ export default function ChapterUpload() {
         className="flex items-center gap-2 text-white text-xs font-medium tracking-wide"
       >
         <ArrowLeft size={13} />
-        <span className="tracking-wide">STUDYME</span>
+        <span className="tracking-wide">STUDY</span>
       </button>
     </div>
   )
 
-  // ── Status screen ─────────────────────────────────────────────────────────
+  // ── Status screen ───────────────────────────────────────────────────────
+
   if (status) {
     const isDuplicate = status.upload_status === 'duplicate'
     const isReady     = ['ready', 'ready_low_coverage'].includes(status.upload_status)
@@ -188,7 +535,8 @@ export default function ChapterUpload() {
     )
   }
 
-  // ── Main upload page ──────────────────────────────────────────────────────
+  // ── Main page ───────────────────────────────────────────────────────────
+
   return (
     <div className="min-h-dvh bg-[#5B5878] flex flex-col px-5 pt-safe">
 
@@ -196,9 +544,9 @@ export default function ChapterUpload() {
       <div className="py-4"><NavPill /></div>
 
       <div className="flex-1 flex items-start justify-center pb-20 pt-2">
-        <div className="w-full max-w-sm space-y-4">
+        <div className="w-full max-w-sm space-y-5">
 
-          {/* Already-available lesson */}
+          {/* ── Uploaded chapters list ── */}
           <AnimatePresence>
             {available.length > 0 && (
               <motion.div
@@ -207,42 +555,32 @@ export default function ChapterUpload() {
                 className="space-y-2"
               >
                 <p className="text-[#9895B5] text-[11px] uppercase tracking-widest font-medium px-0.5">
-                  Ready to study
+                  Uploaded chapters
                 </p>
-                {available.map(ch => (
-                  <motion.button
-                    key={ch.script_id}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => navigate(`/app/study/${subjectId}/${ch.script_id}/workspace`)}
-                    className="w-full bg-[#4A4769] border border-white/[0.08] rounded-2xl p-4
-                               flex items-center gap-3 text-left hover:border-white/15 transition-colors"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-[#4EF0A0]/10 flex items-center justify-center flex-shrink-0">
-                      <Sparkles size={16} className="text-[#4EF0A0]" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[#E8E5FF] text-[13px] font-medium truncate">{ch.chapter_title}</p>
-                      <p className="text-[#9895B5] text-xs flex items-center gap-1 mt-0.5">
-                        <Users size={9} />
-                        Uploaded by {ch.uploaded_by_label} · {ch.concept_count} concepts
-                      </p>
-                    </div>
-                    <span className="text-[#4EF0A0] text-xs font-semibold flex-shrink-0">Start →</span>
-                  </motion.button>
-                ))}
+                <AnimatePresence>
+                  {available.map(ch => (
+                    <ChapterListItem
+                      key={ch.upload_id}
+                      chapter={ch}
+                      subjectId={subjectId}
+                      navigate={navigate}
+                      onDelete={handleDelete}
+                      isDeleting={deletingId === ch.upload_id}
+                    />
+                  ))}
+                </AnimatePresence>
                 <div className="flex items-center gap-3 py-1">
                   <div className="flex-1 h-px bg-white/[0.06]" />
-                  <span className="text-[#9895B5] text-xs">or upload your own</span>
+                  <span className="text-[#9895B5] text-xs">or upload another</span>
                   <div className="flex-1 h-px bg-white/[0.06]" />
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Upload card — dashed border, centered content */}
+          {/* ── Upload card ── */}
           <div className="bg-[#4A4769]/70 border-2 border-dashed border-white/[0.12] rounded-3xl p-8 text-center">
 
-            {/* Document icon — muted purple rounded square */}
             <div className="w-14 h-14 rounded-2xl bg-[#7B7498] flex items-center justify-center mx-auto mb-5">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="4" y="2" width="16" height="20" rx="2"/>
@@ -250,9 +588,14 @@ export default function ChapterUpload() {
               </svg>
             </div>
 
-            <h2 className="text-white text-[18px] font-bold mb-2">Upload chapter file</h2>
+            <h2 className="text-white text-[18px] font-bold mb-2">
+              {isMasterUpload ? 'Upload chapter file' : 'Upload chapter file'}
+            </h2>
             <p className="text-[#A8A5C0] text-[13px] leading-relaxed mb-6 max-w-[260px] mx-auto">
-              AI will build an interactive lesson from your PDF, PPTX, or DOCX.
+              {isMasterUpload
+                ? "Have a PDF that covers the whole chapter? Upload it directly — no filename match needed."
+                : 'AI will build an interactive lesson from your PDF, PPTX, or DOCX.'
+              }
             </p>
 
             {/* File drop zone */}
@@ -282,35 +625,87 @@ export default function ChapterUpload() {
             <input
               type="text"
               value={chapterTitle}
-              onChange={e => setChapterTitle(e.target.value)}
-              placeholder="Chapter name"
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 mb-5
+              onChange={e => {
+                setChapterTitle(e.target.value)
+                setTitleError(null)
+                setError(null)
+                if (!urlChapterKey) {
+                  setChapterKey(
+                    e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 64)
+                  )
+                }
+              }}
+              placeholder={isMasterUpload ? 'Notes label (optional)' : 'Chapter name (required) *'}
+              className={`w-full bg-white/5 border rounded-xl px-4 py-2.5 mb-1
                          text-white text-sm placeholder:text-[#5C5878]
-                         focus:outline-none focus:border-white/20 transition-colors"
+                         focus:outline-none transition-colors
+                         ${titleError ? 'border-[#FF7B7B]/60' : 'border-white/10 focus:border-white/20'}`}
             />
 
-            {/* Error */}
-            {error && <p className="text-[#FF7B7B] text-xs mb-4">{error}</p>}
+            {/* Title error */}
+            {titleError && (
+              <p className="text-[#FF7B7B] text-xs mb-3 text-left leading-relaxed">{titleError}</p>
+            )}
 
-            {/* CTA — salmon pill with sparkles icon */}
+            {/* Chapter picker — only for per-chapter uploads */}
+            {!isMasterUpload && validTitles.length > 0 && (
+              <ChapterPicker
+                titles={validTitles}
+                selected={chapterTitle}
+                onSelect={t => {
+                  setChapterTitle(t)
+                  setTitleError(null)
+                  setError(null)
+                  if (!urlChapterKey)
+                    setChapterKey(t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 64))
+                }}
+              />
+            )}
+
+            {/* Error */}
+            {error && <p className="text-[#FF7B7B] text-xs mb-4 leading-relaxed">{error}</p>}
+
+            {/* CTA */}
             <button
               onClick={handleUpload}
-              disabled={!file || uploading}
+              disabled={!file || (!isMasterUpload && !chapterTitle.trim()) || uploading}
               className="inline-flex items-center gap-2 px-8 py-3 rounded-full
                          bg-[#E8956D] text-white font-semibold text-sm
                          disabled:opacity-35 active:scale-95 transition-all"
             >
               {uploading
                 ? <><Loader size={15} className="animate-spin" />Uploading…</>
-                : <><Sparkles size={15} />Choose file</>
+                : <><Sparkles size={15} />Upload chapter</>
               }
             </button>
 
-            <p className="text-[#6B6888] text-xs mt-4">PDF · DOCX · Max 20MB</p>
+            <p className="text-[#6B6888] text-xs mt-4">PDF · DOCX · PPTX · Max 20MB</p>
+            {isMasterUpload ? (
+              <p className="text-[#4EF0A0]/70 text-[11px] mt-1">
+                Any filename accepted — no renaming needed
+              </p>
+            ) : (
+              <p className="text-[#6B6888] text-[11px] mt-1">
+                File name must match the chapter name
+              </p>
+            )}
           </div>
 
         </div>
       </div>
+
+      {/* Undo toast */}
+      <AnimatePresence>
+        {undoEntry && (
+          <UndoToast
+            key="undo-toast"
+            message={`"${undoEntry.chapter.chapter_title}" removed`}
+            onUndo={handleUndo}
+            onDismiss={dismissUndo}
+          />
+        )}
+      </AnimatePresence>
+
     </div>
   )
 }

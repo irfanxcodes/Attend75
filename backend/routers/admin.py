@@ -709,3 +709,109 @@ async def admin_reprocess_recent_timetables(
 	except Exception:
 		logger.exception("Failed to reprocess timetable notices")
 		return JSONResponse(status_code=500, content={"status": "error", "message": "Reprocess failed"})
+
+
+# ── Storage Cap Endpoints ─────────────────────────────────────────────────────
+
+@router.get("/storage/caps", response_model=ApiResponse)
+async def admin_storage_caps(_: dict = Depends(require_admin_user)):
+	"""
+	Full R2 cost-safety status across all three guards.
+
+	Guard 1 — storage_bytes  (PRIMARY, AUTHORITATIVE — actual WebP bytes reserved)
+	Guard 2 — class_a_ops    (AUTHORITATIVE — monthly PUT operation counter)
+	Guard 3 — slide_count    (AUTHORITATIVE — secondary slide count guard)
+	Class B  — NOT authoritatively tracked (see note in response)
+
+	Alerts fire at 50%, 75%, 90% per guard; hard block at 100%.
+	"""
+	from services.storage_cap_service import get_status
+	try:
+		data = await run_in_threadpool(get_status)
+		return ApiResponse(status="success", message="Storage cap status", data=data)
+	except Exception:
+		logger.exception("Failed to fetch storage cap status")
+		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to fetch storage cap status"})
+
+
+@router.post("/storage/reset-cap-block", response_model=ApiResponse)
+async def admin_reset_cap_block(payload: dict = {}, _: dict = Depends(require_admin_user)):
+	"""
+	Lift the hard cap block for one or all guards so uploads can resume.
+
+	Body (optional): { "guard": "bytes" | "class_a" | "slides" | "all" }
+	Default: "all"
+
+	Call this AFTER either:
+	  (a) Raising the relevant cap env var and restarting the server, OR
+	  (b) Deleting old chapter uploads to free space.
+
+	This does NOT change any counter — it only removes the block flag and
+	re-arms threshold alerts.  If the cap is still breached (usage >= cap),
+	the next upload will immediately re-trigger the block.
+	"""
+	from services.storage_cap_service import admin_reset_cap_block
+	guard = (payload.get("guard") or "all").strip()
+	if guard not in ("bytes", "class_a", "slides", "all"):
+		return JSONResponse(status_code=422, content={"status": "error",
+			"message": "guard must be 'bytes', 'class_a', 'slides', or 'all'"})
+	try:
+		data = await run_in_threadpool(admin_reset_cap_block, guard)
+		return ApiResponse(status="success", message=f"Storage cap block reset (guard={guard})", data=data)
+	except Exception:
+		logger.exception("Failed to reset storage cap block")
+		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to reset cap block"})
+
+
+@router.post("/storage/reset-class-a-monthly", response_model=ApiResponse)
+async def admin_reset_class_a_monthly(_: dict = Depends(require_admin_user)):
+	"""
+	Reset the monthly Class A (PUT) operation counter to zero.
+
+	Class A ops auto-reset when the UTC month changes, but use this endpoint
+	to manually reset it if needed (e.g. after a runaway test upload in dev).
+	"""
+	from services.storage_cap_service import admin_reset_class_a_monthly
+	try:
+		data = await run_in_threadpool(admin_reset_class_a_monthly)
+		return ApiResponse(status="success", message="Class A monthly counter reset", data=data)
+	except Exception:
+		logger.exception("Failed to reset Class A monthly counter")
+		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to reset Class A counter"})
+
+
+@router.post("/storage/sync-count", response_model=ApiResponse)
+async def admin_sync_storage_count(_: dict = Depends(require_admin_user)):
+	"""
+	Resync the slide-count tracker from the real lesson_slides row count.
+	Use after manually deleting chapter uploads or slides from the DB so the
+	cap counter reflects the true current state.
+
+	Note: the storage_bytes counter tracks actual reserved bytes and is NOT
+	recomputed here (byte sizes are not stored per-slide in the DB). If you
+	delete slides and want to reclaim byte budget, use reset-cap-block after
+	the sync.
+	"""
+	from services.storage_cap_service import sync_real_count
+	try:
+		data = await run_in_threadpool(sync_real_count)
+		return ApiResponse(status="success", message="Storage counter synced", data=data)
+	except Exception:
+		logger.exception("Failed to sync storage count")
+		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to sync storage count"})
+
+
+@router.post("/storage/trigger-health-check", response_model=ApiResponse)
+async def admin_trigger_storage_health_check(_: dict = Depends(require_admin_user)):
+	"""
+	Manually trigger the weekly R2 storage health check right now.
+	Normally runs automatically every Monday at 9:30 AM IST.
+	Sends a push notification to ADMIN_ROLL_NUMBER and returns the current status.
+	"""
+	from services.storage_health_scheduler import run_storage_health_check
+	try:
+		data = await run_in_threadpool(run_storage_health_check)
+		return ApiResponse(status="success", message="Storage health check complete", data=data)
+	except Exception:
+		logger.exception("Failed to run storage health check")
+		return JSONResponse(status_code=500, content={"status": "error", "message": "Health check failed"})

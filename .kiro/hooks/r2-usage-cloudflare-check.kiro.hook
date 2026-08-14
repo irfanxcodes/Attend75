@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "R2 Usage Check (Cloudflare)",
+  "description": "Manually trigger a Cloudflare R2 usage check using the Cloudflare MCP. Queries actual storage and operation metrics from Cloudflare's API for the attend75-slides bucket and compares them against our internal cap limits. Use this as an additional verification layer on top of the backend's weekly automated check.",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Use the Cloudflare MCP to check actual R2 usage for the attend75-slides bucket. Query storage bytes used, Class A operations used this month, and Class B operations used this month. Compare the results against these internal caps from backend/.env: R2_STORAGE_HARD_CAP_BYTES=7500000000 (7.5 GB), R2_CLASS_A_HARD_CAP=700000/month, R2_CLASS_B_HARD_CAP=7000000/month. Report: (1) actual Cloudflare-reported usage for each metric, (2) percentage of our internal cap consumed, (3) whether we are safely under our limits, (4) any discrepancy between Cloudflare's numbers and our backend's tracked counters from GET /admin/storage/caps. If the Cloudflare MCP is not yet authenticated, remind the user to restart Kiro and complete the OAuth flow first."
+  }
+}

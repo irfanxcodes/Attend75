@@ -14,7 +14,7 @@ const gameRegistry = {
     title: 'Maze Munch',
     description: 'Eat all dots and avoid the ghosts!',
     thumbnail: '/assets/arcade/pacman-thumb.webp',
-    maxScore: 5000,
+    maxScore: 999999,
     component: lazy(() => import('./games/PacmanGame')),
   },
   stack: {

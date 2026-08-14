@@ -26,7 +26,7 @@ const MODULE_COLORS = [
 ]
 
 // ── Chapter row ───────────────────────────────────────────────────────────────
-function ChapterRow({ chapter, subjectId, lesson, navigate, isLast }) {
+function ChapterRow({ chapter, subjectId, lesson, navigate, isLast, allChapterTitles }) {
   const chapterSlug = chapter.title
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, '')
@@ -34,7 +34,11 @@ function ChapterRow({ chapter, subjectId, lesson, navigate, isLast }) {
     .slice(0, 60)
 
   const handleUploadClick = () => {
-    const params = new URLSearchParams({ chapterTitle: chapter.title, chapterKey: chapterSlug })
+    const params = new URLSearchParams({
+      chapterTitle: chapter.title,
+      chapterKey: chapterSlug,
+      validTitles: JSON.stringify(allChapterTitles || [chapter.title]),
+    })
     navigate(`/app/study/${subjectId}/upload?${params}`)
   }
 
@@ -294,15 +298,36 @@ export default function SubjectDetail() {
           STUDYME
         </button>
 
-        <button
-          onClick={() => navigate(`/app/study/${subjectId}/upload`)}
-          className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#2E2B4A]
-                     text-[#E8956D] text-xs font-medium active:scale-95 transition-all"
-          style={{ border: '1px solid rgba(232,149,109,0.45)' }}
-        >
-          <Sparkles size={12} className="text-[#E8956D]" />
-          Upload chapter
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Master upload — same chapter upload but without filename matching */}
+          <button
+            onClick={() => navigate(`/app/study/${subjectId}/upload?masterUpload=true`)}
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#2E2B4A]
+                       text-[#9895B5] text-xs font-medium active:scale-95 transition-all
+                       border border-white/10 hover:border-white/20 hover:text-white"
+            title="Upload any PDF for a chapter — no filename match required"
+          >
+            <Upload size={12} />
+            Upload notes
+          </button>
+
+          {/* Per-chapter upload */}
+          <button
+            onClick={() => {
+              const allTitles = (handout?.modules || [])
+                .flatMap(m => m.chapters || [])
+                .map(ch => ch.title)
+              const params = new URLSearchParams({ validTitles: JSON.stringify(allTitles) })
+              navigate(`/app/study/${subjectId}/upload?${params}`)
+            }}
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#2E2B4A]
+                       text-[#E8956D] text-xs font-medium active:scale-95 transition-all"
+            style={{ border: '1px solid rgba(232,149,109,0.45)' }}
+          >
+            <Sparkles size={12} className="text-[#E8956D]" />
+            Edit chapters
+          </button>
+        </div>
       </div>
 
       <div className="px-5 space-y-4">
@@ -392,6 +417,7 @@ export default function SubjectDetail() {
                     lesson={getLesson(ch.title)}
                     navigate={navigate}
                     isLast={i === (activeModule.chapters?.length || 0) - 1}
+                    allChapterTitles={(handout?.modules || []).flatMap(m => m.chapters || []).map(c => c.title)}
                   />
                 ))}
               </div>
