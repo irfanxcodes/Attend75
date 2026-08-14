@@ -304,14 +304,20 @@ function StudyMe() {
         />
       ) : null}
 
-      {/* All unavailable empty state */}
+      {/* Upload prompt — shown when no subject has lessons yet */}
       {allUnavailable ? (
-        <div className="rounded-2xl border border-dashed border-white/15 bg-[#4A466A]/50 p-6 text-center">
-          <Sparkles className="mx-auto h-8 w-8 text-[#FFB23E]" strokeWidth={1.5} />
-          <h3 className="mt-3 text-base font-bold text-[#F7F4FF]">StudyMe is coming for your semester</h3>
-          <p className="mt-2 text-xs leading-relaxed text-[#9F9AB5]">
-            We're preparing content for your subjects. Request the ones you need most and we'll prioritize them.
-          </p>
+        <div className="rounded-2xl border border-white/10 bg-[#4A466A]/50 p-5">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FF916C]/15">
+              <Sparkles className="h-4 w-4 text-[#FFB23E]" strokeWidth={1.5} />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-[#F7F4FF]">Upload your first chapter</p>
+              <p className="mt-1 text-xs leading-relaxed text-[#9F9AB5]">
+                Open any subject below and upload your lecture slides or notes — StudyMe will turn them into interactive lessons instantly.
+              </p>
+            </div>
+          </div>
         </div>
       ) : null}
 
@@ -364,7 +370,7 @@ function StudyMe() {
                 )
               }
 
-              // Coming soon — show Request button, but row is tappable to open subject detail
+              // No lessons yet — still looks live, tap opens subject detail to upload
               return (
                 <button
                   key={subject.id || subjectId}
@@ -372,24 +378,21 @@ function StudyMe() {
                   onClick={() => navigate(`/app/study/${subjectId}`)}
                   className="flex items-center gap-3 rounded-xl bg-[#4A466A]/60 px-3 py-3.5 ring-1 ring-white/5 w-full text-left active:scale-[0.99] transition-transform"
                 >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/15 text-[10px] font-bold text-[#9F9AB5]">
+                  <div
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+                    style={{ backgroundColor: `${color}20`, color }}
+                  >
                     {abbreviation}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-[#D8D4E7]">{subject.name}</p>
                     <p className="text-[10px] text-[#9F9AB5]">
-                      Coming soon{reqCount > 0 ? ` · ${reqCount} requested` : ''}
+                      Tap to upload &amp; create lessons
                     </p>
                   </div>
-                  {!isRequested ? (
-                    <span className="shrink-0 rounded-full border border-[#FF916C]/30 bg-[#FF916C]/10 px-3 py-1 text-[10px] font-semibold text-[#FF916C]">
-                      Open
-                    </span>
-                  ) : (
-                    <span className="shrink-0 rounded-full border border-[#4EF0A0]/30 bg-[#4EF0A0]/10 px-3 py-1 text-[10px] font-semibold text-[#4EF0A0]">
-                      Requested ✓
-                    </span>
-                  )}
+                  <span className="shrink-0 rounded-full border border-[#FF916C]/30 bg-[#FF916C]/10 px-3 py-1 text-[10px] font-semibold text-[#FF916C]">
+                    Open
+                  </span>
                 </button>
               )
             })}
