@@ -35,17 +35,26 @@ def _json_type():
     return sa.JSON
 
 
+def _id_type():
+    """Use UUID on PostgreSQL, String(36) on SQLite."""
+    if _pg():
+        from sqlalchemy.dialects.postgresql import UUID
+        return UUID(as_uuid=False)
+    return sa.String(36)
+
+
 def upgrade() -> None:
     json_t = _json_type()
+    id_t = _id_type()
 
     # ── 1. lesson_slides ─────────────────────────────────────────────────
     # One row per rendered slide image.
     # image_url points to Cloudflare R2 (or local path in dev).
     op.create_table(
         "lesson_slides",
-        sa.Column("id", sa.String(36), primary_key=True),
+        sa.Column("id", id_t, primary_key=True),
         sa.Column(
-            "upload_id", sa.String(36),
+            "upload_id", id_t,
             sa.ForeignKey("chapter_uploads.id", ondelete="CASCADE"),
             nullable=False,
         ),
@@ -66,9 +75,9 @@ def upgrade() -> None:
     # version column: bump to trigger regeneration with new prompts.
     op.create_table(
         "slide_teaching_scripts",
-        sa.Column("id", sa.String(36), primary_key=True),
+        sa.Column("id", id_t, primary_key=True),
         sa.Column(
-            "upload_id", sa.String(36),
+            "upload_id", id_t,
             sa.ForeignKey("chapter_uploads.id", ondelete="CASCADE"),
             nullable=False,
         ),

@@ -20,7 +20,21 @@ branch_labels = None
 depends_on = None
 
 
+def _pg() -> bool:
+    return op.get_bind().dialect.name == "postgresql"
+
+
+def _id_type():
+    """Use UUID on PostgreSQL, String(36) on SQLite."""
+    if _pg():
+        from sqlalchemy.dialects.postgresql import UUID
+        return UUID(as_uuid=False)
+    return sa.String(36)
+
+
 def upgrade() -> None:
+    id_t = _id_type()
+
     # ── Add upload_type to chapter_uploads ────────────────────────────────
     op.add_column(
         "chapter_uploads",
@@ -35,8 +49,8 @@ def upgrade() -> None:
     # ── notes_problem_sets ────────────────────────────────────────────────
     op.create_table(
         "notes_problem_sets",
-        sa.Column("id", sa.String(36), primary_key=True),
-        sa.Column("upload_id", sa.String(36), sa.ForeignKey("chapter_uploads.id"), nullable=False),
+        sa.Column("id", id_t, primary_key=True),
+        sa.Column("upload_id", id_t, sa.ForeignKey("chapter_uploads.id"), nullable=False),
         sa.Column("subject_id", sa.String(64), nullable=False),
         sa.Column("chapter_key", sa.String(128), nullable=True),
         sa.Column("title", sa.String(256), nullable=True),
@@ -49,8 +63,8 @@ def upgrade() -> None:
     # ── notes_problems ────────────────────────────────────────────────────
     op.create_table(
         "notes_problems",
-        sa.Column("id", sa.String(36), primary_key=True),
-        sa.Column("problem_set_id", sa.String(36), sa.ForeignKey("notes_problem_sets.id"), nullable=False),
+        sa.Column("id", id_t, primary_key=True),
+        sa.Column("problem_set_id", id_t, sa.ForeignKey("notes_problem_sets.id"), nullable=False),
         sa.Column("sequence_order", sa.Integer, nullable=False),
         sa.Column("question_text", sa.Text, nullable=False),
         sa.Column("topic", sa.String(256), nullable=True),
@@ -66,8 +80,8 @@ def upgrade() -> None:
     # ── notes_solution_steps ──────────────────────────────────────────────
     op.create_table(
         "notes_solution_steps",
-        sa.Column("id", sa.String(36), primary_key=True),
-        sa.Column("problem_id", sa.String(36), sa.ForeignKey("notes_problems.id"), nullable=False),
+        sa.Column("id", id_t, primary_key=True),
+        sa.Column("problem_id", id_t, sa.ForeignKey("notes_problems.id"), nullable=False),
         sa.Column("sequence_order", sa.Integer, nullable=False),
         sa.Column("step_type", sa.String(32), nullable=False),
         sa.Column("content", sa.Text, nullable=False),

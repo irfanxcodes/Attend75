@@ -27,7 +27,17 @@ def _pg() -> bool:
     return op.get_bind().dialect.name == "postgresql"
 
 
+def _id_type():
+    """Use UUID on PostgreSQL, String(36) on SQLite."""
+    if _pg():
+        from sqlalchemy.dialects.postgresql import UUID
+        return UUID(as_uuid=False)
+    return sa.String(36)
+
+
 def upgrade() -> None:
+    id_t = _id_type()
+
     # ── 1. chapter_uploads: add is_public ─────────────────────────────────
     # Default False — upload is private to the uploader until admin approves.
     # Only file_hash dedup (exact same bytes) is done automatically; chapter_key
@@ -43,9 +53,9 @@ def upgrade() -> None:
     # No aggregation or regeneration here — that logic lives in admin tooling.
     op.create_table(
         "slide_script_feedback",
-        sa.Column("id", sa.String(36), primary_key=True),
+        sa.Column("id", id_t, primary_key=True),
         sa.Column(
-            "upload_id", sa.String(36),
+            "upload_id", id_t,
             sa.ForeignKey("chapter_uploads.id", ondelete="CASCADE"),
             nullable=False,
         ),
