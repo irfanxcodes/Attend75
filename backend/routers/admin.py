@@ -137,17 +137,18 @@ async def admin_studyme_analytics(_: dict = Depends(require_admin_user)):
         return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to fetch StudyMe analytics"})
 
 
-
-	"""Expanded analytics: ratings, engagement, retention, feature adoption, subject requests, college interests."""
-	try:
-		data = await run_in_threadpool(get_full_admin_analytics)
-		return ApiResponse(status="success", message="Admin analytics fetched", data=data)
-	except Exception:
-		logger.exception("Failed to fetch admin analytics")
-		return JSONResponse(
-			status_code=500,
-			content={"status": "error", "message": "Unable to fetch analytics"},
-		)
+@router.get("/analytics", response_model=ApiResponse)
+async def admin_analytics(_: dict = Depends(require_admin_user)):
+    """Expanded analytics: ratings, engagement, retention, feature adoption, subject requests, college interests."""
+    try:
+        data = await run_in_threadpool(get_full_admin_analytics)
+        return ApiResponse(status="success", message="Admin analytics fetched", data=data)
+    except Exception:
+        logger.exception("Failed to fetch admin analytics")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": "Unable to fetch analytics"},
+        )
 
 
 @router.delete("/users/{user_id}", response_model=ApiResponse)
