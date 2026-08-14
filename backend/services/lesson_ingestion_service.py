@@ -63,6 +63,7 @@ def run_ingestion(upload_id: str) -> None:
         file_path = upload.file_path
         subject_id = upload.subject_id
         chapter_key = upload.chapter_key
+        original_filename = upload.original_filename or ""
 
         # Mark as processing
         upload.upload_status = "processing"
@@ -219,7 +220,7 @@ def run_ingestion(upload_id: str) -> None:
             from services.shape_extractor import extract_shape_bboxes
             from db.models.lesson_slide import LessonSlide
 
-            file_ext = _Path(upload.original_filename or file_path or "").suffix.lower()
+            file_ext = _Path(original_filename or file_path or "").suffix.lower()
 
             # Extract PPTX shape bboxes BEFORE LibreOffice conversion so we
             # still have access to the original shape metadata.  Returns {}
