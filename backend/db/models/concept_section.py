@@ -10,13 +10,15 @@ from datetime import datetime
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
+from sqlalchemy.types import JSON
 
 from db.base import Base
 
-try:
-    from sqlalchemy.dialects.postgresql import JSONB as JSON_TYPE
-except ImportError:
-    from sqlalchemy import JSON as JSON_TYPE
+# JSONB is a PostgreSQL-only type.  Importing it doesn't fail on any SQLAlchemy
+# installation (the dialect module ships with SQLAlchemy), so we cannot use a
+# bare try/except ImportError to detect SQLite.  Use plain JSON instead —
+# SQLAlchemy maps it to TEXT on SQLite and to JSONB-compatible JSONB/JSON on PG.
+JSON_TYPE = JSON
 
 
 def _new_uuid() -> str:
