@@ -790,7 +790,8 @@ export function SlidePlayer({ token, uploadId, highlightSlideNo, onSlideClick })
           {unitLabel}s not available
         </p>
         <p className="text-[#6B6888] text-xs max-w-xs leading-relaxed">
-          {error || `${unitLabel} images are generated when a PPT or PDF is uploaded. Re-upload the file to generate them.`}
+          {error ||
+            `Slide images couldn't be generated for this chapter. The Canvas tab with concepts and the AI Tutor still work fully. To get slides, the original PPTX/PDF needs to be re-uploaded.`}
         </p>
       </div>
     )
