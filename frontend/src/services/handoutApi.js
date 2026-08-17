@@ -37,3 +37,28 @@ export async function getHandout({ token, subjectId }) {
   if (!res.ok) throw new Error(`Failed to fetch handout (${res.status})`)
   return res.json()
 }
+
+/**
+ * Create a handout without uploading a file.
+ * mode='syllabus_paste': AI extracts structure from pasted syllabus text (async, poll status)
+ * mode='manual': chapters list → instant synthetic handout (synchronous, returns status=ready)
+ */
+export async function createHandoutFromText({ token, subjectId, subjectName, mode, syllabusText = null, chapters = null }) {
+  const res = await fetch(`${getBase()}/studyme/handouts/create-from-text`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      token,
+      subject_id: subjectId,
+      subject_name: subjectName,
+      mode,
+      syllabus_text: syllabusText,
+      chapters,
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || `Failed to create handout (${res.status})`)
+  }
+  return res.json()
+}

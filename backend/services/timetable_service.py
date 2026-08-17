@@ -34,6 +34,17 @@ def get_personalized_timetable(token: str, semester_id: str | None = None) -> di
     if record is None:
         raise PermissionError("Session expired")
 
+    # Resolve student program for notice filtering.
+    # Try student_registry first (persistent), then fall back to the in-session
+    # program values set at login. This ensures BCA/BTech students never see
+    # BBA timetables even if they haven't been stored in the registry yet.
+    from services.notice_service import get_student_program as _get_program
+    student_program = (
+        _get_program(record.roll_number)
+        or record.program_full
+        or record.program_sn
+    )
+
     # 1. First pass: resolve subjects using cached data (no portal needed).
     #    We try with whatever cached_subjects we have to find a matching notice.
     initial_subjects = record.cached_subjects or []
@@ -42,9 +53,13 @@ def get_personalized_timetable(token: str, semester_id: str | None = None) -> di
     #    If we have no subjects yet, grab any timetable notice so we can build
     #    the lookup and then fetch attendance properly.
     matched_notice = (
-        _find_latest_timetable_notice(initial_subjects)
+        _find_latest_timetable_notice(
+            initial_subjects,
+            roll_number=record.roll_number,
+            student_program=student_program,
+        )
         if initial_subjects
-        else _find_any_timetable_notice()
+        else _find_any_timetable_notice(student_program=student_program)
     )
     if not matched_notice:
         logger.warning("Timetable: no timetable notice found in DB")
@@ -66,7 +81,11 @@ def get_personalized_timetable(token: str, semester_id: str | None = None) -> di
 
     # 5. Re-find the best matching notice now that we have resolved subjects.
     #    This is important when the initial notice was a fallback (e.g. wrong semester).
-    best_notice = _find_latest_timetable_notice(student_subjects) or matched_notice
+    best_notice = _find_latest_timetable_notice(
+        student_subjects,
+        roll_number=record.roll_number,
+        student_program=student_program,
+    ) or matched_notice
 
     # If the best notice changed, rebuild the lookup with the correct notice.
     if best_notice.notice_id != matched_notice.notice_id:
@@ -587,10 +606,20 @@ def _parse_schedule_from_notice_text(text: str) -> list[dict]:
     _parse_timetable_from_text handles BBA/B.Com pipe-delimited ASCII tables.
     _parse_btech_timetable handles B.Tech/BCA/B.Sc Section:-header + S1–S9 slot format.
     _parse_law_timetable handles Law/Session-based format.
+    JSON array: student-uploaded schedules stored by _persist_uploaded_timetable_notice.
 
     This unified helper is used wherever we need to probe whether a notice contains
     a parseable class timetable (notice discovery, candidate listing, cache check).
     """
+    # Fast path: student-uploaded schedule stored as JSON
+    if text.lstrip().startswith('['):
+        try:
+            import json as _json
+            parsed = _json.loads(text)
+            if isinstance(parsed, list) and parsed and isinstance(parsed[0], dict) and 'day' in parsed[0]:
+                return parsed
+        except Exception:
+            pass
     # Fast path: BBA/B.Com ASCII table format
     result = _parse_timetable_from_text(text)
     if result:
@@ -611,16 +640,27 @@ def _parse_schedule_from_notice_text(text: str) -> list[dict]:
     return []
 
 
-def _find_any_timetable_notice() -> Notice | None:
+def _find_any_timetable_notice(student_program: str | None = None) -> Notice | None:
     """Return the most recent regular class timetable notice without subject matching."""
-    return _find_latest_timetable_notice(student_subjects=None)
+    return _find_latest_timetable_notice(student_subjects=None, student_program=student_program)
 
 
-def _find_latest_timetable_notice(student_subjects: list[dict] | None = None) -> Notice | None:
+def _find_latest_timetable_notice(
+    student_subjects: list[dict] | None = None,
+    roll_number: str | None = None,
+    student_program: str | None = None,
+) -> Notice | None:
     """Find the most recent regular class timetable notice.
 
     When student_subjects are provided, prefer the newest timetable notice that
     actually matches the student's enrolled subjects.
+
+    When roll_number is provided, student-uploaded notices are only considered
+    if they belong to that specific student (source_program == roll_number).
+
+    When student_program is provided, notices from a different program's portal
+    scrape are skipped entirely — prevents BBA timetables showing to BCA/BTech
+    students and vice versa.
     """
     with SessionLocal() as session:
         notices = (
@@ -635,8 +675,28 @@ def _find_latest_timetable_notice(student_subjects: list[dict] | None = None) ->
         fallback_candidate = None
         for notice in notices:
             title_upper = (notice.title or "").upper()
-            # Must contain TIMETABLE or TIME TABLE
-            if "TIMETABLE" not in title_upper and "TIME TABLE" not in title_upper:
+            # Student-uploaded timetables are stored with a special prefix.
+            # Treat them as regular timetable notices for matching purposes.
+            # Support both the current prefix and the legacy "[STUDENT_UPLOAD]" prefix.
+            is_student_upload = (
+                title_upper.startswith("[STUDENT_TIMETABLE]")
+                or title_upper.startswith("[STUDENT_UPLOAD]")
+            )
+            # Student upload notices must only be used for their owner.
+            if is_student_upload and roll_number and notice.source_program != roll_number:
+                continue
+            # Program guard: skip notices scraped from a different program's portal.
+            # source_program=None means the notice pre-dates program tracking — allow it.
+            # Student-upload notices have source_program=roll_number, already handled above.
+            if (
+                not is_student_upload
+                and student_program
+                and notice.source_program
+                and notice.source_program != student_program
+            ):
+                continue
+            # Must contain TIMETABLE or TIME TABLE (or be a student upload)
+            if not is_student_upload and "TIMETABLE" not in title_upper and "TIME TABLE" not in title_upper:
                 if fallback_candidate is None and notice.cleaned_text and len(notice.cleaned_text) > 100:
                     schedule = _parse_schedule_from_notice_text(notice.cleaned_text)
                     if schedule:

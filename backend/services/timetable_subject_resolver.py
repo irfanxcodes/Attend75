@@ -69,7 +69,9 @@ def resolve_and_cache_subjects_for_student(
     )
 
     # Step 1: find any timetable notice to build the abbr lookup
-    bootstrap_notice = _find_latest_timetable_notice(student_subjects=None)
+    from services.notice_service import get_student_program as _gsp
+    student_program = _gsp(roll_number)
+    bootstrap_notice = _find_latest_timetable_notice(student_subjects=None, student_program=student_program)
     if not bootstrap_notice or not bootstrap_notice.cleaned_text:
         logger.debug("resolve_and_cache: no timetable notice in DB for %s", roll_number)
         return False
@@ -89,7 +91,7 @@ def resolve_and_cache_subjects_for_student(
     # Step 2: find the timetable notice that MATCHES this student's subjects
     # This is critical — using student_subjects ensures we pick the right notice
     # (e.g. semester 3/5/7 notice, not an induction/deeksharambh notice)
-    best_notice = _find_latest_timetable_notice(student_subjects=subjects) or bootstrap_notice
+    best_notice = _find_latest_timetable_notice(student_subjects=subjects, student_program=student_program) or bootstrap_notice
 
     # Re-build lookup from the best notice (may differ from bootstrap_notice)
     if best_notice.notice_id != bootstrap_notice.notice_id:
@@ -210,7 +212,9 @@ def refresh_all_subscribers_from_timetable(notice_id: int | None = None) -> dict
 
         # If specific notice didn't match, find the best notice for this student
         if not matched:
-            best_notice = _find_latest_timetable_notice(student_subjects=subjects)
+            from services.notice_service import get_student_program as _gsp
+            student_program = _gsp(roll_number)
+            best_notice = _find_latest_timetable_notice(student_subjects=subjects, student_program=student_program)
             if best_notice and best_notice.cleaned_text:
                 best_schedule = _parse_timetable_from_text(best_notice.cleaned_text)
                 if best_schedule:

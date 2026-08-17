@@ -9,7 +9,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Loader, Sparkles, Upload, User } from 'lucide-react'
 import useAppStore from '../hooks/useAppStore'
-import { uploadHandout, getHandout, getHandoutStatus } from '../services/handoutApi'
+import { uploadHandout, getHandout, getHandoutStatus, createHandoutFromText } from '../services/handoutApi'
 import { getAvailableChapters } from '../services/lessonApi'
 
 const POLL_MS = 3000
@@ -139,6 +139,227 @@ function ModuleCard({ mod, index, isActive, onClick, availableChapters }) {
   )
 }
 
+// ── "Don't have a handout?" bottom-sheet ─────────────────────────────────────
+function NoHandoutSheet({ onDismiss, onDone, token, subjectId, subjectName }) {
+  const [mode, setMode] = useState(null)          // null | 'syllabus_paste' | 'manual'
+  const [syllabusText, setSyllabusText] = useState('')
+  const [chaptersText, setChaptersText] = useState('')
+  const [subjectLabel, setSubjectLabel] = useState(subjectName || '')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  const chapterList = chaptersText.split('\n').map(l => l.trim()).filter(Boolean)
+
+  const handleSubmit = async () => {
+    setError(null)
+    setBusy(true)
+    try {
+      if (mode === 'syllabus_paste') {
+        if (syllabusText.trim().length < 30) {
+          setError('Paste more text — at least a few lines of syllabus.')
+          setBusy(false)
+          return
+        }
+        await createHandoutFromText({
+          token, subjectId,
+          subjectName: subjectLabel || subjectId.toUpperCase(),
+          mode: 'syllabus_paste',
+          syllabusText: syllabusText.trim(),
+        })
+        // LLM processing is async — hand control back to the parent which will poll status
+        onDone('pending')
+      } else {
+        if (chapterList.length === 0) {
+          setError('Add at least one chapter.')
+          setBusy(false)
+          return
+        }
+        await createHandoutFromText({
+          token, subjectId,
+          subjectName: subjectLabel || subjectId.toUpperCase(),
+          mode: 'manual',
+          chapters: chapterList,
+        })
+        // Manual mode is synchronous — handout is ready immediately
+        onDone('ready')
+      }
+    } catch (err) {
+      setError(err.message || 'Something went wrong. Please try again.')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm"
+      onClick={e => { if (e.target === e.currentTarget) onDismiss() }}
+    >
+      <motion.div
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+        className="w-full max-w-md rounded-t-[28px] bg-[#3A3660] overflow-hidden shadow-2xl"
+        style={{ maxHeight: '90dvh', overflowY: 'auto' }}
+      >
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="h-1 w-10 rounded-full bg-white/20" />
+        </div>
+
+        <div className="px-5 pb-8 pt-2">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-white text-[17px] font-bold">Build your chapter index</h2>
+              <p className="text-[#A8A5C0] text-[12px] mt-0.5">No handout? No problem.</p>
+            </div>
+            <button onClick={onDismiss} className="p-2 rounded-full text-[#9895B5] hover:text-white transition-colors">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+
+          {/* Subject name input */}
+          <div className="mb-4">
+            <label className="text-[#A8A5C0] text-[11px] uppercase tracking-wider mb-1.5 block">Subject name</label>
+            <input
+              type="text"
+              value={subjectLabel}
+              onChange={e => setSubjectLabel(e.target.value)}
+              placeholder="e.g. Data Structures, DBMS"
+              className="w-full bg-white/[0.07] border border-white/10 rounded-xl px-4 py-2.5
+                         text-white text-sm placeholder:text-[#5C5878] focus:outline-none focus:border-white/20 transition-colors"
+            />
+          </div>
+
+          {/* Mode selector — only shown before picking a mode */}
+          {!mode && (
+            <div className="space-y-3 mt-2">
+              <p className="text-[#A8A5C0] text-[12px]">How would you like to build the chapter list?</p>
+
+              {/* Option 1 — Paste syllabus */}
+              <button
+                type="button"
+                onClick={() => setMode('syllabus_paste')}
+                className="w-full text-left rounded-2xl bg-[#4A4769] border border-white/[0.08]
+                           px-4 py-4 hover:bg-[#524F70] active:scale-[0.98] transition-all"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-[#E8956D]/15 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-base">📋</span>
+                  </div>
+                  <div>
+                    <p className="text-white text-[13px] font-semibold">Paste syllabus text</p>
+                    <p className="text-[#A8A5C0] text-[11px] mt-0.5 leading-relaxed">
+                      Copy text from your college portal, WhatsApp PDF, or course page — AI extracts the chapter structure automatically.
+                    </p>
+                    <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full bg-[#E8956D]/15 text-[#E8956D] text-[10px] font-medium">
+                      AI-powered · ~10 sec
+                    </span>
+                  </div>
+                </div>
+              </button>
+
+              {/* Option 2 — Manual */}
+              <button
+                type="button"
+                onClick={() => setMode('manual')}
+                className="w-full text-left rounded-2xl bg-[#4A4769] border border-white/[0.08]
+                           px-4 py-4 hover:bg-[#524F70] active:scale-[0.98] transition-all"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-[#4EF0A0]/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-base">✏️</span>
+                  </div>
+                  <div>
+                    <p className="text-white text-[13px] font-semibold">Type chapters manually</p>
+                    <p className="text-[#A8A5C0] text-[11px] mt-0.5 leading-relaxed">
+                      Enter chapter names one per line. Instant — no AI needed.
+                    </p>
+                    <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full bg-[#4EF0A0]/10 text-[#4EF0A0] text-[10px] font-medium">
+                      Instant
+                    </span>
+                  </div>
+                </div>
+              </button>
+            </div>
+          )}
+
+          {/* Syllabus paste input */}
+          {mode === 'syllabus_paste' && (
+            <div className="mt-1">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[#A8A5C0] text-[11px] uppercase tracking-wider">Paste syllabus here</label>
+                <button onClick={() => { setMode(null); setError(null) }} className="text-[#9895B5] text-[11px] underline hover:text-white">Back</button>
+              </div>
+              <textarea
+                value={syllabusText}
+                onChange={e => setSyllabusText(e.target.value)}
+                rows={8}
+                placeholder={"Copy and paste your syllabus text here...\n\nWorks with:\n• College portal course pages\n• WhatsApp PDF text\n• Any module/chapter listing"}
+                className="w-full bg-white/[0.07] border border-white/10 rounded-xl px-4 py-3
+                           text-white text-[13px] placeholder:text-[#5C5878] focus:outline-none
+                           focus:border-white/20 transition-colors resize-none leading-relaxed"
+              />
+              <p className="text-[#7A7898] text-[11px] mt-1.5">
+                AI will extract modules and chapters automatically.
+              </p>
+            </div>
+          )}
+
+          {/* Manual chapter entry */}
+          {mode === 'manual' && (
+            <div className="mt-1">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[#A8A5C0] text-[11px] uppercase tracking-wider">Chapter names (one per line)</label>
+                <button onClick={() => { setMode(null); setError(null) }} className="text-[#9895B5] text-[11px] underline hover:text-white">Back</button>
+              </div>
+              <textarea
+                value={chaptersText}
+                onChange={e => setChaptersText(e.target.value)}
+                rows={8}
+                placeholder={"Introduction to OOP\nClasses and Objects\nInheritance\nPolymorphism\nAbstraction\nException Handling\nFile I/O"}
+                className="w-full bg-white/[0.07] border border-white/10 rounded-xl px-4 py-3
+                           text-white text-[13px] placeholder:text-[#5C5878] focus:outline-none
+                           focus:border-white/20 transition-colors resize-none leading-relaxed"
+              />
+              {chapterList.length > 0 && (
+                <p className="text-[#4EF0A0] text-[11px] mt-1.5">
+                  {chapterList.length} chapter{chapterList.length !== 1 ? 's' : ''} detected
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Error */}
+          {error && (
+            <p className="text-[#FF7B7B] text-[12px] mt-3 leading-relaxed">{error}</p>
+          )}
+
+          {/* Submit button */}
+          {mode && (
+            <button
+              onClick={handleSubmit}
+              disabled={busy}
+              className="mt-5 w-full flex items-center justify-center gap-2 py-3.5 rounded-full
+                         bg-[#E8956D] text-white font-semibold text-[14px]
+                         disabled:opacity-40 active:scale-[0.98] transition-all"
+            >
+              {busy ? (
+                <><Loader size={16} className="animate-spin" />{mode === 'syllabus_paste' ? 'Extracting chapters…' : 'Building index…'}</>
+              ) : mode === 'syllabus_paste' ? (
+                <><Sparkles size={16} />Extract chapters with AI</>
+              ) : (
+                <><Sparkles size={16} />Build my chapter index</>
+              )}
+            </button>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  )
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function SubjectDetail() {
   const { subjectId } = useParams()
@@ -153,6 +374,7 @@ export default function SubjectDetail() {
   const [error, setError] = useState(null)
   const [availableChapters, setAvailableChapters] = useState([])
   const [activeModuleIndex, setActiveModuleIndex] = useState(0)
+  const [showNoHandoutSheet, setShowNoHandoutSheet] = useState(false)
   const pollRef = useRef(null)
 
   const subjectDisplay = attendance?.subjects?.find(s =>
@@ -266,8 +488,44 @@ export default function SubjectDetail() {
               </div>
             </label>
             <p className="text-[#7A7898] text-xs mt-4">PDF · DOCX · Max 20MB</p>
+
+            {/* No-handout alternative */}
+            <button
+              type="button"
+              onClick={() => setShowNoHandoutSheet(true)}
+              className="mt-4 text-[#9895B5] text-[12px] underline underline-offset-2 hover:text-[#D4D1EC] transition-colors"
+            >
+              Don&apos;t have a course handout?
+            </button>
           </div>
         </div>
+
+        <AnimatePresence>
+          {showNoHandoutSheet && (
+            <NoHandoutSheet
+              token={token}
+              subjectId={subjectId}
+              subjectName={subjectDisplay?.name || subjectId.toUpperCase()}
+              onDismiss={() => setShowNoHandoutSheet(false)}
+              onDone={(status) => {
+                setShowNoHandoutSheet(false)
+                if (status === 'ready') {
+                  loadHandout()
+                } else {
+                  setProcessing(true)
+                  pollRef.current = setInterval(async () => {
+                    const s = await getHandoutStatus({ token, subjectId })
+                    if (s.status === 'ready') { stopPoll(); setProcessing(false); loadHandout() }
+                    else if (s.status === 'failed') {
+                      stopPoll(); setProcessing(false)
+                      setError('Could not extract syllabus from pasted text. Try again or build manually.')
+                    }
+                  }, POLL_MS)
+                }
+              }}
+            />
+          )}
+        </AnimatePresence>
       </div>
     )
   }

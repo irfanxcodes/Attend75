@@ -197,13 +197,20 @@ export function loadMarksSnapshot() {
 }
 
 /**
- * Clear all cached data (attendance + marks).
+ * Clear all cached data (attendance + marks + timetable).
  * Called on logout.
  */
 export function clearAllCachedData() {
   clearAttendanceSnapshot()
   try {
     window.localStorage.removeItem(MARKS_CACHE_KEY)
+  } catch {
+    // Ignore
+  }
+  // Clear timetable from sessionStorage — prevents next user on same browser
+  // from seeing the previous user's timetable
+  try {
+    sessionStorage.removeItem('attend75_timetable_cache')
   } catch {
     // Ignore
   }

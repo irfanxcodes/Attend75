@@ -24,6 +24,60 @@ router = APIRouter(prefix="/notices", tags=["notices"])
 logger = logging.getLogger(__name__)
 
 
+def _persist_uploaded_timetable_notice(roll_number: str, classes: list, fname: str) -> None:
+    """
+    Store a student-uploaded timetable as a Notice row so:
+    - GET /notices/timetable can serve it after session restart
+    - The reminder engine can schedule class reminders for it
+
+    The cleaned_text is a compact text encoding of the schedule that all
+    parsers (timetable_service, reminder_engine) can read back.
+    """
+    try:
+        import json as _json
+        from datetime import datetime, timezone, date
+        from db.session import SessionLocal
+        from db.models.notice import Notice
+        from db.models.push_subscription import PushSubscription
+
+        # Encode schedule as JSON for lossless round-trip storage
+        store_text = _json.dumps(classes, ensure_ascii=False)
+
+        now = datetime.now(timezone.utc)
+        title = f"[STUDENT_TIMETABLE] {roll_number}"
+        with SessionLocal() as session:
+            existing = session.query(Notice).filter(
+                Notice.title == title,
+                Notice.processing_status == "done",
+            ).first()
+            if existing:
+                existing.cleaned_text = store_text
+                existing.portal_date = date.today()
+            else:
+                session.add(Notice(
+                    title=title,
+                    portal_date=date.today(),
+                    pdf_url_path="",
+                    processing_status="done",
+                    cleaned_text=store_text,
+                    source_program=roll_number,
+                    category="Academic",
+                    notification_sent_at=now,
+                    created_at=now,
+                    updated_at=now,
+                ))
+            session.commit()
+
+        # Mark has_timetable=True so the reminder engine picks this student up
+        with SessionLocal() as session:
+            session.query(PushSubscription).filter(
+                PushSubscription.roll_number == roll_number,
+            ).update({"has_timetable": True}, synchronize_session=False)
+            session.commit()
+    except Exception:
+        logger.warning("Failed to persist uploaded timetable for %s", roll_number, exc_info=True)
+
+
 class NoticeTokenRequest(BaseModel):
     token: str = Field(..., description="Session token")
 
@@ -470,6 +524,10 @@ async def upload_timetable(token: str = Form(...), file: UploadFile = File(...))
     if not by_day:
         return JSONResponse(status_code=422, content={"status": "error", "message": "No classes found in the uploaded timetable."})
 
+    # Persist the uploaded timetable to the DB so it survives session restarts.
+    # The reminder engine and timetable fetch will find it via _find_latest_timetable_notice.
+    _persist_uploaded_timetable_notice(record.roll_number, my_classes, fname)
+
     result = {
         "noticeTitle": f"Uploaded: {fname}",
         "noticeDate": None,
@@ -628,6 +686,9 @@ async def upload_timetable_set_section(payload: TimetableSectionOverrideRequest)
     # Clear the pending schedule from session
     record.pending_timetable_schedule = None
     record.pending_timetable_filename = None
+
+    # Persist the uploaded timetable to the DB so it survives session restarts.
+    _persist_uploaded_timetable_notice(record.roll_number, my_classes, fname)
 
     result = {
         "noticeTitle": f"Uploaded: {fname}",

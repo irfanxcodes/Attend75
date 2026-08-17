@@ -64,11 +64,18 @@ function useAppStore() {
         try {
           const token = state.session?.token
           if (token && 'serviceWorker' in navigator && 'PushManager' in window) {
-            const registration = await navigator.serviceWorker.ready
-            const subscription = await registration.pushManager.getSubscription()
-            if (subscription) {
-              const { unsubscribePush } = await import('../services/pushApi')
-              await unsubscribePush({ token, endpoint: subscription.endpoint })
+            // Use a timeout so a missing/unregistered service worker doesn't
+            // block logout indefinitely (serviceWorker.ready never resolves in dev).
+            const swReady = await Promise.race([
+              navigator.serviceWorker.ready,
+              new Promise((resolve) => setTimeout(resolve, 2000)),
+            ])
+            if (swReady) {
+              const subscription = await swReady.pushManager.getSubscription()
+              if (subscription) {
+                const { unsubscribePush } = await import('../services/pushApi')
+                await unsubscribePush({ token, endpoint: subscription.endpoint })
+              }
             }
           }
         } catch {
@@ -97,7 +104,7 @@ function useAppStore() {
       setLoading: (isLoading) => dispatch({ type: 'SET_LOADING', payload: isLoading }),
       setError: (errorMessage) => dispatch({ type: 'SET_ERROR', payload: errorMessage }),
     }),
-    [dispatch, state.user.authProvider],
+    [dispatch, state.user.authProvider, state.session],
   )
 
   return {

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { Calendar, Clock, MapPin, User, X, ChevronRight, AlertCircle, RefreshCw, Search, ChevronDown } from 'lucide-react'
-import { fetchTimetable, fetchTimetableCandidates, selectTimetable, refreshNotices, uploadTimetablePdf, setTimetableSection } from '../../services/noticesApi'
+import { fetchTimetable, fetchTimetableCandidates, selectTimetable, refreshNotices, uploadTimetablePdf, setTimetableSection, API_BASE_URL } from '../../services/noticesApi'
 import useAppStore from '../../hooks/useAppStore'
 
 const DAY_COLORS = {
@@ -463,21 +463,29 @@ function TimetableView({ token }) {
   // When Wrong? is clicked on an uploaded timetable — show section picker directly
   const [wrongPickerCombos, setWrongPickerCombos] = useState(null)
 
-  // Main timetable fetch — skip if already loaded from sessionStorage
+  // Main timetable fetch — use sessionStorage for instant display, but always
+  // revalidate from the server in the background. This prevents stale/wrong
+  // timetable data (e.g. BBA shown to BCA) persisting after a backend fix.
   useEffect(() => {
     if (!token) {
       setIsLoading(false)
       return
     }
-    // Already have data from storage — set active day and skip network call
-    if (timetable && timetable.schedule) {
+
+    const cached = loadTimetableFromStorage()
+
+    // Show cached data immediately (instant paint) but still hit the server
+    if (cached && cached.schedule) {
       const today = new Date().toLocaleDateString('en-US', { weekday: 'long' })
-      const days = Object.keys(timetable.schedule)
-      setActiveDay(prev => prev || (timetable.schedule[today] ? today : days[0] || null))
+      const days = Object.keys(cached.schedule)
+      setActiveDay(prev => prev || (cached.schedule[today] ? today : days[0] || null))
       setIsLoading(false)
-      return
+      // Fall through — still revalidate below
+    } else {
+      setIsLoading(true)
     }
-    setIsLoading(true)
+
+    // Always fetch from server (background revalidation when cached, blocking when not)
     fetchTimetable({ token, semesterId: session.selectedSemester })
       .then((data) => {
         if (data && data.schedule) {
@@ -485,12 +493,17 @@ function TimetableView({ token }) {
           saveTimetableToStorage(data)
           const today = new Date().toLocaleDateString('en-US', { weekday: 'long' })
           const days = Object.keys(data.schedule)
-          setActiveDay(data.schedule[today] ? today : days[0] || null)
+          setActiveDay(prev => prev || (data.schedule[today] ? today : days[0] || null))
         } else {
+          // Server says no timetable — clear stale cache and show upload prompt
           setTimetable(null)
+          clearTimetableStorage()
         }
       })
-      .catch(() => setTimetable(null))
+      .catch(() => {
+        // Network error — keep cached data if available, else null
+        if (!cached || !cached.schedule) setTimetable(null)
+      })
       .finally(() => setIsLoading(false))
   }, [token, session.selectedSemester]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -500,7 +513,7 @@ function TimetableView({ token }) {
     if (timetable?.uploaded) {
       try {
         const resp = await fetch(
-          `${import.meta.env.VITE_API_BASE_URL || ''}/notices/timetable/upload/combos?token=${token}`
+          `${API_BASE_URL}/notices/timetable/upload/combos?token=${token}`
         )
         const json = await resp.json().catch(() => ({}))
         if (json?.data?.availableCombos?.length > 0) {

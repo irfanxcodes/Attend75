@@ -288,7 +288,8 @@ async def timetable_debug(token: str = Query(..., description="Session token")):
             }
         else:
             student_subjects = json.loads(cached_json)
-            notice = _find_latest_timetable_notice(student_subjects)
+            from services.notice_service import get_student_program as _gsp
+            notice = _find_latest_timetable_notice(student_subjects, roll_number=roll_number, student_program=_gsp(roll_number))
             if not notice:
                 timetable_check = {"status": "no_timetable_notice_in_db"}
             else:
@@ -389,7 +390,8 @@ async def schedule_my_reminders(payload: dict):
         )
 
     student_subjects = json.loads(row[0])
-    notice = _find_latest_timetable_notice(student_subjects)
+    from services.notice_service import get_student_program as _gsp
+    notice = _find_latest_timetable_notice(student_subjects, roll_number=roll_number, student_program=_gsp(roll_number))
     if not notice or not notice.cleaned_text:
         return JSONResponse(status_code=400, content={"status": "error", "message": "No timetable notice found in database."})
 
@@ -627,20 +629,60 @@ async def upload_timetable(
     matched_classes = _match_student_classes(schedule, student_subjects) if student_subjects else []
 
     if not matched_classes:
-        # Schedule found but no subjects matched — store it anyway with all
-        # unique subjects from the PDF so the student gets reminders
-        all_subjects_in_pdf = list({
-            (e["course"], e["section"]) for e in schedule
-        })
-        days = list({e["day"] for e in schedule})
-        return JSONResponse(
-            status_code=422,
-            content={
-                "status": "error",
-                "message": (
-                    "We found a timetable in your PDF but couldn't match it to your enrolled subjects. "
-                    "Please make sure you've opened the app at least once after logging in so your subjects are loaded."
-                ),
+        # Schedule found but no subjects cached yet — store the raw schedule
+        # anyway so reminders can fire once subjects are loaded.  Use all
+        # entries from the PDF as a best-effort fallback.
+        days_with_classes = list({e["day"] for e in schedule})
+        total_weekly_classes = len(schedule)
+        fallback_text = json.dumps(schedule)  # JSON for lossless round-trip
+
+        with SessionLocal() as session:
+            session.query(PushSubscription).filter(
+                PushSubscription.roll_number == roll_number,
+            ).update({"has_timetable": True}, synchronize_session=False)
+            session.commit()
+
+        try:
+            from db.models.notice import Notice
+            from datetime import date
+            now = datetime.now(timezone.utc)
+            with SessionLocal() as session:
+                existing = session.query(Notice).filter(
+                    Notice.title == f"[STUDENT_TIMETABLE] {roll_number}",
+                    Notice.processing_status == "done",
+                ).first()
+                if existing:
+                    existing.cleaned_text = fallback_text
+                    existing.portal_date = date.today()
+                else:
+                    new_notice = Notice(
+                        title=f"[STUDENT_TIMETABLE] {roll_number}",
+                        portal_date=date.today(),
+                        pdf_url_path="",
+                        processing_status="done",
+                        cleaned_text=fallback_text,
+                        source_program=roll_number,
+                        category="Academic",
+                        notification_sent_at=now,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                    session.add(new_notice)
+                session.commit()
+        except Exception as store_exc:
+            logger.warning("Failed to store fallback timetable notice for %s: %s", roll_number, store_exc)
+
+        logger.info(
+            "Student timetable uploaded (no subject match): roll=%s stored %d entries",
+            roll_number, total_weekly_classes,
+        )
+        return ApiResponse(
+            status="success",
+            message="Timetable uploaded successfully",
+            data={
+                "matchedClasses": total_weekly_classes,
+                "daysWithClasses": sorted(days_with_classes),
+                "subjects": [],
             },
         )
 
@@ -667,10 +709,10 @@ async def upload_timetable(
         from db.models.notice import Notice
         from datetime import date
         now = datetime.now(timezone.utc)
-        store_text = full_text or " ".join(f"{e['day']} {e['course']}" for e in schedule[:20])
+        store_text = json.dumps(matched_classes)  # JSON for lossless round-trip
         with SessionLocal() as session:
             existing = session.query(Notice).filter(
-                Notice.title == f"[STUDENT_UPLOAD] {roll_number}",
+                Notice.title == f"[STUDENT_TIMETABLE] {roll_number}",
                 Notice.processing_status == "done",
             ).first()
             if existing:
@@ -678,7 +720,7 @@ async def upload_timetable(
                 existing.portal_date = date.today()
             else:
                 new_notice = Notice(
-                    title=f"[STUDENT_UPLOAD] {roll_number}",
+                    title=f"[STUDENT_TIMETABLE] {roll_number}",
                     portal_date=date.today(),
                     pdf_url_path="",
                     processing_status="done",

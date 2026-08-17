@@ -9,6 +9,8 @@ function resolveApiBaseUrl() {
 
 const API_BASE_URL = resolveApiBaseUrl()
 
+export { API_BASE_URL }
+
 class NoticesApiError extends Error {
   constructor(message, { code, status } = {}) {
     super(message)

@@ -644,6 +644,24 @@ def get_student_metrics() -> dict:
             .scalar() or 0
         )
 
+        # Program breakdown — count students per program
+        program_rows = (
+            session.query(
+                StudentRegistry.program,
+                func.count(StudentRegistry.roll_number).label("count"),
+            )
+            .group_by(StudentRegistry.program)
+            .order_by(func.count(StudentRegistry.roll_number).desc())
+            .all()
+        )
+        program_breakdown = [
+            {
+                "program": row.program or "Unknown",
+                "count": int(row.count),
+            }
+            for row in program_rows
+        ]
+
         # Data integrity: find actual duplicates — same email registered multiple times
         # (not users without email, which would be wrongly counted as duplicates)
         total_user_rows = int(session.query(func.count(User.id)).scalar() or 0)
@@ -676,6 +694,7 @@ def get_student_metrics() -> dict:
         "guestOnly": guest_only,
         "newToday": new_today,
         "activeToday": active_today,
+        "programBreakdown": program_breakdown,
         "dataIntegrity": {
             "totalUserRows": total_user_rows,
             "uniqueEmails": unique_emails,

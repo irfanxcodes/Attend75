@@ -140,6 +140,8 @@ function UsersTable({ usersTable, sessionToken, onRefresh }) {
   const avatarColors = ['#FF5B5B', '#FF916C', '#6CB4FF', '#4EF0A0', '#A78BFA', '#FFB23E', '#F472B6', '#34D399']
   const [lightboxPhoto, setLightboxPhoto] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
+  const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState('recent') // 'recent' | 'az' | 'za'
 
   function getInitials(name) {
     const parts = (name || 'AN').trim().split(/\s+/)
@@ -164,21 +166,76 @@ function UsersTable({ usersTable, sessionToken, onRefresh }) {
     }
   }
 
-  const users = usersTable || []
+  const allUsers = usersTable || []
+
+  const filteredUsers = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    let result = q
+      ? allUsers.filter(u =>
+          (u.name || '').toLowerCase().includes(q) ||
+          (u.rollNumber || '').toLowerCase().includes(q) ||
+          (u.emailId || '').toLowerCase().includes(q)
+        )
+      : [...allUsers]
+
+    if (sortBy === 'az') result.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    else if (sortBy === 'za') result.sort((a, b) => (b.name || '').localeCompare(a.name || ''))
+    // 'recent' keeps original order (already sorted by last_seen desc from backend)
+
+    return result
+  }, [allUsers, search, sortBy])
 
   return (
     <div className="rounded-2xl border border-white/[0.06] bg-[#2a2440] p-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <p className="text-sm font-semibold text-[#f0ece4]">Registered Users</p>
           <p className="text-[9px] text-[#7a6f94]">One row per unique student (by roll number)</p>
         </div>
         <span className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] font-semibold text-[#9F9AB5]">
-          {users.length} users
+          {filteredUsers.length}{search ? ` of ${allUsers.length}` : ''} users
         </span>
       </div>
 
-      <div className="mt-4 overflow-x-auto">
+      {/* Search + sort controls */}
+      <div className="flex items-center gap-2 mb-4">
+        <div className="relative flex-1">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#7a6f94]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by name or roll number…"
+            className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] py-2 pl-8 pr-4
+                       text-[11px] text-[#d8d4e7] placeholder:text-[#7a6f94]
+                       focus:border-white/20 focus:outline-none transition-colors"
+          />
+        </div>
+        <div className="flex items-center gap-1 rounded-xl border border-white/[0.08] bg-white/[0.03] p-1">
+          {[
+            { key: 'recent', label: 'Recent' },
+            { key: 'az', label: 'A→Z' },
+            { key: 'za', label: 'Z→A' },
+          ].map(opt => (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => setSortBy(opt.key)}
+              className={`rounded-lg px-3 py-1.5 text-[10px] font-semibold transition-colors ${
+                sortBy === opt.key
+                  ? 'bg-[#FF916C] text-white'
+                  : 'text-[#9F9AB5] hover:text-[#d8d4e7]'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
         <table className="w-full text-[11px]">
           <thead>
             <tr className="border-b border-white/[0.06] text-left text-[9px] font-bold uppercase tracking-wider text-[#7a6f94]">
@@ -193,10 +250,10 @@ function UsersTable({ usersTable, sessionToken, onRefresh }) {
             </tr>
           </thead>
           <tbody>
-            {users.map((user, i) => {
+            {filteredUsers.map((user, i) => {
               const program = user.program || null
               return (
-              <tr key={user.serialNo || i} className="border-b border-white/[0.04]">
+              <tr key={user.rollNumber || i} className="border-b border-white/[0.04]">
                 <td className="py-3 pr-4 text-[#7a6f94]">{user.serialNo || i + 1}</td>
                 <td className="py-3 pr-4">
                   <div className="flex items-center gap-2.5">
@@ -244,8 +301,10 @@ function UsersTable({ usersTable, sessionToken, onRefresh }) {
               </tr>
               )
             })}
-            {!users.length ? (
-              <tr><td colSpan={8} className="py-8 text-center text-[#7a6f94]">No registered users yet</td></tr>
+            {!filteredUsers.length ? (
+              <tr><td colSpan={8} className="py-8 text-center text-[#7a6f94]">
+                {search ? `No users matching "${search}"` : 'No registered users yet'}
+              </td></tr>
             ) : null}
           </tbody>
         </table>
@@ -258,10 +317,67 @@ function UsersTable({ usersTable, sessionToken, onRefresh }) {
   )
 }
 
+function ProgramBreakdownCard({ programBreakdown, totalStudents }) {
+  const programs = programBreakdown || []
+  if (!programs.length) return null
+
+  const PROG_COLORS = ['#FF916C', '#6CB4FF', '#4EF0A0', '#A78BFA', '#FFB23E', '#F472B6', '#34D399', '#FF5B5B']
+  const maxCount = Math.max(...programs.map(p => p.count), 1)
+
+  return (
+    <div className="rounded-2xl border border-white/[0.06] bg-[#2a2440] p-5">
+      <p className="text-sm font-semibold text-[#f0ece4]">Users by program</p>
+      <p className="mt-0.5 text-[9px] text-[#7a6f94]">Students per academic program (from portal login)</p>
+
+      <div className="mt-4 space-y-3">
+        {programs.map((p, i) => {
+          const pct = totalStudents > 0 ? ((p.count / totalStudents) * 100).toFixed(1) : 0
+          const barPct = (p.count / maxCount) * 100
+          const color = PROG_COLORS[i % PROG_COLORS.length]
+          // Shorten long program names for display
+          const label = p.program.length > 40 ? p.program.slice(0, 38) + '…' : p.program
+          return (
+            <div key={p.program}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[11px] text-[#d8d4e7] truncate max-w-[60%]" title={p.program}>{label}</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[11px] font-bold text-[#f0ece4]">{p.count}</span>
+                  <span className="text-[9px] text-[#7a6f94]">{pct}%</span>
+                </div>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-white/[0.06]">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${barPct}%`, backgroundColor: color }}
+                />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Donut summary */}
+      <div className="mt-4 pt-4 border-t border-white/[0.06] flex items-center gap-3 flex-wrap">
+        {programs.slice(0, 5).map((p, i) => (
+          <div key={p.program} className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: PROG_COLORS[i % PROG_COLORS.length] }} />
+            <span className="text-[9px] text-[#9F9AB5] truncate max-w-[100px]" title={p.program}>
+              {p.program.replace('Bachelor of ', 'B. ').replace('Faculty of ', '')}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function GrowthMetricsPage({ data, analytics, onRefresh, isLoading, sessionToken }) {
   const engagement = analytics?.engagement || {}
   const userAnalytics = data?.userAnalytics || {}
+  const studentMetrics = analytics?.studentMetrics || {}
   const usersTable = userAnalytics?.usersTable || []
+  const programBreakdown = studentMetrics?.programBreakdown || []
+  const totalStudents = studentMetrics?.totalStudents || usersTable.length
 
   const dauTrend = useMemo(() => {
     return engagement?.dauTrend || []
@@ -269,7 +385,6 @@ function GrowthMetricsPage({ data, analytics, onRefresh, isLoading, sessionToken
 
   const dauSparkData = useMemo(() => dauTrend.slice(-7).map(d => d.activeUsers || 0), [dauTrend])
   const wauSparkData = useMemo(() => {
-    // Rolling 7-day sums for the last 7 data points
     return dauTrend.slice(-7).map((_, idx) => {
       const endIdx = dauTrend.length - 7 + idx + 1
       const window = dauTrend.slice(Math.max(0, endIdx - 7), endIdx)
@@ -323,8 +438,15 @@ function GrowthMetricsPage({ data, analytics, onRefresh, isLoading, sessionToken
       {/* DAU vs WAU vs MAU Chart */}
       <DAUWAUMAUChart dauTrend={dauTrend} />
 
-      {/* Users Table */}
-      <UsersTable usersTable={usersTable} sessionToken={sessionToken} onRefresh={onRefresh} />
+      {/* Program breakdown + Users Table side-by-side when breakdown has data */}
+      {programBreakdown.length > 0 ? (
+        <div className="grid grid-cols-[1fr_2fr] gap-4 items-start">
+          <ProgramBreakdownCard programBreakdown={programBreakdown} totalStudents={totalStudents} />
+          <UsersTable usersTable={usersTable} sessionToken={sessionToken} onRefresh={onRefresh} />
+        </div>
+      ) : (
+        <UsersTable usersTable={usersTable} sessionToken={sessionToken} onRefresh={onRefresh} />
+      )}
     </div>
   )
 }

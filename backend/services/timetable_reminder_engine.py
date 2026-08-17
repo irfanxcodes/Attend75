@@ -185,8 +185,14 @@ def schedule_reminders_for_today() -> int:
             # next day after their subjects are resolved.
             continue
 
+        # Look up student's program for cross-program notice filtering
+        from services.notice_service import get_student_program as _gsp
+        student_program = _gsp(roll_number)
+
         # Find the timetable notice matching this student's subjects
-        notice = _find_latest_timetable_notice(student_subjects)
+        notice = _find_latest_timetable_notice(
+            student_subjects, roll_number=roll_number, student_program=student_program
+        )
         if not notice or not notice.cleaned_text:
             continue
 
@@ -363,8 +369,14 @@ def send_tomorrow_preview() -> int:
         if not student_subjects:
             continue
 
+        # Look up student's program for cross-program notice filtering
+        from services.notice_service import get_student_program as _gsp
+        student_program = _gsp(roll_number)
+
         # Find the timetable notice matching this student's subjects
-        notice = _find_latest_timetable_notice(student_subjects)
+        notice = _find_latest_timetable_notice(
+            student_subjects, roll_number=roll_number, student_program=student_program
+        )
         if not notice or not notice.cleaned_text:
             continue
 
