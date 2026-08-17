@@ -14,15 +14,12 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        'notes_solution_steps',
-        sa.Column(
-            'content_format',
-            sa.String(16),
-            nullable=False,
-            server_default='text',
-        ),
-    )
+    # Use IF NOT EXISTS so this is safe to run even if the column was
+    # added directly to the DB before the migration was created.
+    op.execute("""
+        ALTER TABLE notes_solution_steps
+        ADD COLUMN IF NOT EXISTS content_format VARCHAR(16) NOT NULL DEFAULT 'text'
+    """)
 
 
 def downgrade() -> None:
