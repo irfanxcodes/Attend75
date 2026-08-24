@@ -86,9 +86,12 @@ function FlappyGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
   const lastTimeRef = useRef(0)
   const endCalledRef = useRef(false)
   const pausedRef = useRef(false)
-  const bgCanvasRef = useRef(null) // offscreen background canvas
+  const bgCanvasRef = useRef(null)
   const canvasSizeRef = useRef({ w: 0, h: 0 })
   const [isPaused, setIsPaused] = useState(false)
+  // Keep initialScore in a ref so createState doesn't need it as a dep
+  const initialScoreRef = useRef(initialScore)
+  useEffect(() => { initialScoreRef.current = initialScore }, [initialScore])
 
   // --- Create initial state ---
   const createState = useCallback(() => ({
@@ -97,9 +100,9 @@ function FlappyGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
     birdY: GAME_HEIGHT * 0.45,
     birdVel: 0,
     pipes: [],
-    score: initialScore,
+    score: initialScoreRef.current,
     pipeTimer: 0,
-  }), [initialScore])
+  }), []) // stable — reads initialScore via ref at call time
 
   // --- Generate pipe ---
   const genPipe = useCallback((x, gap) => {
@@ -464,7 +467,7 @@ function FlappyGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
   useEffect(() => {
     if (isActive && !prevActiveRef.current) {
       if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
-      onScoreUpdate(initialScore)
+      onScoreUpdate(initialScoreRef.current)
       startGame()
     }
     prevActiveRef.current = isActive

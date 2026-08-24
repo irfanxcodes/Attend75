@@ -295,6 +295,8 @@ function PacmanGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
   const pausedRef = useRef(false)
   const [paused, setPaused] = useState(false)
   const scaleRef = useRef(1)
+  const initialScoreRef = useRef(initialScore)
+  useEffect(() => { initialScoreRef.current = initialScore }, [initialScore])
 
   const setup = useCallback(() => {
     const cv = canvasRef.current; if(!cv) return
@@ -308,12 +310,12 @@ function PacmanGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
     const ctx=cv.getContext('2d');if(ctx) ctx.setTransform(dpr,0,0,dpr,0,0)
   },[])
 
-  const start = useCallback((startScore = initialScore)=>{
+  const start = useCallback(()=>{
     const st = initState()
-    st.score = startScore
-    stRef.current = st; prevScore.current=startScore; endRef.current=false
+    st.score = initialScoreRef.current
+    stRef.current = st; prevScore.current = initialScoreRef.current; endRef.current=false
     pausedRef.current=false; setPaused(false)
-  },[initialScore])
+  },[])
 
   // Game ticks via intervals (pac moves faster than ghosts)
   useEffect(()=>{
@@ -381,9 +383,9 @@ function PacmanGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
 
   const pRef = useRef(isActive)
   useEffect(()=>{
-    if(isActive&&!pRef.current){start(initialScore);onScoreUpdate(initialScore)}
+    if(isActive&&!pRef.current){start();onScoreUpdate(initialScoreRef.current)}
     pRef.current=isActive
-  },[isActive,start,onScoreUpdate,initialScore])
+  },[isActive,start,onScoreUpdate])
 
   return (
     <div className="relative w-full overflow-hidden rounded-xl bg-black">

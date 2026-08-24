@@ -353,6 +353,8 @@ function StackGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
   const pausedRef = useRef(false)
   const [paused, setPaused] = useState(false)
   const scaleRef = useRef(1)
+  const initialScoreRef = useRef(initialScore)
+  useEffect(() => { initialScoreRef.current = initialScore }, [initialScore])
 
   const setup = useCallback(() => {
     const cv = cvRef.current; if (!cv) return
@@ -366,13 +368,13 @@ function StackGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
     const ctx = cv.getContext('2d'); if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   }, [])
 
-  const start = useCallback((startScore = initialScore) => {
+  const start = useCallback(() => {
     const st = createState()
-    st.score = startScore
+    st.score = initialScoreRef.current
     stRef.current = st
-    prevScore.current = startScore; endRef.current = false
+    prevScore.current = initialScoreRef.current; endRef.current = false
     pausedRef.current = false; setPaused(false)
-  }, [initialScore])
+  }, [])
 
   const handleDrop = useCallback(() => {
     const st = stRef.current; if (!st) return
@@ -405,7 +407,7 @@ function StackGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
   }, [setup, start, loop, handleDrop])
 
   const pRef = useRef(isActive)
-  useEffect(() => { if (isActive && !pRef.current) { start(initialScore); onScoreUpdate(initialScore) }; pRef.current = isActive }, [isActive, start, onScoreUpdate, initialScore])
+  useEffect(() => { if (isActive && !pRef.current) { start(); onScoreUpdate(initialScoreRef.current) }; pRef.current = isActive }, [isActive, start, onScoreUpdate])
 
   return (
     <div className="relative w-full overflow-hidden rounded-xl">
