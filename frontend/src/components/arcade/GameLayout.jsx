@@ -80,6 +80,14 @@ function GameLayout({ gameSlug, children }) {
   const [adCountdown, setAdCountdown] = useState(7)
   const [adWatched, setAdWatched] = useState(false)
   const [resumeScore, setResumeScore] = useState(0)
+  // Whether the ad has already been used in this 24-hour window for this game
+  const [adAlreadyUsed, setAdAlreadyUsed] = useState(() => {
+    try {
+      const ts = localStorage.getItem(`attend75.adUsed.${gameSlug}`)
+      if (!ts) return false
+      return Date.now() - Number(ts) < 24 * 60 * 60 * 1000
+    } catch { return false }
+  })
   const adCountdownRef = useRef(null)
   const videoRef = useRef(null)
 
@@ -184,7 +192,6 @@ function GameLayout({ gameSlug, children }) {
   }, [showAdModal])
 
   const handleWatchAd = useCallback(() => {
-    // Save the score to resume from before opening the ad
     setResumeScore(currentScore)
     setShowAdModal(true)
     setAdCountdown(7)
@@ -194,8 +201,13 @@ function GameLayout({ gameSlug, children }) {
   const handleAdClose = useCallback(() => {
     clearInterval(adCountdownRef.current)
     setShowAdModal(false)
-    if (adWatched) handleRestart(resumeScore)
-  }, [adWatched, handleRestart, resumeScore])
+    if (adWatched) {
+      // Stamp usage so the button is hidden for 24h
+      try { localStorage.setItem(`attend75.adUsed.${gameSlug}`, String(Date.now())) } catch {}
+      setAdAlreadyUsed(true)
+      handleRestart(resumeScore)
+    }
+  }, [adWatched, handleRestart, resumeScore, gameSlug])
 
   // Flush any offline-queued scores on mount
   useEffect(() => {
@@ -303,8 +315,8 @@ function GameLayout({ gameSlug, children }) {
                   </button>
                 </div>
 
-                {/* Watch Ad to continue — only shown when an arcade ad is live */}
-                {adLoaded && gameOverAd && !adWatched && (
+                {/* Watch Ad to continue — only shown when an arcade ad is live and not yet used today */}
+                {adLoaded && gameOverAd && !adWatched && !adAlreadyUsed && (
                   <button
                     type="button"
                     onClick={handleWatchAd}
