@@ -12,7 +12,7 @@ A college attendance tracking and study management application for ICFAI / IBS s
 
 **Payments:** PhonePe UPI Autopay (₹19/month)
 
-**Deployment:** Vercel (frontend) · DigitalOcean (backend)
+**Deployment:** Cloudflare Pages (frontend) · Oracle Cloud Free Tier (backend)
 
 ---
 
@@ -21,10 +21,10 @@ A college attendance tracking and study management application for ICFAI / IBS s
 ```
 ┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
 │   React PWA     │────▶│  FastAPI Backend  │────▶│  College Portal │
-│   (Vite/Vercel) │     │  (Uvicorn)        │     │  (ASP.NET)      │
-└─────────────────┘     └──────────────────┘     └─────────────────┘
-        │                       │
-        │                       ├── SQLite/PostgreSQL
+│  (Cloudflare    │     │  (Uvicorn/Oracle) │     │  (ASP.NET)      │
+│   Pages)        │     └──────────────────┘     └─────────────────┘
+└─────────────────┘             │
+        │                       ├── PostgreSQL
         │                       ├── In-memory Session Store
         │                       ├── DB-backed Notification Queue
         │                       ├── Firebase Admin SDK
@@ -548,20 +548,24 @@ python -c "from py_vapid import Vapid; v = Vapid(); v.generate_keys(); print('Pu
 
 ## Deployment
 
-### Frontend (Vercel)
-- `vercel.json` rewrites `/api/*` to backend server
-- Static assets served from Vite build output
-- Service worker registered for Web Push
+### Frontend (Cloudflare Pages)
+- Hosted at https://attend75.xyz via Cloudflare Pages
+- Auto-deploys on every push to `main` branch
+- Build command: `cd frontend && npm install && npm run build`
+- Output directory: `frontend/dist`
+- SPA routing via `public/_redirects` (`/* → /index.html 200`)
+- Custom headers via `public/_headers` (CSP, cache-control for SW)
 
-### Backend (DigitalOcean)
-- Production server at `64.227.133.71:8000`
-- Run with: `uvicorn app:app --host 0.0.0.0 --port 8000`
+### Backend (Oracle Cloud Free Tier)
+- Production server at `api.attend75.xyz` (IP: 129.159.239.36)
+- Run with systemd: `sudo systemctl restart attend75`
 - Set `DATABASE_URL` to PostgreSQL connection string
 - Set `CREDENTIAL_ENCRYPTION_KEY` to a secure Fernet key
 - Set `FIREBASE_SERVICE_ACCOUNT_FILE` to credentials path
 - Set `ADMIN_PASSWORD_HASH` for admin access
 - Set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_CONTACT_EMAIL` for push
 - Set `PHONEPE_MERCHANT_ID`, `PHONEPE_SALT_KEY` for payments
+- Set `CORS_ALLOW_ORIGINS=https://attend75.xyz,https://www.attend75.xyz`
 
 ---
 

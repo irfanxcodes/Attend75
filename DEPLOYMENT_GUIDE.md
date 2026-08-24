@@ -243,15 +243,18 @@ sudo nginx -t && sudo systemctl restart nginx
 sudo certbot --nginx -d api.attend75.xyz --non-interactive --agree-tos --email irfanxcodes@gmail.com
 ```
 
-### Step 10: DNS Setup (Namecheap)
+### Step 10: DNS Setup (Cloudflare)
 
-Update these DNS records on Namecheap → Advanced DNS:
+DNS is managed through Cloudflare (nameservers already pointed to Cloudflare).
 
-| Type | Host | Value |
-|------|------|-------|
-| A Record | `@` | `216.198.79.1` (Vercel's IP) |
-| A Record | `api` | `129.159.239.36` (Oracle Cloud VM) |
-| CNAME | `www` | `fc029b5438e93b6d.vercel-dns-017.com.` |
+Current records in Cloudflare DNS for `attend75.xyz`:
+
+| Type | Name | Content | Notes |
+|------|------|---------|-------|
+| CNAME | `@` | `attend75.pages.dev` | Root domain → Cloudflare Pages |
+| CNAME | `www` | `attend75.pages.dev` | www → Cloudflare Pages |
+| A | `api` | `129.159.239.36` | Backend on Oracle VPS |
+| R2 | `slides` | `attend75-slides` R2 bucket | Slide images |
 
 ### Step 11: Cloudflare Pages Frontend
 
@@ -315,7 +318,8 @@ swapon --show
 ```
 Internet
     │
-    ├── attend75.xyz ──────→ Vercel (frontend)
+    ├── attend75.xyz ──────→ Cloudflare Pages (frontend, auto-deploy from main)
+    │                            attend75.pages.dev
     │
     └── api.attend75.xyz ──→ Oracle Cloud VM (129.159.239.36)
                                 │
