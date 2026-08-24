@@ -143,13 +143,14 @@ function GameLayout({ gameSlug, children }) {
   }, [token, gameSlug])
 
   const handleRestart = useCallback((startScore = 0) => {
-    setCurrentScore(startScore)
+    const score = typeof startScore === 'number' ? startScore : 0
+    setCurrentScore(score)
     setCurrentCoins(0)
     setIsGameOver(false)
     setSubmissionResult(null)
     setIsSubmitting(false)
     setAdWatched(false)
-    setResumeScore(startScore)
+    setResumeScore(score)
     hasSubmittedRef.current = false
   }, [])
 
@@ -287,7 +288,7 @@ function GameLayout({ gameSlug, children }) {
                 <div className="flex w-full flex-col gap-2 sm:flex-row">
                   <button
                     type="button"
-                    onClick={handleRestart}
+                    onClick={() => handleRestart(0)}
                     className="flex-1 rounded-full bg-[#FF916C] py-3 text-sm font-bold text-[#1D183E] transition active:scale-[0.97]"
                   >
                     Play Again
