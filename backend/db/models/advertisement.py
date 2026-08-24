@@ -12,6 +12,8 @@ class Advertisement(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     # 'image' or 'video'
     media_type: Mapped[str] = mapped_column(String(10), nullable=False)
+    # Where this ad appears: 'dashboard' | 'arcade_game_over'
+    placement: Mapped[str] = mapped_column(String(32), nullable=False, default="dashboard")
     # Path relative to uploads dir, e.g. "ads/abc123.jpg"
     file_path: Mapped[str] = mapped_column(String(512), nullable=False)
     # Original filename for display in admin

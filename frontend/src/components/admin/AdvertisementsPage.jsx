@@ -50,6 +50,13 @@ function AdCard({ ad, onDelete, onActivate, isDeleting, isActivating }) {
       <div className="p-3">
         <p className="truncate text-[11px] font-bold text-[#F4F1FF]">{ad.advertiser_name || 'Unnamed advertiser'}</p>
         <p className="mt-0.5 truncate text-[10px] text-[#6E6A88]">{ad.original_filename}</p>
+        <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[9px] font-bold ${
+          ad.placement === 'arcade_game_over'
+            ? 'bg-[#A78BFA]/15 text-[#A78BFA]'
+            : 'bg-[#6CB4FF]/15 text-[#6CB4FF]'
+        }`}>
+          {ad.placement === 'arcade_game_over' ? '🎮 Game Over' : '📊 Dashboard'}
+        </span>
         {ad.link_url ? (
           <a
             href={ad.link_url}
@@ -105,6 +112,7 @@ function AdvertisementsPage({ sessionToken }) {
   const [previewUrl, setPreviewUrl] = useState(null)
   const [linkUrl, setLinkUrl] = useState('')
   const [advertiserName, setAdvertiserName] = useState('')
+  const [placement, setPlacement] = useState('dashboard')
   const [isUploading, setIsUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
 
@@ -186,13 +194,14 @@ function AdvertisementsPage({ sessionToken }) {
     setUploadError('')
     setSuccessMsg('')
     try {
-      await uploadAdvertisement(sessionToken, selectedFile, { linkUrl, advertiserName })
-      setSuccessMsg('Ad is now live on the dashboard!')
+      await uploadAdvertisement(sessionToken, selectedFile, { linkUrl, advertiserName, placement })
+      setSuccessMsg('Ad is now live!')
       setSelectedFile(null)
       if (previewUrl) URL.revokeObjectURL(previewUrl)
       setPreviewUrl(null)
       setLinkUrl('')
       setAdvertiserName('')
+      setPlacement('dashboard')
       if (fileInputRef.current) fileInputRef.current.value = ''
       await load()
     } catch (err) {
@@ -317,6 +326,28 @@ function AdvertisementsPage({ sessionToken }) {
           ) : null}
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="block space-y-1 sm:col-span-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-[#9F9AB5]">Where to show this ad</span>
+              <div className="flex gap-2">
+                {[
+                  { value: 'dashboard', label: '📊 Dashboard banner' },
+                  { value: 'arcade_game_over', label: '🎮 Arcade — Game Over screen' },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setPlacement(opt.value)}
+                    className={`flex-1 rounded-lg border px-3 py-2 text-[11px] font-semibold transition ${
+                      placement === opt.value
+                        ? 'border-[#FF916C] bg-[#FF916C]/15 text-[#FF916C]'
+                        : 'border-white/10 bg-white/5 text-[#9F9AB5] hover:border-white/20'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </label>
             <label className="block space-y-1">
               <span className="text-[10px] font-semibold uppercase tracking-wide text-[#9F9AB5]">Advertiser / Shop Name</span>
               <input

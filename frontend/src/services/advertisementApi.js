@@ -30,16 +30,15 @@ function authHeaders(sessionToken) {
 }
 
 /**
- * Public — no auth needed. Returns the active ad or null.
- * Called on every Dashboard load.
+ * Public — no auth needed. Returns the active ad for the given placement or null.
+ * placement: 'dashboard' | 'arcade_game_over'
  */
-export async function fetchActiveAdvertisement() {
+export async function fetchActiveAdvertisement(placement = 'dashboard') {
   try {
-    const response = await fetch(`${API_BASE_URL}/advertisement/active`)
+    const response = await fetch(`${API_BASE_URL}/advertisement/active?placement=${encodeURIComponent(placement)}`)
     const data = await parseResponse(response)
     return data?.ad ?? null
   } catch {
-    // Silently fail — if the ad endpoint is unavailable just show the attendance card
     return null
   }
 }
@@ -50,11 +49,12 @@ export async function fetchActiveAdvertisement() {
  * @param {File} file
  * @param {{ linkUrl?: string, advertiserName?: string }} meta
  */
-export async function uploadAdvertisement(sessionToken, file, { linkUrl = '', advertiserName = '' } = {}) {
+export async function uploadAdvertisement(sessionToken, file, { linkUrl = '', advertiserName = '', placement = 'dashboard' } = {}) {
   const formData = new FormData()
   formData.append('file', file)
   formData.append('link_url', linkUrl)
   formData.append('advertiser_name', advertiserName)
+  formData.append('placement', placement)
 
   const response = await fetch(`${API_BASE_URL}/admin/advertisement/upload`, {
     method: 'POST',

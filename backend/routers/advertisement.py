@@ -74,6 +74,7 @@ def _ad_to_dict(ad: Advertisement) -> dict:
     return {
         "id": ad.id,
         "media_type": ad.media_type,
+        "placement": ad.placement,
         "file_path": ad.file_path,
         "url": f"/uploads/ads/{Path(ad.file_path).name}",
         "original_filename": ad.original_filename,
@@ -90,11 +91,19 @@ def _ad_to_dict(ad: Advertisement) -> dict:
 
 
 @router.get("/advertisement/active", response_model=ApiResponse)
-async def get_active_advertisement():
-    """Return the currently active ad, or null if none is live."""
+async def get_active_advertisement(placement: str = "dashboard"):
+    """Return the currently active ad for the given placement, or null if none is live."""
     def _query():
         with SessionLocal() as db:
-            ad = _get_active_ad(db)
+            ad = (
+                db.query(Advertisement)
+                .filter(
+                    Advertisement.is_active == True,  # noqa: E712
+                    Advertisement.placement == placement,
+                )
+                .order_by(Advertisement.created_at.desc())
+                .first()
+            )
             return _ad_to_dict(ad) if ad else None
 
     ad = await run_in_threadpool(_query)
@@ -111,15 +120,20 @@ async def upload_advertisement(
     file: UploadFile = File(...),
     link_url: str = Form(default=""),
     advertiser_name: str = Form(default=""),
+    placement: str = Form(default="dashboard"),
     _admin=Depends(require_admin_user),
 ):
-    """Upload a new ad banner. The previous active ad is deactivated automatically."""
+    """Upload a new ad banner. The previous active ad for the same placement is deactivated."""
     content_type = (file.content_type or "").lower()
     if content_type not in ALLOWED_TYPES:
         raise HTTPException(
             status_code=400,
             detail=f"Unsupported file type '{content_type}'. Allowed: JPEG, PNG, WEBP, GIF, MP4, WEBM.",
         )
+
+    valid_placements = {"dashboard", "arcade_game_over"}
+    if placement not in valid_placements:
+        raise HTTPException(status_code=400, detail=f"Invalid placement. Must be one of: {valid_placements}")
 
     is_video = content_type in ALLOWED_VIDEO_TYPES
     max_size = MAX_VIDEO_SIZE if is_video else MAX_IMAGE_SIZE
@@ -142,13 +156,15 @@ async def upload_advertisement(
 
     def _save():
         with SessionLocal() as db:
-            # Deactivate any currently active ads
+            # Deactivate any currently active ads for this placement only
             db.query(Advertisement).filter(
-                Advertisement.is_active == True  # noqa: E712
+                Advertisement.is_active == True,  # noqa: E712
+                Advertisement.placement == placement,
             ).update({"is_active": False}, synchronize_session=False)
 
             ad = Advertisement(
                 media_type=media_type,
+                placement=placement,
                 file_path=unique_name,
                 original_filename=file.filename or unique_name,
                 link_url=link_url.strip() or None,
@@ -161,7 +177,7 @@ async def upload_advertisement(
             return _ad_to_dict(ad)
 
     ad_data = await run_in_threadpool(_save)
-    logger.info("Admin uploaded advertisement: %s (%s)", unique_name, media_type)
+    logger.info("Admin uploaded advertisement: %s (%s, placement=%s)", unique_name, media_type, placement)
     return ApiResponse(status="success", message="Advertisement uploaded and is now live.", data={"ad": ad_data})
 
 

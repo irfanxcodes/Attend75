@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Trophy } from 'lucide-react'
 import gameRegistry from './gameRegistry'
 import { submitScore } from '../../services/arcadeApi'
+import { fetchActiveAdvertisement } from '../../services/advertisementApi'
 import useAppStore from '../../hooks/useAppStore'
 
 // --- Offline score queue (localStorage) ---
@@ -72,6 +73,15 @@ function GameLayout({ gameSlug, children }) {
   const [submissionResult, setSubmissionResult] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // Ad state
+  const [gameOverAd, setGameOverAd] = useState(null)       // null = not loaded yet
+  const [adLoaded, setAdLoaded] = useState(false)           // true once fetch resolves
+  const [showAdModal, setShowAdModal] = useState(false)
+  const [adCountdown, setAdCountdown] = useState(15)
+  const [adWatched, setAdWatched] = useState(false)         // unlocks restart after ad
+  const adCountdownRef = useRef(null)
+  const videoRef = useRef(null)
+
   // Track whether we've already submitted for the current session
   const hasSubmittedRef = useRef(false)
 
@@ -137,12 +147,50 @@ function GameLayout({ gameSlug, children }) {
     setIsGameOver(false)
     setSubmissionResult(null)
     setIsSubmitting(false)
+    setAdWatched(false)
     hasSubmittedRef.current = false
   }, [])
 
   const handleViewLeaderboard = useCallback(() => {
     navigate(`/app/arcade/${gameSlug}?view=leaderboard`)
   }, [navigate, gameSlug])
+
+  // Fetch game-over ad once on mount
+  useEffect(() => {
+    fetchActiveAdvertisement('arcade_game_over').then(ad => {
+      setGameOverAd(ad)
+      setAdLoaded(true)
+    })
+  }, [])
+
+  // Countdown timer while ad modal is open
+  useEffect(() => {
+    if (!showAdModal) return
+    setAdCountdown(15)
+    adCountdownRef.current = setInterval(() => {
+      setAdCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(adCountdownRef.current)
+          setAdWatched(true)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(adCountdownRef.current)
+  }, [showAdModal])
+
+  const handleWatchAd = useCallback(() => {
+    setShowAdModal(true)
+    setAdCountdown(15)
+    setAdWatched(false)
+  }, [])
+
+  const handleAdClose = useCallback(() => {
+    clearInterval(adCountdownRef.current)
+    setShowAdModal(false)
+    if (adWatched) handleRestart()
+  }, [adWatched, handleRestart])
 
   // Flush any offline-queued scores on mount
   useEffect(() => {
@@ -248,11 +296,89 @@ function GameLayout({ gameSlug, children }) {
                     Leaderboard
                   </button>
                 </div>
+
+                {/* Watch Ad to continue — only shown when an arcade ad is live */}
+                {adLoaded && gameOverAd && !adWatched && (
+                  <button
+                    type="button"
+                    onClick={handleWatchAd}
+                    className="mt-1 flex w-full items-center justify-center gap-2 rounded-full border border-[#A78BFA]/40 bg-[#A78BFA]/10 py-2.5 text-[12px] font-semibold text-[#A78BFA] transition hover:bg-[#A78BFA]/20 active:scale-[0.97]"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+                    Watch ad to continue
+                  </button>
+                )}
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* Ad modal — full-screen overlay shown when student clicks "Watch ad" */}
+      {showAdModal && gameOverAd && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/95">
+          {/* Countdown + skip area */}
+          <div className="absolute right-4 top-4 flex items-center gap-2">
+            {adWatched ? (
+              <button
+                type="button"
+                onClick={handleAdClose}
+                className="rounded-full bg-[#4EF0A0] px-4 py-1.5 text-[11px] font-bold text-[#0f2018] transition active:scale-95"
+              >
+                ✓ Continue
+              </button>
+            ) : (
+              <span className="rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white/70">
+                {adCountdown}s
+              </span>
+            )}
+          </div>
+
+          {/* Ad media */}
+          <div className="flex w-full max-w-md flex-col items-center px-4">
+            {gameOverAd.media_type === 'video' ? (
+              <video
+                ref={videoRef}
+                src={`${import.meta.env.DEV ? 'http://127.0.0.1:8000' : (String(import.meta.env.VITE_API_BASE_URL || '').trim() || 'https://api.attend75.xyz')}/uploads/ads/${gameOverAd.file_path}`}
+                className="w-full rounded-2xl object-contain"
+                style={{ maxHeight: '65dvh' }}
+                autoPlay
+                playsInline
+                controls={false}
+                muted={false}
+                onEnded={() => setAdWatched(true)}
+              />
+            ) : (
+              <img
+                src={`${import.meta.env.DEV ? 'http://127.0.0.1:8000' : (String(import.meta.env.VITE_API_BASE_URL || '').trim() || 'https://api.attend75.xyz')}/uploads/ads/${gameOverAd.file_path}`}
+                alt="Advertisement"
+                className="w-full rounded-2xl object-contain"
+                style={{ maxHeight: '65dvh' }}
+              />
+            )}
+
+            {/* Advertiser info + link */}
+            {gameOverAd.advertiser_name && (
+              <p className="mt-3 text-[11px] font-semibold text-white/60">{gameOverAd.advertiser_name}</p>
+            )}
+            {gameOverAd.link_url && (
+              <a
+                href={gameOverAd.link_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1.5 rounded-full bg-white/10 px-4 py-1.5 text-[11px] font-semibold text-white/80 transition hover:bg-white/20"
+              >
+                Visit →
+              </a>
+            )}
+
+            {/* Bottom message */}
+            <p className="mt-4 text-center text-[10px] text-white/30">
+              {adWatched ? 'Ad complete — tap Continue to play again' : `Watch for ${adCountdown}s to unlock Continue`}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
