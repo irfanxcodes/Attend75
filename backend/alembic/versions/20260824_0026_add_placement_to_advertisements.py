@@ -14,10 +14,23 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("""
-        ALTER TABLE advertisements
-        ADD COLUMN IF NOT EXISTS placement VARCHAR(32) NOT NULL DEFAULT 'dashboard'
-    """)
+    # Use bind to detect dialect — SQLite doesn't support IF NOT EXISTS on ALTER TABLE
+    bind = op.get_bind()
+    if bind.dialect.name == "sqlite":
+        # Check if column already exists before adding
+        from sqlalchemy import inspect
+        inspector = inspect(bind)
+        columns = [c["name"] for c in inspector.get_columns("advertisements")]
+        if "placement" not in columns:
+            op.add_column(
+                "advertisements",
+                sa.Column("placement", sa.String(32), nullable=False, server_default="dashboard"),
+            )
+    else:
+        op.execute("""
+            ALTER TABLE advertisements
+            ADD COLUMN IF NOT EXISTS placement VARCHAR(32) NOT NULL DEFAULT 'dashboard'
+        """)
 
 
 def downgrade() -> None:

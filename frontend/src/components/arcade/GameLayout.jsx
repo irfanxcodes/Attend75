@@ -74,11 +74,12 @@ function GameLayout({ gameSlug, children }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Ad state
-  const [gameOverAd, setGameOverAd] = useState(null)       // null = not loaded yet
-  const [adLoaded, setAdLoaded] = useState(false)           // true once fetch resolves
+  const [gameOverAd, setGameOverAd] = useState(null)
+  const [adLoaded, setAdLoaded] = useState(false)
   const [showAdModal, setShowAdModal] = useState(false)
-  const [adCountdown, setAdCountdown] = useState(15)
-  const [adWatched, setAdWatched] = useState(false)         // unlocks restart after ad
+  const [adCountdown, setAdCountdown] = useState(7)
+  const [adWatched, setAdWatched] = useState(false)
+  const [resumeScore, setResumeScore] = useState(0)
   const adCountdownRef = useRef(null)
   const videoRef = useRef(null)
 
@@ -141,13 +142,14 @@ function GameLayout({ gameSlug, children }) {
     }
   }, [token, gameSlug])
 
-  const handleRestart = useCallback(() => {
-    setCurrentScore(0)
+  const handleRestart = useCallback((startScore = 0) => {
+    setCurrentScore(startScore)
     setCurrentCoins(0)
     setIsGameOver(false)
     setSubmissionResult(null)
     setIsSubmitting(false)
     setAdWatched(false)
+    setResumeScore(startScore)
     hasSubmittedRef.current = false
   }, [])
 
@@ -166,7 +168,7 @@ function GameLayout({ gameSlug, children }) {
   // Countdown timer while ad modal is open
   useEffect(() => {
     if (!showAdModal) return
-    setAdCountdown(15)
+    setAdCountdown(7)
     adCountdownRef.current = setInterval(() => {
       setAdCountdown(prev => {
         if (prev <= 1) {
@@ -181,16 +183,18 @@ function GameLayout({ gameSlug, children }) {
   }, [showAdModal])
 
   const handleWatchAd = useCallback(() => {
+    // Save the score to resume from before opening the ad
+    setResumeScore(currentScore)
     setShowAdModal(true)
-    setAdCountdown(15)
+    setAdCountdown(7)
     setAdWatched(false)
-  }, [])
+  }, [currentScore])
 
   const handleAdClose = useCallback(() => {
     clearInterval(adCountdownRef.current)
     setShowAdModal(false)
-    if (adWatched) handleRestart()
-  }, [adWatched, handleRestart])
+    if (adWatched) handleRestart(resumeScore)
+  }, [adWatched, handleRestart, resumeScore])
 
   // Flush any offline-queued scores on mount
   useEffect(() => {
@@ -243,6 +247,7 @@ function GameLayout({ gameSlug, children }) {
                 onScoreUpdate: handleScoreUpdate,
                 onRestart: handleRestart,
                 isActive: !isGameOver,
+                initialScore: resumeScore,
               })
             : children}
 

@@ -226,15 +226,16 @@ async def list_advertisements(_admin=Depends(require_admin_user)):
 
 @router.patch("/admin/advertisement/{ad_id}/activate", response_model=ApiResponse)
 async def activate_advertisement(ad_id: int, _admin=Depends(require_admin_user)):
-    """Re-activate an existing ad (deactivates any current active ad)."""
+    """Re-activate an existing ad (deactivates any current active ad for the same placement)."""
     def _activate():
         with SessionLocal() as db:
             ad = db.query(Advertisement).filter(Advertisement.id == ad_id).first()
             if not ad:
                 return None
-            # Deactivate others
+            # Deactivate others in the same placement only
             db.query(Advertisement).filter(
-                Advertisement.is_active == True  # noqa: E712
+                Advertisement.is_active == True,  # noqa: E712
+                Advertisement.placement == ad.placement,
             ).update({"is_active": False}, synchronize_session=False)
             ad.is_active = True
             db.commit()

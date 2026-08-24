@@ -55,7 +55,7 @@ function ArcadeGamePage() {
 
   return (
     <GameLayout gameSlug={gameSlug}>
-      {({ onGameEnd, onScoreUpdate, onRestart, isActive }) => (
+      {({ onGameEnd, onScoreUpdate, onRestart, isActive, initialScore }) => (
         <Suspense
           fallback={
             <div className="flex items-center justify-center py-16">
@@ -67,6 +67,7 @@ function ArcadeGamePage() {
             onGameEnd={onGameEnd}
             onScoreUpdate={onScoreUpdate}
             isActive={isActive}
+            initialScore={initialScore}
           />
         </Suspense>
       )}

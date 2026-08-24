@@ -51,6 +51,21 @@ _TIMESTAMPTZ_COLUMNS: dict[str, list[str]] = {
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+
+    if bind.dialect.name == "sqlite":
+        # SQLite does not support IF NOT EXISTS on ALTER TABLE or PL/pgSQL blocks.
+        # Add the two columns manually only if they're missing.
+        from sqlalchemy import inspect as sa_inspect
+        inspector = sa_inspect(bind)
+        existing = {c["name"] for c in inspector.get_columns("push_subscriptions")}
+        if "cached_subjects_json" not in existing:
+            op.add_column("push_subscriptions", sa.Column("cached_subjects_json", sa.Text(), nullable=True))
+        if "fcm_token" not in existing:
+            op.add_column("push_subscriptions", sa.Column("fcm_token", sa.Text(), nullable=True))
+        # TIMESTAMPTZ conversion is a no-op on SQLite (it stores everything as text/numeric).
+        return
+
     # 1. Add missing push_subscriptions columns (IF NOT EXISTS — safe to re-run)
     op.execute("""
         ALTER TABLE push_subscriptions

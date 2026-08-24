@@ -241,8 +241,15 @@ function AdvertisementsPage({ sessionToken }) {
     }
   }
 
-  const activeAd = ads.find((a) => a.is_active)
-  const pastAds = ads.filter((a) => !a.is_active)
+  // Group by placement — each placement can have one active ad
+  const activeDashboardAd = ads.find(a => a.is_active && a.placement === 'dashboard')
+  const activeGameAd = ads.find(a => a.is_active && a.placement === 'arcade_game_over')
+  const pastAds = ads.filter(a => !a.is_active)
+
+  const PLACEMENT_LABELS = {
+    dashboard: '📊 Dashboard banner',
+    arcade_game_over: '🎮 Arcade — Game Over',
+  }
 
   return (
     <div className="space-y-6">
@@ -250,7 +257,7 @@ function AdvertisementsPage({ sessionToken }) {
       <div>
         <h2 className="text-lg font-bold text-[#F4F1FF]">Advertisements</h2>
         <p className="mt-0.5 text-xs text-[#6E6A88]">
-          Upload a banner to replace the attendance card on the user dashboard. Remove it to revert back.
+          Each placement slot can have one live ad. Upload per placement independently.
         </p>
       </div>
 
@@ -262,20 +269,24 @@ function AdvertisementsPage({ sessionToken }) {
         <div className="rounded-lg border border-[#4EF0A0]/30 bg-[#4EF0A0]/10 px-4 py-2.5 text-xs text-[#4EF0A0]">{successMsg}</div>
       ) : null}
 
-      {/* Current state pill */}
-      <div className="flex items-center gap-2 rounded-xl border border-white/5 bg-[#252136] px-4 py-3">
-        <span className={`h-2 w-2 rounded-full ${activeAd ? 'bg-[#4EF0A0]' : 'bg-[#6E6A88]'}`} />
-        <p className="text-xs text-[#D8D4E7]">
-          Dashboard is currently showing:{' '}
-          <span className="font-bold text-[#F4F1FF]">
-            {activeAd ? `"${activeAd.advertiser_name || activeAd.original_filename}" ad banner` : 'Attendance card (default)'}
-          </span>
-        </p>
+      {/* Status pills — one per placement */}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {[
+          { key: 'dashboard', label: '📊 Dashboard', ad: activeDashboardAd },
+          { key: 'arcade_game_over', label: '🎮 Game Over', ad: activeGameAd },
+        ].map(({ key, label, ad }) => (
+          <div key={key} className="flex items-center gap-2 rounded-xl border border-white/5 bg-[#252136] px-4 py-3">
+            <span className={`h-2 w-2 shrink-0 rounded-full ${ad ? 'bg-[#4EF0A0]' : 'bg-[#6E6A88]'}`} />
+            <p className="text-xs text-[#D8D4E7]">
+              {label}: <span className="font-bold text-[#F4F1FF]">{ad ? `"${ad.advertiser_name || ad.original_filename}"` : 'Default (none)'}</span>
+            </p>
+          </div>
+        ))}
       </div>
 
       {/* Upload form */}
       <div className="rounded-xl border border-white/5 bg-[#252136] p-5">
-        <h3 className="mb-4 text-sm font-bold text-[#F4F1FF]">Upload New Banner</h3>
+        <h3 className="mb-4 text-sm font-bold text-[#F4F1FF]">Upload New Ad</h3>
         <form onSubmit={handleUpload} className="space-y-4">
           {/* Drop zone */}
           <div
@@ -380,25 +391,28 @@ function AdvertisementsPage({ sessionToken }) {
         </form>
       </div>
 
-      {/* Active ad */}
+      {/* Currently live — grouped by placement */}
       {isLoading ? (
         <p className="text-xs text-[#6E6A88]">Loading…</p>
-      ) : activeAd ? (
+      ) : (activeDashboardAd || activeGameAd) ? (
         <div>
           <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-[#4EF0A0]">Currently Live</h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <AdCard
-              ad={activeAd}
-              onDelete={handleDelete}
-              onActivate={handleActivate}
-              isDeleting={deletingId === activeAd.id}
-              isActivating={activatingId === activeAd.id}
-            />
+            {[activeDashboardAd, activeGameAd].filter(Boolean).map(ad => (
+              <AdCard
+                key={ad.id}
+                ad={ad}
+                onDelete={handleDelete}
+                onActivate={handleActivate}
+                isDeleting={deletingId === ad.id}
+                isActivating={activatingId === ad.id}
+              />
+            ))}
           </div>
         </div>
       ) : (
         <div className="rounded-xl border border-white/5 bg-[#252136] px-4 py-6 text-center">
-          <p className="text-xs text-[#6E6A88]">No active ad — dashboard is showing the default attendance card.</p>
+          <p className="text-xs text-[#6E6A88]">No active ads — both placements are showing defaults.</p>
         </div>
       )}
 

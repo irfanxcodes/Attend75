@@ -78,7 +78,7 @@ const STATE_READY = 0
 const STATE_PLAYING = 1
 const STATE_GAME_OVER = 2
 
-function FlappyGame({ onGameEnd, onScoreUpdate, isActive }) {
+function FlappyGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
   const canvasRef = useRef(null)
   const stateRef = useRef(null)
   const rafRef = useRef(null)
@@ -97,9 +97,9 @@ function FlappyGame({ onGameEnd, onScoreUpdate, isActive }) {
     birdY: GAME_HEIGHT * 0.45,
     birdVel: 0,
     pipes: [],
-    score: 0,
+    score: initialScore,
     pipeTimer: 0,
-  }), [])
+  }), [initialScore])
 
   // --- Generate pipe ---
   const genPipe = useCallback((x, gap) => {
@@ -464,7 +464,7 @@ function FlappyGame({ onGameEnd, onScoreUpdate, isActive }) {
   useEffect(() => {
     if (isActive && !prevActiveRef.current) {
       if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
-      onScoreUpdate(0)
+      onScoreUpdate(initialScore)
       startGame()
     }
     prevActiveRef.current = isActive
