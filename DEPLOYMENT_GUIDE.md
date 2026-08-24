@@ -253,9 +253,26 @@ Update these DNS records on Namecheap → Advanced DNS:
 | A Record | `api` | `129.159.239.36` (Oracle Cloud VM) |
 | CNAME | `www` | `fc029b5438e93b6d.vercel-dns-017.com.` |
 
-### Step 11: Vercel Frontend
+### Step 11: Cloudflare Pages Frontend
 
-No changes needed — frontend stays on Vercel as-is.
+Frontend is hosted on Cloudflare Pages (migrated from Vercel on 2026-08-24).
+
+- Project: `attend75` at https://dash.cloudflare.com → Workers & Pages
+- Production URL: https://attend75.xyz (custom domain)
+- Auto-deploys on every push to `main`
+- Build command: `cd frontend && npm install && npm run build`
+- Output directory: `frontend/dist`
+
+**Environment variables** (set in Cloudflare Pages → Settings → Environment variables):
+```
+VITE_API_BASE_URL=https://api.attend75.xyz
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=attend75-534c2.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=attend75-534c2
+VITE_FIREBASE_APP_ID=...
+```
+
+No manual deployment needed — Cloudflare builds automatically on git push.
 
 ---
 
