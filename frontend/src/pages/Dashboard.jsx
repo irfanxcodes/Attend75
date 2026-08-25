@@ -47,9 +47,12 @@ function MobileSubjectRow({ subject, selectedTarget, isDemo }) {
   const attendedClasses = Number(subject.attendedClasses) || 0
   const conductedClasses = Number(subject.totalClasses) || 0
   const leftClasses = Number(subject.classesLeft) || 0
+  const totalSessions = conductedClasses + leftClasses
   const targetRatio = (selectedTarget || 75) / 100
-  const canMiss = Math.max(0, Math.floor(attendedClasses / targetRatio - conductedClasses))
-  const toAttend = Math.max(0, Math.ceil((targetRatio * conductedClasses - attendedClasses) / (1 - targetRatio)))
+  // canMiss: how many of the remaining left classes can be skipped
+  const canMiss = Math.max(0, Math.floor(attendedClasses + leftClasses - targetRatio * totalSessions))
+  // toAttend: how many of the remaining left classes must be attended
+  const toAttend = Math.max(0, Math.ceil(targetRatio * totalSessions - attendedClasses))
   const maxPossible = subject.maxPossiblePercentage
   const isBelowTarget = subject.percentage < (selectedTarget || 75)
 

@@ -56,29 +56,45 @@ export function calculateOverallAttendance(subjects = []) {
   }
 }
 
-export function calculateClassesToAttend(attendedClasses, totalClasses, targetPercentage) {
+export function calculateClassesToAttend(attendedClasses, totalClasses, targetPercentage, classesLeft = 0) {
   const attended = safeNumber(attendedClasses)
-  const total = safeNumber(totalClasses)
+  const conducted = safeNumber(totalClasses)
+  const left = safeNumber(classesLeft)
   const target = safeNumber(targetPercentage) / 100
 
   if (target <= 0 || target >= 1) {
     return 0
   }
 
-  const needed = (target * total - attended) / (1 - target)
+  // Total semester sessions = classes conducted so far + remaining
+  const totalSessions = conducted + left
+
+  if (totalSessions <= 0) return 0
+
+  // How many of the remaining classes must be attended to hit the target?
+  // (attended + x) / totalSessions >= target  →  x >= target * totalSessions - attended
+  const needed = target * totalSessions - attended
   return Math.max(0, Math.ceil(needed))
 }
 
-export function calculateClassesCanMiss(attendedClasses, totalClasses, targetPercentage) {
+export function calculateClassesCanMiss(attendedClasses, totalClasses, targetPercentage, classesLeft = 0) {
   const attended = safeNumber(attendedClasses)
-  const total = safeNumber(totalClasses)
+  const conducted = safeNumber(totalClasses)
+  const left = safeNumber(classesLeft)
   const target = safeNumber(targetPercentage) / 100
 
   if (target <= 0) {
     return 0
   }
 
-  const canMiss = Math.floor(attended / target - total)
+  // Total semester sessions = conducted + remaining
+  const totalSessions = conducted + left
+
+  if (totalSessions <= 0) return 0
+
+  // How many of the remaining classes can be skipped while still hitting the target?
+  // (attended + (left - x)) / totalSessions >= target  →  x <= attended + left - target * totalSessions
+  const canMiss = Math.floor(attended + left - target * totalSessions)
   return Math.max(0, canMiss)
 }
 
@@ -87,8 +103,8 @@ export function calculatePrediction(subjects = [], targetPercentage = 75) {
 
   return {
     target: targetPercentage,
-    toAttend: calculateClassesToAttend(overall.attended, overall.total, targetPercentage),
-    canMiss: calculateClassesCanMiss(overall.attended, overall.total, targetPercentage),
+    toAttend: calculateClassesToAttend(overall.attended, overall.total, targetPercentage, overall.classesLeft),
+    canMiss: calculateClassesCanMiss(overall.attended, overall.total, targetPercentage, overall.classesLeft),
   }
 }
 

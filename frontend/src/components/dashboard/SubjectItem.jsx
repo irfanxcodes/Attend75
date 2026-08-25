@@ -137,9 +137,10 @@ function SubjectItem({ subject }) {
   const leftClasses = Number(subject.classesLeft) || 0
   const attendedClasses = Number(subject.attendedClasses) || 0
   const conductedClasses = Number(subject.totalClasses) || 0
+  const totalSessions = conductedClasses + leftClasses
   const targetRatio = 0.75
-  const canMiss = Math.max(0, Math.floor(attendedClasses / targetRatio - conductedClasses))
-  const toAttend = Math.max(0, Math.ceil((targetRatio * conductedClasses - attendedClasses) / (1 - targetRatio)))
+  const canMiss = Math.max(0, Math.floor(attendedClasses + leftClasses - targetRatio * totalSessions))
+  const toAttend = Math.max(0, Math.ceil(targetRatio * totalSessions - attendedClasses))
   const shortName = subject.shortName || subject.id?.toUpperCase?.() || subject.name.slice(0, 4).toUpperCase()
   const maxPossible = subject.maxPossiblePercentage
   const isUnreachable = maxPossible !== null && maxPossible !== undefined && maxPossible < 75
