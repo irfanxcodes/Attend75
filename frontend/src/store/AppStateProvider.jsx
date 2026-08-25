@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer } from 'react'
+import { createContext, useContext, useMemo, useReducer } from 'react'
 import { attendanceSeedData, userSeedData } from '../constants/dummyData'
 import {
   calculateOverallAttendance,
@@ -160,8 +160,10 @@ function appStateReducer(state, action) {
 function AppStateProvider({ children }) {
   const [state, dispatch] = useReducer(appStateReducer, initialState)
 
+  const value = useMemo(() => state, [state])
+
   return (
-    <AppStateContext.Provider value={state}>
+    <AppStateContext.Provider value={value}>
       <AppDispatchContext.Provider value={dispatch}>{children}</AppDispatchContext.Provider>
     </AppStateContext.Provider>
   )
