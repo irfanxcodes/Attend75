@@ -180,11 +180,11 @@ function ArcadeHome() {
 
 // --- Game Hero Card (per game) ---
 function GameHeroCard({ game, personalBest, navigate }) {
-  if (game.slug === 'flappy')     return <FlappyHeroCard    game={game} personalBest={personalBest} navigate={navigate} />
-  if (game.slug === 'pacman')     return <PacmanHeroCard    game={game} personalBest={personalBest} navigate={navigate} />
-  if (game.slug === 'stack')      return <StackHeroCard     game={game} personalBest={personalBest} navigate={navigate} />
-  if (game.slug === 'geodash')    return <GeodashHeroCard   game={game} personalBest={personalBest} navigate={navigate} />
-  if (game.slug === 'getmogged')  return <GetMoggedHeroCard game={game} personalBest={personalBest} navigate={navigate} />
+  if (game.slug === 'flappy')  return <FlappyHeroCard  game={game} personalBest={personalBest} navigate={navigate} />
+  if (game.slug === 'pacman')  return <PacmanHeroCard  game={game} personalBest={personalBest} navigate={navigate} />
+  if (game.slug === 'stack')   return <StackHeroCard   game={game} personalBest={personalBest} navigate={navigate} />
+  if (game.slug === 'geodash') return <GeodashHeroCard game={game} personalBest={personalBest} navigate={navigate} />
+  if (game.slug === 'snake')   return <SnakeHeroCard   game={game} personalBest={personalBest} navigate={navigate} />
   return <GenericHeroCard game={game} personalBest={personalBest} navigate={navigate} />
 }
 
@@ -314,53 +314,44 @@ function GeodashHeroCard({ game, personalBest, navigate }) {
   )
 }
 
-function GetMoggedHeroCard({ game, personalBest, navigate }) {
+function SnakeHeroCard({ game, personalBest, navigate }) {
   return (
     <div>
-      <div
-        className="relative flex h-52 flex-col items-center justify-center overflow-hidden"
-        style={{ background: 'linear-gradient(135deg, #1C1830 0%, #2D1F3E 50%, #3D2A52 100%)' }}
-      >
-        {/* Animated glow orbs */}
-        <div className="absolute top-4 left-8 h-20 w-20 rounded-full opacity-30" style={{ background: 'radial-gradient(circle, #FF916C, transparent)' }} />
-        <div className="absolute bottom-6 right-6 h-16 w-16 rounded-full opacity-25" style={{ background: 'radial-gradient(circle, #a78bfa, transparent)' }} />
-
-        {/* Face scan visual */}
-        <div className="relative z-10 flex flex-col items-center gap-3">
-          {/* Face outline with scan line */}
-          <div className="relative flex h-24 w-20 items-center justify-center rounded-full border-2 border-dashed border-[#FF916C]/60">
-            <span className="text-4xl">🪞</span>
-            {/* Corner brackets */}
-            <div className="absolute top-0 left-0 h-4 w-4 border-t-2 border-l-2 border-[#FF916C] rounded-tl-sm" />
-            <div className="absolute top-0 right-0 h-4 w-4 border-t-2 border-r-2 border-[#FF916C] rounded-tr-sm" />
-            <div className="absolute bottom-0 left-0 h-4 w-4 border-b-2 border-l-2 border-[#FF916C] rounded-bl-sm" />
-            <div className="absolute bottom-0 right-0 h-4 w-4 border-b-2 border-r-2 border-[#FF916C] rounded-br-sm" />
-          </div>
-
-          {/* Tier pills */}
-          <div className="flex gap-1.5">
-            {[
-              { label: 'Gigachad', color: 'bg-yellow-400/20 text-yellow-300 border-yellow-400/30' },
-              { label: 'Normie',   color: 'bg-purple-400/20 text-purple-300 border-purple-400/30' },
-            ].map(({ label, color }) => (
-              <span key={label} className={`rounded-full border px-2 py-0.5 text-[9px] font-bold ${color}`}>
-                {label}
-              </span>
+      <div className="relative flex h-52 flex-col items-center justify-center overflow-hidden bg-[#1A1A2E]">
+        {/* Grid lines */}
+        <div className="absolute inset-0 opacity-10">
+          {[...Array(10)].map((_, i) => (
+            <div key={'h'+i} className="absolute h-px bg-[#4EF0A0]" style={{ top: `${10 + i * 9}%`, left: '5%', right: '5%' }} />
+          ))}
+          {[...Array(10)].map((_, i) => (
+            <div key={'v'+i} className="absolute w-px bg-[#4EF0A0]" style={{ left: `${10 + i * 9}%`, top: '5%', bottom: '5%' }} />
+          ))}
+        </div>
+        {/* Snake */}
+        <div className="relative z-10 flex flex-col items-center gap-1">
+          <div className="flex items-center gap-1">
+            {/* Head */}
+            <div className="h-6 w-6 rounded-md bg-[#4EF0A0] ring-1 ring-[#1A9A58] flex items-center justify-center">
+              <div className="flex gap-0.5">
+                <div className="h-1.5 w-1.5 rounded-full bg-[#1A1A2E]" />
+                <div className="h-1.5 w-1.5 rounded-full bg-[#1A1A2E]" />
+              </div>
+            </div>
+            {/* Body */}
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-5 w-5 rounded-sm" style={{ backgroundColor: `rgba(45,192,120,${1 - i * 0.15})` }} />
             ))}
           </div>
+          {/* Food */}
+          <div className="mt-3 h-5 w-5 rounded-full bg-[#FF916C] shadow-[0_0_12px_rgba(255,145,108,0.6)]" />
         </div>
-
         {/* Title */}
         <div className="absolute bottom-4 left-0 right-0 text-center">
-          <span className="text-base font-extrabold tracking-wide text-[#F7F4FF] drop-shadow-lg">
-            {game.title}
-          </span>
+          <span className="text-lg font-extrabold tracking-wider text-[#4EF0A0] drop-shadow-[0_0_8px_rgba(78,240,160,0.4)]">{game.title}</span>
         </div>
-
-        {/* Personal best badge */}
         {personalBest != null && (
-          <div className="absolute top-3 right-3 rounded-xl bg-[#FF916C]/20 px-2 py-1">
-            <span className="text-[9px] font-bold text-[#FF916C]">BEST {personalBest}/10</span>
+          <div className="absolute top-3 left-3 rounded-md bg-[#4EF0A0]/15 px-2 py-1">
+            <span className="text-[9px] font-bold text-[#4EF0A0]">BEST {personalBest}</span>
           </div>
         )}
       </div>
@@ -477,8 +468,8 @@ function CardFooter({ game, personalBest, navigate }) {
               <rect x="8" y="34" width="10" height="10" fill="#00ff87" rx="2"/>
               <rect x="11" y="37" width="4" height="4" fill="white" rx="1" opacity="0.6"/>
             </svg>
-          ) : game.slug === 'getmogged' ? (
-            <span className="text-2xl">🪞</span>
+          ) : game.slug === 'snake' ? (
+            <span className="text-2xl">🐍</span>
           ) : (
             <span className="text-xl">🎮</span>
           )}

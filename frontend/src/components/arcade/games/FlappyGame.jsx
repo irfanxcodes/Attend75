@@ -429,7 +429,20 @@ function FlappyGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
   }, []) // stable — accesses loop via ref
 
   // --- Input handlers ---
-  const onTap = useCallback((e) => { e.preventDefault(); inputRef.current = true }, [])
+  // Use a ref to track if the last input was a touch, so the synthetic click
+  // fired after touchstart on iOS is ignored (prevents double-jump).
+  const lastTouchRef = useRef(0)
+  const onTouchTap = useCallback((e) => {
+    e.preventDefault()
+    lastTouchRef.current = Date.now()
+    inputRef.current = true
+  }, [])
+  const onClickTap = useCallback((e) => {
+    // If a touch event fired within 300ms, this is the iOS synthetic click — ignore it
+    if (Date.now() - lastTouchRef.current < 300) return
+    e.preventDefault()
+    inputRef.current = true
+  }, [])
   const onKey = useCallback((e) => {
     if (e.code === 'Space' || e.key === ' ') { e.preventDefault(); inputRef.current = true }
   }, [])
@@ -482,8 +495,8 @@ function FlappyGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
     <div className="relative w-full overflow-hidden rounded-xl flex justify-center">
       <canvas
         ref={canvasRef}
-        onClick={onTap}
-        onTouchStart={onTap}
+        onClick={onClickTap}
+        onTouchStart={onTouchTap}
         className="block cursor-pointer rounded-xl touch-none"
         aria-label="Flappy game canvas — tap to play"
         role="img"

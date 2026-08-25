@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 // === STACK TOWER — Polished with juice, 3D blocks, dynamic bg, particles ===
 const GW = 320, GH = 560
 const BH = 30, START_W = 90
-const BASE_SPEED = 1.3, SPEED_INC = 0.06, MAX_SPEED = 5.5
+const BASE_SPEED = 2.2, SPEED_INC = 0.06, MAX_SPEED = 5.5  // increased from 1.3 — felt too slow initially
 const DROP_GRAVITY = 0.6, PERFECT_THRESH = 4
 
 // Dynamic sky phases based on height
@@ -36,7 +36,7 @@ function lerp(a, b, t) { return a + (b - a) * Math.min(Math.max(t, 0), 1) }
 
 function createState() {
   return {
-    stack: [{ x: GW / 2 - START_W / 2, w: START_W, y: GH - BH - 20 }],
+    stack: [{ x: GW / 2 - START_W / 2, w: START_W, y: GH - BH - 80 }],  // lifted up from -20 to -80 so it's not hidden behind nav
     swing: { x: 30, w: START_W, dir: 1 },
     drop: null, // {x, y, w, vy, targetY}
     score: 0, over: false, combo: 0,
