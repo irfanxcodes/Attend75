@@ -458,7 +458,7 @@ def get_admin_overview() -> dict:
             "name": name,
             "emailId": email,
             "rollNumber": roll,
-            "photoUrl": f"/api/photo/{roll}" if roll else None,
+            "photoUrl": f"https://api.attend75.xyz/photo/{roll}" if roll else None,
             "lastSeen": student.last_seen_at.isoformat() if student.last_seen_at else None,
             "loginCount": student.login_count,
             "authMethod": "google" if student.has_google_linked else "guest",

@@ -438,15 +438,13 @@ function GrowthMetricsPage({ data, analytics, onRefresh, isLoading, sessionToken
       {/* DAU vs WAU vs MAU Chart */}
       <DAUWAUMAUChart dauTrend={dauTrend} />
 
-      {/* Program breakdown + Users Table side-by-side when breakdown has data */}
-      {programBreakdown.length > 0 ? (
-        <div className="grid grid-cols-[1fr_2fr] gap-4 items-start">
-          <ProgramBreakdownCard programBreakdown={programBreakdown} totalStudents={totalStudents} />
-          <UsersTable usersTable={usersTable} sessionToken={sessionToken} onRefresh={onRefresh} />
-        </div>
-      ) : (
-        <UsersTable usersTable={usersTable} sessionToken={sessionToken} onRefresh={onRefresh} />
+      {/* Program breakdown — full width above the table */}
+      {programBreakdown.length > 0 && (
+        <ProgramBreakdownCard programBreakdown={programBreakdown} totalStudents={totalStudents} />
       )}
+
+      {/* Users Table — always full width */}
+      <UsersTable usersTable={usersTable} sessionToken={sessionToken} onRefresh={onRefresh} />
     </div>
   )
 }
