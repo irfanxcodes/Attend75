@@ -51,8 +51,8 @@ function MobileSubjectRow({ subject, selectedTarget, isDemo }) {
   const targetRatio = (selectedTarget || 75) / 100
   // canMiss: how many of the remaining left classes can be skipped
   const canMiss = Math.max(0, Math.floor(attendedClasses + leftClasses - targetRatio * totalSessions))
-  // toAttend: how many of the remaining left classes must be attended
-  const toAttend = Math.max(0, Math.ceil(targetRatio * totalSessions - attendedClasses))
+  // toAttend: how many of the remaining left classes must be attended (capped at leftClasses)
+  const toAttend = Math.min(leftClasses, Math.max(0, Math.ceil(targetRatio * totalSessions - attendedClasses)))
   const maxPossible = subject.maxPossiblePercentage
   const isBelowTarget = subject.percentage < (selectedTarget || 75)
 

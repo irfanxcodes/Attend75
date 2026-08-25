@@ -74,7 +74,8 @@ export function calculateClassesToAttend(attendedClasses, totalClasses, targetPe
   // How many of the remaining classes must be attended to hit the target?
   // (attended + x) / totalSessions >= target  →  x >= target * totalSessions - attended
   const needed = target * totalSessions - attended
-  return Math.max(0, Math.ceil(needed))
+  // Cap at classesLeft — can't attend more than what's remaining
+  return Math.min(left, Math.max(0, Math.ceil(needed)))
 }
 
 export function calculateClassesCanMiss(attendedClasses, totalClasses, targetPercentage, classesLeft = 0) {
