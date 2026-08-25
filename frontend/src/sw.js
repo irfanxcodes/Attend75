@@ -48,7 +48,7 @@ registerRoute(
   new NavigationRoute(
     new NetworkFirst({
       cacheName: 'pages',
-      networkTimeoutSeconds: 3,
+      networkTimeoutSeconds: 6, // 3s was too aggressive on slow mobile connections
     })
   )
 )

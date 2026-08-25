@@ -405,6 +405,11 @@ function FlappyGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
     rafRef.current = requestAnimationFrame(loop)
   }, [createState, genPipe, loop])
 
+  // Keep a stable ref to loop so onVisChange doesn't need loop as a dependency
+  // (which would cause the main useEffect to restart mid-game on parent re-render)
+  const loopRef = useRef(loop)
+  useEffect(() => { loopRef.current = loop }, [loop])
+
   // --- Visibility change ---
   const onVisChange = useCallback(() => {
     const state = stateRef.current
@@ -419,9 +424,9 @@ function FlappyGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
       pausedRef.current = false
       setIsPaused(false)
       lastTimeRef.current = 0
-      rafRef.current = requestAnimationFrame(loop)
+      rafRef.current = requestAnimationFrame(loopRef.current)
     }
-  }, [loop])
+  }, []) // stable — accesses loop via ref
 
   // --- Input handlers ---
   const onTap = useCallback((e) => { e.preventDefault(); inputRef.current = true }, [])

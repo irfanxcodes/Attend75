@@ -354,21 +354,23 @@ function PacmanGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
       const map={ArrowUp:DIR.UP,ArrowRight:DIR.RT,ArrowDown:DIR.DN,ArrowLeft:DIR.LT,w:DIR.UP,d:DIR.RT,s:DIR.DN,a:DIR.LT}
       const d=map[e.key];if(d!==undefined){e.preventDefault();st.pac.next=d}
     }
-    const tRef = {x:0,y:0}
-    const onTS = (e)=>{e.preventDefault();tRef.x=e.touches[0].clientX;tRef.y=e.touches[0].clientY}
+    // Use a ref for touch coordinates so it survives across re-renders without stale closure
+    const touchRef = {x:0,y:0}
+    const onTS = (e)=>{e.preventDefault();touchRef.x=e.touches[0].clientX;touchRef.y=e.touches[0].clientY}
     const onTM = (e)=>{
       e.preventDefault();const st=stRef.current;if(!st||st.over) return
-      const dx=e.touches[0].clientX-tRef.x,dy=e.touches[0].clientY-tRef.y
+      const dx=e.touches[0].clientX-touchRef.x,dy=e.touches[0].clientY-touchRef.y
       if(Math.abs(dx)>10||Math.abs(dy)>10){
         st.pac.next=Math.abs(dx)>Math.abs(dy)?(dx>0?DIR.RT:DIR.LT):(dy>0?DIR.DN:DIR.UP)
-        tRef.x=e.touches[0].clientX;tRef.y=e.touches[0].clientY
+        touchRef.x=e.touches[0].clientX;touchRef.y=e.touches[0].clientY
       }
     }
     const onVis=()=>{if(document.hidden){pausedRef.current=true;setPaused(true)}else{pausedRef.current=false;setPaused(false)}}
+    const canvas = canvasRef.current
 
     window.addEventListener('keydown',onKey)
-    canvasRef.current?.addEventListener('touchstart',onTS,{passive:false})
-    canvasRef.current?.addEventListener('touchmove',onTM,{passive:false})
+    canvas?.addEventListener('touchstart',onTS,{passive:false})
+    canvas?.addEventListener('touchmove',onTM,{passive:false})
     document.addEventListener('visibilitychange',onVis)
     window.addEventListener('resize',setup)
 
@@ -376,6 +378,9 @@ function PacmanGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
       clearInterval(pacIntRef.current);clearInterval(ghostIntRef.current)
       cancelAnimationFrame(rafRef.current)
       window.removeEventListener('keydown',onKey)
+      // Fix: remove touch listeners — they were leaking and stacking up on remount
+      canvas?.removeEventListener('touchstart',onTS)
+      canvas?.removeEventListener('touchmove',onTM)
       document.removeEventListener('visibilitychange',onVis)
       window.removeEventListener('resize',setup)
     }

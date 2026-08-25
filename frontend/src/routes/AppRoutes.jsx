@@ -134,6 +134,12 @@ function AppRoutes() {
   } = useAppStore()
   const [isAuthBootstrapComplete, setAuthBootstrapComplete] = useState(false)
 
+  // Keep actions in a ref so effects don't need it as a dependency
+  // (actions changes identity whenever session state updates, which would
+  // cause the bootstrap effect to re-fire mid-session)
+  const actionsRef = useRef(actions)
+  useEffect(() => { actionsRef.current = actions }, [actions])
+
   useEffect(() => {
     const handleStorage = (event) => {
       if (event.key !== 'attend75.authEvent' || !event.newValue) {
@@ -143,7 +149,7 @@ function AppRoutes() {
       try {
         const payload = JSON.parse(event.newValue)
         if (payload?.type === 'logout') {
-          actions.logout()
+          actionsRef.current.logout()
           setAuthBootstrapComplete(true)
         }
       } catch {
@@ -155,7 +161,7 @@ function AppRoutes() {
     return () => {
       window.removeEventListener('storage', handleStorage)
     }
-  }, [actions])
+  }, []) // stable — uses actionsRef.current inside, no deps needed
 
   useEffect(() => {
     if (isAuthBootstrapComplete) {
@@ -183,7 +189,7 @@ function AppRoutes() {
             // Token is still valid — restore session immediately
             const cachedAttendance = loadAttendanceSnapshot()
 
-            actions.setAuthSession({
+            actionsRef.current.setAuthSession({
               id: persistedSession.rollNumber,
               name: persistedSession.name,
               portalName: persistedSession.portalName,
@@ -199,7 +205,7 @@ function AppRoutes() {
             })
 
             if (cachedAttendance) {
-              actions.setAttendanceData(cachedAttendance)
+              actionsRef.current.setAttendanceData(cachedAttendance)
             }
 
             setAuthBootstrapComplete(true)
@@ -234,7 +240,7 @@ function AppRoutes() {
           // Network error — still try to show cached data if available
           const cachedAttendance = loadAttendanceSnapshot()
           if (cachedAttendance && persistedSession.token) {
-            actions.setAuthSession({
+            actionsRef.current.setAuthSession({
               id: persistedSession.rollNumber,
               name: persistedSession.name,
               portalName: persistedSession.portalName,
@@ -248,7 +254,7 @@ function AppRoutes() {
               programFull: persistedSession.programFull || null,
               programSn: persistedSession.programSn || null,
             })
-            actions.setAttendanceData(cachedAttendance)
+            actionsRef.current.setAttendanceData(cachedAttendance)
             setAuthBootstrapComplete(true)
           } else {
             startFirebaseBootstrap()
@@ -288,8 +294,8 @@ function AppRoutes() {
           ])
 
           if (result.linked && result.session) {
-            actions.setAuthSession(result.session)
-            actions.setAttendanceData(result.session.attendanceData)
+            actionsRef.current.setAuthSession(result.session)
+            actionsRef.current.setAttendanceData(result.session.attendanceData)
           }
         } catch {
           // Keep guest path unaffected when Firebase auto-login fails.
@@ -311,7 +317,7 @@ function AppRoutes() {
         cleanupRef.current()
       }
     }
-  }, [actions, isAuthBootstrapComplete, user.isAuthenticated])
+  }, [isAuthBootstrapComplete, user.isAuthenticated]) // removed `actions` — it changes on every session state update causing spurious effect re-runs
 
   return (
     <Suspense fallback={<RouteFallback />}>

@@ -395,16 +395,19 @@ function StackGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
     const ctx = cv.getContext('2d'); if (ctx) render(ctx, st, scaleRef.current)
   }, [onGameEnd, onScoreUpdate])
 
+  const handleDropRef = useRef(handleDrop)
+  useEffect(() => { handleDropRef.current = handleDrop }, [handleDrop])
+
   useEffect(() => {
     setup(); start()
     rafRef.current = requestAnimationFrame(loop)
-    const onKey = (e) => { if (e.code === 'Space') { e.preventDefault(); handleDrop() } }
+    const onKey = (e) => { if (e.code === 'Space') { e.preventDefault(); handleDropRef.current() } }
     window.addEventListener('keydown', onKey)
     const onVis = () => { if (document.hidden) { pausedRef.current = true; setPaused(true) } else { pausedRef.current = false; setPaused(false) } }
     document.addEventListener('visibilitychange', onVis)
     window.addEventListener('resize', setup)
     return () => { cancelAnimationFrame(rafRef.current); window.removeEventListener('keydown', onKey); document.removeEventListener('visibilitychange', onVis); window.removeEventListener('resize', setup) }
-  }, [setup, start, loop, handleDrop])
+  }, [setup, start, loop]) // removed handleDrop — accessed via ref to prevent loop restart
 
   const pRef = useRef(isActive)
   useEffect(() => { if (isActive && !pRef.current) { start(); onScoreUpdate(initialScoreRef.current) }; pRef.current = isActive }, [isActive, start, onScoreUpdate])

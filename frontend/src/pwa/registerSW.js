@@ -30,11 +30,13 @@ export async function initServiceWorker() {
           console.log('[PWA] Service worker registered (dev mode):', swUrl)
         }
 
-        // Check for updates every 5 minutes in production (was 60min — too slow)
+        // Check for updates every 10 minutes in production
         if (registration && !import.meta.env.DEV) {
-          setInterval(() => {
+          const intervalId = setInterval(() => {
             registration.update()
-          }, 5 * 60 * 1000)
+          }, 10 * 60 * 1000)
+          // Clear on page unload so it doesn't trigger a reload mid-session
+          window.addEventListener('beforeunload', () => clearInterval(intervalId), { once: true })
         }
       },
 
