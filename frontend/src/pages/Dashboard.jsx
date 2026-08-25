@@ -203,7 +203,7 @@ function Dashboard() {
   }, [])
 
   const status = useMemo(() => {
-    if (overallPercentage > 75) return 'safe'
+    if (overallPercentage >= 75) return 'safe'
     if (overallPercentage >= 60) return 'borderline'
     return 'danger'
   }, [overallPercentage])
@@ -309,14 +309,15 @@ function Dashboard() {
         : 'Need more classes for 75%.'
 
   // Mobile stats: show only the relevant prediction number — never both together
+  // Use current % vs target to decide: at/above target → canMiss, below → toAttend
   const mobileStats = []
   mobileStats.push({ label: 'Target', value: `${selectedTarget}%`, color: '#6CB4FF' })
   mobileStats.push({ label: 'Attended', value: totals.totalAttended, color: '#4EF0A0' })
   mobileStats.push({ label: 'Classes Left', value: totals.totalClassesLeft, color: '#F7F4FF' })
-  if (prediction.toAttend > 0) {
-    mobileStats.push({ label: 'To Attend', value: prediction.toAttend, color: '#FFB23E' })
-  } else {
+  if (overallPercentage >= selectedTarget) {
     mobileStats.push({ label: 'Can Miss', value: Math.max(0, prediction.canMiss), color: '#4EF0A0' })
+  } else {
+    mobileStats.push({ label: 'To Attend', value: Math.max(0, prediction.toAttend), color: '#FFB23E' })
   }
 
   const mobileTargetPresets = [65, 70, 75, 80, 85]
@@ -427,7 +428,9 @@ function Dashboard() {
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-[#F7F4FF]">
-                {prediction.canMiss > 0 ? `${prediction.canMiss}-day buffer` : `${prediction.toAttend} to attend`}
+                {overallPercentage >= selectedTarget
+                  ? `${prediction.canMiss}-day buffer`
+                  : `${prediction.toAttend} to attend`}
               </p>
               <p className="text-[10px] text-[#9F9AB5]">{subjectsBelowTarget} below target · {mailsSent} mails sent</p>
             </div>
@@ -510,7 +513,9 @@ function Dashboard() {
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-[#F7F4FF]">Target {selectedTarget}%</p>
               <p className="text-[10px] text-[#9F9AB5]">
-                {prediction.canMiss > 0 ? `Can miss ${prediction.canMiss} more` : ''}{prediction.canMiss > 0 && prediction.toAttend > 0 ? ' · ' : ''}{prediction.toAttend > 0 ? `${prediction.toAttend} required attendances` : ''}
+                {overallPercentage >= selectedTarget
+                  ? `Can miss ${Math.max(0, prediction.canMiss)} more classes`
+                  : `${Math.max(0, prediction.toAttend)} required attendances`}
               </p>
             </div>
             <ChevronDown className={`h-4 w-4 text-[#9F9AB5] transition-transform duration-200 ${mobileTargetExpanded ? 'rotate-180' : ''}`} strokeWidth={2} />

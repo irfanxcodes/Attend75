@@ -95,10 +95,11 @@ function AttendanceCircle({
           ['Conducted', totalClasses, '#F7F4FF'],
           ['Attended', totalAttended, '#4EF0A0'],
           ['Classes Left', Math.max(0, classesLeft), '#6CB4FF'],
-          // Show only the relevant prediction: if below target show To Attend, else Can Miss
-          toAttend > 0
-            ? ['To Attend', Math.max(0, toAttend), '#FFB23E']
-            : ['Can Miss', Math.max(0, canMiss), '#4EF0A0'],
+          // Show canMiss when currently at or above target; toAttend when below
+          // This prevents "To Attend 141" confusing a student who is already at 75%
+          percentage >= 75
+            ? ['Can Miss', Math.max(0, canMiss), '#4EF0A0']
+            : ['To Attend', Math.max(0, toAttend), '#FFB23E'],
         ].map(([label, value, color]) => (
           <div key={label}>
             <p className="text-[9px] font-extrabold uppercase tracking-[0.18em] text-[#BDB8CC]">{label}</p>
@@ -109,9 +110,9 @@ function AttendanceCircle({
       {/* Contextual note so the number is never misread */}
       {classesLeft > 0 && (
         <p className="mt-2 text-[9px] text-[#9F9AB5] leading-relaxed">
-          {toAttend > 0
-            ? `Attend ${toAttend} of your next ${classesLeft} classes to reach 75%. You can skip ${Math.max(0, canMiss)}.`
-            : `You can skip up to ${Math.max(0, canMiss)} of your next ${classesLeft} classes and stay above 75%.`
+          {percentage >= 75
+            ? `You can skip up to ${Math.max(0, canMiss)} of your next ${classesLeft} classes and stay above 75%.`
+            : `Attend ${Math.max(0, toAttend)} of your next ${classesLeft} classes to reach 75%. You can skip ${Math.max(0, canMiss)}.`
           }
         </p>
       )}
