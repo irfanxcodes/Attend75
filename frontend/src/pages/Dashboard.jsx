@@ -308,14 +308,16 @@ function Dashboard() {
         ? "Close to the 75% line."
         : 'Need more classes for 75%.'
 
-  // Mobile stats: Target first, then Attended, then canMiss/toAttend based on values
+  // Mobile stats: show only the relevant prediction number — never both together
   const mobileStats = []
   mobileStats.push({ label: 'Target', value: `${selectedTarget}%`, color: '#6CB4FF' })
   mobileStats.push({ label: 'Attended', value: totals.totalAttended, color: '#4EF0A0' })
   mobileStats.push({ label: 'Classes Left', value: totals.totalClassesLeft, color: '#F7F4FF' })
-  if (prediction.canMiss > 0) mobileStats.push({ label: 'Can Miss', value: prediction.canMiss, color: '#4EF0A0' })
-  if (prediction.toAttend > 0) mobileStats.push({ label: 'To Attend', value: prediction.toAttend, color: '#FFB23E' })
-  if (prediction.canMiss <= 0 && prediction.toAttend <= 0) mobileStats.push({ label: 'Can Miss', value: 0, color: '#4EF0A0' })
+  if (prediction.toAttend > 0) {
+    mobileStats.push({ label: 'To Attend', value: prediction.toAttend, color: '#FFB23E' })
+  } else {
+    mobileStats.push({ label: 'Can Miss', value: Math.max(0, prediction.canMiss), color: '#4EF0A0' })
+  }
 
   const mobileTargetPresets = [65, 70, 75, 80, 85]
 

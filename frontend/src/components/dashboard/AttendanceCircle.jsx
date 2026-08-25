@@ -90,13 +90,15 @@ function AttendanceCircle({
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-5 gap-3 border-t border-white/10 pt-3">
+      <div className="mt-3 grid grid-cols-4 gap-3 border-t border-white/10 pt-3">
         {[
           ['Conducted', totalClasses, '#F7F4FF'],
           ['Attended', totalAttended, '#4EF0A0'],
-          ['Can Miss', Math.max(0, canMiss), '#4EF0A0'],
-          ['To Attend', Math.max(0, toAttend), '#FFB23E'],
           ['Classes Left', Math.max(0, classesLeft), '#6CB4FF'],
+          // Show only the relevant prediction: if below target show To Attend, else Can Miss
+          toAttend > 0
+            ? ['To Attend', Math.max(0, toAttend), '#FFB23E']
+            : ['Can Miss', Math.max(0, canMiss), '#4EF0A0'],
         ].map(([label, value, color]) => (
           <div key={label}>
             <p className="text-[9px] font-extrabold uppercase tracking-[0.18em] text-[#BDB8CC]">{label}</p>
@@ -104,6 +106,15 @@ function AttendanceCircle({
           </div>
         ))}
       </div>
+      {/* Contextual note so the number is never misread */}
+      {classesLeft > 0 && (
+        <p className="mt-2 text-[9px] text-[#9F9AB5] leading-relaxed">
+          {toAttend > 0
+            ? `Attend ${toAttend} of your next ${classesLeft} classes to reach 75%. You can skip ${Math.max(0, canMiss)}.`
+            : `You can skip up to ${Math.max(0, canMiss)} of your next ${classesLeft} classes and stay above 75%.`
+          }
+        </p>
+      )}
     </section>
   )
 }
