@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import useAppStore from '../hooks/useAppStore'
 import { parseAdminSession } from '../services/adminApi'
@@ -134,12 +134,6 @@ function AppRoutes() {
   } = useAppStore()
   const [isAuthBootstrapComplete, setAuthBootstrapComplete] = useState(false)
 
-  // Keep actions in a ref so effects don't need it as a dependency
-  // (actions changes identity whenever session state updates, which would
-  // cause the bootstrap effect to re-fire mid-session)
-  const actionsRef = useRef(actions)
-  useEffect(() => { actionsRef.current = actions }, [actions])
-
   useEffect(() => {
     const handleStorage = (event) => {
       if (event.key !== 'attend75.authEvent' || !event.newValue) {
@@ -149,7 +143,7 @@ function AppRoutes() {
       try {
         const payload = JSON.parse(event.newValue)
         if (payload?.type === 'logout') {
-          actionsRef.current.logout()
+          actions.logout()
           setAuthBootstrapComplete(true)
         }
       } catch {
@@ -161,7 +155,7 @@ function AppRoutes() {
     return () => {
       window.removeEventListener('storage', handleStorage)
     }
-  }, []) // stable — uses actionsRef.current inside, no deps needed
+  }, [actions])
 
   useEffect(() => {
     if (isAuthBootstrapComplete) {
@@ -189,7 +183,7 @@ function AppRoutes() {
             // Token is still valid — restore session immediately
             const cachedAttendance = loadAttendanceSnapshot()
 
-            actionsRef.current.setAuthSession({
+            actions.setAuthSession({
               id: persistedSession.rollNumber,
               name: persistedSession.name,
               portalName: persistedSession.portalName,
@@ -205,7 +199,7 @@ function AppRoutes() {
             })
 
             if (cachedAttendance) {
-              actionsRef.current.setAttendanceData(cachedAttendance)
+              actions.setAttendanceData(cachedAttendance)
             }
 
             setAuthBootstrapComplete(true)
@@ -240,7 +234,7 @@ function AppRoutes() {
           // Network error — still try to show cached data if available
           const cachedAttendance = loadAttendanceSnapshot()
           if (cachedAttendance && persistedSession.token) {
-            actionsRef.current.setAuthSession({
+            actions.setAuthSession({
               id: persistedSession.rollNumber,
               name: persistedSession.name,
               portalName: persistedSession.portalName,
@@ -254,7 +248,7 @@ function AppRoutes() {
               programFull: persistedSession.programFull || null,
               programSn: persistedSession.programSn || null,
             })
-            actionsRef.current.setAttendanceData(cachedAttendance)
+            actions.setAttendanceData(cachedAttendance)
             setAuthBootstrapComplete(true)
           } else {
             startFirebaseBootstrap()
@@ -294,8 +288,8 @@ function AppRoutes() {
           ])
 
           if (result.linked && result.session) {
-            actionsRef.current.setAuthSession(result.session)
-            actionsRef.current.setAttendanceData(result.session.attendanceData)
+            actions.setAuthSession(result.session)
+            actions.setAttendanceData(result.session.attendanceData)
           }
         } catch {
           // Keep guest path unaffected when Firebase auto-login fails.
@@ -317,7 +311,7 @@ function AppRoutes() {
         cleanupRef.current()
       }
     }
-  }, [isAuthBootstrapComplete, user.isAuthenticated]) // removed `actions` — it changes on every session state update causing spurious effect re-runs
+  }, [actions, isAuthBootstrapComplete, user.isAuthenticated])
 
   return (
     <Suspense fallback={<RouteFallback />}>
