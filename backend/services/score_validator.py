@@ -14,13 +14,14 @@ from db.models.game_score import GameScore
 
 # --- Configuration ---
 
-REGISTERED_GAMES: set[str] = {"flappy", "pacman", "stack", "geodash"}
+REGISTERED_GAMES: set[str] = {"flappy", "pacman", "stack", "geodash", "snake"}
 
 GAME_MAX_SCORES: dict[str, int] = {
     "flappy": 999,
     "pacman": 999999,  # scores scale with levels; real players regularly exceed 50k — cap at anti-cheat ceiling
     "stack": 200,
     "geodash": 99999,  # score = floor(dist/10), unbounded run — cap at a generous anti-cheat ceiling
+    "snake": 9999,     # matches frontend maxScore cap
 }
 
 DUPLICATE_WINDOW_SECONDS: int = 5
