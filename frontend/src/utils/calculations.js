@@ -62,20 +62,20 @@ export function calculateClassesToAttend(attendedClasses, totalClasses, targetPe
   const left = safeNumber(classesLeft)
   const target = safeNumber(targetPercentage) / 100
 
-  if (target <= 0 || target >= 1) {
-    return 0
-  }
+  if (target <= 0 || target >= 1) return 0
+  if (conducted <= 0) return 0
 
-  // Total semester sessions = classes conducted so far + remaining
-  const totalSessions = conducted + left
+  // "How many consecutive classes must I attend to reach target% of conducted?"
+  // (attended + x) / (conducted + x) = target
+  // → x = (target * conducted - attended) / (1 - target)
+  // This answers the student's real question: attend X more in a row → your % hits target
+  const needed = (target * conducted - attended) / (1 - target)
 
-  if (totalSessions <= 0) return 0
+  // If already at or above target, no classes needed
+  if (needed <= 0) return 0
 
-  // How many of the remaining classes must be attended to hit the target?
-  // (attended + x) / totalSessions >= target  →  x >= target * totalSessions - attended
-  const needed = target * totalSessions - attended
-  // Cap at classesLeft — can't attend more than what's remaining
-  return Math.min(left, Math.max(0, Math.ceil(needed)))
+  // Cap at classesLeft — can't attend more than what remains
+  return Math.min(left, Math.ceil(needed))
 }
 
 export function calculateClassesCanMiss(attendedClasses, totalClasses, targetPercentage, classesLeft = 0) {
@@ -84,18 +84,14 @@ export function calculateClassesCanMiss(attendedClasses, totalClasses, targetPer
   const left = safeNumber(classesLeft)
   const target = safeNumber(targetPercentage) / 100
 
-  if (target <= 0) {
-    return 0
-  }
+  if (target <= 0) return 0
+  if (conducted <= 0) return 0
 
-  // Total semester sessions = conducted + remaining
-  const totalSessions = conducted + left
-
-  if (totalSessions <= 0) return 0
-
-  // How many of the remaining classes can be skipped while still hitting the target?
-  // (attended + (left - x)) / totalSessions >= target  →  x <= attended + left - target * totalSessions
-  const canMiss = Math.floor(attended + left - target * totalSessions)
+  // "How many of the upcoming classes can I skip while staying at ≥ target%?"
+  // After skipping x and attending rest: (attended + left - x) / (conducted + left) >= target
+  // → x <= attended + left - target * (conducted + left)
+  const total = conducted + left
+  const canMiss = Math.floor(attended + left - target * total)
   return Math.max(0, canMiss)
 }
 

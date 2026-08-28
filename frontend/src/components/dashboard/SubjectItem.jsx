@@ -139,8 +139,12 @@ function SubjectItem({ subject }) {
   const conductedClasses = Number(subject.totalClasses) || 0
   const totalSessions = conductedClasses + leftClasses
   const targetRatio = 0.75
+  // toAttend: consecutive classes to reach 75% of conducted
+  const toAttend = conductedClasses > 0
+    ? Math.min(leftClasses, Math.max(0, Math.ceil((targetRatio * conductedClasses - attendedClasses) / (1 - targetRatio))))
+    : 0
+  // canMiss: classes that can be skipped while still ending semester at 75%
   const canMiss = Math.max(0, Math.floor(attendedClasses + leftClasses - targetRatio * totalSessions))
-  const toAttend = Math.min(leftClasses, Math.max(0, Math.ceil(targetRatio * totalSessions - attendedClasses)))
   const shortName = subject.shortName || subject.id?.toUpperCase?.() || subject.name.slice(0, 4).toUpperCase()
   const maxPossible = subject.maxPossiblePercentage
   const isUnreachable = maxPossible !== null && maxPossible !== undefined && maxPossible < 75

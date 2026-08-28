@@ -32,6 +32,7 @@ const Premium = lazy(() => import('../pages/Premium'))
 const ArcadeHome = lazy(() => import('../pages/ArcadeHome'))
 const ArcadeGamePage = lazy(() => import('../pages/ArcadeGamePage'))
 const FaceRater = lazy(() => import('../pages/FaceRater'))
+const CareerCompass = lazy(() => import('../pages/CareerCompass'))
 
 function RouteFallback({ message = 'Loading page...' }) {
   return (
@@ -347,6 +348,7 @@ function AppRoutes() {
           <Route path="arcade" element={<ArcadeHome />} />
           <Route path="arcade/:gameSlug" element={<ArcadeGamePage />} />
           <Route path="mog" element={<FaceRater />} />
+          <Route path="career" element={<CareerCompass />} />
           <Route path="notification-settings" element={<NotificationSettings />} />
           <Route path="notifications" element={<NotificationHistory />} />
         </Route>

@@ -22,6 +22,7 @@ from fastapi import Request
 from fastapi.staticfiles import StaticFiles
 
 from db.session import init_database
+from career.router import router as career_router
 from routers.advertisement import router as advertisement_router
 from routers.arcade import router as arcade_router
 from routers.auth import router as auth_router
@@ -233,6 +234,7 @@ async def health_check():
     return {"status": "success", "message": "Backend is running", "data": {}}
 
 
+app.include_router(career_router)
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(advertisement_router)

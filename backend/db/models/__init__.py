@@ -42,6 +42,9 @@ from db.models.notes_problem_set import NotesProblemSet
 from db.models.notes_problem import NotesProblem
 from db.models.notes_solution_step import NotesSolutionStep
 
+# Career Compass models
+from db.models.career_profile import CareerProfile
+
 __all__ = [
     "AttendanceAlertState",
     "FaceRaterScore",
@@ -81,4 +84,6 @@ __all__ = [
     "NotesProblemSet",
     "NotesProblem",
     "NotesSolutionStep",
+    # Career Compass
+    "CareerProfile",
 ]
