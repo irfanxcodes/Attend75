@@ -229,7 +229,7 @@ function buildSection(si) {
       blk(16,2); spk(20); spk(21);
       cspk(25); cspk(26);
       spk(30); spk(31); spk(32);
-      blk(38,3); spk(43); spk(44);
+      blk(38,2); spk(43); spk(44);
       cspk(48); cspk(49);
       spk(53); spk(54); spk(55);
     }
