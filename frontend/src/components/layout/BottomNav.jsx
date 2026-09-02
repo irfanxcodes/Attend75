@@ -8,7 +8,7 @@ const navItems = [
   { label: 'History', to: '/app/history',   icon: '/history-icon.svg' },
   { label: 'Study',   to: '/app/study',     icon: null, useInlineSvg: 'study' },
   { label: 'Notices', to: '/app/notices',   icon: '/notices-icon.svg' },
-  { label: 'Career',  to: '/app/career',    icon: null, useInlineSvg: 'career' },
+  { label: 'Marks',   to: '/app/marks',     icon: '/marks.png' },
   { label: 'Me',      to: '/app/profile',   icon: '/profile-icon.svg' },
 ]
 
@@ -82,7 +82,7 @@ function BottomNav() {
         <div className="mx-auto max-w-md rounded-2xl border border-white/10 bg-[#2D2845]/95 px-2 py-1.5 shadow-[0_-4px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl">
           <ul className="grid grid-cols-6">
             {navItems.map((item) => (
-              <li key={item.to} data-walkthrough={item.to.endsWith('/history') ? 'nav-history' : item.to.endsWith('/study') ? 'nav-study' : item.to.endsWith('/notices') ? 'nav-notices' : item.to.endsWith('/career') ? 'nav-career' : undefined}>
+              <li key={item.to} data-walkthrough={item.to.endsWith('/history') ? 'nav-history' : item.to.endsWith('/study') ? 'nav-study' : item.to.endsWith('/notices') ? 'nav-notices' : item.to.endsWith('/marks') ? 'nav-marks' : undefined}>
                 {item.to.endsWith('/study') ? (
                   <button
                     type="button"
@@ -102,30 +102,6 @@ function BottomNav() {
                     </span>
                     <span>{item.label}</span>
                   </button>
-                ) : item.useInlineSvg === 'career' ? (
-                  <NavLink
-                    to={item.to}
-                    className={({ isActive }) =>
-                      [
-                        'flex flex-col items-center justify-center gap-0.5 rounded-xl py-2 text-[10px] font-semibold leading-none transition-colors',
-                        isActive ? 'text-[#FF916C]' : 'text-[#9F9AB5] active:text-[#FF916C]',
-                      ].join(' ')
-                    }
-                  >
-                    {({ isActive }) => (
-                      <>
-                        <span className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${isActive ? 'bg-[#FF916C]/20' : ''}`}>
-                          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="2" y="7" width="20" height="14" rx="2" />
-                            <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
-                            <line x1="12" y1="12" x2="12" y2="12.01" strokeWidth="3" />
-                            <path d="M2 12h8M14 12h8" />
-                          </svg>
-                        </span>
-                        <span>{item.label}</span>
-                      </>
-                    )}
-                  </NavLink>
                 ) : (
                   <NavLink
                     to={item.to}
