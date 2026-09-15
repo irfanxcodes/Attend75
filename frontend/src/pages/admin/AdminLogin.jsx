@@ -12,7 +12,7 @@ function AdminLogin() {
   useEffect(() => {
     const existingSession = parseAdminSession()
     if (existingSession?.sessionToken) {
-      navigate('/admin', { replace: true })
+      navigate('/bunk', { replace: true })
     }
   }, [navigate])
 
@@ -23,7 +23,7 @@ function AdminLogin() {
       setError('')
       setIsSubmitting(true)
       await loginAdminWithPassword(username, password)
-      navigate('/admin', { replace: true })
+      navigate('/bunk', { replace: true })
     } catch (requestError) {
       setError(requestError.message || 'Unable to sign in as admin.')
     } finally {

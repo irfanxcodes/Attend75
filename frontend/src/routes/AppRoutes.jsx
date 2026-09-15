@@ -99,7 +99,7 @@ function PublicLoginRoute({ isAuthBootstrapComplete }) {
 function AdminProtectedRoute() {
   const session = parseAdminSession()
   if (!session?.sessionToken) {
-    return <Navigate to="/admin/login" replace />
+    return <Navigate to="/bunk/login" replace />
   }
 
   return <AdminDashboard />
@@ -108,7 +108,7 @@ function AdminProtectedRoute() {
 function AdminPublicRoute() {
   const session = parseAdminSession()
   if (session?.sessionToken) {
-    return <Navigate to="/admin" replace />
+    return <Navigate to="/bunk" replace />
   }
 
   return <AdminLogin />
@@ -319,8 +319,8 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<Splash />} />
         <Route path="/login" element={<PublicLoginRoute isAuthBootstrapComplete={isAuthBootstrapComplete} />} />
-        <Route path="/admin/login" element={<AdminPublicRoute />} />
-        <Route path="/admin" element={<AdminProtectedRoute />} />
+        <Route path="/bunk/login" element={<AdminPublicRoute />} />
+        <Route path="/bunk" element={<AdminProtectedRoute />} />
         <Route path="/loading" element={<Loading />} />
         <Route path="/dashboard" element={<Navigate to="/app/dashboard" replace />} />
         <Route path="/history" element={<Navigate to="/app/history" replace />} />

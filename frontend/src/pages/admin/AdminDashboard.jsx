@@ -75,7 +75,7 @@ function AdminDashboard() {
       // Proceed with local logout regardless
     }
     clearAdminSession()
-    navigate('/admin/login', { replace: true })
+    navigate('/bunk/login', { replace: true })
   }
 
   const handleNavigate = (sectionId) => {
