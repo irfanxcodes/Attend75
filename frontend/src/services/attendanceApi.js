@@ -61,19 +61,24 @@ function buildFriendlyMessage(endpoint, code, fallbackMessage) {
     return 'The college portal is taking too long to respond. Please try again in a few minutes.'
   }
 
-  if (endpoint === 'login') {
-    if (normalizedCode === 'INVALID_USERNAME') {
-      return 'Invalid username or roll number. Please check and try again.'
+    if (endpoint === 'login') {
+      if (normalizedCode === 'INVALID_USERNAME') {
+        return 'Invalid username or roll number. Please check and try again.'
+      }
+      if (normalizedCode === 'INCORRECT_PASSWORD') {
+        return 'Incorrect password. Please try again.'
+      }
+      if (normalizedCode === 'LOGIN_FAILED') {
+        return 'The college portal dropped the session. Please try again.'
+      }
+      if (normalizedCode === 'LOGIN_REQUEST_HTTP_403') {
+        return 'The college portal blocked this request. Please try again in a moment.'
+      }
+      if (normalizedCode === 'LOGIN_REQUEST_HTTP_500') {
+        return 'The college portal returned an error. Please try again in a few minutes.'
+      }
+      return 'Something went wrong. Please try again.'
     }
-    if (normalizedCode === 'INCORRECT_PASSWORD') {
-      return 'Incorrect password. Please try again.'
-    }
-    if (normalizedCode === 'DATA_FETCH_FAILED' || normalizedCode === 'LOGIN_FAILED') {
-      // Check if the HTTP status suggests a server-side issue vs credential issue
-      return 'Login failed. Please verify your credentials and try again.'
-    }
-    return 'Login failed. Please verify your credentials and try again.'
-  }
 
   if (endpoint === 'attendance' || endpoint === 'attendance-history' || endpoint === 'session-status') {
     if (normalizedCode.startsWith('SESSION_EXPIRED')) {

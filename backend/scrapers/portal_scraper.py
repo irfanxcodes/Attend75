@@ -38,7 +38,8 @@ class PortalNetworkError(Exception):
 
 
 class PortalScraper:
-    PASSWORD_MAX_LENGTH = 10
+    # No password length limit — the portal's maxlength="10" HTML attribute is
+    # browser-only and the server accepts passwords of any length.
 
     def __init__(self, session: requests.Session | None = None):
         self._logger = logging.getLogger(__name__)
@@ -201,43 +202,31 @@ class PortalScraper:
                     if payload.get("attendance") is None:
                         payload["attendance"] = []
 
-        # Run courses map fetch in parallel with semester switch — both are
-        # independent portal requests so doing them concurrently saves ~1-2s.
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            courses_future = executor.submit(
-                self._safe_fetch_courses_map, payload.get("selected_semester")
-            )
+        # Semester switch if portal defaulted to an older semester
+        login_semesters = payload.get("semesters", [])
+        login_selected = payload.get("selected_semester")
+        if login_semesters and login_selected:
+            _skip_kw = {"compre", "makeup", "back", "ex", "st -", "st-"}
+            regular_sems = [
+                s for s in login_semesters
+                if not any(kw in s["label"].lower() for kw in _skip_kw)
+            ]
+            latest_sem_id = max(
+                regular_sems or login_semesters,
+                key=lambda s: int(s["id"]),
+            )["id"]
+            if latest_sem_id != login_selected:
+                switched_html = self._switch_semester(
+                    attendance_response.text,
+                    self._build_url("CommonS.aspx?qs=ap"),
+                    latest_sem_id,
+                )
+                if switched_html:
+                    payload = self._build_attendance_payload(switched_html)
+                    if payload.get("attendance") is None:
+                        payload["attendance"] = []
 
-            # Semester switch if portal defaulted to an older semester
-            login_semesters = payload.get("semesters", [])
-            login_selected = payload.get("selected_semester")
-            switched_html = None
-            if login_semesters and login_selected:
-                _skip_kw = {"compre", "makeup", "back", "ex", "st -", "st-"}
-                regular_sems = [
-                    s for s in login_semesters
-                    if not any(kw in s["label"].lower() for kw in _skip_kw)
-                ]
-                latest_sem_id = max(
-                    regular_sems or login_semesters,
-                    key=lambda s: int(s["id"]),
-                )["id"]
-                if latest_sem_id != login_selected:
-                    switch_future = executor.submit(
-                        self._switch_semester,
-                        attendance_response.text,
-                        self._build_url("CommonS.aspx?qs=ap"),
-                        latest_sem_id,
-                    )
-                    switched_html = switch_future.result()
-
-            courses_map = courses_future.result()
-
-        if switched_html:
-            payload = self._build_attendance_payload(switched_html)
-            if payload.get("attendance") is None:
-                payload["attendance"] = []
+        courses_map = self._safe_fetch_courses_map(payload.get("selected_semester"))
 
         payload["attendance"] = self._merge_attendance_with_total_sessions(
             payload.get("attendance", []),
@@ -1070,7 +1059,9 @@ class PortalScraper:
         return any("index.aspx" in target for target in redirect_targets) or "index.aspx" in final_url
 
     def _normalize_password(self, password: str) -> str:
-        return (password or "")[: self.PASSWORD_MAX_LENGTH]
+        # Return password as-is — no truncation. The portal's maxlength="10"
+        # is a browser HTML hint only; the server accepts longer passwords.
+        return password or ""
 
     def _has_authenticated_session(self) -> bool:
         cookie_names = {cookie.name for cookie in self.session.cookies}
@@ -1102,12 +1093,14 @@ class PortalScraper:
         sdb_url = self._build_url("SDB.aspx")
         attendance_url = self._build_url("CommonS.aspx?qs=ap")
 
+        # Use a longer timeout for post-login navigation to account for proxy latency.
+        nav_timeout = max(self.request_timeout, 20.0)
+
         try:
-            # Step 1: Index.aspx must come first — it sets session cookies and
-            # contains the student name, photo, and program dropdown.
+            # Step 1: Index.aspx — sets session cookies, student name, programs.
             index_response = self.session.get(
                 index_url,
-                timeout=self.request_timeout,
+                timeout=nav_timeout,
                 headers={"Referer": login_url},
             )
             index_response.raise_for_status()
@@ -1115,24 +1108,20 @@ class PortalScraper:
             student_photo_url = self._extract_student_photo(index_response.text)
             programs, selected_program = self._extract_programs(index_response.text)
 
-            # Step 2: SDB.aspx and CommonS.aspx don't depend on each other —
-            # fire them in parallel to save ~1-2s.
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                sdb_future = executor.submit(
-                    self.session.get,
-                    sdb_url,
-                    **{"timeout": self.request_timeout, "headers": {"Referer": index_url}},
-                )
-                attendance_future = executor.submit(
-                    self.session.get,
-                    attendance_url,
-                    **{"timeout": self.request_timeout, "headers": {"Referer": index_url}},
-                )
-                sdb_response = sdb_future.result()
-                attendance_response = attendance_future.result()
-
+            # Step 2: SDB.aspx — primes session state for attendance access.
+            sdb_response = self.session.get(
+                sdb_url,
+                timeout=nav_timeout,
+                headers={"Referer": index_url},
+            )
             sdb_response.raise_for_status()
+
+            # Step 3: Attendance page.
+            attendance_response = self.session.get(
+                attendance_url,
+                timeout=nav_timeout,
+                headers={"Referer": index_url},
+            )
             attendance_response.raise_for_status()
 
             return {
