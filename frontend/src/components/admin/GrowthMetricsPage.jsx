@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import PhotoLightbox from './PhotoLightbox'
 
 function formatNumber(num) {
   if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
@@ -138,7 +137,6 @@ function DAUWAUMAUChart({ dauTrend }) {
 
 function UsersTable({ usersTable, sessionToken, onRefresh }) {
   const avatarColors = ['#FF5B5B', '#FF916C', '#6CB4FF', '#4EF0A0', '#A78BFA', '#FFB23E', '#F472B6', '#34D399']
-  const [lightboxPhoto, setLightboxPhoto] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('recent') // 'recent' | 'az' | 'za'
@@ -257,10 +255,7 @@ function UsersTable({ usersTable, sessionToken, onRefresh }) {
                 <td className="py-3 pr-4 text-[#7a6f94]">{user.serialNo || i + 1}</td>
                 <td className="py-3 pr-4">
                   <div className="flex items-center gap-2.5">
-                    {user.photoUrl ? (
-                      <img src={user.photoUrl} alt="" className="h-8 w-8 cursor-pointer rounded-full object-cover ring-1 ring-white/10 transition hover:ring-[#FF916C]/50" onClick={() => setLightboxPhoto({ src: user.photoUrl, name: user.name })} onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex' }} />
-                    ) : null}
-                    <div className={`h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-[#1e1932] ${user.photoUrl ? 'hidden' : 'flex'}`} style={{ backgroundColor: avatarColors[i % avatarColors.length] }}>
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-[#1e1932]" style={{ backgroundColor: avatarColors[i % avatarColors.length] }}>
                       {getInitials(user.name)}
                     </div>
                     <div>
@@ -310,9 +305,6 @@ function UsersTable({ usersTable, sessionToken, onRefresh }) {
         </table>
       </div>
 
-      {lightboxPhoto ? (
-        <PhotoLightbox src={lightboxPhoto.src} name={lightboxPhoto.name} onClose={() => setLightboxPhoto(null)} />
-      ) : null}
     </div>
   )
 }

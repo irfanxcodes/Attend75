@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import InstagramButton from '../components/common/InstagramButton'
 import useAppStore from '../hooks/useAppStore'
@@ -66,6 +66,38 @@ function LoadingSpinner() {
 function Login() {
   const navigate = useNavigate()
   const { actions } = useAppStore()
+
+  // Rotating messages shown while signing in — keeps the user engaged
+  const SIGNING_IN_MESSAGES = [
+    'Signing in...',
+    'Give us a sec...',
+    'Fetching your data...',
+    'Almost there...',
+    'Talking to the portal...',
+    'Hang tight...',
+    'Loading your attendance...',
+    'Just a moment...',
+  ]
+  const [signingInMessage, setSigningInMessage] = useState(SIGNING_IN_MESSAGES[0])
+  const messageIndexRef = useRef(0)
+  const messageTimerRef = useRef(null)
+
+  function startMessageCycle() {
+    messageIndexRef.current = 0
+    setSigningInMessage(SIGNING_IN_MESSAGES[0])
+    messageTimerRef.current = window.setInterval(() => {
+      messageIndexRef.current = (messageIndexRef.current + 1) % SIGNING_IN_MESSAGES.length
+      setSigningInMessage(SIGNING_IN_MESSAGES[messageIndexRef.current])
+    }, 2500)
+  }
+
+  function stopMessageCycle() {
+    if (messageTimerRef.current) {
+      window.clearInterval(messageTimerRef.current)
+      messageTimerRef.current = null
+    }
+    setSigningInMessage(SIGNING_IN_MESSAGES[0])
+  }
   const [form, setForm] = useState(() => {
     // Load saved credentials if "Remember me" was checked
     try {
@@ -121,6 +153,7 @@ function Login() {
     try {
       setError('')
       setIsSubmitting(true)
+      startMessageCycle()
       const session = await login(form)
 
       // Save or clear credentials based on "Remember me"
@@ -137,6 +170,7 @@ function Login() {
       setError(requestError.message)
     } finally {
       setIsSubmitting(false)
+      stopMessageCycle()
     }
   }
 
@@ -322,7 +356,9 @@ function Login() {
               disabled={isSubmitting}
               className="h-[46px] w-full rounded-full bg-[#F59B74] text-sm font-semibold text-[#1D183E] transition hover:brightness-105 active:scale-[0.99] disabled:opacity-60"
             >
-              {isSubmitting ? 'Signing in...' : 'Sign in'}
+              <span key={signingInMessage} className="animate-fade-in">
+                {isSubmitting ? signingInMessage : 'Sign in'}
+              </span>
             </button>
 
             <div className="flex items-center gap-2 text-[11px] text-[#B7AECF]">
@@ -444,7 +480,7 @@ function Login() {
             <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-[#E7D2B0]">
               <LoadingSpinner />
             </div>
-            <p className="text-sm font-semibold tracking-wide text-[#2F254D]">Signing you in...</p>
+            <p className="text-sm font-semibold tracking-wide text-[#2F254D]">{isSubmitting ? signingInMessage : 'Signing you in...'}</p>
             <p className="mt-1 text-xs text-[#5A4E77]">Please wait while we set up your account.</p>
           </div>
         </div>

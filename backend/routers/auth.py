@@ -29,6 +29,7 @@ def _login_error_response(error_code: str) -> JSONResponse:
         "LOGIN_FAILED": "Login failed. Please verify your credentials and try again.",
         "PORTAL_UNREACHABLE": "The college portal is currently down or not responding. Please try again later.",
         "PORTAL_TIMEOUT": "The college portal is taking too long to respond. Please try again in a few minutes.",
+        "CAPTCHA_SOLVE_FAILED": "Could not solve the login captcha automatically. Please try again.",
     }
     status_code = 502 if error_code in ("PORTAL_UNREACHABLE", "PORTAL_TIMEOUT") else 401
     return JSONResponse(
