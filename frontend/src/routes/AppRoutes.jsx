@@ -33,6 +33,7 @@ const ArcadeHome = lazy(() => import('../pages/ArcadeHome'))
 const ArcadeGamePage = lazy(() => import('../pages/ArcadeGamePage'))
 const FaceRater = lazy(() => import('../pages/FaceRater'))
 const CareerCompass = lazy(() => import('../pages/CareerCompass'))
+const Terms = lazy(() => import('../pages/Terms'))
 
 function RouteFallback({ message = 'Loading page...' }) {
   return (
@@ -319,6 +320,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<Splash />} />
         <Route path="/login" element={<PublicLoginRoute isAuthBootstrapComplete={isAuthBootstrapComplete} />} />
+        <Route path="/terms" element={<Terms />} />
         <Route path="/bunk/login" element={<AdminPublicRoute />} />
         <Route path="/bunk" element={<AdminProtectedRoute />} />
         <Route path="/loading" element={<Loading />} />

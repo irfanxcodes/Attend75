@@ -408,6 +408,11 @@ function Login() {
             <span className="text-[11px] text-[#B7AECF]">Follow us on</span>
             <InstagramButton className="h-7 w-7 bg-[#5B5485]" iconClassName="h-3.5 w-3.5" />
           </div>
+          <div className="mt-3">
+            <a href="/terms" className="text-[11px] text-[#7A6F94] underline underline-offset-2 hover:text-[#B7AECF] transition">
+              Terms &amp; Conditions
+            </a>
+          </div>
         </div>
       </div>
 
