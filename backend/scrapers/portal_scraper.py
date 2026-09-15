@@ -38,8 +38,10 @@ class PortalNetworkError(Exception):
 
 
 class PortalScraper:
-    # No password length limit — the portal's maxlength="10" HTML attribute is
-    # browser-only and the server accepts passwords of any length.
+    # The IBS portal enforces maxlength=10 server-side for passwords.
+    # The browser silently truncates longer passwords to 10 chars before submitting,
+    # so we must do the same or login will fail for passwords longer than 10 chars.
+    PASSWORD_MAX_LENGTH = 10
 
     def __init__(self, session: requests.Session | None = None):
         self._logger = logging.getLogger(__name__)
@@ -1059,8 +1061,6 @@ class PortalScraper:
         return any("index.aspx" in target for target in redirect_targets) or "index.aspx" in final_url
 
     def _normalize_password(self, password: str) -> str:
-        # Return password as-is — no truncation. The portal's maxlength="10"
-        # is a browser HTML hint only; the server accepts longer passwords.
         return password or ""
 
     def _has_authenticated_session(self) -> bool:
