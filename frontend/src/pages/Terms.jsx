@@ -122,23 +122,10 @@ function Terms() {
             </div>
 
             <div>
-              <h2 className="mb-2 text-base font-semibold text-[#F5F5F5]">9. Changes to These Terms</h2>
+              <h2 className="mb-2 text-base font-semibold text-[#F5F5F5]">10. Changes to These Terms</h2>
               <p>
                 These terms may be updated at any time. Continued use of Attend75 after changes
                 constitutes acceptance of the updated terms.
-              </p>
-            </div>
-
-            <div>
-              <h2 className="mb-2 text-base font-semibold text-[#F5F5F5]">10. Contact</h2>
-              <p>
-                For any questions or concerns, contact us at{' '}
-                <a
-                  href="mailto:irfanxcodes@gmail.com"
-                  className="text-[#F2A07A] underline underline-offset-2"
-                >
-                  irfanxcodes@gmail.com
-                </a>
               </p>
             </div>
 
