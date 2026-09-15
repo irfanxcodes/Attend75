@@ -360,6 +360,12 @@ function Login() {
                 {isSubmitting ? signingInMessage : 'Sign in'}
               </span>
             </button>
+            <p className="text-center text-[10px] text-[#7A6F94]">
+              By signing in you agree to our{' '}
+              <a href="/terms" className="text-[#B7AECF] underline underline-offset-2 hover:text-[#F2A07A] transition">
+                Terms &amp; Conditions
+              </a>
+            </p>
 
             <div className="flex items-center gap-2 text-[11px] text-[#B7AECF]">
               <span className="h-px flex-1 bg-white/20" />
