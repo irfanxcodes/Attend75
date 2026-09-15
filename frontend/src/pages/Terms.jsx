@@ -51,14 +51,23 @@ function Terms() {
             <div>
               <h2 className="mb-2 text-base font-semibold text-[#F5F5F5]">3. Your Credentials, Your Responsibility</h2>
               <p>
-                When you enter your portal login credentials, you are authorising Attend75 to access your
-                own data on your behalf — in the same way you would if you logged in yourself. You are
-                solely responsible for the decision to share your credentials with this app.
+                When you enter your portal login credentials, you are authorising Attend75 to act on
+                your behalf and retrieve your own academic data — the same data you would see if you
+                logged into the portal yourself. You are solely responsible for the decision to grant
+                this access.
               </p>
               <p className="mt-2">
-                Your password is encrypted before storage and is never shared with any third party.
-                However, you use this app at your own risk. We strongly recommend using Attend75 only
-                on trusted devices.
+                Your password is used solely to authenticate with your college portal in real time.
+                For standard sign-in, it is not retained on our systems after your session is
+                established — it passes through, does the job, and is not kept.
+              </p>
+              <p className="mt-2">
+                If you sign in as a <span className="font-semibold text-[#F2A07A]">Guest (Explore as Guest)</span>,
+                no credentials are involved and no personal data of any kind is collected or retained.
+              </p>
+              <p className="mt-2">
+                You use this app at your own risk. We strongly recommend using Attend75 only on
+                trusted, personal devices.
               </p>
             </div>
 
