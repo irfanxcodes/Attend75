@@ -26,23 +26,17 @@ def _login_error_response(error_code: str) -> JSONResponse:
     message_map = {
         "INVALID_USERNAME": "Invalid username or roll number. Please check and try again.",
         "INCORRECT_PASSWORD": "Incorrect password. Please try again.",
-        "LOGIN_FAILED": "The college portal dropped the session mid-login. Please try again.",
+        "LOGIN_FAILED": "Login failed. Please verify your credentials and try again.",
         "PORTAL_UNREACHABLE": "The college portal is currently down or not responding. Please try again later.",
         "PORTAL_TIMEOUT": "The college portal is taking too long to respond. Please try again in a few minutes.",
-        "CAPTCHA_SOLVE_FAILED": "Could not solve the login captcha automatically. Please try again.",
-        "LOGIN_REQUEST_HTTP_403": "The college portal blocked this request. Please try again in a moment.",
-        "LOGIN_REQUEST_HTTP_500": "The college portal returned an error. Please try again in a few minutes.",
     }
-    status_code = 502 if error_code in (
-        "PORTAL_UNREACHABLE", "PORTAL_TIMEOUT",
-        "LOGIN_REQUEST_HTTP_403", "LOGIN_REQUEST_HTTP_500",
-    ) else 401
+    status_code = 502 if error_code in ("PORTAL_UNREACHABLE", "PORTAL_TIMEOUT") else 401
     return JSONResponse(
         status_code=status_code,
         content={
             "status": "error",
             "error_code": error_code,
-            "message": message_map.get(error_code, "Something went wrong. Please try again."),
+            "message": message_map.get(error_code, "Login failed. Please verify your credentials and try again."),
         },
     )
 

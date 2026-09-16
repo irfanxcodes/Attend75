@@ -9,10 +9,6 @@ from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
 
-from services.captcha_solver import CaptchaSolveError, fetch_and_solve
-from services.proxy_rotator import get_rotator
-
-
 
 class PortalAuthenticationError(Exception):
     def __init__(self, message: str, code: str = "AUTH_FAILED"):
@@ -38,20 +34,11 @@ class PortalNetworkError(Exception):
 
 
 class PortalScraper:
-    # The IBS portal enforces maxlength=10 server-side for passwords.
-    # The browser silently truncates longer passwords to 10 chars before submitting,
-    # so we must do the same or login will fail for passwords longer than 10 chars.
     PASSWORD_MAX_LENGTH = 10
 
     def __init__(self, session: requests.Session | None = None):
         self._logger = logging.getLogger(__name__)
         self.session = session or requests.Session()
-
-        # Apply a rotating proxy if configured (PORTAL_PROXIES env var)
-        if session is None:
-            proxy_dict = get_rotator().next_proxy_dict()
-            if proxy_dict:
-                self.session.proxies.update(proxy_dict)
         self.base_url = os.getenv("PORTAL_BASE_URL", "http://111.93.16.209/sz")
         self.login_path = os.getenv("PORTAL_LOGIN_PATH", "login.aspx")
         self.request_timeout = float(os.getenv("PORTAL_REQUEST_TIMEOUT_SECONDS", "15"))
@@ -119,11 +106,6 @@ class PortalScraper:
             # Portal has Student/Parent radio options; enforce Student selection.
             payload.update(self._get_student_radio_payload(login_page.text))
 
-            # Solve the image captcha if the portal is showing one.
-            captcha_text = self._solve_captcha_if_present(login_page.text, login_url)
-            if captcha_text:
-                payload["txtCaptcha"] = captcha_text
-
             response = self.session.post(
                 login_url,
                 data=payload,
@@ -188,23 +170,8 @@ class PortalScraper:
         if payload.get("attendance") is None:
             payload["attendance"] = []
 
-        # If student has multiple programs, switch to the earliest (default) and re-fetch
-        nav_programs = navigation_payload.get("programs", [])
-        nav_selected_program = navigation_payload.get("selected_program")
-        if nav_programs and nav_selected_program:
-            current_classof = (self.session.cookies.get("ClassofID") or "").strip()
-            if current_classof and current_classof != nav_selected_program:
-                switched_html = self._switch_program(
-                    attendance_response.text,
-                    self._build_url("CommonS.aspx?qs=ap"),
-                    nav_selected_program,
-                )
-                if switched_html:
-                    payload = self._build_attendance_payload(switched_html, is_dual_program=True)
-                    if payload.get("attendance") is None:
-                        payload["attendance"] = []
-
-        # Semester switch if portal defaulted to an older semester
+        # At login the portal often defaults to an older semester. Auto-switch to
+        # the latest regular semester so the user sees current data immediately.
         login_semesters = payload.get("semesters", [])
         login_selected = payload.get("selected_semester")
         if login_semesters and login_selected:
@@ -228,8 +195,24 @@ class PortalScraper:
                     if payload.get("attendance") is None:
                         payload["attendance"] = []
 
-        courses_map = self._safe_fetch_courses_map(payload.get("selected_semester"))
+        # If student has multiple programs, switch to the earliest (default) and re-fetch
+        nav_programs = navigation_payload.get("programs", [])
+        nav_selected_program = navigation_payload.get("selected_program")
+        if nav_programs and nav_selected_program:
+            current_classof = (self.session.cookies.get("ClassofID") or "").strip()
+            if current_classof and current_classof != nav_selected_program:
+                # Portal defaulted to a different program — switch to earliest and re-fetch
+                switched_html = self._switch_program(
+                    attendance_response.text,
+                    self._build_url("CommonS.aspx?qs=ap"),
+                    nav_selected_program,
+                )
+                if switched_html:
+                    payload = self._build_attendance_payload(switched_html, is_dual_program=True)
+                    if payload.get("attendance") is None:
+                        payload["attendance"] = []
 
+        courses_map = self._safe_fetch_courses_map(payload.get("selected_semester"))
         payload["attendance"] = self._merge_attendance_with_total_sessions(
             payload.get("attendance", []),
             courses_map,
@@ -239,9 +222,12 @@ class PortalScraper:
         }
         payload["student_name"] = student_name or normalized_roll
         payload["student_photo_url"] = student_photo_url
+
+        # Extract program and semester from portal cookies set at login
         payload["program_sn"] = (self.session.cookies.get("ProgramSN") or "").strip() or None
         payload["program_full"] = (self.session.cookies.get("Program") or "").strip() or None
 
+        # Use programs extracted from Index.aspx during navigation (ddlClassof only lives there)
         if nav_programs:
             payload["programs"] = nav_programs
             payload["selected_program"] = nav_selected_program
@@ -981,34 +967,6 @@ class PortalScraper:
     def _to_number_or_zero(self, value: float) -> int | float:
         return int(value) if float(value).is_integer() else round(float(value), 2)
 
-    def _solve_captcha_if_present(self, html: str, login_url: str) -> str | None:
-        """
-        Detect whether the login page has a captcha and solve it by parsing
-        the SVG response from captchimage.ashx. Returns None if no captcha found.
-        """
-        soup = BeautifulSoup(html, "html.parser")
-        captcha_img = soup.find("img", {"id": "captchaImage"})
-        if captcha_img is None:
-            return None
-
-        img_src = (captcha_img.get("src") or "").strip()
-        if not img_src:
-            return None
-
-        captcha_image_url = urljoin(login_url, img_src)
-        try:
-            solved = fetch_and_solve(captcha_image_url, self.session)
-            self._logger.info("Captcha solved [text=%s]", solved)
-            return solved
-        except CaptchaSolveError as exc:
-            self._logger.error("Captcha solve failed [code=%s]: %s", exc.code, exc)
-            raise PortalNetworkError(
-                f"Could not solve login captcha: {exc}",
-                code="CAPTCHA_SOLVE_FAILED",
-                stage="LOGIN_CAPTCHA",
-                retriable=True,
-            ) from exc
-
     def _extract_hidden_form_fields(self, html: str) -> dict[str, str]:
         soup = BeautifulSoup(html, "html.parser")
         fields: dict[str, str] = {}
@@ -1061,7 +1019,7 @@ class PortalScraper:
         return any("index.aspx" in target for target in redirect_targets) or "index.aspx" in final_url
 
     def _normalize_password(self, password: str) -> str:
-        return password or ""
+        return (password or "")[: self.PASSWORD_MAX_LENGTH]
 
     def _has_authenticated_session(self) -> bool:
         cookie_names = {cookie.name for cookie in self.session.cookies}
@@ -1093,37 +1051,32 @@ class PortalScraper:
         sdb_url = self._build_url("SDB.aspx")
         attendance_url = self._build_url("CommonS.aspx?qs=ap")
 
-        # Use a longer timeout for post-login navigation to account for proxy latency.
-        nav_timeout = max(self.request_timeout, 20.0)
-
         try:
-            # Step 1: Index.aspx — sets session cookies, student name, programs.
             index_response = self.session.get(
                 index_url,
-                timeout=nav_timeout,
+                timeout=self.request_timeout,
                 headers={"Referer": login_url},
             )
             index_response.raise_for_status()
             student_name = self._extract_student_name(index_response.text)
             student_photo_url = self._extract_student_photo(index_response.text)
+
+            # Extract programs from Index.aspx — ddlClassof is only available here
             programs, selected_program = self._extract_programs(index_response.text)
 
-            # Step 2: SDB.aspx — primes session state for attendance access.
             sdb_response = self.session.get(
                 sdb_url,
-                timeout=nav_timeout,
+                timeout=self.request_timeout,
                 headers={"Referer": index_url},
             )
             sdb_response.raise_for_status()
 
-            # Step 3: Attendance page.
             attendance_response = self.session.get(
                 attendance_url,
-                timeout=nav_timeout,
+                timeout=self.request_timeout,
                 headers={"Referer": index_url},
             )
             attendance_response.raise_for_status()
-
             return {
                 "attendance_response": attendance_response,
                 "student_name": student_name,
