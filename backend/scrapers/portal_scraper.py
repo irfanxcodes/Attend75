@@ -9,6 +9,8 @@ from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
 
+from services.captcha_solver import CaptchaSolveError, fetch_and_solve
+
 
 class PortalAuthenticationError(Exception):
     def __init__(self, message: str, code: str = "AUTH_FAILED"):
@@ -105,6 +107,18 @@ class PortalScraper:
 
             # Portal has Student/Parent radio options; enforce Student selection.
             payload.update(self._get_student_radio_payload(login_page.text))
+
+            # Solve the image captcha by parsing the SVG response directly.
+            captcha_img = BeautifulSoup(login_page.text, "html.parser").find("img", {"id": "captchaImage"})
+            if captcha_img:
+                img_src = (captcha_img.get("src") or "").strip()
+                if img_src:
+                    captcha_url = urljoin(login_url, img_src)
+                    try:
+                        captcha_text = fetch_and_solve(captcha_url, self.session)
+                        payload["txtCaptcha"] = captcha_text
+                    except CaptchaSolveError as exc:
+                        self._logger.warning("Captcha solve failed [%s]: %s", exc.code, exc)
 
             response = self.session.post(
                 login_url,
