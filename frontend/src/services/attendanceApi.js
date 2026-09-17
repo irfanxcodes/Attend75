@@ -260,26 +260,128 @@ export async function login(credentials) {
     throw new Error('Enter both username and password to continue.')
   }
 
-  let response
+  // --- Attempt 1: Server-side scraping (fast, ~2s when working) ---
+  let serverError = null
   try {
-    response = await fetch(`${API_BASE_URL}/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ roll_number: username, password }),
-    })
-  } catch {
-    // Network error — backend or internet is unreachable
-    throw new ApiError(
-      'Unable to reach the server. Please check your internet connection and try again.',
-      { code: 'PORTAL_UNREACHABLE', status: 0, endpoint: 'login' },
-    )
+    let response
+    try {
+      response = await fetch(`${API_BASE_URL}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roll_number: username, password }),
+      })
+    } catch {
+      throw new ApiError(
+        'Unable to reach the server. Please check your internet connection and try again.',
+        { code: 'PORTAL_UNREACHABLE', status: 0, endpoint: 'login' },
+      )
+    }
+
+    // If server-side succeeded, return normally
+    if (response.ok) {
+      const data = await parseApiResponse(response, 'login')
+      return _buildLoginResult(data, username)
+    }
+
+    // Capture the error code to decide whether to try browser-side fallback
+    const errorData = await response.json().catch(() => ({}))
+    const errorCode = (errorData?.error_code || '').toUpperCase()
+
+    // Auth errors — don't fallback, just throw (wrong password etc.)
+    if (['INVALID_USERNAME', 'INCORRECT_PASSWORD'].includes(errorCode)) {
+      throw new ApiError(
+        buildFriendlyMessage('login', errorCode, errorData?.message || ''),
+        { code: errorCode, status: response.status, endpoint: 'login' },
+      )
+    }
+
+    // Portal/network errors — try browser-side fallback
+    serverError = errorCode
+  } catch (err) {
+    if (err instanceof ApiError && ['INVALID_USERNAME', 'INCORRECT_PASSWORD'].includes(err.code)) {
+      throw err
+    }
+    serverError = err?.code || 'SERVER_ERROR'
   }
 
-  const data = await parseApiResponse(response, 'login')
+  // --- Attempt 2: Browser-side scraping (uses student's residential IP) ---
+  try {
+    const { portalLogin, fetchAttendanceHtml, fetchCoursesHtml, getStudentInfoFromCookies } =
+      await import('./portalScraper.js')
+
+    // Login directly from browser (residential IP — portal can't block this)
+    await portalLogin(username, password)
+
+    // Fetch attendance HTML
+    const attendanceHtml = await fetchAttendanceHtml()
+
+    // Get student info from cookies
+    const { studentName, programSn, programFull } = getStudentInfoFromCookies()
+
+    // Parse semesters from HTML to know which semester to fetch courses for
+    const semMatch = attendanceHtml.match(/ddlSem/)
+    const selectedSemMatch = attendanceHtml.match(/value="(\d+)"[^>]*selected/)
+    const selectedSemester = selectedSemMatch ? selectedSemMatch[1] : null
+
+    // Fetch courses HTML for abbreviations
+    let coursesHtml = ''
+    try {
+      coursesHtml = await fetchCoursesHtml(selectedSemester)
+    } catch {
+      // Non-critical — abbreviations just won't be enriched
+    }
+
+    // Send HTML to our backend for parsing
+    const parseResp = await fetch(`${API_BASE_URL}/parse/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        roll_number: username,
+        student_name: studentName || username,
+        program_sn: programSn,
+        program_full: programFull,
+        attendance_html: attendanceHtml,
+        courses_html: coursesHtml,
+        selected_semester: selectedSemester,
+        student_photo_url: `http://111.93.16.209/photos/${username.toUpperCase()}.jpg`,
+      }),
+    })
+
+    const parseData = await parseResp.json()
+    if (parseData.status !== 'success' || !parseData.data?.token) {
+      throw new ApiError(
+        parseData.message || 'Failed to parse attendance data',
+        { code: parseData.error_code || 'PARSE_FAILED', status: parseResp.status, endpoint: 'login' },
+      )
+    }
+
+    return _buildLoginResult(parseData.data, username)
+  } catch (browserErr) {
+    // If browser-side also failed with auth error, surface that
+    if (browserErr?.portalCode === 'INCORRECT_PASSWORD') {
+      throw new ApiError('Incorrect password. Please try again.', {
+        code: 'INCORRECT_PASSWORD', status: 401, endpoint: 'login',
+      })
+    }
+    if (browserErr?.portalCode === 'INVALID_USERNAME') {
+      throw new ApiError('Invalid username or roll number.', {
+        code: 'INVALID_USERNAME', status: 401, endpoint: 'login',
+      })
+    }
+    if (browserErr instanceof ApiError) throw browserErr
+
+    // Both approaches failed — show generic portal error
+    throw new ApiError(
+      'The college portal is currently unavailable. Please try again in a few minutes.',
+      { code: serverError || 'PORTAL_UNREACHABLE', status: 502, endpoint: 'login' },
+    )
+  }
+}
+
+function _buildLoginResult(data, username) {
   const normalized = normalizeAttendancePayload(data)
   const rollNumber = (data.roll_number || username || '').toUpperCase()
   const studentName = (data.student_name || '').trim() || rollNumber
-
   return {
     id: rollNumber,
     name: studentName,
