@@ -309,17 +309,27 @@ export async function login(credentials) {
 
   // --- Attempt 2: Browser-side scraping (uses student's residential IP) ---
   try {
-    const { portalLogin, fetchAttendanceHtml, fetchCoursesHtml, getStudentInfoFromHtml } =
+    const { portalLogin, fetchAttendanceHtml, fetchCoursesHtml } =
       await import('./portalScraper.js')
 
-    // Login directly from browser (residential IP — portal can't block this)
-    const postLoginHtml = await portalLogin(username, password)
+    // Login via Oracle backend proxy (Oracle IP works for login page)
+    const loginResult = await portalLogin(username, password)
+    const { cookies, studentName, programSn, programFull } = loginResult
 
-    // Fetch attendance HTML
-    const attendanceHtml = await fetchAttendanceHtml()
+    // Fetch attendance HTML using session cookies
+    const attendanceHtml = await fetchAttendanceHtml(cookies)
 
-    // Get student name from post-login page HTML
-    const { studentName, programSn, programFull } = getStudentInfoFromHtml(postLoginHtml)
+    // Get student name from login result
+    const selectedSemMatch = attendanceHtml.match(/value="(\d+)"[^>]*selected/)
+    const selectedSemester = selectedSemMatch ? selectedSemMatch[1] : null
+
+    // Fetch courses HTML for abbreviations
+    let coursesHtml = ''
+    try {
+      coursesHtml = await fetchCoursesHtml(cookies, selectedSemester)
+    } catch {
+      // Non-critical
+    }
 
     // Parse semesters from HTML to know which semester to fetch courses for
     const semMatch = attendanceHtml.match(/ddlSem/)
@@ -334,7 +344,7 @@ export async function login(credentials) {
       // Non-critical — abbreviations just won't be enriched
     }
 
-    // Send HTML to our backend for parsing
+    // Send HTML to backend for parsing
     const parseResp = await fetch(`${API_BASE_URL}/parse/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

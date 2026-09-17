@@ -38,6 +38,9 @@ from routers.push import router as push_router
 from routers.premium import router as premium_router
 from routers.studyme import router as studyme_router
 from routers.workspace import router as workspace_router  # StudyMe 2.0
+from routers.internal import router as internal_router
+from routers.parse import router as parse_router
+from routers.portal_proxy import router as portal_proxy_router
 from services.request_metrics import observe_request
 
 app = FastAPI(title="Attend75 Backend", version="0.1.0")
@@ -237,6 +240,9 @@ async def health_check():
 app.include_router(career_router)
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(internal_router)
+app.include_router(parse_router)
+app.include_router(portal_proxy_router)
 app.include_router(advertisement_router)
 app.include_router(arcade_router)
 app.include_router(face_rater_router)
