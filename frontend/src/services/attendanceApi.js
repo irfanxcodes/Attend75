@@ -287,7 +287,7 @@ export async function login(credentials) {
     const errorData = await response.json().catch(() => ({}))
     const errorCode = (errorData?.error_code || '').toUpperCase()
 
-    // Auth errors — don't fallback, just throw (wrong password etc.)
+    // Hard auth errors — wrong password/username, don't bother with browser fallback
     if (['INVALID_USERNAME', 'INCORRECT_PASSWORD'].includes(errorCode)) {
       throw new ApiError(
         buildFriendlyMessage('login', errorCode, errorData?.message || ''),
@@ -295,12 +295,15 @@ export async function login(credentials) {
       )
     }
 
-    // Portal/network errors — try browser-side fallback
-    serverError = errorCode
+    // Everything else (LOGIN_FAILED, PORTAL_TIMEOUT, PORTAL_UNREACHABLE, 403, 502…)
+    // → try browser-side fallback
+    serverError = errorCode || `HTTP_${response.status}`
   } catch (err) {
+    // Only hard-stop on definitive auth rejections
     if (err instanceof ApiError && ['INVALID_USERNAME', 'INCORRECT_PASSWORD'].includes(err.code)) {
       throw err
     }
+    // Everything else — try browser-side fallback
     serverError = err?.code || 'SERVER_ERROR'
   }
 
