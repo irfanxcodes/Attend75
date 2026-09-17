@@ -309,17 +309,17 @@ export async function login(credentials) {
 
   // --- Attempt 2: Browser-side scraping (uses student's residential IP) ---
   try {
-    const { portalLogin, fetchAttendanceHtml, fetchCoursesHtml, getStudentInfoFromCookies } =
+    const { portalLogin, fetchAttendanceHtml, fetchCoursesHtml, getStudentInfoFromHtml } =
       await import('./portalScraper.js')
 
     // Login directly from browser (residential IP — portal can't block this)
-    await portalLogin(username, password)
+    const postLoginHtml = await portalLogin(username, password)
 
     // Fetch attendance HTML
     const attendanceHtml = await fetchAttendanceHtml()
 
-    // Get student info from cookies
-    const { studentName, programSn, programFull } = getStudentInfoFromCookies()
+    // Get student name from post-login page HTML
+    const { studentName, programSn, programFull } = getStudentInfoFromHtml(postLoginHtml)
 
     // Parse semesters from HTML to know which semester to fetch courses for
     const semMatch = attendanceHtml.match(/ddlSem/)
