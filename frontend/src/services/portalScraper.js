@@ -1,37 +1,42 @@
 /**
  * Client-side portal scraper.
  *
- * Uses the browser's native cookie jar with credentials: 'include'.
- * All requests go through the Cloudflare Worker (same origin for cookies).
- * The browser handles cookies automatically — no manual jar needed.
+ * The browser makes portal requests through the Cloudflare Worker (for CORS).
+ * The Worker uses redirect:"manual" and returns 302 responses as JSON so we
+ * capture cookies without ever asking Cloudflare's IP to load Index.aspx
+ * (which is blocked). Subsequent requests carry cookies in the Cookie header.
  */
 
 const WORKER_BASE = 'https://attend75-proxy.kiro-one-mail.workers.dev/sz'
 const TIMEOUT_MS = 25000
 
+// Manual cookie jar — Worker strips HttpOnly so we can manage cookies in JS
+const cookieJar = {}
+
 function buildUrl(path) {
   return `${WORKER_BASE}/${path.replace(/^\//, '')}`
+}
+
+function cookieHeader() {
+  return Object.entries(cookieJar).map(([k, v]) => `${k}=${v}`).join('; ')
 }
 
 async function portalFetch(path, options = {}) {
   const url = buildUrl(path)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
-
   try {
     return await fetch(url, {
       ...options,
       signal: controller.signal,
-      credentials: 'include', // let browser manage cookies automatically
       headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) ' +
-          'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Mobile Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Mobile Safari/537.36',
         Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
+        Cookie: cookieHeader(),
         ...(options.headers || {}),
       },
-      redirect: 'follow', // browser follows redirects automatically
+      redirect: 'follow',
     })
   } finally {
     clearTimeout(timer)
@@ -41,18 +46,17 @@ async function portalFetch(path, options = {}) {
 function extractHiddenFields(html) {
   const fields = {}
   const re = /<input[^>]+type=["']hidden["'][^>]*>/gi
-  let match
-  while ((match = re.exec(html)) !== null) {
-    const tag = match[0]
-    const nameM = tag.match(/name=["']([^"']+)["']/)
-    const valueM = tag.match(/value=["']([^"']*)["']/)
-    if (nameM) fields[nameM[1]] = valueM ? valueM[1] : ''
+  let m
+  while ((m = re.exec(html)) !== null) {
+    const tag = m[0]
+    const n = tag.match(/name=["']([^"']+)["']/)
+    const v = tag.match(/value=["']([^"']*)["']/)
+    if (n) fields[n[1]] = v ? v[1] : ''
   }
   return fields
 }
 
 function solveCaptchaSvg(svgText) {
-  // Parse <text> elements from SVG
   const matches = [...svgText.matchAll(/<text[^>]*>\s*([^<\s][^<]*?)\s*<\/text>/gi)]
   return matches.map((m) => m[1].trim()).join('')
 }
@@ -64,11 +68,15 @@ function formEncode(data) {
 }
 
 /**
- * Log into the college portal.
- * Browser manages cookies automatically via credentials: 'include'.
+ * Login to the portal.
+ * The Worker intercepts the 302 and returns JSON with cookies.
+ * Returns synthetic HTML with student name for compatibility.
  */
 export async function portalLogin(rollNumber, password) {
-  // Step 1: GET login page for VIEWSTATE + captcha
+  // Clear previous session
+  Object.keys(cookieJar).forEach((k) => delete cookieJar[k])
+
+  // Step 1: GET login page
   const loginResp = await portalFetch('login.aspx')
   const loginHtml = await loginResp.text()
 
@@ -77,7 +85,6 @@ export async function portalLogin(rollNumber, password) {
   let captchaText = ''
   if (captchaMatch) {
     try {
-      // The captcha src is relative like "captchimage.ashx" or "/sz/captchimage.ashx"
       const captchaPath = captchaMatch[1].replace(/^\/sz\//, '').replace(/^\//, '')
       const captchaResp = await portalFetch(captchaPath)
       const captchaSvg = await captchaResp.text()
@@ -90,72 +97,75 @@ export async function portalLogin(rollNumber, password) {
 
   // Step 3: POST login
   const fields = extractHiddenFields(loginHtml)
-  const payload = formEncode({
-    ...fields,
-    txtLogin: rollNumber.trim().toUpperCase(),
-    txtPassword: password,
-    bl: 'Student',
-    btnSubmit: 'Submit',
-    ...(captchaText ? { txtCaptcha: captchaText } : {}),
-  })
-
   const postResp = await portalFetch('login.aspx', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       Referer: buildUrl('login.aspx'),
     },
-    body: payload,
+    body: formEncode({
+      ...fields,
+      txtLogin: rollNumber.trim().toUpperCase(),
+      txtPassword: password,
+      bl: 'Student',
+      btnSubmit: 'Submit',
+      ...(captchaText ? { txtCaptcha: captchaText } : {}),
+    }),
   })
 
-  const postHtml = await postResp.text()
-  console.log('[portalScraper] Login POST status:', postResp.status, 'url:', postResp.url)
+  // Step 4: Handle response
+  // Worker returns JSON {__portalRedirect, cookies} when portal sends 302
+  const ct = postResp.headers.get('content-type') || ''
+  if (ct.includes('application/json')) {
+    let json
+    try { json = await postResp.json() } catch { json = null }
 
-  // After following redirects, check if we're on Index.aspx (success) or still on login
-  const finalUrl = postResp.url || ''
-  if (finalUrl.includes('login') || finalUrl.includes('Login')) {
-    // Still on login page — check error message
-    const errMatch = postHtml.match(/class="[^"]*(?:help-block|text-danger)[^"]*"[^>]*>\s*([^<]+?)\s*</)
-    const errMsg = errMatch ? errMatch[1].trim() : ''
-    if (errMsg.toLowerCase().includes('password') || errMsg.toLowerCase().includes('incorrect')) {
-      throw Object.assign(new Error(errMsg || 'Incorrect password'), { portalCode: 'INCORRECT_PASSWORD' })
+    if (json?.__portalRedirect && json.cookies) {
+      Object.assign(cookieJar, json.cookies)
+      const hasAuth = ['UserID', 'CurrentSession', 'Enrolno'].some((k) => cookieJar[k])
+      if (!hasAuth) {
+        throw Object.assign(
+          new Error('Login failed — no auth cookies. Check credentials.'),
+          { portalCode: 'LOGIN_FAILED' }
+        )
+      }
+      console.log('[portalScraper] Login OK. Cookies:', Object.keys(cookieJar))
+      const name = cookieJar['Name'] ? decodeURIComponent(cookieJar['Name'].replace(/\+/g, ' ')) : ''
+      return `<span id="lblName">${name}</span>`
     }
-    if (errMsg.toLowerCase().includes('invalid') || errMsg.toLowerCase().includes('username') || errMsg.toLowerCase().includes('roll')) {
-      throw Object.assign(new Error(errMsg || 'Invalid username'), { portalCode: 'INVALID_USERNAME' })
-    }
-    if (errMsg) {
-      throw Object.assign(new Error(errMsg), { portalCode: 'LOGIN_FAILED' })
-    }
-    // No explicit error but still on login page — captcha probably failed, retry
-    throw Object.assign(new Error('Login failed — possibly captcha error, please retry'), { portalCode: 'LOGIN_FAILED' })
   }
 
-  // Successfully redirected away from login page
+  // Fallback: read as HTML (Worker followed redirect to Index.aspx)
+  const postHtml = await postResp.text()
+  const finalUrl = postResp.url || ''
+  console.log('[portalScraper] Login POST final url:', finalUrl, 'status:', postResp.status)
+
+  if (finalUrl.includes('login') || finalUrl.includes('Login')) {
+    const errMatch = postHtml.match(/class="[^"]*(?:help-block|text-danger)[^"]*"[^>]*>\s*([^<]+?)\s*</)
+    const errMsg = (errMatch ? errMatch[1].trim() : '').toLowerCase()
+    if (errMsg.includes('password') || errMsg.includes('incorrect')) {
+      throw Object.assign(new Error('Incorrect password'), { portalCode: 'INCORRECT_PASSWORD' })
+    }
+    if (errMsg.includes('invalid') || errMsg.includes('username') || errMsg.includes('roll')) {
+      throw Object.assign(new Error('Invalid username or roll number'), { portalCode: 'INVALID_USERNAME' })
+    }
+    throw Object.assign(new Error('Login failed — please retry'), { portalCode: 'LOGIN_FAILED' })
+  }
+
+  // Login redirected successfully — extract name
   return postHtml
 }
 
 /**
- * Fetch the attendance dashboard HTML.
- * Must be called after portalLogin().
+ * Fetch attendance dashboard HTML. Call after portalLogin().
  */
 export async function fetchAttendanceHtml() {
   const resp = await portalFetch('AttendanceDashboard.aspx', {
     headers: { Referer: buildUrl('Index.aspx') },
   })
-
-  // Handle redirects back to login (session expired)
-  if (resp.status === 302) {
-    const location = resp.headers.get('location') || ''
-    if (location.toLowerCase().includes('login')) {
-      throw Object.assign(new Error('Session expired'), { portalCode: 'SESSION_EXPIRED' })
-    }
-  }
-
   const html = await resp.text()
 
-  // Check if we got ad-cards (new portal) or need fallback
-  if (!html.includes('ad-card')) {
-    // Try old portal URL
+  if (!html.includes('ad-card') && !html.includes('<table')) {
     const fallback = await portalFetch('CommonS.aspx?qs=ap', {
       headers: { Referer: buildUrl('Index.aspx') },
     })
@@ -164,28 +174,22 @@ export async function fetchAttendanceHtml() {
       return fallbackHtml
     }
   }
-
   return html
 }
 
 /**
- * Fetch the courses page HTML (for short abbreviations like BE, HRM).
+ * Fetch courses page HTML for short abbreviations.
  */
 export async function fetchCoursesHtml(semesterId) {
   const resp = await portalFetch('rc/cr.aspx', {
     headers: { Referer: buildUrl('Index.aspx') },
   })
   const html = await resp.text()
-
   if (!semesterId) return html
 
-  // POST to switch to the correct semester
   const fields = extractHiddenFields(html)
-  const semSelect = html.match(/<select[^>]+name="ddlSem"[^>]*>[\s\S]*?<\/select>/i)
-  if (!semSelect) return html
-
-  const onchange = html.match(/ddlSem[^>]*onchange="([^"]+)"/)
-  const evtMatch = onchange && onchange[1].match(/__doPostBack\('([^']+)'/)
+  const selMatch = html.match(/name="ddlSem"[^>]*onchange="([^"]+)"/)
+  const evtMatch = selMatch && selMatch[1].match(/__doPostBack\('([^']+)'/)
   const evtTarget = evtMatch ? evtMatch[1] : 'ddlSem'
 
   const postResp = await portalFetch('rc/cr.aspx', {
@@ -194,21 +198,19 @@ export async function fetchCoursesHtml(semesterId) {
       'Content-Type': 'application/x-www-form-urlencoded',
       Referer: buildUrl('rc/cr.aspx'),
     },
-    body: formEncode({
-      ...fields,
-      __EVENTTARGET: evtTarget,
-      __EVENTARGUMENT: '',
-      ddlSem: semesterId,
-    }),
+    body: formEncode({ ...fields, __EVENTTARGET: evtTarget, __EVENTARGUMENT: '', ddlSem: semesterId }),
   })
   return postResp.text()
 }
 
 /**
- * Get student name from the post-login page HTML.
+ * Extract student name from post-login HTML.
  */
 export function getStudentInfoFromHtml(html) {
   const nameMatch = html.match(/id="lblName"[^>]*>([^<]+)</)
-  const studentName = nameMatch ? nameMatch[1].trim() : null
-  return { studentName, programSn: null, programFull: null }
+  return {
+    studentName: nameMatch ? nameMatch[1].trim() : null,
+    programSn: null,
+    programFull: null,
+  }
 }
