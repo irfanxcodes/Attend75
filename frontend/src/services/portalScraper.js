@@ -1,85 +1,109 @@
 /**
- * Client-side portal scraper — Oracle backend as CORS proxy.
+ * Client-side portal scraper using a hidden HTTP iframe.
  *
- * Oracle's IP works for portal login (only authenticated pages after login
- * are blocked). So we use our own backend as a simple CORS proxy:
+ * The portal is HTTP. Our site is HTTPS. Browsers block HTTP requests
+ * from HTTPS (mixed content). But we can load a hidden iframe pointing
+ * to our own backend served over HTTP, and from that HTTP context the
+ * browser can freely talk to the HTTP portal.
  *
- *   Browser → api.attend75.xyz/portal-proxy/login  → portal login page
- *   Browser → api.attend75.xyz/portal-proxy/attendance (with cookies) → attendance HTML
- *   Browser → api.attend75.xyz/parse/login (with HTML) → structured data + token
- *
- * No Cloudflare Worker needed for this flow.
+ * Flow:
+ *   1. Load hidden iframe: http://api.attend75.xyz/portal-helper
+ *   2. Send postMessage {type:'DO_LOGIN', rollNumber, password}
+ *   3. iframe does portal login on student's residential IP
+ *   4. iframe sends back {type:'LOGIN_SUCCESS', attendanceHtml, coursesHtml}
+ *   5. We POST the HTML to /parse/login and get a token back
  */
 
-function resolveProxyBase() {
-  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
-    return 'http://127.0.0.1:8000'
+const HELPER_URL = 'http://api.attend75.xyz/portal-helper'
+const TIMEOUT_MS = 45000
+
+let helperFrame = null
+let helperReady = false
+const pendingCallbacks = []
+
+function getOrCreateFrame() {
+  if (helperFrame && document.body.contains(helperFrame)) {
+    return helperFrame
   }
-  return 'https://api.attend75.xyz'
+
+  helperFrame = document.createElement('iframe')
+  helperFrame.src = HELPER_URL
+  helperFrame.style.cssText = 'position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none;'
+  helperFrame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms')
+  document.body.appendChild(helperFrame)
+  helperReady = false
+
+  return helperFrame
 }
 
-const PROXY_BASE = resolveProxyBase()
+function setupMessageListener() {
+  window.addEventListener('message', (event) => {
+    const data = event.data
+    if (!data || typeof data !== 'object') return
 
-/**
- * Login to the portal via Oracle backend proxy.
- * Returns { cookies, studentName, programSn, programFull }
- */
-export async function portalLogin(rollNumber, password) {
-  const resp = await fetch(`${PROXY_BASE}/portal-proxy/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ roll_number: rollNumber, password }),
+    if (data.type === 'HELPER_READY') {
+      helperReady = true
+      // Flush any pending callbacks
+      pendingCallbacks.forEach((cb) => cb())
+      pendingCallbacks.length = 0
+    }
+
+    if (data.type === 'LOGIN_SUCCESS' || data.type === 'LOGIN_ERROR') {
+      // Dispatch to whoever is waiting
+      window.dispatchEvent(new CustomEvent('portal-helper-response', { detail: data }))
+    }
   })
-
-  const data = await resp.json()
-
-  if (!data.success) {
-    const code = data.error_code || 'LOGIN_FAILED'
-    throw Object.assign(new Error(data.error || 'Login failed'), { portalCode: code })
-  }
-
-  return {
-    cookies: data.cookies || {},
-    studentName: data.student_name || rollNumber,
-    programSn: data.program_sn || null,
-    programFull: data.program_full || null,
-  }
 }
 
-/**
- * Fetch attendance HTML using session cookies from login.
- */
-export async function fetchAttendanceHtml(cookies) {
-  const cookieHeader = Object.entries(cookies)
-    .map(([k, v]) => `${k}=${v}`)
-    .join('; ')
-
-  const resp = await fetch(`${PROXY_BASE}/portal-proxy/attendance`, {
-    headers: { 'X-Portal-Cookies': cookieHeader },
-  })
-
-  const data = await resp.json()
-  if (data.error) {
-    throw Object.assign(new Error(data.error), { portalCode: data.error_code || 'PORTAL_UNREACHABLE' })
-  }
-  return data.html || ''
-}
+setupMessageListener()
 
 /**
- * Fetch courses HTML for short abbreviations.
+ * Login via hidden iframe on student's residential IP.
+ * Returns { attendanceHtml, coursesHtml, selectedSemester }
  */
-export async function fetchCoursesHtml(cookies, semesterId) {
-  const cookieHeader = Object.entries(cookies)
-    .map(([k, v]) => `${k}=${v}`)
-    .join('; ')
+export async function portalLoginViaFrame(rollNumber, password) {
+  return new Promise((resolve, reject) => {
+    const frame = getOrCreateFrame()
+    const timer = setTimeout(() => {
+      cleanup()
+      reject(Object.assign(new Error('Portal login timed out'), { portalCode: 'PORTAL_TIMEOUT' }))
+    }, TIMEOUT_MS)
 
-  const url = new URL(`${PROXY_BASE}/portal-proxy/courses`)
-  if (semesterId) url.searchParams.set('semester_id', semesterId)
+    function onResponse(event) {
+      const data = event.detail
+      if (data.type === 'LOGIN_SUCCESS') {
+        cleanup()
+        resolve(data)
+      } else if (data.type === 'LOGIN_ERROR') {
+        cleanup()
+        reject(Object.assign(new Error(data.message || 'Login failed'), { portalCode: data.code || 'LOGIN_FAILED' }))
+      }
+    }
 
-  const resp = await fetch(url.toString(), {
-    headers: { 'X-Portal-Cookies': cookieHeader },
+    function cleanup() {
+      clearTimeout(timer)
+      window.removeEventListener('portal-helper-response', onResponse)
+    }
+
+    function sendLogin() {
+      window.addEventListener('portal-helper-response', onResponse)
+      frame.contentWindow.postMessage({ type: 'DO_LOGIN', rollNumber, password }, '*')
+    }
+
+    if (helperReady) {
+      sendLogin()
+    } else {
+      // Wait for helper to signal ready
+      const readyTimer = setTimeout(() => {
+        pendingCallbacks.splice(pendingCallbacks.indexOf(sendLogin), 1)
+        cleanup()
+        reject(Object.assign(new Error('Portal helper failed to load'), { portalCode: 'PORTAL_UNREACHABLE' }))
+      }, 10000)
+
+      pendingCallbacks.push(() => {
+        clearTimeout(readyTimer)
+        sendLogin()
+      })
+    }
   })
-
-  const data = await resp.json()
-  return data.html || ''
 }

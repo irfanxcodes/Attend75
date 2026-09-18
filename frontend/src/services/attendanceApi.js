@@ -309,27 +309,11 @@ export async function login(credentials) {
 
   // --- Attempt 2: Browser-side scraping (uses student's residential IP) ---
   try {
-    const { portalLogin, fetchAttendanceHtml, fetchCoursesHtml } =
-      await import('./portalScraper.js')
+    const { portalLoginViaFrame } = await import('./portalScraper.js')
 
-    // Login via Oracle backend proxy (Oracle IP works for login page)
-    const loginResult = await portalLogin(username, password)
-    const { cookies, studentName, programSn, programFull } = loginResult
-
-    // Fetch attendance HTML using session cookies
-    const attendanceHtml = await fetchAttendanceHtml(cookies)
-
-    // Get student name from login result
-    const selectedSemMatch = attendanceHtml.match(/value="(\d+)"[^>]*selected/)
-    const selectedSemester = selectedSemMatch ? selectedSemMatch[1] : null
-
-    // Fetch courses HTML for abbreviations
-    let coursesHtml = ''
-    try {
-      coursesHtml = await fetchCoursesHtml(cookies, selectedSemester)
-    } catch {
-      // Non-critical
-    }
+    // Login via hidden iframe — browser's residential IP, no proxy needed
+    const { attendanceHtml, coursesHtml, selectedSemester } =
+      await portalLoginViaFrame(username, password)
 
     // Parse semesters from HTML to know which semester to fetch courses for
     const semMatch = attendanceHtml.match(/ddlSem/)
@@ -344,15 +328,12 @@ export async function login(credentials) {
       // Non-critical — abbreviations just won't be enriched
     }
 
-    // Send HTML to backend for parsing
     const parseResp = await fetch(`${API_BASE_URL}/parse/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         roll_number: username,
-        student_name: studentName || username,
-        program_sn: programSn,
-        program_full: programFull,
+        student_name: username,
         attendance_html: attendanceHtml,
         courses_html: coursesHtml,
         selected_semester: selectedSemester,
