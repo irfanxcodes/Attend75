@@ -196,6 +196,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Ensure CORS headers are present on all error responses.
+# FastAPI's exception handlers run before CORS middleware so errors lack CORS headers.
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    from fastapi.responses import JSONResponse
+    origin = request.headers.get("origin", "")
+    allowed = _cors_origins()
+    cors_origin = origin if origin in allowed else (allowed[0] if allowed else "*")
+    return JSONResponse(
+        status_code=502,
+        content={"status": "error", "error_code": "INTERNAL_ERROR", "message": "An unexpected error occurred."},
+        headers={"Access-Control-Allow-Origin": cors_origin, "Access-Control-Allow-Credentials": "true"},
+    )
+
 
 @app.middleware("http")
 async def request_timing_middleware(request: Request, call_next):
