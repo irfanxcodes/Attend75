@@ -315,19 +315,6 @@ export async function login(credentials) {
     const { attendanceHtml, coursesHtml, selectedSemester } =
       await portalLoginViaFrame(username, password)
 
-    // Parse semesters from HTML to know which semester to fetch courses for
-    const semMatch = attendanceHtml.match(/ddlSem/)
-    const selectedSemMatch = attendanceHtml.match(/value="(\d+)"[^>]*selected/)
-    const selectedSemester = selectedSemMatch ? selectedSemMatch[1] : null
-
-    // Fetch courses HTML for abbreviations
-    let coursesHtml = ''
-    try {
-      coursesHtml = await fetchCoursesHtml(selectedSemester)
-    } catch {
-      // Non-critical — abbreviations just won't be enriched
-    }
-
     const parseResp = await fetch(`${API_BASE_URL}/parse/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
