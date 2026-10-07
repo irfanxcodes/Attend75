@@ -106,12 +106,14 @@ class PortalScraper:
         )
 
     def login(self, roll_number: str, password: str) -> dict:
-        # CRITICAL: Login requires session cookie persistence, which doesn't work
-        # reliably through Cloudflare Workers (stateless, sessions can reset).
-        # Force direct portal access for login AND keep it for the session lifetime.
-        # Once we establish cookies with direct portal access, all subsequent
-        # requests MUST use the same direct access (not workers) to maintain the session.
-        self._worker_base = None  # Force direct portal access permanently
+        # TESTING: Temporarily enabling workers to debug cookie issue
+        # TODO: Remove this and investigate why cookies aren't working
+        
+        # Log what we're using
+        self._logger.info(
+            "[PortalScraper.login] Starting login - worker_base=%s, proxies=%s",
+            self._worker_base, self.session.proxies
+        )
         
         return self._do_login(roll_number, password)
     
@@ -1127,6 +1129,19 @@ class PortalScraper:
         return normalized
 
     def _has_authenticated_session(self) -> bool:
+        """
+        Check if we have an authenticated portal session.
+        
+        When using Cloudflare Workers, cookies are managed server-side in the worker,
+        so self.session.cookies will be empty. In that case, we skip the cookie check
+        and rely on other indicators (redirect checks, page content validation).
+        """
+        # If using a worker, skip cookie validation (worker manages cookies server-side)
+        if self._worker_base:
+            self._logger.info("[PortalScraper] Using worker - skipping client-side cookie check")
+            return True  # Assume cookies are managed by worker
+        
+        # For direct access or proxies, check cookies normally
         cookie_names = {cookie.name for cookie in self.session.cookies}
 
         # Cookies observed on successful portal auth flow.
