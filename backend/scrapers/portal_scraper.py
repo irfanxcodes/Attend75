@@ -41,6 +41,12 @@ class PortalScraper:
         self.session = session or requests.Session()
         self.base_url = os.getenv("PORTAL_BASE_URL", "http://111.93.16.209/sz")
         self.login_path = os.getenv("PORTAL_LOGIN_PATH", "login.aspx")
+        
+        # Generate a unique session ID for this scraper instance
+        # Workers will use this to maintain portal cookies server-side
+        import uuid
+        self._worker_session_id = str(uuid.uuid4())
+        
         # Worker rotation — pick an active worker URL from the rotator.
         # Falls back to direct portal access if no workers are configured.
         from services.worker_rotator import worker_rotator as _rotator
@@ -94,10 +100,24 @@ class PortalScraper:
                 ),
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                 "Accept-Language": "en-US,en;q=0.9",
+                # Add session ID header for worker-side cookie management
+                "X-Session-ID": self._worker_session_id,
             }
         )
 
     def login(self, roll_number: str, password: str) -> dict:
+        # CRITICAL: Login requires session cookie persistence, which doesn't work
+        # reliably through Cloudflare Workers (stateless, sessions can reset).
+        # Temporarily bypass worker for login only, use direct portal access.
+        original_worker_base = self._worker_base
+        self._worker_base = None  # Force direct portal access
+        
+        try:
+            return self._do_login(roll_number, password)
+        finally:
+            self._worker_base = original_worker_base  # Restore worker for other operations
+    
+    def _do_login(self, roll_number: str, password: str) -> dict:
         login_url = self._build_url(self.login_path)
         normalized_roll = (roll_number or "").strip().upper()
 
@@ -1102,7 +1122,11 @@ class PortalScraper:
         return any("index.aspx" in target for target in redirect_targets) or "index.aspx" in final_url
 
     def _normalize_password(self, password: str) -> str:
-        return password or ""
+        # Portal has maxlength="10" on password field
+        normalized = password or ""
+        if len(normalized) > 10:
+            normalized = normalized[:10]
+        return normalized
 
     def _has_authenticated_session(self) -> bool:
         cookie_names = {cookie.name for cookie in self.session.cookies}
