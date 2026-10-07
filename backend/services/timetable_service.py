@@ -407,43 +407,51 @@ def _match_student_classes(schedule: list[dict], student_subjects: list[dict]) -
     # BATCH DISAMBIGUATION: When there are multiple non-overlapping timetables
     # for the same section (e.g. different specialization groups within BBA Sem 5 Section L),
     # we need to identify which batch/group the student belongs to.
-    # Strategy: Group matched classes by room or time patterns, pick the batch with most matches.
+    # Strategy: Remove classes that create time conflicts (same day/time, different rooms).
     batch_disambiguation_applied = False
     if len(my_classes) > len(abbr_set) * 1.5:  # More matches than expected
-        from collections import Counter
-        # Try to find distinct batches by room assignment
-        room_groups = {}
+        from collections import defaultdict
+        # Group classes by day+time to find conflicts
+        time_slots = defaultdict(list)
+        for cls in my_classes:
+            day = cls.get('day', '')
+            time = cls.get('time', '')
+            time_sort = cls.get('time_sort', '')
+            key = f"{day}_{time_sort}"
+            time_slots[key].append(cls)
+        
+        # For each time slot with conflicts, keep the classes from the dominant batch
+        # The dominant batch is determined by which room has the most of the student's subjects overall
+        room_subject_counts = defaultdict(set)
         for cls in my_classes:
             room = cls.get('room', '')
             course = cls.get('course', '').upper()
-            day = cls.get('day', '')
-            time = cls.get('time', '')
-            key = f"{day}_{time}"
-            if room:
-                if room not in room_groups:
-                    room_groups[room] = {'classes': [], 'courses': set(), 'day_time_keys': set()}
-                room_groups[room]['classes'].append(cls)
-                room_groups[room]['courses'].add(course)
-                room_groups[room]['day_time_keys'].add(key)
+            if room and course in abbr_set:
+                room_subject_counts[room].add(course)
         
-        # Find the room group with the best subject coverage
-        best_room = None
-        best_coverage = 0
-        for room, data in room_groups.items():
-            coverage = len(data['courses'] & abbr_set)
-            if coverage > best_coverage:
-                best_coverage = coverage
-                best_room = room
-        
-        # If we found a dominant room with good coverage, filter to that room's schedule
-        if best_room and best_coverage >= len(abbr_set) * 0.5:
-            # Get all classes in this room that match student subjects
-            my_classes = [
-                cls for cls in my_classes
-                if cls.get('room', '') == best_room
-            ]
+        # Find the dominant room (has most of student's subjects)
+        if room_subject_counts:
+            dominant_room = max(room_subject_counts.items(), key=lambda x: len(x[1]))[0]
+            
+            # Resolve conflicts: for each time slot with multiple classes,
+            # prefer classes in the dominant room, but keep all if no conflict
+            resolved_classes = []
+            for key, classes in time_slots.items():
+                if len(classes) == 1:
+                    resolved_classes.append(classes[0])
+                else:
+                    # Conflict detected - prefer dominant room
+                    dominant_room_classes = [c for c in classes if c.get('room') == dominant_room]
+                    if dominant_room_classes:
+                        resolved_classes.extend(dominant_room_classes)
+                    else:
+                        # No classes in dominant room at this time, keep all (might be valid multi-room schedule)
+                        resolved_classes.extend(classes)
+            
+            my_classes = resolved_classes
             batch_disambiguation_applied = True
-            logger.info("Timetable: batch disambiguation by room %s, kept %d classes", best_room, len(my_classes))
+            logger.info("Timetable: batch disambiguation resolved conflicts, kept %d classes (dominant room: %s)", 
+                       len(my_classes), dominant_room)
 
     # Secondary match: abbr matches + section fuzzy match using _btech_section_matches
     # This handles cases like student="ACC" vs timetable="A (G-16)"
