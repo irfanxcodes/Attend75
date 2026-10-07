@@ -176,7 +176,8 @@ def login_user(roll_number: str, password: str, user_agent: str | None = None) -
     backoff = _portal_operation_retry_backoff_seconds()
 
     for attempt in range(1, max_ip_attempts + 1):
-        scraper = PortalScraper()
+        from services.monitored_session import create_monitored_session
+        scraper = PortalScraper(session=create_monitored_session())
         try:
             data = scraper.login(roll_number=roll_number, password=password)
             break  # success — exit retry loop

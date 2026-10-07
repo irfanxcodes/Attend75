@@ -835,3 +835,26 @@ async def admin_trigger_storage_health_check(_: dict = Depends(require_admin_use
 	except Exception:
 		logger.exception("Failed to run storage health check")
 		return JSONResponse(status_code=500, content={"status": "error", "message": "Health check failed"})
+
+
+@router.get("/proxy-monitor", response_model=ApiResponse)
+async def get_proxy_monitor_status(_: dict = Depends(require_admin_user)):
+	"""
+	Get real-time status of all Cloudflare Workers and HTTP proxies.
+	Shows which are active, blocked, success rates, and errors.
+	"""
+	from services.proxy_monitor import get_proxy_monitor
+	
+	monitor = get_proxy_monitor()
+	
+	return ApiResponse(
+		status="success",
+		message="Proxy monitor status fetched",
+		data={
+			"statistics": monitor.get_statistics(),
+			"active_workers": monitor.get_active_workers(),
+			"active_proxies": monitor.get_active_proxies(),
+			"blocked": monitor.get_blocked(),
+			"all_status": monitor.get_all_status(),
+		}
+	)
