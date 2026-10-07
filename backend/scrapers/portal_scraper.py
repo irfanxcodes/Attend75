@@ -106,10 +106,12 @@ class PortalScraper:
         )
 
     def login(self, roll_number: str, password: str) -> dict:
-        # Workers now maintain portal session cookies server-side using X-Session-ID header.
-        # Each scraper instance gets a unique session ID (generated in __init__),
-        # and the worker stores/attaches cookies for that session automatically.
-        # This allows us to safely use workers for login + subsequent requests.
+        # CRITICAL: Login requires session cookie persistence, which doesn't work
+        # reliably through Cloudflare Workers (stateless, sessions can reset).
+        # Force direct portal access for login AND keep it for the session lifetime.
+        # Once we establish cookies with direct portal access, all subsequent
+        # requests MUST use the same direct access (not workers) to maintain the session.
+        self._worker_base = None  # Force direct portal access permanently
         
         return self._do_login(roll_number, password)
     
