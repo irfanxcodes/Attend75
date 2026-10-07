@@ -511,13 +511,18 @@ def _extract_subjects(attendance_rows: list[dict], abbr_lookup: dict[str, str] |
     or full course name in the course_abbr column instead of the short timetable
     abbreviation (e.g. 'CSCL').  When abbr_lookup is provided (built from the
     timetable notice's subject table), it is used to resolve codes/names → abbrs.
+    
+    For BBA/B.Com students, the portal doesn't provide section info in attendance.
+    We default to "L" (Lecture) which is the standard section for BBA/B.Com timetables.
     """
     subjects = []
     for item in attendance_rows:
         raw_abbr = str(item.get("course_abbr", "")).strip().upper()
         section = str(item.get("section", "")).strip().upper()
+        
+        # Default section for BBA/B.Com students (portal doesn't provide it)
         if not section:
-            continue
+            section = "L"
 
         abbr = raw_abbr
 
