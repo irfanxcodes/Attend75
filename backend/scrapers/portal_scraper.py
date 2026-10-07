@@ -106,13 +106,14 @@ class PortalScraper:
         )
 
     def login(self, roll_number: str, password: str) -> dict:
-        # TESTING: Temporarily enabling workers to debug cookie issue
-        # TODO: Remove this and investigate why cookies aren't working
+        # ISSUE: Workers time out during post-login navigation (Index.aspx takes 10+ seconds)
+        # Temporarily forcing direct access until we optimize worker performance
+        self._worker_base = None
         
         # Log what we're using
         self._logger.info(
-            "[PortalScraper.login] Starting login - worker_base=%s, proxies=%s",
-            self._worker_base, self.session.proxies
+            "[PortalScraper.login] Using direct portal access - worker_base=%s",
+            self._worker_base
         )
         
         return self._do_login(roll_number, password)
