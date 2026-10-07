@@ -400,6 +400,45 @@ def _match_student_classes(schedule: list[dict], student_subjects: list[dict]) -
     # Primary match: exact ABBR-SECTION
     my_classes = [cls for cls in schedule if cls.get("course_key", "").upper() in lookup]
 
+    # BATCH DISAMBIGUATION: When there are multiple non-overlapping timetables
+    # for the same section (e.g. different specialization groups within BBA Sem 5 Section L),
+    # we need to identify which batch/group the student belongs to.
+    # Strategy: Group matched classes by room or time patterns, pick the batch with most matches.
+    if len(my_classes) > len(abbr_set) * 1.5:  # More matches than expected
+        from collections import Counter
+        # Try to find distinct batches by room assignment
+        room_groups = {}
+        for cls in my_classes:
+            room = cls.get('room', '')
+            course = cls.get('course', '').upper()
+            day = cls.get('day', '')
+            time = cls.get('time', '')
+            key = f"{day}_{time}"
+            if room:
+                if room not in room_groups:
+                    room_groups[room] = {'classes': [], 'courses': set(), 'day_time_keys': set()}
+                room_groups[room]['classes'].append(cls)
+                room_groups[room]['courses'].add(course)
+                room_groups[room]['day_time_keys'].add(key)
+        
+        # Find the room group with the best subject coverage
+        best_room = None
+        best_coverage = 0
+        for room, data in room_groups.items():
+            coverage = len(data['courses'] & abbr_set)
+            if coverage > best_coverage:
+                best_coverage = coverage
+                best_room = room
+        
+        # If we found a dominant room with good coverage, filter to that room's schedule
+        if best_room and best_coverage >= len(abbr_set) * 0.5:
+            # Get all classes in this room that match student subjects
+            my_classes = [
+                cls for cls in my_classes
+                if cls.get('room', '') == best_room
+            ]
+            logger.info("Timetable: batch disambiguation by room %s, kept %d classes", best_room, len(my_classes))
+
     # Secondary match: abbr matches + section fuzzy match using _btech_section_matches
     # This handles cases like student="ACC" vs timetable="A (G-16)"
     matched_abbrs = set(cls.get("course", "").upper() for cls in my_classes)

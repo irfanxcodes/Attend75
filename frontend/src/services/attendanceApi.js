@@ -69,7 +69,7 @@ function buildFriendlyMessage(endpoint, code, fallbackMessage) {
         return 'Incorrect password. Please try again.'
       }
       if (normalizedCode === 'LOGIN_FAILED') {
-        return 'The college portal dropped the session. Please try again.'
+        return 'The college portal rejected this sign-in. Please check your login details and try again.'
       }
       if (normalizedCode === 'LOGIN_REQUEST_HTTP_403') {
         return 'The college portal blocked this request. Please try again in a moment.'
@@ -260,12 +260,13 @@ export async function login(credentials) {
     throw new Error('Enter both username and password to continue.')
   }
 
-  // --- Attempt 1: Server-side scraping (fast, ~2s when working) ---
+  // --- Attempt 1: Server-side scraping (async — non-blocking) ---
   let serverError = null
   try {
-    let response
+    // Start login job (returns instantly)
+    let startResp
     try {
-      response = await fetch(`${API_BASE_URL}/login`, {
+      startResp = await fetch(`${API_BASE_URL}/login/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ roll_number: username, password }),
@@ -277,33 +278,66 @@ export async function login(credentials) {
       )
     }
 
-    // If server-side succeeded, return normally
-    if (response.ok) {
-      const data = await parseApiResponse(response, 'login')
-      return _buildLoginResult(data, username)
+    if (!startResp.ok) {
+      const errData = await startResp.json().catch(() => ({}))
+      const errorCode = (errData?.error_code || '').toUpperCase()
+      if (['INVALID_USERNAME', 'INCORRECT_PASSWORD'].includes(errorCode)) {
+        throw new ApiError(
+          buildFriendlyMessage('login', errorCode, errData?.message || ''),
+          { code: errorCode, status: startResp.status, endpoint: 'login' },
+        )
+      }
+      serverError = errorCode || `HTTP_${startResp.status}`
+      throw new ApiError('server_error', { code: serverError, status: startResp.status, endpoint: 'login' })
     }
 
-    // Capture the error code to decide whether to try browser-side fallback
-    const errorData = await response.json().catch(() => ({}))
-    const errorCode = (errorData?.error_code || '').toUpperCase()
+    const { job_id: jobId } = await startResp.json()
 
-    // Hard auth errors — wrong password/username, don't bother with browser fallback
-    if (['INVALID_USERNAME', 'INCORRECT_PASSWORD'].includes(errorCode)) {
-      throw new ApiError(
-        buildFriendlyMessage('login', errorCode, errorData?.message || ''),
-        { code: errorCode, status: response.status, endpoint: 'login' },
-      )
+    // Poll for result
+    const pollStart = Date.now()
+    const MAX_WAIT_MS = 270000 // 4.5 minutes
+    const POLL_INTERVAL_MS = 3000
+
+    while (Date.now() - pollStart < MAX_WAIT_MS) {
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
+
+      let pollResp
+      try {
+        pollResp = await fetch(`${API_BASE_URL}/login/result?job_id=${jobId}`)
+      } catch {
+        continue // network hiccup, keep polling
+      }
+
+      const pollData = await pollResp.json().catch(() => ({}))
+
+      if (pollData.status === 'pending') continue
+
+      if (pollData.status === 'success') {
+        const data = pollData.data || {}
+        return _buildLoginResult(data, username)
+      }
+
+      // Error response from poll
+      const errorCode = (pollData?.error_code || '').toUpperCase()
+      if (['INVALID_USERNAME', 'INCORRECT_PASSWORD'].includes(errorCode)) {
+        throw new ApiError(
+          buildFriendlyMessage('login', errorCode, pollData?.message || ''),
+          { code: errorCode, status: pollResp.status, endpoint: 'login' },
+        )
+      }
+
+      serverError = errorCode || 'PORTAL_UNREACHABLE'
+      throw new ApiError('server_error', { code: serverError, status: pollResp.status, endpoint: 'login' })
     }
 
-    // Everything else (LOGIN_FAILED, PORTAL_TIMEOUT, PORTAL_UNREACHABLE, 403, 502…)
-    // → try browser-side fallback
-    serverError = errorCode || `HTTP_${response.status}`
+    // Timed out polling
+    serverError = 'PORTAL_TIMEOUT'
+    throw new ApiError('timeout', { code: 'PORTAL_TIMEOUT', status: 504, endpoint: 'login' })
+
   } catch (err) {
-    // Only hard-stop on definitive auth rejections
     if (err instanceof ApiError && ['INVALID_USERNAME', 'INCORRECT_PASSWORD'].includes(err.code)) {
       throw err
     }
-    // Everything else — try browser-side fallback
     serverError = err?.code || 'SERVER_ERROR'
   }
 
