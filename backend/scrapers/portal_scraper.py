@@ -106,14 +106,17 @@ class PortalScraper:
         )
 
     def login(self, roll_number: str, password: str) -> dict:
-        # ISSUE: Workers time out during post-login navigation (Index.aspx takes 10+ seconds)
-        # Temporarily forcing direct access until we optimize worker performance
+        # Skip workers (too slow) and use HTTP proxies directly
+        # Workers time out during navigation (10+ second responses)
+        # HTTP proxies are faster and more reliable
         self._worker_base = None
+        self._apply_proxy_tier()  # Apply HTTP proxy instead
         
         # Log what we're using
+        proxy_info = self.session.proxies.get('http', 'direct')
         self._logger.info(
-            "[PortalScraper.login] Using direct portal access - worker_base=%s",
-            self._worker_base
+            "[PortalScraper.login] Using HTTP proxy - proxy=%s",
+            proxy_info if 'direct' in str(proxy_info) else '***proxy***'
         )
         
         return self._do_login(roll_number, password)
@@ -1134,22 +1137,32 @@ class PortalScraper:
         Check if we have an authenticated portal session.
         
         When using Cloudflare Workers, cookies are managed server-side in the worker,
-        so self.session.cookies will be empty. In that case, we skip the cookie check
-        and rely on other indicators (redirect checks, page content validation).
+        so self.session.cookies will be empty. In that case, we skip the cookie check.
+        
+        When using HTTP proxies, cookies flow normally through the session, so we
+        check them as usual.
         """
         # If using a worker, skip cookie validation (worker manages cookies server-side)
         if self._worker_base:
             self._logger.info("[PortalScraper] Using worker - skipping client-side cookie check")
             return True  # Assume cookies are managed by worker
         
-        # For direct access or proxies, check cookies normally
+        # For direct access or HTTP proxies, check cookies normally
         cookie_names = {cookie.name for cookie in self.session.cookies}
 
         # Cookies observed on successful portal auth flow.
         required_any = {"UserID", "CurrentSession", "Enrolno"}
         required_base = {"ASP.NET_SessionId", "CenterID"}
 
-        return required_base.issubset(cookie_names) and bool(cookie_names.intersection(required_any))
+        has_auth = required_base.issubset(cookie_names) and bool(cookie_names.intersection(required_any))
+        
+        if not has_auth and self.session.proxies:
+            self._logger.warning(
+                "[PortalScraper] Missing auth cookies through proxy - cookies=%s",
+                list(cookie_names)
+            )
+        
+        return has_auth
 
     def _looks_like_login_page(self, html: str) -> bool:
         soup = BeautifulSoup(html, "html.parser")
