@@ -99,6 +99,92 @@ async def login(payload: LoginRequest, request: Request):
         return _login_error_response("PORTAL_UNREACHABLE")
 
 
+# ── Async login (non-blocking) ────────────────────────────────────────────────
+# POST /login/start  → returns job_id immediately
+# GET  /login/result?job_id=xxx → poll for result
+
+import threading as _threading
+_async_login_jobs: dict[str, dict] = {}
+_async_login_lock = _threading.Lock()
+
+
+def _run_async_login(job_id: str, roll_number: str, password: str, ua: str) -> None:
+    try:
+        data = login_user(roll_number, password, ua)
+        with _async_login_lock:
+            _async_login_jobs[job_id] = {"status": "success", "data": data}
+    except PortalAuthenticationError as exc:
+        code = getattr(exc, "code", "LOGIN_FAILED")
+        with _async_login_lock:
+            _async_login_jobs[job_id] = {"status": "auth_error", "code": code}
+    except PortalNetworkError as exc:
+        code = getattr(exc, "code", "PORTAL_UNREACHABLE")
+        is_timeout = "TIMEOUT" in str(code).upper()
+        with _async_login_lock:
+            _async_login_jobs[job_id] = {
+                "status": "network_error",
+                "code": "PORTAL_TIMEOUT" if is_timeout else "PORTAL_UNREACHABLE",
+            }
+    except Exception as exc:
+        logger.exception("Async login error job_id=%s: %s", job_id, exc)
+        with _async_login_lock:
+            _async_login_jobs[job_id] = {"status": "network_error", "code": "PORTAL_UNREACHABLE"}
+
+
+@router.post("/login/start")
+async def login_start(payload: LoginRequest, request: Request):
+    """Start an async login. Returns job_id immediately — poll /login/result."""
+    import uuid, time
+    ua = request.headers.get("user-agent", "")
+    job_id = str(uuid.uuid4())
+
+    # Clean up old jobs (>10 min)
+    with _async_login_lock:
+        cutoff = time.time() - 600
+        stale = [k for k, v in _async_login_jobs.items() if v.get("started_at", 0) < cutoff]
+        for k in stale:
+            del _async_login_jobs[k]
+        _async_login_jobs[job_id] = {"status": "pending", "started_at": time.time()}
+
+    t = _threading.Thread(
+        target=_run_async_login,
+        args=(job_id, payload.roll_number, payload.password, ua),
+        daemon=True,
+        name=f"async-login-{job_id[:8]}",
+    )
+    t.start()
+
+    return JSONResponse({"status": "pending", "job_id": job_id})
+
+
+@router.get("/login/result")
+async def login_result(job_id: str):
+    """Poll for async login result."""
+    with _async_login_lock:
+        job = _async_login_jobs.get(job_id)
+
+    if job is None:
+        return JSONResponse({"status": "not_found"}, status_code=404)
+
+    if job["status"] == "pending":
+        return JSONResponse({"status": "pending"})
+
+    if job["status"] == "success":
+        # Clean up after reading
+        with _async_login_lock:
+            _async_login_jobs.pop(job_id, None)
+        return JSONResponse({
+            "status": "success",
+            "message": "Login successful",
+            "data": job["data"],
+        })
+
+    # Error
+    with _async_login_lock:
+        _async_login_jobs.pop(job_id, None)
+    return _login_error_response(job.get("code", "PORTAL_UNREACHABLE"))
+
+
 @router.post("/attendance", response_model=ApiResponse)
 async def attendance(payload: AttendanceRequest):
     try:

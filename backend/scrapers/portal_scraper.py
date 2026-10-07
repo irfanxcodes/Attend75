@@ -36,13 +36,23 @@ class PortalNetworkError(Exception):
 
 
 class PortalScraper:
-    PASSWORD_MAX_LENGTH = 10
-
     def __init__(self, session: requests.Session | None = None):
         self._logger = logging.getLogger(__name__)
         self.session = session or requests.Session()
         self.base_url = os.getenv("PORTAL_BASE_URL", "http://111.93.16.209/sz")
         self.login_path = os.getenv("PORTAL_LOGIN_PATH", "login.aspx")
+        # Worker rotation — pick an active worker URL from the rotator.
+        # Falls back to direct portal access if no workers are configured.
+        from services.worker_rotator import worker_rotator as _rotator
+        self._rotator = _rotator
+        self._worker_base: str | None = self._resolve_worker_base()
+
+        # Proxy rotation (Tier 2 fallback) — when all Cloudflare Workers are
+        # blocked, route requests through a datacenter proxy IP instead.
+        # Falls back to direct access if no proxies are configured or all blocked.
+        from services.proxy_rotator import proxy_rotator as _proxy_rotator
+        self._proxy_rotator = _proxy_rotator
+        self._apply_proxy_tier()
         self.request_timeout = float(os.getenv("PORTAL_REQUEST_TIMEOUT_SECONDS", "15"))
         self.marks_request_timeout = max(
             float(os.getenv("PORTAL_MARKS_REQUEST_TIMEOUT_SECONDS", "7")),
@@ -75,6 +85,7 @@ class PortalScraper:
         self._faculty_cache_ttl_seconds = max(float(os.getenv("PORTAL_FACULTY_CACHE_TTL_SECONDS", "60")), 0.0)
         self._faculty_cache: dict[str, tuple[float, dict]] = {}
         self._history_cache: dict[str, dict[str, list[dict[str, str | bool]]]] = {}
+        self._last_courses_name_map: dict[str, str] = {}
         self.session.headers.update(
             {
                 "User-Agent": (
@@ -124,12 +135,23 @@ class PortalScraper:
                 login_url,
                 data=payload,
                 timeout=self.request_timeout,
-                allow_redirects=True,
+                allow_redirects=False,   # Follow manually so redirects go through the Worker
                 headers={
                     "Referer": login_url,
                     "Origin": self.base_url.rsplit("/", 1)[0],
                 },
             )
+            # If the portal responded with a redirect, follow it through our proxy
+            if response.status_code in (301, 302, 303, 307, 308):
+                location = response.headers.get("Location", "")
+                if location:
+                    redirect_url = self._build_url(location)
+                    response = self.session.get(
+                        redirect_url,
+                        timeout=self.request_timeout,
+                        allow_redirects=True,
+                        headers={"Referer": login_url},
+                    )
             response.raise_for_status()
         except requests.RequestException as exc:
             raise self._portal_network_error(
@@ -158,6 +180,10 @@ class PortalScraper:
                     "Portal rejected login details (login error shown on login response)",
                     code="LOGIN_FAILED",
                 )
+            raise PortalAuthenticationError(
+                "Portal returned the login page after submit without an authenticated session",
+                code="LOGIN_FAILED",
+            )
 
         # Follow the same navigation chain observed in browser logs:
         # login POST -> Index.aspx -> SDB.aspx -> CommonS.aspx?qs=ap
@@ -201,7 +227,7 @@ class PortalScraper:
             if latest_sem_id != login_selected:
                 switched_html = self._switch_semester(
                     attendance_response.text,
-                    self._build_url("CommonS.aspx?qs=ap"),
+                    self._build_url("AttendanceDashboard.aspx"),
                     latest_sem_id,
                 )
                 if switched_html:
@@ -218,7 +244,7 @@ class PortalScraper:
                 # Portal defaulted to a different program — switch to earliest and re-fetch
                 switched_html = self._switch_program(
                     attendance_response.text,
-                    self._build_url("CommonS.aspx?qs=ap"),
+                    self._build_url("AttendanceDashboard.aspx"),
                     nav_selected_program,
                 )
                 if switched_html:
@@ -227,10 +253,18 @@ class PortalScraper:
                         payload["attendance"] = []
 
         courses_map = self._safe_fetch_courses_map(payload.get("selected_semester"))
+        courses_name_map = self._safe_fetch_courses_name_map(payload.get("selected_semester"))
         payload["attendance"] = self._merge_attendance_with_total_sessions(
             payload.get("attendance", []),
             courses_map,
         )
+        # Enrich course_abbr with short abbreviation (e.g. BE, HRM) from Courses page
+        if courses_name_map:
+            for item in payload["attendance"]:
+                code = self._normalize_code(str(item.get("code", "")))
+                abbr = courses_name_map.get(code, "")
+                if abbr:
+                    item["course_abbr"] = abbr
         payload["feasibility"] = {
             "overall": self._build_overall_feasibility(payload.get("attendance", []))
         }
@@ -255,7 +289,7 @@ class PortalScraper:
             if cached_payload is not None:
                 return cached_payload
 
-        attendance_url = self._build_url("CommonS.aspx?qs=ap")
+        attendance_url = self._build_url("AttendanceDashboard.aspx")
 
         try:
             attendance_response = self.session.get(
@@ -273,6 +307,22 @@ class PortalScraper:
 
         html = attendance_response.text
 
+        # Fall back to old portal URL if new dashboard returns no cards
+        if not self._contains_attendance_cards(html) and not self._contains_attendance_table(html):
+            fallback_url = self._build_url("CommonS.aspx?qs=ap")
+            try:
+                fallback_response = self.session.get(
+                    fallback_url,
+                    timeout=self.request_timeout,
+                    headers={"Referer": self._build_url("Index.aspx")},
+                )
+                fallback_response.raise_for_status()
+                if self._contains_attendance_table(fallback_response.text) or self._contains_attendance_cards(fallback_response.text):
+                    attendance_url = fallback_url
+                    html = fallback_response.text
+            except requests.RequestException:
+                pass  # stick with AttendanceDashboard response
+
         # First, switch program if requested
         if program_id:
             switched_html = self._switch_program(html, attendance_url, program_id)
@@ -285,7 +335,7 @@ class PortalScraper:
             if switched_html is not None:
                 html = switched_html
 
-        if self._looks_like_login_page(html) and not self._contains_attendance_table(html):
+        if self._looks_like_login_page(html) and not self._contains_attendance_table(html) and not self._contains_attendance_cards(html):
             raise PortalAuthenticationError(
                 "Portal returned login page while loading attendance (session expired or invalid)",
                 code="SESSION_EXPIRED",
@@ -295,10 +345,20 @@ class PortalScraper:
         if payload.get("attendance") is None:
             payload["attendance"] = []
         courses_map = self._safe_fetch_courses_map(payload.get("selected_semester"))
+        # Fetch subject name map — _fetch_courses_map already cached it on self._last_courses_name_map
+        courses_name_map = self._safe_fetch_courses_name_map(payload.get("selected_semester"))
         payload["attendance"] = self._merge_attendance_with_total_sessions(
             payload.get("attendance", []),
             courses_map,
         )
+        # Enrich with short abbreviation from Courses page (e.g. "BE", "HRM", "CSCL")
+        # This replaces the subject code with the human-readable short name.
+        if courses_name_map:
+            for item in payload["attendance"]:
+                code = self._normalize_code(str(item.get("code", "")))
+                abbr = courses_name_map.get(code, "")
+                if abbr:
+                    item["course_abbr"] = abbr
         payload["feasibility"] = {
             "overall": self._build_overall_feasibility(payload.get("attendance", []))
         }
@@ -1013,8 +1073,11 @@ class PortalScraper:
         ]
         generic_keywords = [
             "invalid credentials",
+            "invalid captcha",
+            "invalid security code",
             "login failed",
             "please enter valid",
+            "security code",
         ]
         if any(keyword in text for keyword in username_keywords):
             return "INVALID_USERNAME"
@@ -1033,7 +1096,7 @@ class PortalScraper:
         return any("index.aspx" in target for target in redirect_targets) or "index.aspx" in final_url
 
     def _normalize_password(self, password: str) -> str:
-        return (password or "")[: self.PASSWORD_MAX_LENGTH]
+        return password or ""
 
     def _has_authenticated_session(self) -> bool:
         cookie_names = {cookie.name for cookie in self.session.cookies}
@@ -1063,7 +1126,8 @@ class PortalScraper:
     def _run_post_login_navigation(self, login_url: str) -> dict:
         index_url = self._build_url("Index.aspx")
         sdb_url = self._build_url("SDB.aspx")
-        attendance_url = self._build_url("CommonS.aspx?qs=ap")
+        # New portal uses AttendanceDashboard.aspx; fall back to CommonS.aspx?qs=ap for older sessions
+        attendance_url = self._build_url("AttendanceDashboard.aspx")
 
         try:
             index_response = self.session.get(
@@ -1091,6 +1155,19 @@ class PortalScraper:
                 headers={"Referer": index_url},
             )
             attendance_response.raise_for_status()
+
+            # If new dashboard returns no ad-card divs, fall back to old CommonS page
+            if not self._contains_attendance_cards(attendance_response.text):
+                fallback_url = self._build_url("CommonS.aspx?qs=ap")
+                fallback_response = self.session.get(
+                    fallback_url,
+                    timeout=self.request_timeout,
+                    headers={"Referer": index_url},
+                )
+                fallback_response.raise_for_status()
+                if self._contains_attendance_table(fallback_response.text) or self._contains_attendance_cards(fallback_response.text):
+                    attendance_response = fallback_response
+
             return {
                 "attendance_response": attendance_response,
                 "student_name": student_name,
@@ -1186,6 +1263,62 @@ class PortalScraper:
         soup = BeautifulSoup(html, "html.parser")
         attendance_items: list[dict[str, str]] = []
 
+        # --- New portal: AttendanceDashboard.aspx with ad-card divs ---
+        ad_cards = soup.find_all("div", class_="ad-card")
+        if ad_cards:
+            for card in ad_cards:
+                code_div = card.find("div", class_="ad-card-code")
+                code = code_div.get_text(" ", strip=True) if code_div else ""
+                if not code:
+                    continue
+
+                attended_raw = (card.get("data-attended") or "").strip()
+                sessions_raw = (card.get("data-sessions") or "").strip()
+                attended_val = self._parse_int(attended_raw)
+                sessions_val = self._parse_int(sessions_raw)
+
+                if sessions_val and attended_val is not None and sessions_val > 0:
+                    pct = round(attended_val / sessions_val * 100, 1)
+                    percentage = f"{pct}%"
+                else:
+                    percentage = ""
+
+                # Try to get subject name from a name/title element inside the card
+                name_div = (
+                    card.find("div", class_="ad-card-course")
+                    or card.find("div", class_="ad-card-name")
+                    or card.find("div", class_="ad-card-subject")
+                    or card.find("div", class_="ad-card-title")
+                    or card.find("p", class_="ad-card-name")
+                )
+                course_name = name_div.get_text(" ", strip=True) if name_div else code
+
+                # History link: "View class-by-class history" → swatt.aspx?Code=SUBJECTCODE
+                history_link_tag = card.find("a", href=True)
+                history_link = None
+                if history_link_tag:
+                    history_link = self._resolve_url(history_link_tag["href"])
+                else:
+                    # Build it from the code
+                    history_link = self._build_url(f"swatt.aspx?Code={code}")
+
+                attendance_items.append(
+                    {
+                        "subject": course_name,
+                        "course_abbr": code,
+                        "attendance": percentage,
+                        "code": code,
+                        "history_link": history_link,
+                        "section": "",
+                        "sessions": sessions_raw,
+                        "attended": attended_raw,
+                    }
+                )
+
+            if attendance_items:
+                return {"attendance": attendance_items}
+
+        # --- Old portal: HTML table format ---
         attendance_table = self._find_attendance_table(soup)
         if attendance_table is None:
             # Some sessions/terms may not have attendance rows yet.
@@ -1285,6 +1418,11 @@ class PortalScraper:
     def _contains_attendance_table(self, html: str) -> bool:
         soup = BeautifulSoup(html, "html.parser")
         return self._find_attendance_table(soup) is not None
+
+    def _contains_attendance_cards(self, html: str) -> bool:
+        """Detect new-style AttendanceDashboard.aspx which uses ad-card divs."""
+        soup = BeautifulSoup(html, "html.parser")
+        return bool(soup.find("div", class_="ad-card"))
 
     def _switch_program(self, html: str, attendance_url: str, program_id: str) -> str | None:
         """
@@ -1556,6 +1694,12 @@ class PortalScraper:
             # Do not break attendance flow if Courses tab parsing fails.
             return {}
 
+    def _safe_fetch_courses_name_map(self, semester_id: str | None) -> dict[str, str]:
+        try:
+            return self._fetch_courses_name_map(semester_id)
+        except Exception:
+            return {}
+
     def _fetch_courses_map(self, semester_id: str | None) -> dict[str, int]:
         # Use the exact Academics -> Courses page as requested.
         courses_url = self._build_url("rc/cr.aspx")
@@ -1586,7 +1730,44 @@ class PortalScraper:
                 code="SESSION_EXPIRED",
             )
 
+        # Cache the name map on the instance while we have the HTML
+        self._last_courses_name_map = self._parse_courses_name_map(html)
         return self._parse_courses_map(html)
+
+    def _fetch_courses_name_map(self, semester_id: str | None) -> dict[str, str]:
+        """Return cached name map if available (populated by _fetch_courses_map), else fetch fresh."""
+        if hasattr(self, "_last_courses_name_map") and self._last_courses_name_map:
+            name_map = self._last_courses_name_map
+            self._last_courses_name_map = {}
+            return name_map
+
+        courses_url = self._build_url("rc/cr.aspx")
+        try:
+            courses_response = self.session.get(
+                courses_url,
+                timeout=self.request_timeout,
+                headers={"Referer": self._build_url("Index.aspx")},
+            )
+            courses_response.raise_for_status()
+        except requests.RequestException as exc:
+            raise self._portal_network_error(
+                exc,
+                stage="COURSES_FETCH",
+                message_prefix="Unable to fetch Courses page from college portal",
+            ) from exc
+
+        html = courses_response.text
+        if semester_id:
+            switched_html = self._switch_semester_on_page(html, courses_url, semester_id)
+            if switched_html is not None:
+                html = switched_html
+
+        if self._looks_like_login_page(html):
+            raise PortalAuthenticationError(
+                "Portal returned login page while loading Courses",
+                code="SESSION_EXPIRED",
+            )
+        return self._parse_courses_name_map(html)
 
     def _switch_semester_on_page(self, html: str, page_url: str, semester_id: str) -> str | None:
         soup = BeautifulSoup(html, "html.parser")
@@ -1686,7 +1867,7 @@ class PortalScraper:
             code_index = self._find_column_index(headers, ["code", "course code", "subject code"])
             total_index = self._find_column_index(
                 headers,
-                ["total sessions", "totalsessions", "session total", "no. of sessions", "sessions"],
+                ["sessions", "total sessions", "totalsessions", "session total", "no. of sessions"],
             )
 
             if code_index is None or total_index is None:
@@ -1704,6 +1885,42 @@ class PortalScraper:
                     courses_map[code_value] = total_value
 
         return courses_map
+
+    def _parse_courses_name_map(self, html: str) -> dict[str, str]:
+        """Parse code → short abbreviation from the Courses page (rc/cr.aspx).
+
+        The portal table has columns: Code | Course | Strem | Short Name | Units | Sessions
+        "Strem" is the short abbreviation (MA, BE, HRM, etc.) — that's what we want.
+        """
+        soup = BeautifulSoup(html, "html.parser")
+        name_map: dict[str, str] = {}
+
+        for table in soup.find_all("table"):
+            headers = [th.get_text(" ", strip=True).lower() for th in table.find_all("th")]
+            if not headers:
+                continue
+
+            code_index = self._find_column_index(headers, ["code", "course code", "subject code"])
+            if code_index is None:
+                continue
+
+            # "Strem" column holds the short abbreviation (MA, BE, HRM…)
+            abbr_index = self._find_column_index(headers, ["strem", "abbr", "abbreviation", "short"])
+            if abbr_index is None:
+                continue
+
+            for row in table.find_all("tr"):
+                cols = row.find_all("td")
+                if len(cols) <= max(code_index, abbr_index):
+                    continue
+
+                code_value = self._normalize_code(cols[code_index].get_text(" ", strip=True))
+                abbr_value = cols[abbr_index].get_text(" ", strip=True).strip()
+
+                if code_value and abbr_value:
+                    name_map[code_value] = abbr_value
+
+        return name_map
 
     def _merge_attendance_with_total_sessions(
         self,
@@ -1823,7 +2040,7 @@ class PortalScraper:
             response = self.session.get(
                 url,
                 timeout=self.request_timeout,
-                headers={"Referer": self._build_url("CommonS.aspx?qs=ap")},
+                headers={"Referer": self._build_url("AttendanceDashboard.aspx")},
             )
             response.raise_for_status()
         except requests.RequestException as exc:
@@ -1836,6 +2053,54 @@ class PortalScraper:
         soup = BeautifulSoup(response.text, "html.parser")
         entries: list[dict[str, str | bool]] = []
 
+        # --- New portal: swatt.aspx with dw-table and dw-status-badge spans ---
+        dw_table = soup.find("table", class_="dw-table")
+        if dw_table:
+            for row in dw_table.find_all("tr"):
+                cells = row.find_all("td")
+                if len(cells) < 2:
+                    continue
+
+                # Columns: Session | Date | Topic | Status
+                date_text = cells[1].get_text(" ", strip=True) if len(cells) > 1 else ""
+                parsed_date = self._extract_history_date([date_text])
+
+                status_badge = None
+                for cell in cells:
+                    status_badge = cell.find("span", class_="dw-status-badge")
+                    if status_badge:
+                        break
+
+                if status_badge is None:
+                    continue
+
+                badge_classes = status_badge.get("class", [])
+                badge_text = status_badge.get_text(" ", strip=True).lower()
+
+                if "dw-attended" in badge_classes or "attended" in badge_text:
+                    attended = True
+                elif "dw-missed" in badge_classes or "missed" in badge_text or "absent" in badge_text:
+                    attended = False
+                else:
+                    continue
+
+                if not parsed_date:
+                    continue
+
+                entries.append(
+                    {
+                        "date": parsed_date,
+                        "attended": attended,
+                        "subject": subject,
+                        "subject_abbr": subject_abbr,
+                        "code": code,
+                    }
+                )
+
+            if entries:
+                return entries
+
+        # --- Old portal: generic table parsing ---
         for table in soup.find_all("table"):
             headers = [th.get_text(" ", strip=True).lower() for th in table.find_all("th")]
             if not headers:
@@ -1983,6 +2248,29 @@ class PortalScraper:
         upper_stage = (stage or "DATA_FETCH").strip().upper()
 
         if isinstance(exc, requests.Timeout):
+            # Timeouts on authenticated portal pages strongly indicate the worker's
+            # IP range has been blocked. Mark the current worker as blocked so the
+            # rotator switches to the next one on the next login attempt.
+            _authenticated_stages = {
+                "POST_LOGIN_NAVIGATION",
+                "ATTENDANCE_FETCH",
+                "ATTENDANCE_SWITCH_SEMESTER",
+                "ATTENDANCE_SWITCH_PROGRAM",
+                "HISTORY_FETCH",
+                "MARKS_PAGE_FETCH",
+                "FACULTY_FETCH",
+                "COURSES_FETCH",
+            }
+            if upper_stage in _authenticated_stages and self._worker_base:
+                self._rotator.mark_current_blocked()
+                # Pick a fresh worker for the next request on this scraper instance
+                self._worker_base = self._resolve_worker_base()
+                # If all workers are now blocked, fall through to proxy tier
+                self._apply_proxy_tier()
+            elif upper_stage in _authenticated_stages and not self._worker_base:
+                # Already on proxy tier — mark this proxy blocked and rotate
+                self._proxy_rotator.mark_current_blocked()
+                self._apply_proxy_tier()
             return PortalNetworkError(
                 f"{message_prefix}: request timed out",
                 code=f"{upper_stage}_TIMEOUT",
@@ -2020,6 +2308,36 @@ class PortalScraper:
             http_status=502,
         )
 
+    def _resolve_worker_base(self) -> str | None:
+        """Pick the current active worker URL and append the portal path suffix."""
+        worker_url = self._rotator.get_worker_url()
+        if not worker_url:
+            return None
+        portal_suffix = self.base_url.split("//", 1)[-1].split("/", 1)
+        path_suffix = ("/" + portal_suffix[1].strip("/")) if len(portal_suffix) > 1 and portal_suffix[1] else ""
+        return worker_url + path_suffix
+
+    def _apply_proxy_tier(self) -> None:
+        """
+        Apply Tier-2 proxy to the requests.Session when Cloudflare Workers are
+        unavailable. If a worker IS active, clear any previously set proxy so
+        traffic routes through the worker (not the proxy AND the worker).
+
+        Call this after any change to _worker_base.
+        """
+        if self._worker_base:
+            # Worker is active — clear proxy so we don't double-proxy
+            self.session.proxies.clear()
+            return
+
+        proxy_dict = self._proxy_rotator.get_proxy_dict()
+        if proxy_dict:
+            self.session.proxies.update(proxy_dict)
+            self._logger.info("[PortalScraper] No workers available — routing through datacenter proxy")
+        else:
+            self.session.proxies.clear()
+            self._logger.warning("[PortalScraper] No workers and no proxies available — using direct portal access")
+
     def _normalize_code(self, code: str) -> str:
         return "".join((code or "").upper().split())
 
@@ -2033,6 +2351,22 @@ class PortalScraper:
         return self._build_url(maybe_relative_path)
 
     def _build_url(self, path: str) -> str:
-        normalized_base = self.base_url.rstrip("/") + "/"
+        # If a Cloudflare Worker proxy is configured, route through it.
+        # _worker_base already mirrors base_url's path suffix (e.g. /sz).
+        base = self._worker_base if self._worker_base else self.base_url
+
+        # If path is already a full URL (from portal redirects etc.),
+        # strip the origin and rebase on the worker root (not worker_base)
+        # to avoid doubling the /sz prefix.
+        if path.startswith("http://") or path.startswith("https://"):
+            after_host = path.split("//", 1)[-1].split("/", 1)
+            abs_path = ("/" + after_host[1]) if len(after_host) > 1 else "/"
+            if self._worker_base:
+                # Rebase absolute portal path onto worker root (strip /sz from worker_base)
+                worker_root = self._worker_base.rsplit("/sz", 1)[0] if "/sz" in self._worker_base else self._worker_base
+                return worker_root.rstrip("/") + abs_path
+            return self.base_url.split("//")[0] + "//" + self.base_url.split("//")[1].split("/")[0] + abs_path
+
+        normalized_base = base.rstrip("/") + "/"
         normalized_path = path.lstrip("/")
         return urljoin(normalized_base, normalized_path)
