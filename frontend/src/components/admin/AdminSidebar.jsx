@@ -5,6 +5,7 @@ const NAV_SECTIONS = [
       { id: 'dashboard', label: 'Dashboard', icon: 'grid' },
       { id: 'system-health', label: 'System Health', icon: 'activity' },
       { id: 'push-health', label: 'Push Health', icon: 'bell' },
+      { id: 'proxy-monitor', label: 'Proxy Monitor', icon: 'server' },
     ],
   },
   {
@@ -46,6 +47,7 @@ function NavIcon({ name, className = 'h-4 w-4' }) {
   const icons = {
     grid: <><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></>,
     activity: <><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></>,
+    server: <><rect x="2" y="2" width="20" height="8" rx="2" ry="2" /><rect x="2" y="14" width="20" height="8" rx="2" ry="2" /><line x1="6" y1="6" x2="6.01" y2="6" /><line x1="6" y1="18" x2="6.01" y2="18" /></>,
     users: <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>,
     'trending-up': <><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" /></>,
     repeat: <><polyline points="17 1 21 5 17 9" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><polyline points="7 23 3 19 7 15" /><path d="M21 13v2a4 4 0 0 1-4 4H3" /></>,

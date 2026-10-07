@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   clearAdminSession,
   fetchAdminAnalytics,
@@ -24,9 +24,11 @@ import PushNotificationHealthPage from '../../components/admin/PushNotificationH
 import AdvertisementsPage from '../../components/admin/AdvertisementsPage'
 import StorageCapPage from '../../components/admin/StorageCapPage'
 import StudyMeAnalyticsPage from '../../components/admin/StudyMeAnalyticsPage'
+import ProxyMonitorPage from '../../components/admin/ProxyMonitorPage'
 
 function AdminDashboard() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [activeSection, setActiveSection] = useState('dashboard')
   const [data, setData] = useState(null)
   const [analytics, setAnalytics] = useState(null)
@@ -36,6 +38,13 @@ function AdminDashboard() {
 
   const session = parseAdminSession()
   const sessionToken = session?.sessionToken
+
+  // Auto-select proxy-monitor section if on /bunk-monitor route
+  useEffect(() => {
+    if (location.pathname === '/bunk-monitor') {
+      setActiveSection('proxy-monitor')
+    }
+  }, [location.pathname])
 
   const fetchAllData = useCallback(async () => {
     if (!sessionToken) return
@@ -136,6 +145,8 @@ function AdminDashboard() {
               onRefresh={fetchAllData}
               isLoading={isLoading}
             />
+          ) : activeSection === 'proxy-monitor' ? (
+            <ProxyMonitorPage sessionToken={sessionToken} />
           ) : activeSection === 'users-analytics' ? (
             <UsersAnalyticsPage
               data={data}

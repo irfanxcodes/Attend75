@@ -323,6 +323,7 @@ function AppRoutes() {
         <Route path="/terms" element={<Terms />} />
         <Route path="/bunk/login" element={<AdminPublicRoute />} />
         <Route path="/bunk" element={<AdminProtectedRoute />} />
+        <Route path="/bunk-monitor" element={<AdminProtectedRoute />} />
         <Route path="/loading" element={<Loading />} />
         <Route path="/dashboard" element={<Navigate to="/app/dashboard" replace />} />
         <Route path="/history" element={<Navigate to="/app/history" replace />} />
