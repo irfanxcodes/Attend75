@@ -39,6 +39,7 @@ class ProxyMonitor:
     
     def __init__(self):
         self.stats: Dict[str, ProxyStatus] = {}
+        self.currently_using: Optional[str] = None  # Track the most recently used worker/proxy
         self._load_from_env()
     
     def _load_from_env(self):
@@ -85,6 +86,9 @@ class ProxyMonitor:
         """Record a successful request through this proxy/worker."""
         if url not in self.stats:
             return
+        
+        # Mark this as currently in use
+        self.currently_using = url
         
         stat = self.stats[url]
         stat.success_count += 1
@@ -157,6 +161,16 @@ class ProxyMonitor:
         total_requests = total_success + total_failure
         success_rate = (total_success / total_requests * 100) if total_requests > 0 else 0
         
+        # Get info about currently used worker/proxy
+        currently_using_info = None
+        if self.currently_using and self.currently_using in self.stats:
+            stat = self.stats[self.currently_using]
+            currently_using_info = {
+                'url': stat.url,
+                'type': stat.type,
+                'last_success': stat.last_success.isoformat() if stat.last_success else None
+            }
+        
         return {
             'total_workers': len(workers),
             'active_workers': len(active_workers),
@@ -173,7 +187,8 @@ class ProxyMonitor:
                 len([s for s in self.stats.values() if s.success_count > 0])
                 if any(s.success_count > 0 for s in self.stats.values()) else 0,
                 2
-            )
+            ),
+            'currently_using': currently_using_info
         }
 
 # Global singleton

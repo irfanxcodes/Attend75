@@ -203,6 +203,34 @@ function ProxyMonitorPage({ sessionToken }) {
         </div>
       </div>
 
+      {/* Currently Using Banner */}
+      {stats.currently_using && (
+        <div className="rounded-xl border border-green-500/20 bg-green-500/5 p-4">
+          <div className="flex items-center gap-3">
+            <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-green-500/10">
+              <div className="absolute h-10 w-10 animate-ping rounded-full bg-green-500/30"></div>
+              <svg className="relative z-10 h-5 w-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-xs font-medium text-green-400">Currently Using</p>
+              <div className="mt-1 flex items-center gap-2">
+                <span className="rounded bg-green-500/20 px-2 py-0.5 text-[10px] font-medium uppercase text-green-400">
+                  {stats.currently_using.type}
+                </span>
+                <code className="text-xs text-[#F4F1FF]">{stats.currently_using.url}</code>
+                {stats.currently_using.last_success && (
+                  <span className="text-[10px] text-[#9F9AB5]">
+                    Last used {formatTime(stats.currently_using.last_success)}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Blocked Items Alert */}
       {blocked.length > 0 && (
         <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4">
@@ -228,43 +256,57 @@ function ProxyMonitorPage({ sessionToken }) {
           Active Cloudflare Workers ({activeWorkers.length})
         </h3>
         <div className="space-y-2">
-          {activeWorkers.map((worker, idx) => (
-            <div key={idx} className="rounded-lg border border-white/5 bg-[#2A2440] p-3">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <code className="text-xs text-[#F4F1FF]">{worker.url}</code>
-                    {getStatusBadge(worker)}
+          {activeWorkers.map((worker, idx) => {
+            const isCurrentlyUsing = stats.currently_using?.url === worker.url
+            return (
+              <div key={idx} className={`rounded-lg border p-3 ${isCurrentlyUsing ? 'border-green-500/30 bg-green-500/5' : 'border-white/5 bg-[#2A2440]'}`}>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      {isCurrentlyUsing && (
+                        <div className="relative flex h-2 w-2">
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
+                          <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500"></span>
+                        </div>
+                      )}
+                      <code className="text-xs text-[#F4F1FF]">{worker.url}</code>
+                      {getStatusBadge(worker)}
+                      {isCurrentlyUsing && (
+                        <span className="rounded-full bg-green-500/20 px-2 py-0.5 text-[10px] font-bold uppercase text-green-400">
+                          IN USE
+                        </span>
+                      )}
+                    </div>
+                    {worker.last_error && (
+                      <p className="mt-1 text-[10px] text-red-400">Last error: {worker.last_error}</p>
+                    )}
                   </div>
-                  {worker.last_error && (
-                    <p className="mt-1 text-[10px] text-red-400">Last error: {worker.last_error}</p>
-                  )}
-                </div>
-                <div className="ml-4 flex gap-6 text-right">
-                  <div>
-                    <p className="text-[10px] text-[#6E6A88]">Success Rate</p>
-                    <p className={`text-sm font-medium ${getSuccessRateColor(worker.success_count, worker.failure_count)}`}>
-                      {worker.success_count + worker.failure_count > 0
-                        ? `${Math.round((worker.success_count / (worker.success_count + worker.failure_count)) * 100)}%`
-                        : 'N/A'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-[#6E6A88]">Requests</p>
-                    <p className="text-sm font-medium text-[#F4F1FF]">{worker.success_count + worker.failure_count}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-[#6E6A88]">Avg Response</p>
-                    <p className="text-sm font-medium text-[#F4F1FF]">{Math.round(worker.response_time_avg_ms)}ms</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-[#6E6A88]">Last Success</p>
-                    <p className="text-sm font-medium text-[#9F9AB5]">{formatTime(worker.last_success)}</p>
+                  <div className="ml-4 flex gap-6 text-right">
+                    <div>
+                      <p className="text-[10px] text-[#6E6A88]">Success Rate</p>
+                      <p className={`text-sm font-medium ${getSuccessRateColor(worker.success_count, worker.failure_count)}`}>
+                        {worker.success_count + worker.failure_count > 0
+                          ? `${Math.round((worker.success_count / (worker.success_count + worker.failure_count)) * 100)}%`
+                          : 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-[#6E6A88]">Requests</p>
+                      <p className="text-sm font-medium text-[#F4F1FF]">{worker.success_count + worker.failure_count}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-[#6E6A88]">Avg Response</p>
+                      <p className="text-sm font-medium text-[#F4F1FF]">{Math.round(worker.response_time_avg_ms)}ms</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-[#6E6A88]">Last Success</p>
+                      <p className="text-sm font-medium text-[#9F9AB5]">{formatTime(worker.last_success)}</p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
           {activeWorkers.length === 0 && (
             <p className="rounded-lg border border-white/5 bg-[#2A2440] p-4 text-center text-sm text-[#6E6A88]">
               No active workers available
@@ -331,22 +373,38 @@ function ProxyMonitorPage({ sessionToken }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {activeProxies.slice(0, 50).map((proxy, idx) => (
-                  <tr key={idx} className="hover:bg-white/[0.02]">
-                    <td className="px-3 py-2">
-                      <code className="text-[#F4F1FF]">{proxy.url.split('@')[1] || proxy.url}</code>
-                    </td>
-                    <td className="px-3 py-2">{getStatusBadge(proxy)}</td>
-                    <td className={`px-3 py-2 text-right ${getSuccessRateColor(proxy.success_count, proxy.failure_count)}`}>
-                      {proxy.success_count + proxy.failure_count > 0
-                        ? `${Math.round((proxy.success_count / (proxy.success_count + proxy.failure_count)) * 100)}%`
-                        : 'N/A'}
-                    </td>
-                    <td className="px-3 py-2 text-right text-[#F4F1FF]">{proxy.success_count + proxy.failure_count}</td>
-                    <td className="px-3 py-2 text-right text-[#F4F1FF]">{Math.round(proxy.response_time_avg_ms)}ms</td>
-                    <td className="px-3 py-2 text-right text-[#9F9AB5]">{formatTime(proxy.last_success)}</td>
-                  </tr>
-                ))}
+                {activeProxies.slice(0, 50).map((proxy, idx) => {
+                  const isCurrentlyUsing = stats.currently_using?.url === proxy.url
+                  return (
+                    <tr key={idx} className={`hover:bg-white/[0.02] ${isCurrentlyUsing ? 'bg-green-500/5' : ''}`}>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          {isCurrentlyUsing && (
+                            <div className="relative flex h-2 w-2">
+                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
+                              <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500"></span>
+                            </div>
+                          )}
+                          <code className="text-[#F4F1FF]">{proxy.url.split('@')[1] || proxy.url}</code>
+                          {isCurrentlyUsing && (
+                            <span className="rounded-full bg-green-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase text-green-400">
+                              IN USE
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">{getStatusBadge(proxy)}</td>
+                      <td className={`px-3 py-2 text-right ${getSuccessRateColor(proxy.success_count, proxy.failure_count)}`}>
+                        {proxy.success_count + proxy.failure_count > 0
+                          ? `${Math.round((proxy.success_count / (proxy.success_count + proxy.failure_count)) * 100)}%`
+                          : 'N/A'}
+                      </td>
+                      <td className="px-3 py-2 text-right text-[#F4F1FF]">{proxy.success_count + proxy.failure_count}</td>
+                      <td className="px-3 py-2 text-right text-[#F4F1FF]">{Math.round(proxy.response_time_avg_ms)}ms</td>
+                      <td className="px-3 py-2 text-right text-[#9F9AB5]">{formatTime(proxy.last_success)}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
