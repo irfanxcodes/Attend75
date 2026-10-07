@@ -75,6 +75,10 @@ def _run_with_network_retry(operation):
                 raise
             if attempt >= attempts:
                 raise
+            _logger.warning(
+                "[retry] Network error on attempt %d/%d [%s] — retrying with next proxy/worker",
+                attempt, attempts, getattr(exc, "code", exc),
+            )
             if backoff > 0:
                 time.sleep(backoff * attempt)
 
@@ -161,97 +165,80 @@ def _evaluate_attendance_from_login(roll_number: str, overall_percent: float | N
 
 def login_user(roll_number: str, password: str, user_agent: str | None = None) -> dict:
     started = time.perf_counter()
-    scraper = PortalScraper()
     data = None
     github_fallback_used = False
+    last_network_exc = None
 
-    # --- Attempt 1: Cloudflare Worker tier (+ Tier-2 datacenter proxy fallback) ---
-    # PortalScraper automatically applies session.proxies when workers are blocked,
-    # so _run_with_network_retry will transparently use the proxy tier on retries.
-    try:
-        data = _run_with_network_retry(lambda: scraper.login(roll_number=roll_number, password=password))
-    except PortalNetworkError as exc:
-        # Network/proxy failure — only escalate to GitHub Actions if both the
-        # Cloudflare Worker tier AND the datacenter proxy tier are exhausted.
+    # --- Attempt 1..N: Cloudflare Worker tier then Tier-2 proxy tier ---
+    # Each retry creates a fresh PortalScraper so the worker/proxy rotator
+    # picks the next available IP automatically.
+    max_ip_attempts = _portal_operation_retry_attempts()
+    backoff = _portal_operation_retry_backoff_seconds()
+
+    for attempt in range(1, max_ip_attempts + 1):
+        scraper = PortalScraper()
+        try:
+            data = scraper.login(roll_number=roll_number, password=password)
+            break  # success — exit retry loop
+        except PortalNetworkError as exc:
+            last_network_exc = exc
+            if not getattr(exc, "retriable", True):
+                break  # non-retriable — stop trying
+            if attempt < max_ip_attempts:
+                _logger.warning(
+                    "[login_user] Network/proxy error attempt %d/%d [%s] — retrying with next IP",
+                    attempt, max_ip_attempts, getattr(exc, "code", exc),
+                )
+                if backoff > 0:
+                    time.sleep(backoff)
+            continue
+        except PortalAuthenticationError:
+            raise  # wrong credentials — don't retry
+
+    if data is None and last_network_exc is not None:
+        exc = last_network_exc
+        # All IP tiers exhausted — try GitHub Actions as last resort
         from services.github_scraper_service import is_enabled as _gh_enabled, trigger_and_wait
-        from services.proxy_rotator import proxy_rotator as _proxy_rotator
-
-        _is_retriable_error = (
+        _is_retriable = (
             getattr(exc, "retriable", False)
             or getattr(exc, "http_status", 0) in (400, 403, 502, 503, 504, 0)
             or getattr(exc, "http_status", 0) >= 400
         )
-        # If proxies are still available, don't jump to GitHub yet — the next
-        # PortalScraper() instantiation will pick up a fresh proxy automatically.
-        _proxies_still_available = _proxy_rotator.has_proxies() and _proxy_rotator.any_available()
-        _should_fallback = _gh_enabled() and _is_retriable_error and not _proxies_still_available
+        if not (_gh_enabled() and _is_retriable):
+            observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
+                           failure_kind="network", failure_code=getattr(exc, "code", None),
+                           failure_stage=getattr(exc, "stage", None), retriable=getattr(exc, "retriable", None))
+            raise exc
 
-        if not _should_fallback:
-            if _proxies_still_available and _is_retriable_error:
-                # Proxy tier still has IPs — retry once more with a fresh scraper
-                # that will pick up the next available proxy.
-                _logger.warning(
-                    "[login_user] Worker tier failed [%s] — retrying with fresh proxy-tier scraper",
-                    getattr(exc, "code", exc),
-                )
-                try:
-                    scraper2 = PortalScraper()
-                    data = _run_with_network_retry(lambda: scraper2.login(roll_number=roll_number, password=password))
-                except PortalNetworkError as exc2:
-                    # Proxy attempt also failed — now try GitHub if enabled
-                    from services.proxy_rotator import proxy_rotator as _proxy_rotator2
-                    _should_fallback2 = _gh_enabled() and (
-                        getattr(exc2, "retriable", False)
-                        or getattr(exc2, "http_status", 0) >= 400
-                    )
-                    if not _should_fallback2:
-                        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
-                                       failure_kind="network", failure_code=getattr(exc2, "code", None),
-                                       failure_stage=getattr(exc2, "stage", None), retriable=getattr(exc2, "retriable", None))
-                        raise
-                    exc = exc2  # fall through to GitHub Actions below
-                    _should_fallback = True
-                else:
-                    # Proxy retry succeeded — fall through to data processing
-                    scraper = scraper2
-                    pass
+        _logger.warning("[login_user] All IP tiers failed [%s] — trying GitHub Actions fallback", getattr(exc, "code", exc))
+        try:
+            from services.github_scraper_service import is_enabled as _gh_enabled, trigger_and_wait
+            gh_result = trigger_and_wait(roll_number=roll_number, password=password)
+        except TimeoutError:
+            observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
+                           failure_kind="network", failure_code="GITHUB_SCRAPER_TIMEOUT")
+            raise PortalNetworkError(
+                "GitHub Actions scraper timed out — please try again",
+                code="GITHUB_SCRAPER_TIMEOUT",
+                stage="LOGIN_REQUEST",
+                retriable=True,
+                http_status=504,
+            )
 
-            if not _should_fallback:
-                observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
-                               failure_kind="network", failure_code=getattr(exc, "code", None),
-                               failure_stage=getattr(exc, "stage", None), retriable=getattr(exc, "retriable", None))
-                raise
+        if gh_result.get("status") == "error":
+            observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
+                           failure_kind="network", failure_code="GITHUB_SCRAPER_ERROR")
+            raise PortalNetworkError(
+                gh_result.get("error", "GitHub scraper returned error"),
+                code="GITHUB_SCRAPER_ERROR",
+                stage="LOGIN_REQUEST",
+                retriable=False,
+                http_status=502,
+            )
 
-        if data is None:
-            _logger.warning("[login_user] All IP tiers failed [%s] — trying GitHub Actions fallback", getattr(exc, "code", exc))
-            try:
-                from services.github_scraper_service import is_enabled as _gh_enabled, trigger_and_wait
-                gh_result = trigger_and_wait(roll_number=roll_number, password=password)
-            except TimeoutError:
-                observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
-                               failure_kind="network", failure_code="GITHUB_SCRAPER_TIMEOUT")
-                raise PortalNetworkError(
-                    "GitHub Actions scraper timed out — please try again",
-                    code="GITHUB_SCRAPER_TIMEOUT",
-                    stage="LOGIN_REQUEST",
-                    retriable=True,
-                    http_status=504,
-                )
-
-            if gh_result.get("status") == "error":
-                observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
-                               failure_kind="network", failure_code="GITHUB_SCRAPER_ERROR")
-                raise PortalNetworkError(
-                    gh_result.get("error", "GitHub scraper returned error"),
-                    code="GITHUB_SCRAPER_ERROR",
-                    stage="LOGIN_REQUEST",
-                    retriable=False,
-                    http_status=502,
-                )
-
-            data = gh_result
-            github_fallback_used = True
-            scraper = PortalScraper()  # empty session — GitHub runner did the scraping
+        data = gh_result
+        github_fallback_used = True
+        scraper = PortalScraper()  # empty session — GitHub runner did the scraping
 
     # --- Process data (from either direct scrape or GitHub fallback) ---
     try:

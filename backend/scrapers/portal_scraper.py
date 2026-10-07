@@ -180,9 +180,15 @@ class PortalScraper:
                     "Portal rejected login details (login error shown on login response)",
                     code="LOGIN_FAILED",
                 )
-            raise PortalAuthenticationError(
-                "Portal returned the login page after submit without an authenticated session",
-                code="LOGIN_FAILED",
+            # No specific error keyword matched — the page is likely garbage
+            # returned by a blocked/broken proxy. Treat as a retriable network
+            # error so the next proxy is tried automatically.
+            raise PortalNetworkError(
+                "Portal returned login page with no recognisable error — likely a bad proxy response",
+                code="LOGIN_REQUEST_BAD_PROXY_RESPONSE",
+                stage="LOGIN_REQUEST",
+                retriable=True,
+                http_status=502,
             )
 
         # Follow the same navigation chain observed in browser logs:
