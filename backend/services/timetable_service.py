@@ -101,7 +101,7 @@ def get_personalized_timetable(token: str, semester_id: str | None = None) -> di
         logger.warning("Timetable: failed to parse schedule from notice %d", best_notice.notice_id)
         return None
 
-    my_classes = _match_student_classes(schedule, student_subjects)
+    my_classes, batch_disambiguation_applied = _match_student_classes(schedule, student_subjects)
     logger.info("Timetable: matched %d classes from %d schedule entries",
                 len(my_classes), len(schedule))
 
@@ -116,13 +116,14 @@ def get_personalized_timetable(token: str, semester_id: str | None = None) -> di
                         [s['abbr'] for s in student_subjects],
                         [s['abbr'] for s in augmented])
             student_subjects = augmented
-            my_classes = _match_student_classes(schedule, student_subjects)
+            my_classes, batch_disambiguation_applied = _match_student_classes(schedule, student_subjects)
             logger.info("Timetable: after augmentation matched %d classes", len(my_classes))
 
     # 8. Section-based fallback — when subject matching is incomplete (e.g. portal
     #    abbreviations differ from timetable codes, or partial attendance data),
     #    show ALL classes for the student's section so no classes are hidden.
-    if student_subjects:
+    #    SKIP this fallback if batch disambiguation was applied (it already picked the correct batch).
+    if student_subjects and not batch_disambiguation_applied:
         sections = set(s.get('section', '').upper() for s in student_subjects if s.get('section'))
         if sections:
             student_section = max(
@@ -382,10 +383,13 @@ def _infer_full_subjects_from_schedule(schedule: list[dict], matched_classes: li
     return [{'abbr': course, 'section': student_section} for course in inferred]
 
 
-def _match_student_classes(schedule: list[dict], student_subjects: list[dict]) -> list[dict]:
-    """Match schedule entries to student's enrolled subjects."""
+def _match_student_classes(schedule: list[dict], student_subjects: list[dict]) -> tuple[list[dict], bool]:
+    """
+    Match schedule entries to student's enrolled subjects.
+    Returns: (matched_classes, batch_disambiguation_applied)
+    """
     if not student_subjects:
-        return []
+        return [], False
 
     # Build lookup: exact ABBR-SECTION keys
     lookup = set()
@@ -404,6 +408,7 @@ def _match_student_classes(schedule: list[dict], student_subjects: list[dict]) -
     # for the same section (e.g. different specialization groups within BBA Sem 5 Section L),
     # we need to identify which batch/group the student belongs to.
     # Strategy: Group matched classes by room or time patterns, pick the batch with most matches.
+    batch_disambiguation_applied = False
     if len(my_classes) > len(abbr_set) * 1.5:  # More matches than expected
         from collections import Counter
         # Try to find distinct batches by room assignment
@@ -437,6 +442,7 @@ def _match_student_classes(schedule: list[dict], student_subjects: list[dict]) -
                 cls for cls in my_classes
                 if cls.get('room', '') == best_room
             ]
+            batch_disambiguation_applied = True
             logger.info("Timetable: batch disambiguation by room %s, kept %d classes", best_room, len(my_classes))
 
     # Secondary match: abbr matches + section fuzzy match using _btech_section_matches
@@ -511,7 +517,7 @@ def _match_student_classes(schedule: list[dict], student_subjects: list[dict]) -
                         and any(course.startswith(p) for p in SPECIFIC_LANGUAGE_PREFIXES)):
                     my_classes.append(cls)
 
-    return my_classes
+    return my_classes, batch_disambiguation_applied
 
 
 def _load_student_subjects(record, semester_id: str | None = None) -> list[dict]:
@@ -763,7 +769,8 @@ def _find_latest_timetable_notice(
                     continue
 
                 # Primary: subject-based match
-                if _match_student_classes(schedule, student_subjects):
+                matched_classes, _ = _match_student_classes(schedule, student_subjects)
+                if matched_classes:
                     return notice
 
                 # Secondary: section-based match — the notice has entries for the
