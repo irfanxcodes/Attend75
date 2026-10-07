@@ -108,14 +108,12 @@ class PortalScraper:
     def login(self, roll_number: str, password: str) -> dict:
         # CRITICAL: Login requires session cookie persistence, which doesn't work
         # reliably through Cloudflare Workers (stateless, sessions can reset).
-        # Temporarily bypass worker for login only, use direct portal access.
-        original_worker_base = self._worker_base
-        self._worker_base = None  # Force direct portal access
+        # Force direct portal access for login AND keep it for the session lifetime.
+        # Once we establish cookies with direct portal access, all subsequent
+        # requests MUST use the same direct access (not workers) to maintain the session.
+        self._worker_base = None  # Force direct portal access permanently
         
-        try:
-            return self._do_login(roll_number, password)
-        finally:
-            self._worker_base = original_worker_base  # Restore worker for other operations
+        return self._do_login(roll_number, password)
     
     def _do_login(self, roll_number: str, password: str) -> dict:
         login_url = self._build_url(self.login_path)
