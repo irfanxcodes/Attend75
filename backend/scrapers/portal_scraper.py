@@ -53,12 +53,18 @@ class PortalScraper:
         self._rotator = _rotator
         self._worker_base: str | None = self._resolve_worker_base()
 
-        # Proxy rotation (Tier 2 fallback) — when all Cloudflare Workers are
-        # blocked, route requests through a datacenter proxy IP instead.
+        # API Gateway rotation (Tier 2 fallback) — when all Cloudflare Workers are
+        # blocked, route requests through AWS API Gateway (Fireprox) for IP rotation.
+        from services.api_gateway_rotator import api_gateway_rotator as _api_gateway_rotator
+        self._api_gateway_rotator = _api_gateway_rotator
+        self._api_gateway_base: str | None = None
+        
+        # Proxy rotation (Tier 3 fallback) — when API Gateways are also blocked,
+        # route requests through a datacenter proxy IP instead.
         # Falls back to direct access if no proxies are configured or all blocked.
         from services.proxy_rotator import proxy_rotator as _proxy_rotator
         self._proxy_rotator = _proxy_rotator
-        self._apply_proxy_tier()
+        self._apply_fallback_tiers()
         self.request_timeout = float(os.getenv("PORTAL_REQUEST_TIMEOUT_SECONDS", "15"))
         self.marks_request_timeout = max(
             float(os.getenv("PORTAL_MARKS_REQUEST_TIMEOUT_SECONDS", "7")),
@@ -106,11 +112,11 @@ class PortalScraper:
         )
 
     def login(self, roll_number: str, password: str) -> dict:
-        # Skip workers (too slow) and use HTTP proxies directly
+        # Skip workers (too slow) and try API Gateway first, then HTTP proxies
         # Workers time out during navigation (10+ second responses)
-        # HTTP proxies are faster and more reliable
+        # API Gateway and HTTP proxies are faster and more reliable
         self._worker_base = None
-        self._apply_proxy_tier()  # Apply HTTP proxy instead
+        self._apply_fallback_tiers()  # Try API Gateway, then HTTP proxy
         
         # Log what we're using
         proxy_info = self.session.proxies.get('http', 'direct')
@@ -2322,12 +2328,19 @@ class PortalScraper:
                 self._rotator.mark_current_blocked()
                 # Pick a fresh worker for the next request on this scraper instance
                 self._worker_base = self._resolve_worker_base()
-                # If all workers are now blocked, fall through to proxy tier
-                self._apply_proxy_tier()
+                # If all workers are now blocked, fall through to API Gateway / proxy tier
+                self._apply_fallback_tiers()
             elif upper_stage in _authenticated_stages and not self._worker_base:
-                # Already on proxy tier — mark this proxy blocked and rotate
-                self._proxy_rotator.mark_current_blocked()
-                self._apply_proxy_tier()
+                # Already on fallback tier — try next fallback option
+                if self._api_gateway_base:
+                    # API Gateway failed, mark blocked and try HTTP proxies
+                    self._api_gateway_rotator.mark_current_blocked()
+                    self._api_gateway_base = None
+                elif self.session.proxies:
+                    # HTTP proxy failed, mark blocked and rotate
+                    self._proxy_rotator.mark_current_blocked()
+                
+                self._apply_fallback_tiers()
             return PortalNetworkError(
                 f"{message_prefix}: request timed out",
                 code=f"{upper_stage}_TIMEOUT",
@@ -2374,26 +2387,41 @@ class PortalScraper:
         path_suffix = ("/" + portal_suffix[1].strip("/")) if len(portal_suffix) > 1 and portal_suffix[1] else ""
         return worker_url + path_suffix
 
-    def _apply_proxy_tier(self) -> None:
+    def _apply_fallback_tiers(self) -> None:
         """
-        Apply Tier-2 proxy to the requests.Session when Cloudflare Workers are
-        unavailable. If a worker IS active, clear any previously set proxy so
-        traffic routes through the worker (not the proxy AND the worker).
-
+        Apply fallback tiers when Cloudflare Workers are unavailable.
+        Tier 1: Cloudflare Workers (fast but sometimes blocked)
+        Tier 2: AWS API Gateway (Fireprox) - rotating AWS IPs
+        Tier 3: HTTP Proxies - datacenter proxy pool
+        Tier 4: Direct access (fallback)
+        
         Call this after any change to _worker_base.
         """
         if self._worker_base:
-            # Worker is active — clear proxy so we don't double-proxy
+            # Worker is active — clear everything else
+            self._api_gateway_base = None
             self.session.proxies.clear()
             return
 
+        # Try API Gateway first (Tier 2)
+        gateway_url = self._api_gateway_rotator.get_gateway_url()
+        if gateway_url:
+            self._api_gateway_base = gateway_url
+            self.session.proxies.clear()  # Don't use proxy with API Gateway
+            self._logger.info(f"[PortalScraper] Using AWS API Gateway: {gateway_url}")
+            return
+        
+        # API Gateway unavailable, try HTTP proxies (Tier 3)
+        self._api_gateway_base = None
         proxy_dict = self._proxy_rotator.get_proxy_dict()
         if proxy_dict:
             self.session.proxies.update(proxy_dict)
-            self._logger.info("[PortalScraper] No workers available — routing through datacenter proxy")
-        else:
-            self.session.proxies.clear()
-            self._logger.warning("[PortalScraper] No workers and no proxies available — using direct portal access")
+            self._logger.info("[PortalScraper] No API Gateway available — routing through datacenter proxy")
+            return
+        
+        # No proxies available either, direct access (Tier 4)
+        self.session.proxies.clear()
+        self._logger.warning("[PortalScraper] No workers, API Gateway, or proxies available — using direct portal access")
 
     def _normalize_code(self, code: str) -> str:
         return "".join((code or "").upper().split())
@@ -2408,20 +2436,31 @@ class PortalScraper:
         return self._build_url(maybe_relative_path)
 
     def _build_url(self, path: str) -> str:
-        # If a Cloudflare Worker proxy is configured, route through it.
-        # _worker_base already mirrors base_url's path suffix (e.g. /sz).
-        base = self._worker_base if self._worker_base else self.base_url
+        # Priority order: Worker > API Gateway > Direct access
+        # Workers and API Gateway already include the full base URL
+        
+        if self._worker_base:
+            base = self._worker_base
+        elif self._api_gateway_base:
+            # API Gateway URLs need /sz appended
+            base = self._api_gateway_base.rstrip("/") + "/sz"
+        else:
+            base = self.base_url
 
         # If path is already a full URL (from portal redirects etc.),
-        # strip the origin and rebase on the worker root (not worker_base)
-        # to avoid doubling the /sz prefix.
+        # strip the origin and rebase appropriately
         if path.startswith("http://") or path.startswith("https://"):
             after_host = path.split("//", 1)[-1].split("/", 1)
             abs_path = ("/" + after_host[1]) if len(after_host) > 1 else "/"
+            
             if self._worker_base:
                 # Rebase absolute portal path onto worker root (strip /sz from worker_base)
                 worker_root = self._worker_base.rsplit("/sz", 1)[0] if "/sz" in self._worker_base else self._worker_base
                 return worker_root.rstrip("/") + abs_path
+            elif self._api_gateway_base:
+                # Rebase onto API Gateway root
+                return self._api_gateway_base.rstrip("/") + abs_path
+            
             return self.base_url.split("//")[0] + "//" + self.base_url.split("//")[1].split("/")[0] + abs_path
 
         normalized_base = base.rstrip("/") + "/"

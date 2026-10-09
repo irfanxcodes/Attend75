@@ -11,9 +11,9 @@ from collections import defaultdict
 
 @dataclass
 class ProxyStatus:
-    """Status information for a single proxy/worker."""
+    """Status information for a single proxy/worker/api gateway."""
     url: str
-    type: str  # "worker" or "proxy"
+    type: str  # "worker", "proxy", or "api_gateway"
     is_active: bool
     success_count: int
     failure_count: int
@@ -43,7 +43,7 @@ class ProxyMonitor:
         self._load_from_env()
     
     def _load_from_env(self):
-        """Load proxy/worker URLs from environment and initialize stats."""
+        """Load proxy/worker/API Gateway URLs from environment and initialize stats."""
         # Load Cloudflare Workers
         worker_urls = os.getenv('PORTAL_WORKER_URLS', '').split(',')
         for url in worker_urls:
@@ -53,6 +53,25 @@ class ProxyMonitor:
                     self.stats[url] = ProxyStatus(
                         url=url,
                         type='worker',
+                        is_active=True,
+                        success_count=0,
+                        failure_count=0,
+                        last_success=None,
+                        last_failure=None,
+                        last_error=None,
+                        cooldown_until=None,
+                        response_time_avg_ms=0.0
+                    )
+        
+        # Load AWS API Gateways
+        api_gateway_urls = os.getenv('AWS_API_GATEWAY_ENDPOINTS', '').split(',')
+        for url in api_gateway_urls:
+            url = url.strip()
+            if url:
+                if url not in self.stats:
+                    self.stats[url] = ProxyStatus(
+                        url=url,
+                        type='api_gateway',
                         is_active=True,
                         success_count=0,
                         failure_count=0,
@@ -127,6 +146,16 @@ class ProxyMonitor:
             and (stat.cooldown_until is None or stat.cooldown_until < now)
         ]
     
+    def get_active_api_gateways(self) -> List[Dict]:
+        """Get currently active (not in cooldown) AWS API Gateways."""
+        now = datetime.utcnow()
+        return [
+            stat.to_dict()
+            for stat in self.stats.values()
+            if stat.type == 'api_gateway'
+            and (stat.cooldown_until is None or stat.cooldown_until < now)
+        ]
+    
     def get_active_proxies(self) -> List[Dict]:
         """Get currently active (not in cooldown) HTTP proxies."""
         now = datetime.utcnow()
@@ -151,9 +180,11 @@ class ProxyMonitor:
         now = datetime.utcnow()
         
         workers = [s for s in self.stats.values() if s.type == 'worker']
+        api_gateways = [s for s in self.stats.values() if s.type == 'api_gateway']
         proxies = [s for s in self.stats.values() if s.type == 'proxy']
         
         active_workers = [w for w in workers if not w.cooldown_until or w.cooldown_until < now]
+        active_api_gateways = [g for g in api_gateways if not g.cooldown_until or g.cooldown_until < now]
         active_proxies = [p for p in proxies if not p.cooldown_until or p.cooldown_until < now]
         
         total_success = sum(s.success_count for s in self.stats.values())
@@ -161,7 +192,7 @@ class ProxyMonitor:
         total_requests = total_success + total_failure
         success_rate = (total_success / total_requests * 100) if total_requests > 0 else 0
         
-        # Get info about currently used worker/proxy
+        # Get info about currently used worker/proxy/api gateway
         currently_using_info = None
         if self.currently_using and self.currently_using in self.stats:
             stat = self.stats[self.currently_using]
@@ -175,6 +206,9 @@ class ProxyMonitor:
             'total_workers': len(workers),
             'active_workers': len(active_workers),
             'blocked_workers': len(workers) - len(active_workers),
+            'total_api_gateways': len(api_gateways),
+            'active_api_gateways': len(active_api_gateways),
+            'blocked_api_gateways': len(api_gateways) - len(active_api_gateways),
             'total_proxies': len(proxies),
             'active_proxies': len(active_proxies),
             'blocked_proxies': len(proxies) - len(active_proxies),
