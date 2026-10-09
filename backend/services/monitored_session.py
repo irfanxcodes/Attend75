@@ -35,20 +35,31 @@ class MonitoredSession(requests.Session):
             session_proxies.get('https')
         )
         
-        # Detect if request is going to a Cloudflare Worker
+        # Detect if request is going to a Cloudflare Worker or AWS API Gateway
         # Workers are identified by domains containing ".workers.dev"
+        # API Gateway identified by ".execute-api." or ".amazonaws.com"
         worker_url = None
+        api_gateway_url = None
         parsed_url = urlparse(url)
+        
         if '.workers.dev' in parsed_url.netloc:
             # Extract base worker URL (protocol + host)
             worker_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+        elif '.execute-api.' in parsed_url.netloc and '.amazonaws.com' in parsed_url.netloc:
+            # AWS API Gateway endpoint - extract base URL including /fireprox
+            # e.g., https://xyz123.execute-api.ap-southeast-1.amazonaws.com/fireprox
+            path_parts = parsed_url.path.split('/')
+            if 'fireprox' in path_parts:
+                fireprox_index = path_parts.index('fireprox')
+                base_path = '/'.join(path_parts[:fireprox_index + 1])
+                api_gateway_url = f"{parsed_url.scheme}://{parsed_url.netloc}{base_path}"
         
-        # Determine what we're tracking (worker takes priority over proxy)
-        tracking_url = worker_url or proxy_url
+        # Determine what we're tracking (worker > api_gateway > proxy)
+        tracking_url = worker_url or api_gateway_url or proxy_url
         
         _logger.info(
-            "[MonitoredSession] Request: method=%s url=%s worker=%s proxy=%s tracking=%s",
-            method, url[:100], worker_url, proxy_url, tracking_url
+            "[MonitoredSession] Request: method=%s url=%s worker=%s api_gateway=%s proxy=%s tracking=%s",
+            method, url[:100], worker_url, api_gateway_url, proxy_url, tracking_url
         )
         
         try:
@@ -64,8 +75,8 @@ class MonitoredSession(requests.Session):
                 monitor.record_success(tracking_url, elapsed_ms)
             else:
                 _logger.warning(
-                    "[MonitoredSession] No tracking_url found for request to %s (worker=%s, proxy=%s)",
-                    url[:100], worker_url, proxy_url
+                    "[MonitoredSession] No tracking_url found for request to %s (worker=%s, api_gateway=%s, proxy=%s)",
+                    url[:100], worker_url, api_gateway_url, proxy_url
                 )
             
             return response
