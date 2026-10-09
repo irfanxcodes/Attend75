@@ -183,6 +183,18 @@ def login_user(roll_number: str, password: str, user_agent: str | None = None) -
             break  # success — exit retry loop
         except PortalNetworkError as exc:
             last_network_exc = exc
+            
+            # Mark proxy/worker as blocked so next attempt uses a different one
+            if scraper.session.proxies:
+                # Using HTTP proxy - mark it as blocked
+                from services.proxy_rotator import proxy_rotator
+                proxy_rotator.mark_current_blocked()
+                _logger.info("[login_user] Marked HTTP proxy as blocked, rotating to next")
+            elif scraper._worker_base:
+                # Using worker - mark it as blocked
+                scraper._rotator.mark_current_blocked()
+                _logger.info("[login_user] Marked worker as blocked, rotating to next")
+            
             if not getattr(exc, "retriable", True):
                 break  # non-retriable — stop trying
             if attempt < max_ip_attempts:
