@@ -2332,13 +2332,14 @@ class PortalScraper:
                 self._apply_fallback_tiers()
             elif upper_stage in _authenticated_stages and not self._worker_base:
                 # Already on fallback tier — try next fallback option
-                if self._api_gateway_base:
-                    # API Gateway failed, mark blocked and try HTTP proxies
+                if self.session.proxies:
+                    # HTTP proxy failed, mark blocked and try API Gateway
+                    self._proxy_rotator.mark_current_blocked()
+                    self.session.proxies.clear()
+                elif self._api_gateway_base:
+                    # API Gateway failed, mark blocked
                     self._api_gateway_rotator.mark_current_blocked()
                     self._api_gateway_base = None
-                elif self.session.proxies:
-                    # HTTP proxy failed, mark blocked and rotate
-                    self._proxy_rotator.mark_current_blocked()
                 
                 self._apply_fallback_tiers()
             return PortalNetworkError(
@@ -2390,9 +2391,9 @@ class PortalScraper:
     def _apply_fallback_tiers(self) -> None:
         """
         Apply fallback tiers when Cloudflare Workers are unavailable.
-        Tier 1: Cloudflare Workers (fast but sometimes blocked)
-        Tier 2: AWS API Gateway (Fireprox) - rotating AWS IPs
-        Tier 3: HTTP Proxies - datacenter proxy pool
+        Tier 1: Cloudflare Workers (disabled - too slow)
+        Tier 2: HTTP Proxies - datacenter proxy pool (FASTEST - 2-3s)
+        Tier 3: AWS API Gateway (Fireprox) - rotating AWS IPs (slower - 15s)
         Tier 4: Direct access (fallback)
         
         Call this after any change to _worker_base.
@@ -2403,25 +2404,26 @@ class PortalScraper:
             self.session.proxies.clear()
             return
 
-        # Try API Gateway first (Tier 2)
+        # Try HTTP proxies first (Tier 2 - fastest)
+        proxy_dict = self._proxy_rotator.get_proxy_dict()
+        if proxy_dict:
+            self._api_gateway_base = None
+            self.session.proxies.update(proxy_dict)
+            self._logger.info("[PortalScraper] Using HTTP proxy pool")
+            return
+        
+        # HTTP proxies unavailable, try API Gateway (Tier 3 - slower but works)
         gateway_url = self._api_gateway_rotator.get_gateway_url()
         if gateway_url:
             self._api_gateway_base = gateway_url
             self.session.proxies.clear()  # Don't use proxy with API Gateway
-            self._logger.info(f"[PortalScraper] Using AWS API Gateway: {gateway_url}")
+            self._logger.info(f"[PortalScraper] No HTTP proxies — using AWS API Gateway: {gateway_url}")
             return
         
-        # API Gateway unavailable, try HTTP proxies (Tier 3)
+        # No proxies or API Gateway available, direct access (Tier 4)
         self._api_gateway_base = None
-        proxy_dict = self._proxy_rotator.get_proxy_dict()
-        if proxy_dict:
-            self.session.proxies.update(proxy_dict)
-            self._logger.info("[PortalScraper] No API Gateway available — routing through datacenter proxy")
-            return
-        
-        # No proxies available either, direct access (Tier 4)
         self.session.proxies.clear()
-        self._logger.warning("[PortalScraper] No workers, API Gateway, or proxies available — using direct portal access")
+        self._logger.warning("[PortalScraper] No proxies or API Gateway available — using direct portal access")
 
     def _normalize_code(self, code: str) -> str:
         return "".join((code or "").upper().split())
