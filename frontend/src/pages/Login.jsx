@@ -7,6 +7,7 @@ import { signInWithGoogleAndGetIdToken, signOutFirebaseUser } from '../services/
 import { buildDemoSession } from '../constants/demoData'
 
 const REMEMBERED_LOGIN_ID_KEY = 'attend75.rememberedLoginId'
+const REMEMBERED_PASSWORD_KEY = 'attend75.rememberedPassword'
 const LEGACY_REMEMBER_KEY = 'attend75_remember'
 
 function UserIcon() {
@@ -104,7 +105,9 @@ function Login() {
   const [form, setForm] = useState(() => {
     try {
       localStorage.removeItem(LEGACY_REMEMBER_KEY)
-      return { username: localStorage.getItem(REMEMBERED_LOGIN_ID_KEY) || '', password: '' }
+      const savedId = localStorage.getItem(REMEMBERED_LOGIN_ID_KEY) || ''
+      const savedPassword = savedId ? (localStorage.getItem(REMEMBERED_PASSWORD_KEY) || '') : ''
+      return { username: savedId, password: savedPassword }
     } catch {
       // Ignore unavailable storage
     }
@@ -165,8 +168,10 @@ function Login() {
         localStorage.removeItem(LEGACY_REMEMBER_KEY)
         if (rememberLoginId) {
           localStorage.setItem(REMEMBERED_LOGIN_ID_KEY, form.username.trim())
+          localStorage.setItem(REMEMBERED_PASSWORD_KEY, form.password)
         } else {
           localStorage.removeItem(REMEMBERED_LOGIN_ID_KEY)
+          localStorage.removeItem(REMEMBERED_PASSWORD_KEY)
         }
       } catch {
         // Login should not fail just because browser storage is unavailable.
@@ -339,6 +344,7 @@ function Login() {
                   if (prev) {
                     try {
                       localStorage.removeItem(REMEMBERED_LOGIN_ID_KEY)
+                      localStorage.removeItem(REMEMBERED_PASSWORD_KEY)
                       localStorage.removeItem(LEGACY_REMEMBER_KEY)
                     } catch {
                       // Ignore unavailable storage
