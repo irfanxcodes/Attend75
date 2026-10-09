@@ -115,7 +115,12 @@ class SessionStore:
             }
 
     def active_sessions_list(self) -> list[dict]:
-        """Return all active sessions for admin display."""
+        """Return all active sessions for admin display, deduplicated by roll number.
+
+        When the same user has multiple active sessions (e.g. multiple browser
+        tabs or re-logins), only the most-recently-accessed session is kept so
+        the admin live feed does not show the same person multiple times.
+        """
         now = time.time()
         with self._lock:
             self._prune_expired_locked(now)
@@ -125,8 +130,19 @@ class SessionStore:
                 reverse=True,
             )
 
-        results = []
+        # Deduplicate: keep only the most-recent session per roll number.
+        # Sessions without a roll number (anonymous/guest) are kept as-is.
+        seen_rolls: set[str] = set()
+        deduped: list[SessionRecord] = []
         for record in sorted_sessions:
+            if record.roll_number:
+                if record.roll_number in seen_rolls:
+                    continue
+                seen_rolls.add(record.roll_number)
+            deduped.append(record)
+
+        results = []
+        for record in deduped:
             started_seconds_ago = int(now - record.created_at)
             results.append({
                 "rollNumber": record.roll_number,

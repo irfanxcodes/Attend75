@@ -168,6 +168,30 @@ function AuthBreakdownCard({ authBreakdown }) {
   )
 }
 
+function UserAvatar({ photoUrl, name, color, initials }) {
+  const [imgFailed, setImgFailed] = useState(false)
+
+  if (photoUrl && !imgFailed) {
+    return (
+      <img
+        src={photoUrl}
+        alt={name || initials}
+        className="h-8 w-8 shrink-0 rounded-full object-cover"
+        onError={() => setImgFailed(true)}
+      />
+    )
+  }
+
+  return (
+    <div
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-[#1e1932]"
+      style={{ backgroundColor: color }}
+    >
+      {initials}
+    </div>
+  )
+}
+
 function ActiveSessionsTable({ activeSessions, activeSessionsList }) {
   const avatarColors = ['#FF5B5B', '#FF916C', '#6CB4FF', '#4EF0A0', '#A78BFA', '#FFB23E', '#F472B6', '#34D399']
   const [search, setSearch] = useState('')
@@ -263,9 +287,12 @@ function ActiveSessionsTable({ activeSessions, activeSessionsList }) {
                 <tr key={session.rollNumber || i} className="border-b border-white/[0.04]">
                   <td className="py-3.5 pr-4">
                     <div className="flex items-center gap-2.5">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-[#1e1932]" style={{ backgroundColor: avatarColors[i % avatarColors.length] }}>
-                        {getInitials(session.userName)}
-                      </div>
+                      <UserAvatar
+                        photoUrl={session.photoUrl}
+                        name={session.userName}
+                        color={avatarColors[i % avatarColors.length]}
+                        initials={getInitials(session.userName)}
+                      />
                       <div>
                         <p className="font-medium text-[#d8d4e7]">{session.userName || 'Unknown'}</p>
                         <p className="text-[9px] text-[#7a6f94]">{session.rollNumber || '-'}</p>
