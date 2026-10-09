@@ -2442,8 +2442,9 @@ class PortalScraper:
         if self._worker_base:
             base = self._worker_base
         elif self._api_gateway_base:
-            # API Gateway URLs need /sz appended
-            base = self._api_gateway_base.rstrip("/") + "/sz"
+            # API Gateway base is just the fireprox URL (no /sz yet)
+            # Don't append /sz here - it will be added when joining with path
+            base = self._api_gateway_base.rstrip("/")
         else:
             base = self.base_url
 
@@ -2463,6 +2464,20 @@ class PortalScraper:
             
             return self.base_url.split("//")[0] + "//" + self.base_url.split("//")[1].split("/")[0] + abs_path
 
+        # For relative paths
+        # self.base_url = "http://111.93.16.209/sz"
+        # path could be "Index.aspx" or "sz/Index.aspx"
+        
+        if self._api_gateway_base:
+            # API Gateway: fireprox URL + /sz + path
+            # Make sure we don't double up /sz
+            path_normalized = path.lstrip("/")
+            if not path_normalized.startswith("sz/"):
+                # Path doesn't have sz/, add it
+                path_normalized = "sz/" + path_normalized
+            return self._api_gateway_base.rstrip("/") + "/" + path_normalized
+        
+        # Normal case (worker or direct)
         normalized_base = base.rstrip("/") + "/"
         normalized_path = path.lstrip("/")
         return urljoin(normalized_base, normalized_path)
