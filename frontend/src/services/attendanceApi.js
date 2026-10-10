@@ -93,6 +93,9 @@ function buildFriendlyMessage(endpoint, code, fallbackMessage) {
     if (normalizedCode === 'DATA_FETCH_FAILED' || normalizedCode === 'PORTAL_UNREACHABLE') {
       return 'The college portal is currently down or not responding. Please try again later.'
     }
+    if (normalizedCode.includes('HTTP_403') || normalizedCode.includes('HTTP_429')) {
+      return 'The college portal is temporarily blocking requests. Please try again in a moment.'
+    }
     return 'Unable to load your data. Please try again later.'
   }
 

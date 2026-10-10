@@ -2362,12 +2362,42 @@ class PortalScraper:
             status_code = int(getattr(getattr(exc, "response", None), "status_code", 0) or 0)
             is_retriable = status_code >= 500 or status_code == 0
             code_suffix = f"HTTP_{status_code}" if status_code else "HTTP_ERROR"
+
+            # 403 from the portal on authenticated pages means our VPS IP is blocked.
+            # Rotate the proxy tier exactly like we do for timeouts so the next
+            # request uses a different IP, and mark it as retriable.
+            _authenticated_stages = {
+                "POST_LOGIN_NAVIGATION",
+                "ATTENDANCE_FETCH",
+                "ATTENDANCE_SWITCH_SEMESTER",
+                "ATTENDANCE_SWITCH_PROGRAM",
+                "HISTORY_FETCH",
+                "MARKS_PAGE_FETCH",
+                "FACULTY_FETCH",
+                "COURSES_FETCH",
+            }
+            if status_code == 403 and upper_stage in _authenticated_stages:
+                is_retriable = True
+                if self._worker_base:
+                    self._rotator.mark_current_blocked()
+                    self._worker_base = self._resolve_worker_base()
+                    self._apply_fallback_tiers()
+                else:
+                    if self._api_gateway_base:
+                        self._api_gateway_rotator.mark_current_blocked()
+                        self._api_gateway_base = None
+                    elif self.session.proxies:
+                        self._proxy_rotator.mark_current_blocked()
+                    self._apply_fallback_tiers()
+
             return PortalNetworkError(
                 f"{message_prefix}: upstream returned {status_code or 'an error'}",
                 code=f"{upper_stage}_{code_suffix}",
                 stage=upper_stage,
                 retriable=is_retriable,
-                http_status=status_code or 502,
+                # Always report portal IP-block errors as 502 to the client —
+                # passing 403 through confuses the frontend error handler.
+                http_status=502 if status_code == 403 else (status_code or 502),
             )
 
         return PortalNetworkError(
