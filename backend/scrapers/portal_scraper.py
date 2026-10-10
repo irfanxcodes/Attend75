@@ -2488,8 +2488,15 @@ class PortalScraper:
                 # Rebase absolute portal path onto worker root (strip /sz from worker_base)
                 worker_root = self._worker_base.rsplit("/sz", 1)[0] if "/sz" in self._worker_base else self._worker_base
                 return worker_root.rstrip("/") + abs_path
-            elif self._api_gateway_base:
-                # Rebase onto API Gateway root
+
+            if self._api_gateway_base:
+                # If the absolute URL already belongs to the same API Gateway host,
+                # return it unchanged — rebasing would double-prefix /fireprox/sz.
+                api_gateway_host = self._api_gateway_base.split("//", 1)[-1].split("/")[0]
+                path_host = path.split("//", 1)[-1].split("/")[0]
+                if api_gateway_host == path_host:
+                    return path
+                # Different host (e.g. original portal IP) — rebase onto API Gateway root
                 return self._api_gateway_base.rstrip("/") + abs_path
             
             return self.base_url.split("//")[0] + "//" + self.base_url.split("//")[1].split("/")[0] + abs_path
