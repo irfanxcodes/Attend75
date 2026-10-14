@@ -1,5 +1,401 @@
 import { useEffect, useState } from 'react'
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://api.attend75.xyz'
+
+// ── helpers ────────────────────────────────────────────────────────────────
+
+function formatTimeAgo(isoString) {
+  if (!isoString) return 'Never'
+  const diff = Math.floor((Date.now() - new Date(isoString)) / 1000)
+  if (diff < 5) return 'just now'
+  if (diff < 60) return `${diff}s ago`
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+  return `${Math.floor(diff / 86400)}d ago`
+}
+
+function formatCooldownRemaining(isoString) {
+  if (!isoString) return null
+  const diff = Math.floor((new Date(isoString) - Date.now()) / 1000)
+  if (diff <= 0) return 'Expired'
+  if (diff < 60) return `${diff}s`
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`
+  return `${Math.floor(diff / 3600)}h`
+}
+
+function shortUrl(url) {
+  if (!url) return '—'
+  try {
+    const u = new URL(url)
+    // show host + first path segment only, e.g. "apzgvkhap5.execute-api.ap-southeast-1.amazonaws.com/fireprox"
+    const parts = u.pathname.split('/').filter(Boolean)
+    return u.hostname + (parts[0] ? `/${parts[0]}` : '')
+  } catch {
+    return url
+  }
+}
+
+function regionFromUrl(url) {
+  if (!url) return null
+  const m = url.match(/execute-api\.([\w-]+)\.amazonaws\.com/)
+  return m ? m[1] : null
+}
+
+function successRateColor(ok, fail) {
+  const total = ok + fail
+  if (total === 0) return 'text-[#6E6A88]'
+  const rate = (ok / total) * 100
+  if (rate >= 95) return 'text-[#4EF0A0]'
+  if (rate >= 80) return 'text-[#FFB23E]'
+  return 'text-[#FF5B5B]'
+}
+
+function StatusBadge({ item }) {
+  if (item.blocked_until) {
+    const rem = formatCooldownRemaining(item.blocked_until)
+    if (!rem || rem === 'Expired') return <span className="rounded-full bg-yellow-500/10 px-2 py-0.5 text-[10px] font-medium text-yellow-400">Cooldown expired</span>
+    return <span className="rounded-full bg-[#FF5B5B]/10 px-2 py-0.5 text-[10px] font-medium text-[#FF5B5B]">Blocked · {rem}</span>
+  }
+  const total = (item.success_count || 0) + (item.failure_count || 0)
+  if (total === 0) return <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-medium text-[#6E6A88]">Unused</span>
+  const rate = (item.success_count / total) * 100
+  if (rate >= 95) return <span className="rounded-full bg-[#4EF0A0]/10 px-2 py-0.5 text-[10px] font-medium text-[#4EF0A0]">Healthy</span>
+  if (rate >= 80) return <span className="rounded-full bg-[#FFB23E]/10 px-2 py-0.5 text-[10px] font-medium text-[#FFB23E]">Degraded</span>
+  return <span className="rounded-full bg-[#FF5B5B]/10 px-2 py-0.5 text-[10px] font-medium text-[#FF5B5B]">Failing</span>
+}
+
+function MetricCell({ label, value, valueClass = 'text-[#f0ece4]' }) {
+  return (
+    <div className="text-right">
+      <p className="text-[9px] uppercase tracking-wider text-[#6E6A88]">{label}</p>
+      <p className={`text-sm font-semibold ${valueClass}`}>{value}</p>
+    </div>
+  )
+}
+
+// ── sub-sections ────────────────────────────────────────────────────────────
+
+function ActiveTierBanner({ activeTier }) {
+  if (!activeTier || !activeTier.url) return null
+  const typeColors = {
+    api_gateway: 'text-[#6CB4FF] bg-[#6CB4FF]/10',
+    lambda: 'text-[#A78BFA] bg-[#A78BFA]/10',
+    worker: 'text-[#4EF0A0] bg-[#4EF0A0]/10',
+    proxy: 'text-[#FFB23E] bg-[#FFB23E]/10',
+  }
+  const cls = typeColors[activeTier.type] || 'text-[#4EF0A0] bg-[#4EF0A0]/10'
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-[#4EF0A0]/20 bg-[#4EF0A0]/5 p-4">
+      <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#4EF0A0]/10">
+        <span className="absolute h-9 w-9 animate-ping rounded-full bg-[#4EF0A0]/20" />
+        <svg className="relative z-10 h-4 w-4 text-[#4EF0A0]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4EF0A0]">Currently active tier</p>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase ${cls}`}>
+            {activeTier.tier}
+          </span>
+          <code className="truncate text-[11px] text-[#d8d4e7]">{shortUrl(activeTier.url)}</code>
+          {activeTier.response_time_avg_ms > 0 && (
+            <span className="text-[10px] text-[#6E6A88]">avg {activeTier.response_time_avg_ms}ms</span>
+          )}
+          {activeTier.last_success && (
+            <span className="text-[10px] text-[#6E6A88]">· last used {formatTimeAgo(activeTier.last_success)}</span>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function StatCards({ stats, gwStatus, lambdaStatus }) {
+  const totalReqs = stats.total_requests || 0
+  const successRate = totalReqs > 0 ? stats.success_rate_percent : null
+  const rateColor = successRate === null ? 'text-[#6E6A88]' : successRate >= 95 ? 'text-[#4EF0A0]' : successRate >= 80 ? 'text-[#FFB23E]' : 'text-[#FF5B5B]'
+
+  return (
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="rounded-xl border border-white/5 bg-[#2a2440] p-4">
+        <p className="text-[10px] font-medium uppercase tracking-wider text-[#6E6A88]">Success Rate</p>
+        <p className={`mt-1 text-2xl font-bold ${rateColor}`}>
+          {successRate !== null ? `${successRate}%` : '—'}
+        </p>
+        <p className="mt-0.5 text-[10px] text-[#9F9AB5]">{stats.total_success ?? 0} / {totalReqs} requests</p>
+      </div>
+
+      <div className="rounded-xl border border-white/5 bg-[#2a2440] p-4">
+        <p className="text-[10px] font-medium uppercase tracking-wider text-[#6E6A88]">API Gateway</p>
+        <p className="mt-1 text-2xl font-bold text-[#f0ece4]">
+          {(gwStatus?.total_endpoints ?? 0) - (gwStatus?.blocked_count ?? 0)}
+          <span className="text-base font-normal text-[#6E6A88]"> / {gwStatus?.total_endpoints ?? 0}</span>
+        </p>
+        <p className="mt-0.5 text-[10px] text-[#9F9AB5]">{gwStatus?.blocked_count ?? 0} blocked</p>
+      </div>
+
+      <div className="rounded-xl border border-white/5 bg-[#2a2440] p-4">
+        <p className="text-[10px] font-medium uppercase tracking-wider text-[#6E6A88]">HTTP Proxies</p>
+        <p className="mt-1 text-2xl font-bold text-[#f0ece4]">
+          {stats.active_proxies ?? 0}
+          <span className="text-base font-normal text-[#6E6A88]"> / {stats.total_proxies ?? 0}</span>
+        </p>
+        <p className="mt-0.5 text-[10px] text-[#9F9AB5]">{stats.blocked_proxies ?? 0} blocked</p>
+      </div>
+
+      <div className="rounded-xl border border-white/5 bg-[#2a2440] p-4">
+        <p className="text-[10px] font-medium uppercase tracking-wider text-[#6E6A88]">Avg Response</p>
+        <p className="mt-1 text-2xl font-bold text-[#f0ece4]">
+          {stats.avg_response_time_ms > 0 ? `${Math.round(stats.avg_response_time_ms)}ms` : '—'}
+        </p>
+        <p className="mt-0.5 text-[10px] text-[#9F9AB5]">across all tiers</p>
+      </div>
+    </div>
+  )
+}
+
+function ApiGatewaySection({ gateway }) {
+  const { status, endpoints = [] } = gateway || {}
+  if (!status?.configured) return null
+
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-bold text-[#f0ece4]">
+          API Gateway · Fireprox
+          <span className="ml-2 rounded-full bg-[#6CB4FF]/10 px-2 py-0.5 text-[10px] font-medium text-[#6CB4FF]">
+            Tier 1 — Active
+          </span>
+        </h3>
+        <span className="text-[10px] text-[#6E6A88]">
+          rotates every {status.rotate_every} req · {endpoints.length} regions
+        </span>
+      </div>
+      <div className="space-y-2">
+        {endpoints.map((ep, i) => {
+          const region = regionFromUrl(ep.url)
+          const total = ep.success_count + ep.failure_count
+          const isActive = ep.active
+          return (
+            <div
+              key={i}
+              className={`rounded-xl border p-3.5 ${isActive ? 'border-[#6CB4FF]/30 bg-[#6CB4FF]/5' : 'border-white/5 bg-[#2a2440]'}`}
+            >
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {isActive && (
+                      <span className="relative flex h-2 w-2 shrink-0">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#6CB4FF] opacity-60" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-[#6CB4FF]" />
+                      </span>
+                    )}
+                    <code className="truncate text-[11px] text-[#d8d4e7]">{shortUrl(ep.url)}</code>
+                    {region && <span className="rounded bg-white/5 px-1.5 py-0.5 text-[9px] font-medium text-[#9F9AB5]">{region}</span>}
+                    <StatusBadge item={ep} />
+                    {isActive && <span className="rounded-full bg-[#6CB4FF]/20 px-2 py-0.5 text-[9px] font-bold uppercase text-[#6CB4FF]">in use</span>}
+                  </div>
+                  {ep.last_error && <p className="mt-1 truncate text-[10px] text-[#FF5B5B]">{ep.last_error}</p>}
+                </div>
+                <div className="flex shrink-0 gap-5">
+                  <MetricCell
+                    label="Success"
+                    value={total > 0 ? `${Math.round((ep.success_count / total) * 100)}%` : '—'}
+                    valueClass={successRateColor(ep.success_count, ep.failure_count)}
+                  />
+                  <MetricCell label="Requests" value={total} />
+                  <MetricCell label="Avg" value={ep.response_time_avg_ms > 0 ? `${ep.response_time_avg_ms}ms` : '—'} />
+                  <MetricCell label="Last ok" value={formatTimeAgo(ep.last_success)} valueClass="text-[#9F9AB5]" />
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function LambdaSection({ lambda }) {
+  const { status, endpoints = [], disabled } = lambda || {}
+  if (!endpoints.length) return null
+
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-bold text-[#f0ece4]">
+          AWS Lambda
+          <span className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-medium ${disabled ? 'bg-[#6E6A88]/20 text-[#6E6A88]' : 'bg-[#A78BFA]/10 text-[#A78BFA]'}`}>
+            {disabled ? 'Tier 2 — Disabled' : 'Tier 2 — Standby'}
+          </span>
+        </h3>
+        {status && (
+          <span className="text-[10px] text-[#6E6A88]">
+            {status.monthly_usage ?? 0} / {status.monthly_cap ?? '—'} this month ({status.usage_percent ?? 0}%)
+          </span>
+        )}
+      </div>
+      {disabled && (
+        <p className="mb-3 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 text-[11px] text-[#6E6A88]">
+          Lambda is configured but currently disabled — it times out on portal 302 redirects. Will be re-enabled once the redirect handling is fixed.
+        </p>
+      )}
+      <div className="space-y-2">
+        {endpoints.map((ep, i) => {
+          const region = regionFromUrl(ep.url)
+          const total = ep.success_count + ep.failure_count
+          return (
+            <div key={i} className="rounded-xl border border-white/5 bg-[#2a2440] p-3.5 opacity-70">
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <code className="truncate text-[11px] text-[#d8d4e7]">{shortUrl(ep.url)}</code>
+                    {region && <span className="rounded bg-white/5 px-1.5 py-0.5 text-[9px] font-medium text-[#9F9AB5]">{region}</span>}
+                    <StatusBadge item={ep} />
+                  </div>
+                </div>
+                <div className="flex shrink-0 gap-5">
+                  <MetricCell label="Requests" value={total} />
+                  <MetricCell label="Last ok" value={formatTimeAgo(ep.last_success)} valueClass="text-[#9F9AB5]" />
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function BlockedSection({ blocked }) {
+  if (!blocked?.length) return null
+  return (
+    <div className="rounded-xl border border-[#FF5B5B]/20 bg-[#FF5B5B]/5 p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <svg className="h-4 w-4 text-[#FF5B5B]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <p className="text-sm font-semibold text-[#FF5B5B]">{blocked.length} endpoint{blocked.length > 1 ? 's' : ''} in cooldown</p>
+      </div>
+      <div className="space-y-2">
+        {blocked.map((item, i) => (
+          <div key={i} className="flex items-center justify-between gap-4 rounded-lg border border-[#FF5B5B]/10 bg-[#FF5B5B]/5 px-3 py-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded bg-[#FF5B5B]/20 px-1.5 py-0.5 text-[9px] font-medium uppercase text-[#FF5B5B]">{item.type}</span>
+                <code className="truncate text-[11px] text-[#d8d4e7]">{shortUrl(item.url)}</code>
+                <StatusBadge item={item} />
+              </div>
+              {item.last_error && <p className="mt-0.5 truncate text-[10px] text-[#FF5B5B]/70">{item.last_error}</p>}
+            </div>
+            <div className="flex shrink-0 gap-5">
+              <MetricCell label="Failures" value={item.failure_count} valueClass="text-[#FF5B5B]" />
+              <MetricCell label="Last fail" value={formatTimeAgo(item.last_failure)} valueClass="text-[#9F9AB5]" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function HttpProxiesSection({ activeProxies }) {
+  const [page, setPage] = useState(0)
+  const PAGE = 30
+  const usedProxies = activeProxies.filter(p => (p.success_count + p.failure_count) > 0)
+  const unusedProxies = activeProxies.filter(p => (p.success_count + p.failure_count) === 0)
+  const paginated = unusedProxies.slice(page * PAGE, (page + 1) * PAGE)
+
+  return (
+    <div>
+      <h3 className="mb-3 text-sm font-bold text-[#f0ece4]">
+        HTTP Proxy Pool
+        <span className="ml-2 rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-medium text-[#6E6A88]">
+          Tier 3 — Fallback
+        </span>
+        <span className="ml-1 text-[11px] font-normal text-[#6E6A88]">
+          ({activeProxies.length} configured)
+        </span>
+      </h3>
+
+      {/* Used proxies first */}
+      {usedProxies.length > 0 && (
+        <div className="mb-4 space-y-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6E6A88]">Ever used ({usedProxies.length})</p>
+          {usedProxies.map((proxy, i) => {
+            const total = proxy.success_count + proxy.failure_count
+            return (
+              <div key={i} className="flex items-center justify-between gap-4 rounded-xl border border-white/5 bg-[#2a2440] px-3.5 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <code className="text-[11px] text-[#d8d4e7]">{proxy.url.split('@')[1] || proxy.url}</code>
+                    <StatusBadge item={proxy} />
+                  </div>
+                </div>
+                <div className="flex shrink-0 gap-5">
+                  <MetricCell
+                    label="Success"
+                    value={`${Math.round((proxy.success_count / total) * 100)}%`}
+                    valueClass={successRateColor(proxy.success_count, proxy.failure_count)}
+                  />
+                  <MetricCell label="Requests" value={total} />
+                  <MetricCell label="Avg" value={proxy.response_time_avg_ms > 0 ? `${Math.round(proxy.response_time_avg_ms)}ms` : '—'} />
+                  <MetricCell label="Last ok" value={formatTimeAgo(proxy.last_success)} valueClass="text-[#9F9AB5]" />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Unused proxies collapsed in a table */}
+      <div className="rounded-xl border border-white/5 bg-[#2a2440]">
+        <div className="border-b border-white/5 px-4 py-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6E6A88]">
+            Standby / unused ({unusedProxies.length})
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-[11px]">
+            <thead>
+              <tr className="border-b border-white/5 text-left text-[9px] uppercase tracking-wider text-[#6E6A88]">
+                <th className="px-4 py-2">IP : Port</th>
+                <th className="px-4 py-2">Status</th>
+                <th className="px-4 py-2 text-right">Requests</th>
+                <th className="px-4 py-2 text-right">Last ok</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/[0.04]">
+              {paginated.map((proxy, i) => (
+                <tr key={i} className="hover:bg-white/[0.02]">
+                  <td className="px-4 py-2">
+                    <code className="text-[#9F9AB5]">{proxy.url.split('@')[1] || proxy.url}</code>
+                  </td>
+                  <td className="px-4 py-2"><StatusBadge item={proxy} /></td>
+                  <td className="px-4 py-2 text-right text-[#6E6A88]">0</td>
+                  <td className="px-4 py-2 text-right text-[#6E6A88]">Never</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {unusedProxies.length > PAGE && (
+          <div className="flex items-center justify-between border-t border-white/5 px-4 py-2.5 text-[10px] text-[#6E6A88]">
+            <span>Showing {page * PAGE + 1}–{Math.min((page + 1) * PAGE, unusedProxies.length)} of {unusedProxies.length}</span>
+            <div className="flex gap-2">
+              <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="rounded bg-white/5 px-2 py-1 disabled:opacity-30 hover:bg-white/10">Prev</button>
+              <button onClick={() => setPage(p => p + 1)} disabled={(page + 1) * PAGE >= unusedProxies.length} className="rounded bg-white/5 px-2 py-1 disabled:opacity-30 hover:bg-white/10">Next</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── main component ──────────────────────────────────────────────────────────
+
 function ProxyMonitorPage({ sessionToken }) {
   const [data, setData] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -10,119 +406,46 @@ function ProxyMonitorPage({ sessionToken }) {
   const fetchProxyStatus = async () => {
     try {
       setError('')
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://api.attend75.xyz'}/admin/proxy-monitor`, {
-        headers: {
-          'Authorization': `Bearer ${sessionToken}`
-        }
+      const res = await fetch(`${API_BASE}/admin/proxy-monitor`, {
+        headers: { Authorization: `Bearer ${sessionToken}` },
       })
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch proxy status')
-      }
-
-      const result = await response.json()
-      setData(result.data)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const json = await res.json()
+      setData(json.data)
       setLastUpdated(new Date())
     } catch (err) {
-      setError(err.message || 'Failed to load proxy monitor data')
+      setError(err.message || 'Failed to load proxy monitor')
     } finally {
       setIsLoading(false)
     }
   }
 
-  useEffect(() => {
-    fetchProxyStatus()
-  }, [sessionToken])
-
+  useEffect(() => { fetchProxyStatus() }, [sessionToken])
   useEffect(() => {
     if (!autoRefresh) return
-
-    const interval = setInterval(fetchProxyStatus, 30000) // Refresh every 30 seconds
-    return () => clearInterval(interval)
+    const id = setInterval(fetchProxyStatus, 30000)
+    return () => clearInterval(id)
   }, [autoRefresh, sessionToken])
 
-  const formatTime = (isoString) => {
-    if (!isoString) return 'Never'
-    const date = new Date(isoString)
-    const now = new Date()
-    const diff = Math.floor((now - date) / 1000)
-    
-    if (diff < 60) return `${diff}s ago`
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
-    return `${Math.floor(diff / 86400)}d ago`
-  }
+  if (isLoading) return (
+    <div className="flex items-center justify-center py-16">
+      <p className="text-sm text-[#9F9AB5]">Loading proxy monitor…</p>
+    </div>
+  )
 
-  const formatCooldown = (isoString) => {
-    if (!isoString) return null
-    const date = new Date(isoString)
-    const now = new Date()
-    const diff = Math.floor((date - now) / 1000)
-    
-    if (diff <= 0) return 'Expired'
-    if (diff < 60) return `${diff}s`
-    if (diff < 3600) return `${Math.floor(diff / 60)}m`
-    return `${Math.floor(diff / 3600)}h`
-  }
-
-  const getSuccessRateColor = (successCount, failureCount) => {
-    const total = successCount + failureCount
-    if (total === 0) return 'text-[#6E6A88]'
-    
-    const rate = (successCount / total) * 100
-    if (rate >= 95) return 'text-green-400'
-    if (rate >= 90) return 'text-yellow-400'
-    return 'text-red-400'
-  }
-
-  const getStatusBadge = (item) => {
-    if (item.cooldown_until) {
-      const remaining = formatCooldown(item.cooldown_until)
-      if (remaining === 'Expired') {
-        return <span className="rounded-full bg-yellow-500/10 px-2 py-0.5 text-[10px] font-medium text-yellow-400">Cooldown Expired</span>
-      }
-      return <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-400">Blocked ({remaining})</span>
-    }
-    
-    const total = item.success_count + item.failure_count
-    if (total === 0) {
-      return <span className="rounded-full bg-gray-500/10 px-2 py-0.5 text-[10px] font-medium text-gray-400">Unused</span>
-    }
-    
-    const rate = (item.success_count / total) * 100
-    if (rate >= 95) {
-      return <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-400">Healthy</span>
-    }
-    if (rate >= 90) {
-      return <span className="rounded-full bg-yellow-500/10 px-2 py-0.5 text-[10px] font-medium text-yellow-400">Degraded</span>
-    }
-    return <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-400">Failing</span>
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <p className="text-sm text-[#9F9AB5]">Loading proxy monitor...</p>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4">
-        <p className="text-sm font-medium text-red-400">Error: {error}</p>
-        <button
-          onClick={fetchProxyStatus}
-          className="mt-2 rounded-lg bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-400 transition hover:bg-red-500/20"
-        >
-          Retry
-        </button>
-      </div>
-    )
-  }
+  if (error) return (
+    <div className="rounded-xl border border-[#FF5B5B]/20 bg-[#FF5B5B]/5 p-5">
+      <p className="text-sm font-medium text-[#FF5B5B]">Error: {error}</p>
+      <button onClick={fetchProxyStatus} className="mt-3 rounded-lg bg-[#FF5B5B]/10 px-3 py-1.5 text-xs font-medium text-[#FF5B5B] hover:bg-[#FF5B5B]/20">
+        Retry
+      </button>
+    </div>
+  )
 
   const stats = data?.statistics || {}
-  const activeWorkers = data?.active_workers || []
+  const activeTier = data?.active_tier || null
+  const gateway = data?.api_gateway || {}
+  const lambda = data?.lambda || {}
   const activeProxies = data?.active_proxies || []
   const blocked = data?.blocked || []
 
@@ -131,293 +454,50 @@ function ProxyMonitorPage({ sessionToken }) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-bold text-[#F4F1FF]">Proxy & Worker Monitor</h2>
-          <p className="mt-0.5 text-xs text-[#6E6A88]">
-            Real-time status of all Cloudflare Workers and HTTP proxies
+          <h2 className="text-lg font-bold text-[#f0ece4]">Proxy &amp; IP Monitor</h2>
+          <p className="mt-0.5 text-[11px] text-[#6E6A88]">
+            Live view of all egress tiers — API Gateway · Lambda · HTTP Proxies
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-xs text-[#9F9AB5]">
+          <label className="flex items-center gap-1.5 text-[11px] text-[#9F9AB5]">
             <input
               type="checkbox"
               checked={autoRefresh}
-              onChange={(e) => setAutoRefresh(e.target.checked)}
-              className="h-3.5 w-3.5 rounded border-white/10 bg-white/5 text-[#FF916C] focus:ring-[#FF916C] focus:ring-offset-0"
+              onChange={e => setAutoRefresh(e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-white/10 bg-white/5"
             />
             Auto-refresh
           </label>
           <button
             onClick={fetchProxyStatus}
-            className="rounded-lg bg-[#FF916C]/10 px-3 py-1.5 text-xs font-medium text-[#FF916C] transition hover:bg-[#FF916C]/20"
+            className="rounded-lg bg-[#FF916C]/10 px-3 py-1.5 text-[11px] font-medium text-[#FF916C] hover:bg-[#FF916C]/20"
           >
             Refresh Now
           </button>
           {lastUpdated && (
-            <span className="text-[10px] text-[#6E6A88]">
-              Updated {formatTime(lastUpdated.toISOString())}
-            </span>
+            <span className="text-[10px] text-[#6E6A88]">Updated {formatTimeAgo(lastUpdated.toISOString())}</span>
           )}
         </div>
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-white/5 bg-[#2A2440] p-4">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-[#6E6A88]">Success Rate</p>
-          <p className={`mt-1 text-2xl font-bold ${stats.success_rate_percent >= 95 ? 'text-green-400' : stats.success_rate_percent >= 90 ? 'text-yellow-400' : 'text-red-400'}`}>
-            {stats.success_rate_percent}%
-          </p>
-          <p className="mt-1 text-[10px] text-[#9F9AB5]">
-            {stats.total_success} / {stats.total_requests} requests
-          </p>
-        </div>
+      {/* Active tier banner */}
+      <ActiveTierBanner activeTier={activeTier} />
 
-        <div className="rounded-xl border border-white/5 bg-[#2A2440] p-4">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-[#6E6A88]">Workers</p>
-          <p className="mt-1 text-2xl font-bold text-[#F4F1FF]">
-            {stats.active_workers} / {stats.total_workers}
-          </p>
-          <p className="mt-1 text-[10px] text-[#9F9AB5]">
-            {stats.blocked_workers} blocked
-          </p>
-        </div>
+      {/* Stat cards */}
+      <StatCards stats={stats} gwStatus={gateway.status} lambdaStatus={lambda.status} />
 
-        <div className="rounded-xl border border-white/5 bg-[#2A2440] p-4">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-[#6E6A88]">Proxies</p>
-          <p className="mt-1 text-2xl font-bold text-[#F4F1FF]">
-            {stats.active_proxies} / {stats.total_proxies}
-          </p>
-          <p className="mt-1 text-[10px] text-[#9F9AB5]">
-            {stats.blocked_proxies} blocked
-          </p>
-        </div>
+      {/* Blocked alert */}
+      <BlockedSection blocked={blocked} />
 
-        <div className="rounded-xl border border-white/5 bg-[#2A2440] p-4">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-[#6E6A88]">Avg Response</p>
-          <p className="mt-1 text-2xl font-bold text-[#F4F1FF]">
-            {stats.avg_response_time_ms}ms
-          </p>
-          <p className="mt-1 text-[10px] text-[#9F9AB5]">
-            Average latency
-          </p>
-        </div>
-      </div>
+      {/* API Gateway */}
+      <ApiGatewaySection gateway={gateway} />
 
-      {/* Currently Using Banner */}
-      {stats.currently_using && (
-        <div className="rounded-xl border border-green-500/20 bg-green-500/5 p-4">
-          <div className="flex items-center gap-3">
-            <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-green-500/10">
-              <div className="absolute h-10 w-10 animate-ping rounded-full bg-green-500/30"></div>
-              <svg className="relative z-10 h-5 w-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-            <div className="flex-1">
-              <p className="text-xs font-medium text-green-400">Currently Using</p>
-              <div className="mt-1 flex items-center gap-2">
-                <span className="rounded bg-green-500/20 px-2 py-0.5 text-[10px] font-medium uppercase text-green-400">
-                  {stats.currently_using.type}
-                </span>
-                <code className="text-xs text-[#F4F1FF]">{stats.currently_using.url}</code>
-                {stats.currently_using.last_success && (
-                  <span className="text-[10px] text-[#9F9AB5]">
-                    Last used {formatTime(stats.currently_using.last_success)}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Lambda */}
+      <LambdaSection lambda={lambda} />
 
-      {/* Blocked Items Alert */}
-      {blocked.length > 0 && (
-        <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4">
-          <div className="flex items-start gap-3">
-            <svg className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-red-400">
-                {blocked.length} {blocked.length === 1 ? 'IP is' : 'IPs are'} currently blocked
-              </p>
-              <p className="mt-0.5 text-xs text-red-300/70">
-                These IPs are in cooldown and won't be used until the timer expires
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Active Workers */}
-      <div>
-        <h3 className="mb-3 text-sm font-bold text-[#F4F1FF]">
-          Active Cloudflare Workers ({activeWorkers.length})
-        </h3>
-        <div className="space-y-2">
-          {activeWorkers.map((worker, idx) => {
-            const isCurrentlyUsing = stats.currently_using?.url === worker.url
-            return (
-              <div key={idx} className={`rounded-lg border p-3 ${isCurrentlyUsing ? 'border-green-500/30 bg-green-500/5' : 'border-white/5 bg-[#2A2440]'}`}>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      {isCurrentlyUsing && (
-                        <div className="relative flex h-2 w-2">
-                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
-                          <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500"></span>
-                        </div>
-                      )}
-                      <code className="text-xs text-[#F4F1FF]">{worker.url}</code>
-                      {getStatusBadge(worker)}
-                      {isCurrentlyUsing && (
-                        <span className="rounded-full bg-green-500/20 px-2 py-0.5 text-[10px] font-bold uppercase text-green-400">
-                          IN USE
-                        </span>
-                      )}
-                    </div>
-                    {worker.last_error && (
-                      <p className="mt-1 text-[10px] text-red-400">Last error: {worker.last_error}</p>
-                    )}
-                  </div>
-                  <div className="ml-4 flex gap-6 text-right">
-                    <div>
-                      <p className="text-[10px] text-[#6E6A88]">Success Rate</p>
-                      <p className={`text-sm font-medium ${getSuccessRateColor(worker.success_count, worker.failure_count)}`}>
-                        {worker.success_count + worker.failure_count > 0
-                          ? `${Math.round((worker.success_count / (worker.success_count + worker.failure_count)) * 100)}%`
-                          : 'N/A'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-[#6E6A88]">Requests</p>
-                      <p className="text-sm font-medium text-[#F4F1FF]">{worker.success_count + worker.failure_count}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-[#6E6A88]">Avg Response</p>
-                      <p className="text-sm font-medium text-[#F4F1FF]">{Math.round(worker.response_time_avg_ms)}ms</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-[#6E6A88]">Last Success</p>
-                      <p className="text-sm font-medium text-[#9F9AB5]">{formatTime(worker.last_success)}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-          {activeWorkers.length === 0 && (
-            <p className="rounded-lg border border-white/5 bg-[#2A2440] p-4 text-center text-sm text-[#6E6A88]">
-              No active workers available
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Blocked Items */}
-      {blocked.length > 0 && (
-        <div>
-          <h3 className="mb-3 text-sm font-bold text-[#F4F1FF]">
-            Blocked IPs ({blocked.length})
-          </h3>
-          <div className="space-y-2">
-            {blocked.map((item, idx) => (
-              <div key={idx} className="rounded-lg border border-red-500/20 bg-red-500/5 p-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] font-medium uppercase text-red-400">
-                        {item.type}
-                      </span>
-                      <code className="text-xs text-[#F4F1FF]">{item.url}</code>
-                      {getStatusBadge(item)}
-                    </div>
-                    <p className="mt-1 text-[10px] text-red-400">
-                      Error: {item.last_error || 'Unknown error'}
-                    </p>
-                  </div>
-                  <div className="ml-4 flex gap-6 text-right">
-                    <div>
-                      <p className="text-[10px] text-[#6E6A88]">Failures</p>
-                      <p className="text-sm font-medium text-red-400">{item.failure_count}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-[#6E6A88]">Last Failure</p>
-                      <p className="text-sm font-medium text-[#9F9AB5]">{formatTime(item.last_failure)}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Active Proxies (Paginated) */}
-      <div>
-        <h3 className="mb-3 text-sm font-bold text-[#F4F1FF]">
-          Active HTTP Proxies ({activeProxies.length})
-        </h3>
-        <div className="rounded-lg border border-white/5 bg-[#2A2440]">
-          <div className="max-h-96 overflow-y-auto">
-            <table className="w-full text-xs">
-              <thead className="sticky top-0 border-b border-white/5 bg-[#2A2440]">
-                <tr className="text-left text-[10px] uppercase tracking-wider text-[#6E6A88]">
-                  <th className="px-3 py-2">IP Address</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2 text-right">Success Rate</th>
-                  <th className="px-3 py-2 text-right">Requests</th>
-                  <th className="px-3 py-2 text-right">Avg Response</th>
-                  <th className="px-3 py-2 text-right">Last Success</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {activeProxies.slice(0, 50).map((proxy, idx) => {
-                  const isCurrentlyUsing = stats.currently_using?.url === proxy.url
-                  return (
-                    <tr key={idx} className={`hover:bg-white/[0.02] ${isCurrentlyUsing ? 'bg-green-500/5' : ''}`}>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-2">
-                          {isCurrentlyUsing && (
-                            <div className="relative flex h-2 w-2">
-                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
-                              <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500"></span>
-                            </div>
-                          )}
-                          <code className="text-[#F4F1FF]">{proxy.url.split('@')[1] || proxy.url}</code>
-                          {isCurrentlyUsing && (
-                            <span className="rounded-full bg-green-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase text-green-400">
-                              IN USE
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2">{getStatusBadge(proxy)}</td>
-                      <td className={`px-3 py-2 text-right ${getSuccessRateColor(proxy.success_count, proxy.failure_count)}`}>
-                        {proxy.success_count + proxy.failure_count > 0
-                          ? `${Math.round((proxy.success_count / (proxy.success_count + proxy.failure_count)) * 100)}%`
-                          : 'N/A'}
-                      </td>
-                      <td className="px-3 py-2 text-right text-[#F4F1FF]">{proxy.success_count + proxy.failure_count}</td>
-                      <td className="px-3 py-2 text-right text-[#F4F1FF]">{Math.round(proxy.response_time_avg_ms)}ms</td>
-                      <td className="px-3 py-2 text-right text-[#9F9AB5]">{formatTime(proxy.last_success)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-          {activeProxies.length > 50 && (
-            <div className="border-t border-white/5 p-3 text-center text-[10px] text-[#6E6A88]">
-              Showing first 50 of {activeProxies.length} active proxies
-            </div>
-          )}
-          {activeProxies.length === 0 && (
-            <p className="p-4 text-center text-sm text-[#6E6A88]">No active proxies available</p>
-          )}
-        </div>
-      </div>
+      {/* HTTP Proxies */}
+      <HttpProxiesSection activeProxies={activeProxies} />
     </div>
   )
 }

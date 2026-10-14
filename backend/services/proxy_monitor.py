@@ -132,6 +132,38 @@ class ProxyMonitor:
         stat.last_error = error[:200]  # Truncate long errors
         stat.cooldown_until = datetime.utcnow() + timedelta(seconds=cooldown_seconds)
     
+    def get_active_tier(self) -> dict:
+        """
+        Return which tier is currently active and its URL.
+        Derived from the most recently recorded success across all tracked URLs.
+        """
+        now = datetime.utcnow()
+        best = None
+        best_time = None
+
+        for stat in self.stats.values():
+            if stat.last_success and (best_time is None or stat.last_success > best_time):
+                best = stat
+                best_time = stat.last_success
+
+        if not best:
+            return {"tier": "unknown", "url": None, "type": None, "last_success": None}
+
+        # Map type to human-readable tier name
+        tier_names = {
+            "api_gateway": "API Gateway (Fireprox)",
+            "lambda": "AWS Lambda",
+            "worker": "Cloudflare Worker",
+            "proxy": "HTTP Proxy",
+        }
+        return {
+            "tier": tier_names.get(best.type, best.type),
+            "url": best.url,
+            "type": best.type,
+            "last_success": best.last_success.isoformat() if best.last_success else None,
+            "response_time_avg_ms": round(best.response_time_avg_ms, 1),
+        }
+
     def get_all_status(self) -> List[Dict]:
         """Get status of all proxies/workers."""
         return [stat.to_dict() for stat in self.stats.values()]

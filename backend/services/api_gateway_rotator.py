@@ -31,6 +31,7 @@ class APIGatewayRotator:
         # Rotation settings
         self._rotate_every = max(int(os.getenv("AWS_API_GATEWAY_ROTATE_EVERY", "10")), 1)
         self._cooldown_seconds = max(int(os.getenv("AWS_API_GATEWAY_COOLDOWN_SECONDS", "3600")), 60)
+        self._session_cooldown_seconds = max(int(os.getenv("AWS_API_GATEWAY_SESSION_COOLDOWN_SECONDS", "300")), 60)
         
         # State tracking
         self._current_index = 0
@@ -84,21 +85,26 @@ class APIGatewayRotator:
         logger.error("[APIGatewayRotator] All API Gateways are blocked")
         return None
 
-    def mark_current_blocked(self) -> None:
+    def mark_current_blocked(self, is_session_issue: bool = False) -> None:
         """
-        Mark the current gateway as blocked. It will be unavailable for
-        AWS_API_GATEWAY_COOLDOWN_SECONDS before being retried.
+        Mark the current gateway as blocked. It will be unavailable for cooldown period.
+        
+        Args:
+            is_session_issue: If True, uses shorter session cooldown (5 min).
+                            If False, uses full IP block cooldown (1 hour).
         """
         if not self._endpoints:
             return
         
-        unblock_at = datetime.utcnow() + timedelta(seconds=self._cooldown_seconds)
+        cooldown = self._session_cooldown_seconds if is_session_issue else self._cooldown_seconds
+        unblock_at = datetime.utcnow() + timedelta(seconds=cooldown)
         self._blocked_until[self._current_index] = unblock_at
         
         gateway_url = self._endpoints[self._current_index]
+        block_reason = "session issue" if is_session_issue else "IP block"
         logger.warning(
             f"[APIGatewayRotator] Gateway {self._current_index} ({gateway_url}) blocked "
-            f"until {unblock_at.isoformat()}Z (~{self._cooldown_seconds}s cooldown)"
+            f"due to {block_reason} until {unblock_at.isoformat()}Z (~{cooldown}s cooldown)"
         )
         
         # Reset usage count and move to next gateway
@@ -125,15 +131,17 @@ class APIGatewayRotator:
             return {
                 "configured": False,
                 "total_endpoints": 0,
+                "endpoints": [],
                 "current_index": None,
                 "current_url": None,
                 "usage_count": 0,
                 "blocked_count": 0,
             }
-        
+
         return {
             "configured": True,
             "total_endpoints": len(self._endpoints),
+            "endpoints": list(self._endpoints),
             "current_index": self._current_index,
             "current_url": self._endpoints[self._current_index] if not self._is_blocked(self._current_index) else None,
             "usage_count": self._usage_count,

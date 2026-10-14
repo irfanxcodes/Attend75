@@ -840,18 +840,71 @@ async def admin_trigger_storage_health_check(_: dict = Depends(require_admin_use
 @router.get("/proxy-monitor", response_model=ApiResponse)
 async def get_proxy_monitor_status(_: dict = Depends(require_admin_user)):
 	"""
-	Get real-time status of all Cloudflare Workers and HTTP proxies.
-	Shows which are active, blocked, success rates, and errors.
+	Get real-time status of all proxy tiers: API Gateway, Lambda, HTTP proxies.
 	"""
 	from services.proxy_monitor import get_proxy_monitor
-	
+	from services.api_gateway_rotator import api_gateway_rotator
+	from services.lambda_rotator import lambda_rotator
+
 	monitor = get_proxy_monitor()
-	
+
+	# ── Live rotator state ────────────────────────────────────────────
+	gw_status = api_gateway_rotator.get_status()
+	lambda_status = lambda_rotator.get_usage_stats()
+
+	# Enrich each API Gateway endpoint with live monitor stats
+	api_gateway_endpoints = []
+	for i, url in enumerate(gw_status.get("endpoints", [])):
+		stat = monitor.stats.get(url, None)
+		blocked_until = gw_status.get("blocked_until", {}).get(str(i))
+		api_gateway_endpoints.append({
+			"url": url,
+			"index": i,
+			"active": (i == gw_status.get("current_index")) and not blocked_until,
+			"blocked_until": blocked_until,
+			"success_count": stat.success_count if stat else 0,
+			"failure_count": stat.failure_count if stat else 0,
+			"last_success": stat.last_success.isoformat() if stat and stat.last_success else None,
+			"last_failure": stat.last_failure.isoformat() if stat and stat.last_failure else None,
+			"last_error": stat.last_error if stat else None,
+			"response_time_avg_ms": round(stat.response_time_avg_ms, 1) if stat else 0,
+		})
+
+	# Enrich each Lambda endpoint with live monitor stats
+	lambda_endpoints_raw = lambda_rotator._endpoints if hasattr(lambda_rotator, '_endpoints') else []
+	lambda_endpoints = []
+	for i, url in enumerate(lambda_endpoints_raw):
+		stat = monitor.stats.get(url, None)
+		blocked_until_dt = lambda_rotator._blocked_until.get(i)
+		blocked_until = blocked_until_dt.isoformat() + "Z" if blocked_until_dt else None
+		lambda_endpoints.append({
+			"url": url,
+			"index": i,
+			"active": (i == lambda_rotator._current_index) and not blocked_until,
+			"blocked_until": blocked_until,
+			"success_count": stat.success_count if stat else 0,
+			"failure_count": stat.failure_count if stat else 0,
+			"last_success": stat.last_success.isoformat() if stat and stat.last_success else None,
+			"last_failure": stat.last_failure.isoformat() if stat and stat.last_failure else None,
+			"last_error": stat.last_error if stat else None,
+			"response_time_avg_ms": round(stat.response_time_avg_ms, 1) if stat else 0,
+		})
+
 	return ApiResponse(
 		status="success",
 		message="Proxy monitor status fetched",
 		data={
 			"statistics": monitor.get_statistics(),
+			"active_tier": monitor.get_active_tier(),
+			"api_gateway": {
+				"status": gw_status,
+				"endpoints": api_gateway_endpoints,
+			},
+			"lambda": {
+				"status": lambda_status,
+				"disabled": True,  # Lambda tier is currently disabled in _apply_fallback_tiers
+				"endpoints": lambda_endpoints,
+			},
 			"active_workers": monitor.get_active_workers(),
 			"active_proxies": monitor.get_active_proxies(),
 			"blocked": monitor.get_blocked(),
