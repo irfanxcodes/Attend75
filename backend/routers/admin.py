@@ -842,9 +842,11 @@ async def get_proxy_monitor_status(_: dict = Depends(require_admin_user)):
 	"""
 	Get real-time status of all proxy tiers: API Gateway, Lambda, HTTP proxies.
 	"""
+	from datetime import datetime
 	from services.proxy_monitor import get_proxy_monitor
 	from services.api_gateway_rotator import api_gateway_rotator
 	from services.lambda_rotator import lambda_rotator
+	from services.proxy_rotator import proxy_rotator as http_proxy_rotator
 
 	monitor = get_proxy_monitor()
 
@@ -852,16 +854,24 @@ async def get_proxy_monitor_status(_: dict = Depends(require_admin_user)):
 	gw_status = api_gateway_rotator.get_status()
 	lambda_status = lambda_rotator.get_usage_stats()
 
-	# Enrich each API Gateway endpoint with live monitor stats
+	# blocked_until keys are ints in the rotator — use int index directly
+	gw_blocked_until: dict = gw_status.get("blocked_until", {})
+
+	# Enrich each API Gateway endpoint with live rotator block state + monitor stats
 	api_gateway_endpoints = []
-	for i, url in enumerate(gw_status.get("endpoints", [])):
+	gw_endpoints_list = gw_status.get("endpoints", [])
+	for i, url in enumerate(gw_endpoints_list):
 		stat = monitor.stats.get(url, None)
-		blocked_until = gw_status.get("blocked_until", {}).get(str(i))
+		# blocked_until dict has int keys from APIGatewayRotator
+		blocked_until_val = gw_blocked_until.get(i) or gw_blocked_until.get(str(i))
+		is_blocked = bool(blocked_until_val)
+		is_current = (i == gw_status.get("current_index")) and not is_blocked
 		api_gateway_endpoints.append({
 			"url": url,
 			"index": i,
-			"active": (i == gw_status.get("current_index")) and not blocked_until,
-			"blocked_until": blocked_until,
+			"active": is_current,
+			"blocked": is_blocked,
+			"blocked_until": blocked_until_val,
 			"success_count": stat.success_count if stat else 0,
 			"failure_count": stat.failure_count if stat else 0,
 			"last_success": stat.last_success.isoformat() if stat and stat.last_success else None,
@@ -870,17 +880,19 @@ async def get_proxy_monitor_status(_: dict = Depends(require_admin_user)):
 			"response_time_avg_ms": round(stat.response_time_avg_ms, 1) if stat else 0,
 		})
 
-	# Enrich each Lambda endpoint with live monitor stats
+	# Enrich each Lambda endpoint with live rotator block state + monitor stats
 	lambda_endpoints_raw = lambda_rotator._endpoints if hasattr(lambda_rotator, '_endpoints') else []
 	lambda_endpoints = []
 	for i, url in enumerate(lambda_endpoints_raw):
 		stat = monitor.stats.get(url, None)
 		blocked_until_dt = lambda_rotator._blocked_until.get(i)
 		blocked_until = blocked_until_dt.isoformat() + "Z" if blocked_until_dt else None
+		is_blocked = bool(blocked_until)
 		lambda_endpoints.append({
 			"url": url,
 			"index": i,
-			"active": (i == lambda_rotator._current_index) and not blocked_until,
+			"active": (i == lambda_rotator._current_index) and not is_blocked,
+			"blocked": is_blocked,
 			"blocked_until": blocked_until,
 			"success_count": stat.success_count if stat else 0,
 			"failure_count": stat.failure_count if stat else 0,
@@ -890,12 +902,48 @@ async def get_proxy_monitor_status(_: dict = Depends(require_admin_user)):
 			"response_time_avg_ms": round(stat.response_time_avg_ms, 1) if stat else 0,
 		})
 
+	# ── Determine active tier from live rotator state (not stale monitor stats) ──
+	all_gw_blocked = gw_status.get("blocked_count", 0) >= gw_status.get("total_endpoints", 1)
+	lambda_disabled = True  # Lambda disabled in _apply_fallback_tiers
+	http_proxies_available = http_proxy_rotator.any_available()
+
+	if not all_gw_blocked and gw_status.get("configured"):
+		active_tier_type = "api_gateway"
+		active_tier_label = "API Gateway (Fireprox)"
+		current_gw_url = gw_status.get("current_url")
+		active_tier_stat = monitor.stats.get(current_gw_url) if current_gw_url else None
+		active_tier = {
+			"tier": active_tier_label,
+			"url": current_gw_url,
+			"type": active_tier_type,
+			"last_success": active_tier_stat.last_success.isoformat() if active_tier_stat and active_tier_stat.last_success else None,
+			"response_time_avg_ms": round(active_tier_stat.response_time_avg_ms, 1) if active_tier_stat else 0,
+		}
+	elif http_proxies_available:
+		active_tier_type = "proxy"
+		active_tier_label = "HTTP Proxy"
+		# Find the most recently used proxy
+		best_proxy_stat = max(
+			(s for s in monitor.stats.values() if s.type == "proxy" and s.last_success),
+			key=lambda s: s.last_success,
+			default=None,
+		)
+		active_tier = {
+			"tier": active_tier_label,
+			"url": best_proxy_stat.url if best_proxy_stat else None,
+			"type": active_tier_type,
+			"last_success": best_proxy_stat.last_success.isoformat() if best_proxy_stat and best_proxy_stat.last_success else None,
+			"response_time_avg_ms": round(best_proxy_stat.response_time_avg_ms, 1) if best_proxy_stat else 0,
+		}
+	else:
+		active_tier = {"tier": "Direct", "url": "111.93.16.209", "type": "direct", "last_success": None, "response_time_avg_ms": 0}
+
 	return ApiResponse(
 		status="success",
 		message="Proxy monitor status fetched",
 		data={
 			"statistics": monitor.get_statistics(),
-			"active_tier": monitor.get_active_tier(),
+			"active_tier": active_tier,
 			"api_gateway": {
 				"status": gw_status,
 				"endpoints": api_gateway_endpoints,

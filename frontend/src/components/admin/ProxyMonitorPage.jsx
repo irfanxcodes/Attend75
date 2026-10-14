@@ -51,8 +51,8 @@ function successRateColor(ok, fail) {
 }
 
 function StatusBadge({ item }) {
-  if (item.blocked_until) {
-    const rem = formatCooldownRemaining(item.blocked_until)
+  if (item.blocked || item.blocked_until) {
+    const rem = item.blocked_until ? formatCooldownRemaining(item.blocked_until) : null
     if (!rem || rem === 'Expired') return <span className="rounded-full bg-yellow-500/10 px-2 py-0.5 text-[10px] font-medium text-yellow-400">Cooldown expired</span>
     return <span className="rounded-full bg-[#FF5B5B]/10 px-2 py-0.5 text-[10px] font-medium text-[#FF5B5B]">Blocked · {rem}</span>
   }
