@@ -44,11 +44,20 @@ function HistoryPage() {
 
   // DEBUG: Force console log on component mount
   useEffect(() => {
+    const localStorageSemester = window.localStorage.getItem('attend75.selectedSemester')
     console.log('=================================')
     console.log('[History DEBUG] Component mounted!')
     console.log('[History DEBUG] session.token:', session.token ? 'EXISTS' : 'NULL')
     console.log('[History DEBUG] session.selectedSemester:', session.selectedSemester)
+    console.log('[History DEBUG] localStorage semester:', localStorageSemester)
+    console.log('[History DEBUG] MISMATCH:', session.selectedSemester !== localStorageSemester)
     console.log('=================================')
+    
+    // FIX: If localStorage has a different semester, sync it to app state
+    if (localStorageSemester && localStorageSemester !== session.selectedSemester) {
+      console.log('[History FIX] Syncing localStorage semester to app state:', localStorageSemester)
+      actions.setSelectedSemester(localStorageSemester)
+    }
   }, [])
 
   const [currentDate, setCurrentDate] = useState(new Date())
