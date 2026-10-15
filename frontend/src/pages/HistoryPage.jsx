@@ -42,36 +42,18 @@ function HistoryPage() {
     actions,
   } = useAppStore()
 
-  // Fix: Sync semester from Dashboard state to History page
+  // Clear the cache when semester changes so new dates fetch fresh data
   useEffect(() => {
-    const localStorageSemester = window.localStorage.getItem('attend75.selectedSemester')
-    console.log('=================================')
-    console.log('[History DEBUG] Component mounted!')
-    console.log('[History DEBUG] session.token:', session.token ? 'EXISTS' : 'NULL')
-    console.log('[History DEBUG] session.selectedSemester (IGNORED):', session.selectedSemester)
-    console.log('[History DEBUG] localStorage semester:', localStorageSemester)
-    console.log('[History DEBUG] session.semesters:', session.semesters)
-    console.log('[History DEBUG] effectiveSemester (USING THIS):', effectiveSemester)
-    console.log('=================================')
-  }, [effectiveSemester, session.selectedSemester, session.semesters])
+    setHistoryBySemesterDate({})
+    setSelectedDate(null)
+  }, [session.selectedSemester])
 
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(null)
   const [historyBySemesterDate, setHistoryBySemesterDate] = useState({})
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const [historyError, setHistoryError] = useState('')
-  
-  // FORCE FIX: Always use semester from localStorage or first semester, NOT session.selectedSemester
-  const effectiveSemester = useMemo(() => {
-    const stored = window.localStorage.getItem('attend75.selectedSemester')
-    if (stored) return stored
-    if (session.semesters && session.semesters.length > 0) {
-      return session.semesters[0].id
-    }
-    return session.selectedSemester
-  }, [session.semesters, session.selectedSemester])
-  
-  const semesterCacheKey = String(effectiveSemester || 'default')
+  const semesterCacheKey = String(session.selectedSemester || 'default')
 
   const subjectAbbreviationByCode = useMemo(() => {
     const map = {}
@@ -115,23 +97,11 @@ function HistoryPage() {
     const dateKey = formatDateKey(year, month, day)
     const semesterHistory = historyBySemesterDate[semesterCacheKey] || {}
 
-    // Debug: log what we're about to check
-    console.log('[History] handleSelectDate called:', {
-      day,
-      dateKey,
-      semesterCacheKey,
-      hasCachedData: !!semesterHistory[dateKey],
-      hasToken: !!session.token,
-      selectedSemester: session.selectedSemester,
-    })
-
     if (semesterHistory[dateKey]) {
-      console.log('[History] Cache hit, returning cached data')
       return
     }
 
     if (!session.token) {
-      console.log('[History] No session token, logging out')
       actions.logout()
       window.localStorage.removeItem('attend75.selectedSemester')
       navigate('/login', { replace: true })
@@ -140,13 +110,11 @@ function HistoryPage() {
 
     try {
       setIsLoadingHistory(true)
-      console.log('[History] Calling fetchAttendanceHistory with:', { dateKey, semesterId: effectiveSemester })
       const result = await fetchAttendanceHistory({
         token: session.token,
-        semesterId: effectiveSemester,
+        semesterId: session.selectedSemester,
         date: dateKey,
       })
-      console.log('[History] API response:', result)
 
       const normalizedEntries = (result.entries || []).map((entry) => {
         const codeKey = normalizeCode(entry?.code)
@@ -169,7 +137,6 @@ function HistoryPage() {
         }
       })
     } catch (error) {
-      console.error('[History] Error fetching attendance history:', error)
       if (isSessionExpiredError(error)) {
         actions.logout()
         window.localStorage.removeItem('attend75.selectedSemester')
@@ -207,25 +174,13 @@ function HistoryPage() {
     }
 
     const dateKey = formatDateKey(year, month, selectedDate)
-
     const semesterHistory = historyBySemesterDate[semesterCacheKey] || {}
-
-    const today = new Date()
-    const todayKey = formatDateKey(today.getFullYear(), today.getMonth(), today.getDate())
-    const isKeyFuture = isFutureDateKey(dateKey)
-    
-    console.log('[History useMemo] Date comparison:', {
-      dateKey,
-      todayKey,
-      comparison: dateKey > todayKey,
-      isFutureDateKey: isKeyFuture,
-    })
 
     return {
       selectedDateKey: dateKey,
       selectedItems: semesterHistory[dateKey] || [],
       selectedDisplayDate: formatDisplayDate(year, month, selectedDate),
-      isFutureSelectedDate: isKeyFuture,
+      isFutureSelectedDate: isFutureDateKey(dateKey),
     }
   }, [currentDate, historyBySemesterDate, selectedDate, semesterCacheKey])
 
