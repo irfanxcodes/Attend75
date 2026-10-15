@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import CalendarGrid from '../components/history/CalendarGrid'
 import CalendarHeader from '../components/history/CalendarHeader'
@@ -41,6 +41,15 @@ function HistoryPage() {
     state: { session, attendance },
     actions,
   } = useAppStore()
+
+  // DEBUG: Force console log on component mount
+  useEffect(() => {
+    console.log('=================================')
+    console.log('[History DEBUG] Component mounted!')
+    console.log('[History DEBUG] session.token:', session.token ? 'EXISTS' : 'NULL')
+    console.log('[History DEBUG] session.selectedSemester:', session.selectedSemester)
+    console.log('=================================')
+  }, [])
 
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(null)
