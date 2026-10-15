@@ -42,7 +42,7 @@ function HistoryPage() {
     actions,
   } = useAppStore()
 
-  // DEBUG: Force console log on component mount
+  // Fix: Sync semester from Dashboard state to History page
   useEffect(() => {
     const localStorageSemester = window.localStorage.getItem('attend75.selectedSemester')
     console.log('=================================')
@@ -50,15 +50,24 @@ function HistoryPage() {
     console.log('[History DEBUG] session.token:', session.token ? 'EXISTS' : 'NULL')
     console.log('[History DEBUG] session.selectedSemester:', session.selectedSemester)
     console.log('[History DEBUG] localStorage semester:', localStorageSemester)
-    console.log('[History DEBUG] MISMATCH:', session.selectedSemester !== localStorageSemester)
+    console.log('[History DEBUG] session.semesters:', session.semesters)
     console.log('=================================')
     
-    // FIX: If localStorage has a different semester, sync it to app state
+    // If localStorage has a valid semester, sync it to app state
     if (localStorageSemester && localStorageSemester !== session.selectedSemester) {
       console.log('[History FIX] Syncing localStorage semester to app state:', localStorageSemester)
       actions.setSelectedSemester(localStorageSemester)
+      return
     }
-  }, [])
+    
+    // If localStorage is null but we have semesters, pick the FIRST one (current semester)
+    if (!localStorageSemester && session.semesters && session.semesters.length > 0) {
+      const firstSemester = session.semesters[0].id
+      console.log('[History FIX] No localStorage semester, using first available:', firstSemester)
+      actions.setSelectedSemester(firstSemester)
+      window.localStorage.setItem('attend75.selectedSemester', firstSemester)
+    }
+  }, [session.semesters, session.selectedSemester, actions])
 
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(null)
