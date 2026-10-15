@@ -37,7 +37,16 @@ function shortUrl(url) {
 function regionFromUrl(url) {
   if (!url) return null
   const m = url.match(/execute-api\.([\w-]+)\.amazonaws\.com/)
-  return m ? m[1] : null
+  if (!m) return null
+  const code = m[1]
+  // Map AWS region codes to friendly names
+  const regionNames = {
+    'ap-south-1': 'Mumbai',
+    'ap-south-2': 'Hyderabad',  // Not used (unavailable as public region)
+    'ap-southeast-1': 'Singapore',
+    'us-east-1': 'Virginia',
+  }
+  return regionNames[code] || code
 }
 
 function successRateColor(ok, fail) {
@@ -228,6 +237,22 @@ function LambdaSection({ lambda, isActiveTier }) {
             {status.monthly_usage ?? 0} / {status.monthly_cap ?? '900000'} this month ({status.usage_percent ?? 0}%)
           </span>
         )}
+      </div>
+
+      <div className="mb-3 rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2.5 text-[11px] text-[#9FC5E8]">
+        <div className="flex items-start gap-2">
+          <svg className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div className="flex-1">
+            <p className="font-medium">Active Regions: Mumbai (primary) + Singapore (fallback)</p>
+            <p className="mt-1 text-[10px] text-[#6E6A88]">
+              Hyderabad (ap-south-2) was considered but is not available as a public AWS region. 
+              Mumbai chosen as primary due to lower latency to portal server (111.93.16.209).
+              Lambda v5 uses intercept mode to ensure IP consistency across full login flow.
+            </p>
+          </div>
+        </div>
       </div>
 
       {disabled && (

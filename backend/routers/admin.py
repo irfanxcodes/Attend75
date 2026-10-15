@@ -903,11 +903,25 @@ async def get_proxy_monitor_status(_: dict = Depends(require_admin_user)):
 		})
 
 	# ── Determine active tier from live rotator state (not stale monitor stats) ──
+	lambda_available = lambda_rotator.any_available()
 	all_gw_blocked = gw_status.get("blocked_count", 0) >= gw_status.get("total_endpoints", 1)
-	lambda_disabled = True  # Lambda disabled in _apply_fallback_tiers
 	http_proxies_available = http_proxy_rotator.any_available()
 
-	if not all_gw_blocked and gw_status.get("configured"):
+	# Tier priority: Lambda (Tier 1) → API Gateway (Tier 2) → HTTP Proxies (Tier 3)
+	if lambda_available and lambda_endpoints:
+		active_tier_type = "lambda"
+		active_tier_label = "AWS Lambda"
+		current_lambda_idx = lambda_rotator._current_index
+		current_lambda_url = lambda_endpoints_raw[current_lambda_idx] if current_lambda_idx < len(lambda_endpoints_raw) else None
+		active_tier_stat = monitor.stats.get(current_lambda_url) if current_lambda_url else None
+		active_tier = {
+			"tier": active_tier_label,
+			"url": current_lambda_url,
+			"type": active_tier_type,
+			"last_success": active_tier_stat.last_success.isoformat() if active_tier_stat and active_tier_stat.last_success else None,
+			"response_time_avg_ms": round(active_tier_stat.response_time_avg_ms, 1) if active_tier_stat else 0,
+		}
+	elif not all_gw_blocked and gw_status.get("configured"):
 		active_tier_type = "api_gateway"
 		active_tier_label = "API Gateway (Fireprox)"
 		current_gw_url = gw_status.get("current_url")
@@ -950,7 +964,7 @@ async def get_proxy_monitor_status(_: dict = Depends(require_admin_user)):
 			},
 			"lambda": {
 				"status": lambda_status,
-				"disabled": True,  # Lambda tier is currently disabled in _apply_fallback_tiers
+				"disabled": not lambda_available,  # Lambda tier is enabled when endpoints are available
 				"endpoints": lambda_endpoints,
 			},
 			"active_workers": monitor.get_active_workers(),
