@@ -525,6 +525,8 @@ function ProxyMonitorPage({ sessionToken }) {
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [lastUpdated, setLastUpdated] = useState(null)
   const [clearingBlocks, setClearingBlocks] = useState(false)
+  const [forcingNextTier, setForcingNextTier] = useState(false)
+  const [showForceModal, setShowForceModal] = useState(false)
 
   const fetchProxyStatus = async () => {
     try {
@@ -556,6 +558,26 @@ function ProxyMonitorPage({ sessionToken }) {
       setError(err.message || 'Failed to clear blocks')
     } finally {
       setClearingBlocks(false)
+    }
+  }
+
+  const forceNextTier = async () => {
+    setShowForceModal(false)
+    setForcingNextTier(true)
+    try {
+      const res = await fetch(`${API_BASE}/admin/proxy/force-next-tier`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${sessionToken}` },
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const json = await res.json()
+      // Show success message briefly
+      setError('')
+      await fetchProxyStatus()
+    } catch (err) {
+      setError(err.message || 'Failed to force tier rotation')
+    } finally {
+      setForcingNextTier(false)
     }
   }
 
@@ -622,6 +644,13 @@ function ProxyMonitorPage({ sessionToken }) {
           >
             {clearingBlocks ? 'Clearing…' : 'Clear Blocks'}
           </button>
+          <button
+            onClick={() => setShowForceModal(true)}
+            disabled={forcingNextTier}
+            className="rounded-lg bg-[#A78BFA]/10 px-3 py-1.5 text-[11px] font-medium text-[#A78BFA] hover:bg-[#A78BFA]/20 disabled:opacity-50"
+          >
+            {forcingNextTier ? 'Rotating…' : 'Force Next Tier ↓'}
+          </button>
           {lastUpdated && (
             <span className="text-[10px] text-[#6E6A88]">Updated {formatTimeAgo(lastUpdated.toISOString())}</span>
           )}
@@ -650,6 +679,62 @@ function ProxyMonitorPage({ sessionToken }) {
 
       {/* Tier 3 — HTTP Proxies */}
       <HttpProxiesSection activeProxies={activeProxies} isActiveTier={activeTierType === 'proxy'} />
+
+      {/* Force Next Tier Confirmation Modal */}
+      {showForceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-lg rounded-2xl border border-white/10 bg-[#2a2440] p-6 shadow-2xl">
+            <div className="mb-4 flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#FFB23E]/10">
+                <svg className="h-5 w-5 text-[#FFB23E]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-[#f0ece4]">Force Rotate to Next Tier?</h3>
+                <p className="mt-2 text-sm text-[#9F9AB5]">
+                  This will <span className="font-semibold text-[#FFB23E]">block all endpoints</span> in the currently active tier for <span className="font-semibold text-[#FFB23E]">30 minutes</span>.
+                </p>
+                {activeTier && (
+                  <div className="mt-3 rounded-lg border border-white/5 bg-white/[0.02] p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6E6A88]">Currently Active</p>
+                    <p className="mt-1 text-sm font-medium text-[#f0ece4]">{activeTier.tier}</p>
+                    <code className="mt-1 block text-[11px] text-[#9F9AB5]">{activeTier.url}</code>
+                  </div>
+                )}
+                <ul className="mt-3 space-y-1.5 text-[11px] text-[#9F9AB5]">
+                  <li className="flex items-start gap-2">
+                    <span className="text-[#4EF0A0]">✓</span>
+                    <span>Next request will use the fallback tier immediately</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-[#4EF0A0]">✓</span>
+                    <span>Auto-unblocks after 30 minutes</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-[#FFB23E]">⚠</span>
+                    <span>Use this only when you know the current tier has issues</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowForceModal(false)}
+                className="flex-1 rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-[#9F9AB5] hover:bg-white/10"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={forceNextTier}
+                className="flex-1 rounded-lg bg-[#A78BFA] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#9878E8]"
+              >
+                Yes, Force Rotate
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

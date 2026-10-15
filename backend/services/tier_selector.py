@@ -114,3 +114,83 @@ def clear_all_blocks() -> dict:
         logger.warning("[TierSelector] API Gateway clear error: %s", exc)
 
     return cleared
+
+
+def force_next_tier() -> dict:
+    """
+    Force rotation to next tier by blocking all endpoints in the currently active tier.
+    Blocks last for 30 minutes, then auto-recover.
+    
+    Returns dict with:
+        - blocked_tier: which tier was blocked ("lambda", "api_gateway", or "none")
+        - blocked_count: how many endpoints were blocked
+        - next_tier: which tier will be used now
+        - auto_unblock_minutes: when the block expires
+    """
+    from datetime import datetime, timedelta
+    
+    blocked_tier = "none"
+    blocked_count = 0
+    next_tier = "direct"
+    auto_unblock_minutes = 30
+    
+    # Check which tier is currently active and block it
+    try:
+        from services.lambda_rotator import lambda_rotator
+        if lambda_rotator.any_available():
+            # Lambda is active, block all Lambda endpoints for 30 minutes
+            block_until = datetime.utcnow() + timedelta(minutes=auto_unblock_minutes)
+            for i in range(len(lambda_rotator._endpoints)):
+                lambda_rotator._blocked_until[i] = block_until
+            blocked_count = len(lambda_rotator._endpoints)
+            blocked_tier = "lambda"
+            logger.info("[TierSelector] Force-blocked all %d Lambda endpoints until %s", 
+                       blocked_count, block_until.isoformat())
+            
+            # Check what's next
+            from services.api_gateway_rotator import api_gateway_rotator
+            if api_gateway_rotator.any_available():
+                next_tier = "api_gateway"
+            else:
+                next_tier = "direct"
+            
+            return {
+                "blocked_tier": blocked_tier,
+                "blocked_count": blocked_count,
+                "next_tier": next_tier,
+                "auto_unblock_minutes": auto_unblock_minutes,
+            }
+    except Exception as exc:
+        logger.warning("[TierSelector] Lambda force-block error: %s", exc)
+    
+    # If Lambda wasn't active, try API Gateway
+    try:
+        from services.api_gateway_rotator import api_gateway_rotator
+        if api_gateway_rotator.any_available():
+            # API Gateway is active, block all endpoints for 30 minutes
+            block_until = datetime.utcnow() + timedelta(minutes=auto_unblock_minutes)
+            for i in range(len(api_gateway_rotator._endpoints)):
+                api_gateway_rotator._blocked_until[i] = block_until
+            blocked_count = len(api_gateway_rotator._endpoints)
+            blocked_tier = "api_gateway"
+            logger.info("[TierSelector] Force-blocked all %d API Gateway endpoints until %s", 
+                       blocked_count, block_until.isoformat())
+            next_tier = "direct"
+            
+            return {
+                "blocked_tier": blocked_tier,
+                "blocked_count": blocked_count,
+                "next_tier": next_tier,
+                "auto_unblock_minutes": auto_unblock_minutes,
+            }
+    except Exception as exc:
+        logger.warning("[TierSelector] API Gateway force-block error: %s", exc)
+    
+    # Nothing to block (already on direct)
+    logger.warning("[TierSelector] No tier available to block — already on direct/fallback")
+    return {
+        "blocked_tier": "none",
+        "blocked_count": 0,
+        "next_tier": "direct",
+        "auto_unblock_minutes": 0,
+    }

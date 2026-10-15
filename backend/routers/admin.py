@@ -852,6 +852,45 @@ async def admin_clear_proxy_blocks(_: dict = Depends(require_admin_user)):
 	)
 
 
+@router.post("/proxy/force-next-tier", response_model=ApiResponse)
+async def admin_force_next_tier(_: dict = Depends(require_admin_user)):
+	"""
+	Force rotation to the next proxy tier by blocking all endpoints in the current tier.
+	
+	Blocks last for 30 minutes, then auto-recover. Use this when you know the current
+	tier is having issues and want to immediately switch to the fallback tier without
+	waiting for auto-rotation.
+	
+	Examples:
+	- Lambda is slow/blocked → blocks all Lambda → switches to API Gateway
+	- API Gateway is blocked → blocks all API Gateway → switches to Direct
+	"""
+	from services.tier_selector import force_next_tier
+	result = force_next_tier()
+	
+	if result["blocked_tier"] == "none":
+		return ApiResponse(
+			status="success",
+			message="Already on direct/fallback tier — no tier available to force-rotate",
+			data=result,
+		)
+	
+	tier_names = {
+		"lambda": "Lambda",
+		"api_gateway": "API Gateway",
+		"direct": "Direct (no proxy)"
+	}
+	
+	blocked_name = tier_names.get(result["blocked_tier"], result["blocked_tier"])
+	next_name = tier_names.get(result["next_tier"], result["next_tier"])
+	
+	return ApiResponse(
+		status="success",
+		message=f"Blocked {result['blocked_count']} {blocked_name} endpoint(s). Now using: {next_name}. Auto-unblock in {result['auto_unblock_minutes']} min.",
+		data=result,
+	)
+
+
 @router.get("/proxy-monitor", response_model=ApiResponse)
 async def get_proxy_monitor_status(_: dict = Depends(require_admin_user)):
 	"""
