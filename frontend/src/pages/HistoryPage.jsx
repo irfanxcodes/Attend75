@@ -195,11 +195,22 @@ function HistoryPage() {
 
     const semesterHistory = historyBySemesterDate[semesterCacheKey] || {}
 
+    const today = new Date()
+    const todayKey = formatDateKey(today.getFullYear(), today.getMonth(), today.getDate())
+    const isKeyFuture = isFutureDateKey(dateKey)
+    
+    console.log('[History useMemo] Date comparison:', {
+      dateKey,
+      todayKey,
+      comparison: dateKey > todayKey,
+      isFutureDateKey: isKeyFuture,
+    })
+
     return {
       selectedDateKey: dateKey,
       selectedItems: semesterHistory[dateKey] || [],
       selectedDisplayDate: formatDisplayDate(year, month, selectedDate),
-      isFutureSelectedDate: isFutureDateKey(dateKey),
+      isFutureSelectedDate: isKeyFuture,
     }
   }, [currentDate, historyBySemesterDate, selectedDate, semesterCacheKey])
 
