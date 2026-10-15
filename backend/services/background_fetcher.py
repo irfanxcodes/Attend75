@@ -81,6 +81,8 @@ def process_single_fetch(roll_number: str, encrypted_password: str) -> dict:
     Returns {"status": "success"|"invalid_credentials"|"transient_failure", ...}
     """
     from scrapers.portal_scraper import PortalScraper, PortalAuthenticationError, PortalNetworkError
+    from services.stage_preserving_session import StagePreservingSession
+    from services.tier_selector import get_scraper_config, mark_current_tier_failed
 
     try:
         password = credential_crypto_service.decrypt(encrypted_password)
@@ -89,7 +91,9 @@ def process_single_fetch(roll_number: str, encrypted_password: str) -> dict:
         logger.error("Background fetch: failed to decrypt for %s: %s", roll_number, exc)
         return {"status": "transient_failure", "error": str(exc)}
 
-    scraper = PortalScraper()
+    base_url, stage_prefix = get_scraper_config()
+    session = StagePreservingSession(stage_prefix=stage_prefix)
+    scraper = PortalScraper(session=session, base_url=base_url)
     try:
         data = scraper.login(roll_number=roll_number, password=password)
         attendance_rows = data.get("attendance", [])
@@ -133,6 +137,8 @@ def process_single_fetch(roll_number: str, encrypted_password: str) -> dict:
             _mark_credential_invalid(roll_number)
             _send_relink_notification(roll_number)
             return {"status": "invalid_credentials", "error": str(exc)}
+        if code == "LOGIN_FAILED":
+            mark_current_tier_failed(is_session_issue=True)
         return {"status": "transient_failure", "error": str(exc)}
     except (PortalNetworkError, Exception) as exc:
         return {"status": "transient_failure", "error": str(exc)}

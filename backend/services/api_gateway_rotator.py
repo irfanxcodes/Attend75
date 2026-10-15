@@ -125,6 +125,12 @@ class APIGatewayRotator:
         
         return True
 
+    def any_available(self) -> bool:
+        """Return True if at least one gateway endpoint is currently unblocked."""
+        if not self._endpoints:
+            return False
+        return any(not self._is_blocked(i) for i in range(len(self._endpoints)))
+
     def get_status(self) -> dict:
         """Return current rotation status for monitoring."""
         if not self._endpoints:
