@@ -47,7 +47,16 @@ function HistoryPage() {
   const [historyBySemesterDate, setHistoryBySemesterDate] = useState({})
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const [historyError, setHistoryError] = useState('')
-  const semesterCacheKey = String(session.selectedSemester || 'default')
+  
+  // Use localStorage as source of truth for semester, same as Dashboard.
+  // This ensures consistency when navigating between pages.
+  const effectiveSemesterId = useMemo(() => {
+    const savedSemester = window.localStorage.getItem('attend75.selectedSemester')
+    const isValidSaved = savedSemester && session.semesters.some((s) => s.id === savedSemester)
+    return isValidSaved ? savedSemester : session.selectedSemester || 'default'
+  }, [session.selectedSemester, session.semesters])
+  
+  const semesterCacheKey = String(effectiveSemesterId)
 
   // Clear the cache when semester changes so new dates fetch fresh data
   useEffect(() => {
@@ -112,7 +121,7 @@ function HistoryPage() {
       setIsLoadingHistory(true)
       const result = await fetchAttendanceHistory({
         token: session.token,
-        semesterId: session.selectedSemester,
+        semesterId: effectiveSemesterId,
         date: dateKey,
       })
 

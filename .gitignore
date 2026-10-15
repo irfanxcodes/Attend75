@@ -27,37 +27,8 @@ dist-ssr
 # Python cache files
 __pycache__/
 *.py[cod]
-.venv/
-venv/
-
-# Environment files and secrets
-.env
-.env.*
-!.env.example
-backend/.env.production
-frontend/.env.production
-
-# Firebase service credentials
-*firebase-adminsdk*.json
-*service-account*.json
-firebase-service-account.json
 
 # Local database backups
 backend/backups/*.db
 backend/backups/*.sql
-
-frontend/public/pdfs/FM-4 notes.pdf
-
-# SQLite database files
-*.db
-*.db-shm
-*.db-wal
-
-# Uploaded files (PDFs, audio, slides)
-backend/uploads/
-
-# Test databases
-backend/attend75_cap_test.db
-backend/attend75_migration_test.db
-backend/attend75_test_local.db-shm
-backend/attend75_test_local.db-wal
+backend/.env
