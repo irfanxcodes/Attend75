@@ -532,7 +532,7 @@ class PortalScraper:
                 selected_semester = value
 
         if not selected_semester and semesters:
-            selected_semester = semesters[-1]["id"]
+            selected_semester = semesters[0]["id"]  # Use first (current) semester, not last
 
         return semesters, selected_semester
 
