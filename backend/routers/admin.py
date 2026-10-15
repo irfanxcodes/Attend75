@@ -837,7 +837,6 @@ async def admin_trigger_storage_health_check(_: dict = Depends(require_admin_use
 		return JSONResponse(status_code=500, content={"status": "error", "message": "Health check failed"})
 
 
-@router.get("/proxy-monitor", response_model=ApiResponse)
 @router.post("/proxy/clear-blocks", response_model=ApiResponse)
 async def admin_clear_proxy_blocks(_: dict = Depends(require_admin_user)):
 	"""
