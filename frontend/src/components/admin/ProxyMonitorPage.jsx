@@ -27,7 +27,6 @@ function shortUrl(url) {
   if (!url) return '—'
   try {
     const u = new URL(url)
-    // show host + first path segment only, e.g. "apzgvkhap5.execute-api.ap-southeast-1.amazonaws.com/fireprox"
     const parts = u.pathname.split('/').filter(Boolean)
     return u.hostname + (parts[0] ? `/${parts[0]}` : '')
   } catch {
@@ -48,6 +47,13 @@ function successRateColor(ok, fail) {
   if (rate >= 95) return 'text-[#4EF0A0]'
   if (rate >= 80) return 'text-[#FFB23E]'
   return 'text-[#FF5B5B]'
+}
+
+function tierLabel(type) {
+  if (type === 'lambda') return { num: 1, label: 'Tier 1', color: 'text-[#A78BFA] bg-[#A78BFA]/10' }
+  if (type === 'api_gateway') return { num: 2, label: 'Tier 2', color: 'text-[#6CB4FF] bg-[#6CB4FF]/10' }
+  if (type === 'proxy') return { num: 3, label: 'Tier 3', color: 'text-[#FFB23E] bg-[#FFB23E]/10' }
+  return { num: '?', label: 'Tier ?', color: 'text-[#6E6A88] bg-white/5' }
 }
 
 function StatusBadge({ item }) {
@@ -73,17 +79,19 @@ function MetricCell({ label, value, valueClass = 'text-[#f0ece4]' }) {
   )
 }
 
-// ── sub-sections ────────────────────────────────────────────────────────────
+// ── Active tier banner ──────────────────────────────────────────────────────
 
 function ActiveTierBanner({ activeTier }) {
   if (!activeTier || !activeTier.url) return null
+
   const typeColors = {
+    lambda:      'text-[#A78BFA] bg-[#A78BFA]/10',
     api_gateway: 'text-[#6CB4FF] bg-[#6CB4FF]/10',
-    lambda: 'text-[#A78BFA] bg-[#A78BFA]/10',
-    worker: 'text-[#4EF0A0] bg-[#4EF0A0]/10',
-    proxy: 'text-[#FFB23E] bg-[#FFB23E]/10',
+    worker:      'text-[#4EF0A0] bg-[#4EF0A0]/10',
+    proxy:       'text-[#FFB23E] bg-[#FFB23E]/10',
   }
   const cls = typeColors[activeTier.type] || 'text-[#4EF0A0] bg-[#4EF0A0]/10'
+
   return (
     <div className="flex items-center gap-3 rounded-xl border border-[#4EF0A0]/20 bg-[#4EF0A0]/5 p-4">
       <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#4EF0A0]/10">
@@ -111,13 +119,22 @@ function ActiveTierBanner({ activeTier }) {
   )
 }
 
-function StatCards({ stats, gwStatus, lambdaStatus }) {
+// ── Stat cards ──────────────────────────────────────────────────────────────
+
+function StatCards({ stats, gwStatus, lambdaStatus, activeTierType }) {
   const totalReqs = stats.total_requests || 0
   const successRate = totalReqs > 0 ? stats.success_rate_percent : null
-  const rateColor = successRate === null ? 'text-[#6E6A88]' : successRate >= 95 ? 'text-[#4EF0A0]' : successRate >= 80 ? 'text-[#FFB23E]' : 'text-[#FF5B5B]'
+  const rateColor = successRate === null ? 'text-[#6E6A88]'
+    : successRate >= 95 ? 'text-[#4EF0A0]'
+    : successRate >= 80 ? 'text-[#FFB23E]'
+    : 'text-[#FF5B5B]'
+
+  const lambdaAvailable = lambdaStatus?.available_endpoints ?? 0
+  const lambdaTotal     = lambdaStatus?.total_endpoints ?? 0
 
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {/* Success rate */}
       <div className="rounded-xl border border-white/5 bg-[#2a2440] p-4">
         <p className="text-[10px] font-medium uppercase tracking-wider text-[#6E6A88]">Success Rate</p>
         <p className={`mt-1 text-2xl font-bold ${rateColor}`}>
@@ -126,8 +143,43 @@ function StatCards({ stats, gwStatus, lambdaStatus }) {
         <p className="mt-0.5 text-[10px] text-[#9F9AB5]">{stats.total_success ?? 0} / {totalReqs} requests</p>
       </div>
 
-      <div className="rounded-xl border border-white/5 bg-[#2a2440] p-4">
-        <p className="text-[10px] font-medium uppercase tracking-wider text-[#6E6A88]">API Gateway</p>
+      {/* Lambda — highlight when active */}
+      <div className={`rounded-xl border p-4 transition-colors ${
+        activeTierType === 'lambda'
+          ? 'border-[#A78BFA]/30 bg-[#A78BFA]/5'
+          : 'border-white/5 bg-[#2a2440]'
+      }`}>
+        <p className="text-[10px] font-medium uppercase tracking-wider text-[#6E6A88]">
+          AWS Lambda
+          {activeTierType === 'lambda' && (
+            <span className="ml-1.5 inline-flex items-center gap-1 text-[#A78BFA]">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#A78BFA]" />
+              Active
+            </span>
+          )}
+        </p>
+        <p className="mt-1 text-2xl font-bold text-[#f0ece4]">
+          {lambdaAvailable}
+          <span className="text-base font-normal text-[#6E6A88]"> / {lambdaTotal || 1}</span>
+        </p>
+        <p className="mt-0.5 text-[10px] text-[#9F9AB5]">{(lambdaTotal || 1) - lambdaAvailable} blocked</p>
+      </div>
+
+      {/* API Gateway — highlight when active */}
+      <div className={`rounded-xl border p-4 transition-colors ${
+        activeTierType === 'api_gateway'
+          ? 'border-[#6CB4FF]/30 bg-[#6CB4FF]/5'
+          : 'border-white/5 bg-[#2a2440]'
+      }`}>
+        <p className="text-[10px] font-medium uppercase tracking-wider text-[#6E6A88]">
+          API Gateway
+          {activeTierType === 'api_gateway' && (
+            <span className="ml-1.5 inline-flex items-center gap-1 text-[#6CB4FF]">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#6CB4FF]" />
+              Active
+            </span>
+          )}
+        </p>
         <p className="mt-1 text-2xl font-bold text-[#f0ece4]">
           {(gwStatus?.total_endpoints ?? 0) - (gwStatus?.blocked_count ?? 0)}
           <span className="text-base font-normal text-[#6E6A88]"> / {gwStatus?.total_endpoints ?? 0}</span>
@@ -135,15 +187,7 @@ function StatCards({ stats, gwStatus, lambdaStatus }) {
         <p className="mt-0.5 text-[10px] text-[#9F9AB5]">{gwStatus?.blocked_count ?? 0} blocked</p>
       </div>
 
-      <div className="rounded-xl border border-white/5 bg-[#2a2440] p-4">
-        <p className="text-[10px] font-medium uppercase tracking-wider text-[#6E6A88]">HTTP Proxies</p>
-        <p className="mt-1 text-2xl font-bold text-[#f0ece4]">
-          {stats.active_proxies ?? 0}
-          <span className="text-base font-normal text-[#6E6A88]"> / {stats.total_proxies ?? 0}</span>
-        </p>
-        <p className="mt-0.5 text-[10px] text-[#9F9AB5]">{stats.blocked_proxies ?? 0} blocked</p>
-      </div>
-
+      {/* Avg response */}
       <div className="rounded-xl border border-white/5 bg-[#2a2440] p-4">
         <p className="text-[10px] font-medium uppercase tracking-wider text-[#6E6A88]">Avg Response</p>
         <p className="mt-1 text-2xl font-bold text-[#f0ece4]">
@@ -155,46 +199,71 @@ function StatCards({ stats, gwStatus, lambdaStatus }) {
   )
 }
 
-function ApiGatewaySection({ gateway }) {
-  const { status, endpoints = [] } = gateway || {}
-  if (!status?.configured) return null
+// ── Lambda section (Tier 1) ─────────────────────────────────────────────────
+
+function LambdaSection({ lambda, isActiveTier }) {
+  const { status, endpoints = [], disabled } = lambda || {}
+  if (!endpoints.length) return null
+
+  const t = tierLabel('lambda')
+  const isActive = isActiveTier && !disabled
 
   return (
     <div>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-bold text-[#f0ece4]">
-          API Gateway · Fireprox
-          <span className="ml-2 rounded-full bg-[#6CB4FF]/10 px-2 py-0.5 text-[10px] font-medium text-[#6CB4FF]">
-            Tier 1 — Active
+        <h3 className="flex items-center gap-2 text-sm font-bold text-[#f0ece4]">
+          AWS Lambda
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${t.color}`}>
+            {t.label} — {isActive ? 'Active' : disabled ? 'Disabled' : 'Standby'}
           </span>
+          {isActive && (
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#A78BFA] opacity-60" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-[#A78BFA]" />
+            </span>
+          )}
         </h3>
-        <span className="text-[10px] text-[#6E6A88]">
-          rotates every {status.rotate_every} req · {endpoints.length} regions
-        </span>
+        {status && (
+          <span className="text-[10px] text-[#6E6A88]">
+            {status.monthly_usage ?? 0} / {status.monthly_cap ?? '900000'} this month ({status.usage_percent ?? 0}%)
+          </span>
+        )}
       </div>
+
+      {disabled && (
+        <p className="mb-3 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 text-[11px] text-[#6E6A88]">
+          Lambda is configured but currently on cooldown — will activate automatically once the cooldown expires.
+        </p>
+      )}
+
       <div className="space-y-2">
         {endpoints.map((ep, i) => {
           const region = regionFromUrl(ep.url)
-          const total = ep.success_count + ep.failure_count
-          const isActive = ep.active
+          const total = (ep.success_count || 0) + (ep.failure_count || 0)
           return (
             <div
               key={i}
-              className={`rounded-xl border p-3.5 ${isActive ? 'border-[#6CB4FF]/30 bg-[#6CB4FF]/5' : 'border-white/5 bg-[#2a2440]'}`}
+              className={`rounded-xl border p-3.5 transition-colors ${
+                isActive
+                  ? 'border-[#A78BFA]/30 bg-[#A78BFA]/5'
+                  : 'border-white/5 bg-[#2a2440]'
+              } ${disabled ? 'opacity-60' : ''}`}
             >
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     {isActive && (
                       <span className="relative flex h-2 w-2 shrink-0">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#6CB4FF] opacity-60" />
-                        <span className="relative inline-flex h-2 w-2 rounded-full bg-[#6CB4FF]" />
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#A78BFA] opacity-60" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-[#A78BFA]" />
                       </span>
                     )}
                     <code className="truncate text-[11px] text-[#d8d4e7]">{shortUrl(ep.url)}</code>
                     {region && <span className="rounded bg-white/5 px-1.5 py-0.5 text-[9px] font-medium text-[#9F9AB5]">{region}</span>}
                     <StatusBadge item={ep} />
-                    {isActive && <span className="rounded-full bg-[#6CB4FF]/20 px-2 py-0.5 text-[9px] font-bold uppercase text-[#6CB4FF]">in use</span>}
+                    {isActive && (
+                      <span className="rounded-full bg-[#A78BFA]/20 px-2 py-0.5 text-[9px] font-bold uppercase text-[#A78BFA]">in use</span>
+                    )}
                   </div>
                   {ep.last_error && <p className="mt-1 truncate text-[10px] text-[#FF5B5B]">{ep.last_error}</p>}
                 </div>
@@ -202,7 +271,7 @@ function ApiGatewaySection({ gateway }) {
                   <MetricCell
                     label="Success"
                     value={total > 0 ? `${Math.round((ep.success_count / total) * 100)}%` : '—'}
-                    valueClass={successRateColor(ep.success_count, ep.failure_count)}
+                    valueClass={successRateColor(ep.success_count || 0, ep.failure_count || 0)}
                   />
                   <MetricCell label="Requests" value={total} />
                   <MetricCell label="Avg" value={ep.response_time_avg_ms > 0 ? `${ep.response_time_avg_ms}ms` : '—'} />
@@ -217,46 +286,72 @@ function ApiGatewaySection({ gateway }) {
   )
 }
 
-function LambdaSection({ lambda }) {
-  const { status, endpoints = [], disabled } = lambda || {}
-  if (!endpoints.length) return null
+// ── API Gateway section (Tier 2) ────────────────────────────────────────────
+
+function ApiGatewaySection({ gateway, isActiveTier }) {
+  const { status, endpoints = [] } = gateway || {}
+  if (!status?.configured) return null
+
+  const t = tierLabel('api_gateway')
+  const isActive = isActiveTier
 
   return (
     <div>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-bold text-[#f0ece4]">
-          AWS Lambda
-          <span className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-medium ${disabled ? 'bg-[#6E6A88]/20 text-[#6E6A88]' : 'bg-[#A78BFA]/10 text-[#A78BFA]'}`}>
-            {disabled ? 'Tier 2 — Disabled' : 'Tier 2 — Standby'}
+        <h3 className="flex items-center gap-2 text-sm font-bold text-[#f0ece4]">
+          API Gateway · Fireprox
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${t.color}`}>
+            {t.label} — {isActive ? 'Active' : 'Standby'}
           </span>
+          {isActive && (
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#6CB4FF] opacity-60" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-[#6CB4FF]" />
+            </span>
+          )}
         </h3>
-        {status && (
-          <span className="text-[10px] text-[#6E6A88]">
-            {status.monthly_usage ?? 0} / {status.monthly_cap ?? '—'} this month ({status.usage_percent ?? 0}%)
-          </span>
-        )}
+        <span className="text-[10px] text-[#6E6A88]">
+          rotates every {status.rotate_every} req · {endpoints.length} regions
+        </span>
       </div>
-      {disabled && (
-        <p className="mb-3 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 text-[11px] text-[#6E6A88]">
-          Lambda is configured but currently disabled — it times out on portal 302 redirects. Will be re-enabled once the redirect handling is fixed.
-        </p>
-      )}
       <div className="space-y-2">
         {endpoints.map((ep, i) => {
           const region = regionFromUrl(ep.url)
-          const total = ep.success_count + ep.failure_count
+          const total = (ep.success_count || 0) + (ep.failure_count || 0)
+          const isEndpointActive = ep.active && isActive
           return (
-            <div key={i} className="rounded-xl border border-white/5 bg-[#2a2440] p-3.5 opacity-70">
+            <div
+              key={i}
+              className={`rounded-xl border p-3.5 transition-colors ${
+                isEndpointActive ? 'border-[#6CB4FF]/30 bg-[#6CB4FF]/5' : 'border-white/5 bg-[#2a2440]'
+              }`}
+            >
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
+                    {isEndpointActive && (
+                      <span className="relative flex h-2 w-2 shrink-0">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#6CB4FF] opacity-60" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-[#6CB4FF]" />
+                      </span>
+                    )}
                     <code className="truncate text-[11px] text-[#d8d4e7]">{shortUrl(ep.url)}</code>
                     {region && <span className="rounded bg-white/5 px-1.5 py-0.5 text-[9px] font-medium text-[#9F9AB5]">{region}</span>}
                     <StatusBadge item={ep} />
+                    {isEndpointActive && (
+                      <span className="rounded-full bg-[#6CB4FF]/20 px-2 py-0.5 text-[9px] font-bold uppercase text-[#6CB4FF]">in use</span>
+                    )}
                   </div>
+                  {ep.last_error && <p className="mt-1 truncate text-[10px] text-[#FF5B5B]">{ep.last_error}</p>}
                 </div>
                 <div className="flex shrink-0 gap-5">
+                  <MetricCell
+                    label="Success"
+                    value={total > 0 ? `${Math.round((ep.success_count / total) * 100)}%` : '—'}
+                    valueClass={successRateColor(ep.success_count || 0, ep.failure_count || 0)}
+                  />
                   <MetricCell label="Requests" value={total} />
+                  <MetricCell label="Avg" value={ep.response_time_avg_ms > 0 ? `${ep.response_time_avg_ms}ms` : '—'} />
                   <MetricCell label="Last ok" value={formatTimeAgo(ep.last_success)} valueClass="text-[#9F9AB5]" />
                 </div>
               </div>
@@ -267,6 +362,8 @@ function LambdaSection({ lambda }) {
     </div>
   )
 }
+
+// ── Blocked alert ───────────────────────────────────────────────────────────
 
 function BlockedSection({ blocked }) {
   if (!blocked?.length) return null
@@ -300,26 +397,27 @@ function BlockedSection({ blocked }) {
   )
 }
 
-function HttpProxiesSection({ activeProxies }) {
+// ── HTTP Proxy section (Tier 3) ─────────────────────────────────────────────
+
+function HttpProxiesSection({ activeProxies, isActiveTier }) {
   const [page, setPage] = useState(0)
   const PAGE = 30
-  const usedProxies = activeProxies.filter(p => (p.success_count + p.failure_count) > 0)
+  const usedProxies   = activeProxies.filter(p => (p.success_count + p.failure_count) > 0)
   const unusedProxies = activeProxies.filter(p => (p.success_count + p.failure_count) === 0)
   const paginated = unusedProxies.slice(page * PAGE, (page + 1) * PAGE)
 
+  const t = tierLabel('proxy')
+
   return (
     <div>
-      <h3 className="mb-3 text-sm font-bold text-[#f0ece4]">
+      <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#f0ece4]">
         HTTP Proxy Pool
-        <span className="ml-2 rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-medium text-[#6E6A88]">
-          Tier 3 — Fallback
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${isActiveTier ? t.color : 'bg-white/5 text-[#6E6A88]'}`}>
+          Tier 3 — {isActiveTier ? 'Active' : 'Fallback'}
         </span>
-        <span className="ml-1 text-[11px] font-normal text-[#6E6A88]">
-          ({activeProxies.length} configured)
-        </span>
+        <span className="text-[11px] font-normal text-[#6E6A88]">({activeProxies.length} configured)</span>
       </h3>
 
-      {/* Used proxies first */}
       {usedProxies.length > 0 && (
         <div className="mb-4 space-y-2">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6E6A88]">Ever used ({usedProxies.length})</p>
@@ -349,7 +447,6 @@ function HttpProxiesSection({ activeProxies }) {
         </div>
       )}
 
-      {/* Unused proxies collapsed in a table */}
       <div className="rounded-xl border border-white/5 bg-[#2a2440]">
         <div className="border-b border-white/5 px-4 py-2.5">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6E6A88]">
@@ -394,7 +491,7 @@ function HttpProxiesSection({ activeProxies }) {
   )
 }
 
-// ── main component ──────────────────────────────────────────────────────────
+// ── Main component ──────────────────────────────────────────────────────────
 
 function ProxyMonitorPage({ sessionToken }) {
   const [data, setData] = useState(null)
@@ -442,12 +539,13 @@ function ProxyMonitorPage({ sessionToken }) {
     </div>
   )
 
-  const stats = data?.statistics || {}
-  const activeTier = data?.active_tier || null
-  const gateway = data?.api_gateway || {}
-  const lambda = data?.lambda || {}
+  const stats        = data?.statistics || {}
+  const activeTier   = data?.active_tier || null
+  const activeTierType = activeTier?.type || null
+  const gateway      = data?.api_gateway || {}
+  const lambda       = data?.lambda || {}
   const activeProxies = data?.active_proxies || []
-  const blocked = data?.blocked || []
+  const blocked      = data?.blocked || []
 
   return (
     <div className="space-y-6">
@@ -456,7 +554,7 @@ function ProxyMonitorPage({ sessionToken }) {
         <div>
           <h2 className="text-lg font-bold text-[#f0ece4]">Proxy &amp; IP Monitor</h2>
           <p className="mt-0.5 text-[11px] text-[#6E6A88]">
-            Live view of all egress tiers — API Gateway · Lambda · HTTP Proxies
+            Live view of all egress tiers — Lambda · API Gateway · HTTP Proxies
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -485,19 +583,24 @@ function ProxyMonitorPage({ sessionToken }) {
       <ActiveTierBanner activeTier={activeTier} />
 
       {/* Stat cards */}
-      <StatCards stats={stats} gwStatus={gateway.status} lambdaStatus={lambda.status} />
+      <StatCards
+        stats={stats}
+        gwStatus={gateway.status}
+        lambdaStatus={lambda.status}
+        activeTierType={activeTierType}
+      />
 
       {/* Blocked alert */}
       <BlockedSection blocked={blocked} />
 
-      {/* API Gateway */}
-      <ApiGatewaySection gateway={gateway} />
+      {/* Tier 1 — Lambda */}
+      <LambdaSection lambda={lambda} isActiveTier={activeTierType === 'lambda'} />
 
-      {/* Lambda */}
-      <LambdaSection lambda={lambda} />
+      {/* Tier 2 — API Gateway */}
+      <ApiGatewaySection gateway={gateway} isActiveTier={activeTierType === 'api_gateway'} />
 
-      {/* HTTP Proxies */}
-      <HttpProxiesSection activeProxies={activeProxies} />
+      {/* Tier 3 — HTTP Proxies */}
+      <HttpProxiesSection activeProxies={activeProxies} isActiveTier={activeTierType === 'proxy'} />
     </div>
   )
 }
