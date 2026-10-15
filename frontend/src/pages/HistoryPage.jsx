@@ -42,18 +42,18 @@ function HistoryPage() {
     actions,
   } = useAppStore()
 
-  // Clear the cache when semester changes so new dates fetch fresh data
-  useEffect(() => {
-    setHistoryBySemesterDate({})
-    setSelectedDate(null)
-  }, [session.selectedSemester])
-
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(null)
   const [historyBySemesterDate, setHistoryBySemesterDate] = useState({})
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const [historyError, setHistoryError] = useState('')
   const semesterCacheKey = String(session.selectedSemester || 'default')
+
+  // Clear the cache when semester changes so new dates fetch fresh data
+  useEffect(() => {
+    setHistoryBySemesterDate({})
+    setSelectedDate(null)
+  }, [session.selectedSemester])
 
   const subjectAbbreviationByCode = useMemo(() => {
     const map = {}
