@@ -1,37 +1,335 @@
-from scrapers.portal_scraper import PortalAuthenticationError, PortalScraper
+import time
+import os
+import logging
+import threading
+
+from scrapers.portal_scraper import PortalAuthenticationError, PortalNetworkError, PortalScraper
+
+_logger = logging.getLogger(__name__)
+from services.feature_usage_event_service import get_user_mails_sent_count, record_feature_usage_event
+from services.feature_usage_metrics import observe_history_open, observe_marks_open, observe_sync_attendance
+from services.scraper_metrics import observe_scrape
 from services.session_store import session_store
-from services.stage_preserving_session import StagePreservingSession
-from services.tier_selector import get_scraper_config, mark_current_tier_failed
+from services.student_registry_service import register_student_login
 
 
-def login_user(roll_number: str, password: str) -> dict:
-    base_url, stage_prefix = get_scraper_config()
-    session = StagePreservingSession(stage_prefix=stage_prefix)
-    scraper = PortalScraper(session=session, base_url=base_url)
+def _portal_operation_retry_attempts() -> int:
+    raw = os.getenv("PORTAL_OPERATION_RETRY_ATTEMPTS", "2").strip()
+    try:
+        return max(int(raw), 1)
+    except ValueError:
+        return 2
+
+
+def _portal_operation_retry_backoff_seconds() -> float:
+    raw = os.getenv("PORTAL_OPERATION_RETRY_BACKOFF_SECONDS", "0.6").strip()
+    try:
+        return max(float(raw), 0.0)
+    except ValueError:
+        return 0.6
+
+
+def _prefetch_marks_after_login_enabled() -> bool:
+    raw = str(os.getenv("PORTAL_PREFETCH_MARKS_AFTER_LOGIN", "false")).strip().lower()
+    return raw not in {"0", "false", "no", "off"}
+
+
+def _prefetch_marks_after_login_delay_seconds() -> float:
+    raw = str(os.getenv("PORTAL_PREFETCH_MARKS_AFTER_LOGIN_DELAY_SECONDS", "1.5")).strip()
+    try:
+        return max(float(raw), 0.0)
+    except ValueError:
+        return 1.5
+
+
+def _run_with_session_lock(record, operation):
+    with record.scraper_lock:
+        return operation()
+
+
+def _prefetch_marks_after_login(record, semester_id: str | None) -> None:
+    delay = _prefetch_marks_after_login_delay_seconds()
+    try:
+        if delay > 0:
+            time.sleep(delay)
+        _run_with_session_lock(
+            record,
+            lambda: record.scraper.fetch_consolidated_marks(semester_id=semester_id, force_refresh=True),
+        )
+    except Exception:
+        return
+
+
+def _run_with_network_retry(operation):
+    attempts = _portal_operation_retry_attempts()
+    backoff = _portal_operation_retry_backoff_seconds()
+    last_error = None
+
+    for attempt in range(1, attempts + 1):
+        try:
+            return operation()
+        except PortalNetworkError as exc:
+            last_error = exc
+            if not getattr(exc, "retriable", True):
+                raise
+            if attempt >= attempts:
+                raise
+            _logger.warning(
+                "[retry] Network error on attempt %d/%d [%s] — retrying with next proxy/worker",
+                attempt, attempts, getattr(exc, "code", exc),
+            )
+            if backoff > 0:
+                time.sleep(backoff * attempt)
+
+    if last_error is not None:
+        raise last_error
+
+
+def _resolve_semester_usage_context(payload: dict | None, fallback_semester_id: str | None = None) -> tuple[str | None, str | None]:
+    payload = payload or {}
+    resolved_id = str(payload.get("selected_semester") or fallback_semester_id or "").strip() or None
+
+    resolved_label = None
+    semesters = payload.get("semesters")
+    if resolved_id and isinstance(semesters, list):
+        for item in semesters:
+            item_id = str((item or {}).get("id") or "").strip()
+            if item_id == resolved_id:
+                label = str((item or {}).get("label") or "").strip()
+                if label:
+                    resolved_label = label
+                break
+
+    return resolved_id, resolved_label
+
+
+def _resolve_semester_label(data: dict) -> str | None:
+    selected_id = str(data.get("selected_semester") or "").strip()
+    semesters = data.get("semesters") or []
+    for sem in semesters:
+        if str(sem.get("id") or "").strip() == selected_id:
+            return str(sem.get("label") or "").strip() or None
+    return None
+
+
+def _persist_subjects_from_login(roll_number: str, attendance_rows: list[dict]) -> None:
+    try:
+        from db.models.push_subscription import PushSubscription
+        from db.session import SessionLocal as _SessionLocal
+        with _SessionLocal() as session:
+            has_sub = session.query(PushSubscription).filter(
+                PushSubscription.roll_number == roll_number
+            ).first()
+        if not has_sub:
+            return
+        from services.timetable_subject_resolver import resolve_and_cache_subjects_for_student
+        resolve_and_cache_subjects_for_student(roll_number, attendance_rows)
+    except Exception:
+        pass
+
+
+def _evaluate_attendance_from_login(roll_number: str, overall_percent: float | None, attendance_rows: list[dict]) -> None:
+    try:
+        from services.attendance_monitor import evaluate_attendance
+        subject_data = [
+            {
+                "abbr": r.get("course_abbr", ""),
+                "attended": r.get("attended", 0),
+                "sessions": r.get("sessions", 0),
+                "percentage": r.get("attendance", 0),
+            }
+            for r in attendance_rows
+            if r.get("course_abbr")
+        ]
+        evaluate_attendance(roll_number, overall_percent, subject_data)
+    except Exception:
+        pass
+
+
+def login_user(roll_number: str, password: str, user_agent: str | None = None) -> dict:
+    started = time.perf_counter()
+    data = None
+    last_network_exc = None
+
+    max_ip_attempts = _portal_operation_retry_attempts()
+    backoff = _portal_operation_retry_backoff_seconds()
+
+    for attempt in range(1, max_ip_attempts + 1):
+        # ── Pick the highest-priority available tier ──────────────────────────
+        from services.tier_selector import get_scraper_config, mark_current_tier_failed
+        from services.stage_preserving_session import StagePreservingSession
+        base_url, stage_prefix = get_scraper_config()
+        session = StagePreservingSession(stage_prefix=stage_prefix)
+        scraper = PortalScraper(session=session, base_url=base_url)
+
+        try:
+            data = scraper.login(roll_number=roll_number, password=password)
+            break  # success — exit retry loop
+        except PortalNetworkError as exc:
+            last_network_exc = exc
+            mark_current_tier_failed(is_session_issue=False)
+            if not getattr(exc, "retriable", True):
+                break
+            if attempt < max_ip_attempts:
+                _logger.warning(
+                    "[login_user] Network error attempt %d/%d [%s] — retrying with next tier",
+                    attempt, max_ip_attempts, getattr(exc, "code", exc),
+                )
+                if backoff > 0:
+                    time.sleep(backoff)
+            continue
+        except PortalAuthenticationError as exc:
+            if exc.code == "LOGIN_FAILED":
+                # IP-consistency issue (session page not wrong credentials) — penalise endpoint
+                mark_current_tier_failed(is_session_issue=True)
+            raise
+
+    if data is None and last_network_exc is not None:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
+                       failure_kind="network", failure_code=getattr(last_network_exc, "code", None),
+                       failure_stage=getattr(last_network_exc, "stage", None),
+                       retriable=getattr(last_network_exc, "retriable", None))
+        raise last_network_exc
 
     try:
-        data = scraper.login(roll_number=roll_number, password=password)
+        resolved_user_name = str(data.get("student_name") or roll_number).strip() or roll_number.strip().upper()
+        resolved_photo_url = data.get("student_photo_url")
+
+        attendance_rows = data.get("attendance") or []
+        total_attended = sum(int(row.get("attended") or 0) for row in attendance_rows)
+        total_sessions = sum(int(row.get("sessions") or 0) for row in attendance_rows)
+        overall_percent = round((total_attended / total_sessions) * 100, 1) if total_sessions > 0 else None
+
+        record = session_store.create(
+            roll_number=roll_number,
+            scraper=scraper,
+            user_name=resolved_user_name,
+            photo_url=resolved_photo_url,
+            attendance_percent=overall_percent,
+            user_agent=user_agent,
+            program_sn=data.get("program_sn"),
+            program_full=data.get("program_full"),
+            selected_semester_label=_resolve_semester_label(data),
+        )
+
+        if attendance_rows:
+            subjects = []
+            for item in attendance_rows:
+                abbr = str(item.get("course_abbr", "")).strip().upper()
+                section = str(item.get("section", "")).strip().upper()
+                if abbr and section:
+                    subjects.append({"abbr": abbr, "section": section})
+            if subjects:
+                record.cached_subjects = subjects
+            record.cached_attendance_rows = list(attendance_rows)
+
+            threading.Thread(
+                target=_persist_subjects_from_login,
+                args=(roll_number.strip().upper(), list(attendance_rows)),
+                daemon=True,
+                name=f"subj-cache-{roll_number}",
+            ).start()
+
+            threading.Thread(
+                target=_evaluate_attendance_from_login,
+                args=(roll_number.strip().upper(), overall_percent, list(attendance_rows)),
+                daemon=True,
+                name=f"att-eval-{roll_number}",
+            ).start()
+
+        if _prefetch_marks_after_login_enabled():
+            threading.Thread(
+                target=_prefetch_marks_after_login,
+                args=(record, data.get("selected_semester")),
+                daemon=True,
+            ).start()
+
+        observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
+
+        register_student_login(
+            roll_number.strip().upper(), "guest",
+            display_name=resolved_user_name,
+            attendance_percent=overall_percent,
+            user_agent=user_agent,
+            program=data.get("program_full"),
+            current_semester=_resolve_semester_label(data),
+        )
+
+        return {
+            "token": record.token,
+            "roll_number": roll_number.strip().upper(),
+            **data,
+        }
+    except PortalNetworkError as exc:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
+                       failure_kind="network", failure_code=getattr(exc, "code", None),
+                       failure_stage=getattr(exc, "stage", None), retriable=getattr(exc, "retriable", None))
+        raise
     except PortalAuthenticationError as exc:
-        # Session/IP issue (not wrong credentials) — penalise the tier endpoint
-        if exc.code == "LOGIN_FAILED":
-            mark_current_tier_failed(is_session_issue=True)
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
+                       failure_kind="auth", failure_code=getattr(exc, "code", None))
+        raise
+    except Exception:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000, failure_kind="unknown")
         raise
 
-    record = session_store.create(roll_number=roll_number, scraper=scraper)
 
-    return {
-        "token": record.token,
-        "roll_number": roll_number.strip().upper(),
-        **data,
-    }
-
-
-def fetch_attendance_for_semester(token: str, semester_id: str | None) -> dict:
+def fetch_attendance_for_semester(token: str, semester_id: str | None, program_id: str | None = None, force_refresh: bool = False) -> dict:
     record = session_store.get(token)
     if record is None:
         raise PortalAuthenticationError("Session token not found while fetching attendance", code="SESSION_EXPIRED")
 
-    return record.scraper.fetch_attendance_for_semester(semester_id=semester_id)
+    started = time.perf_counter()
+    try:
+        payload = _run_with_session_lock(
+            record,
+            lambda: _run_with_network_retry(
+                lambda: record.scraper.fetch_attendance_for_semester(
+                    semester_id=semester_id,
+                    program_id=program_id,
+                    force_refresh=force_refresh,
+                )
+            )
+        )
+        observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
+        resolved_id, resolved_label = _resolve_semester_usage_context(payload, semester_id)
+        observe_sync_attendance(semester_id=resolved_id, semester_label=resolved_label)
+
+        attendance_items = payload.get("attendance", [])
+        if attendance_items:
+            subjects = []
+            for item in attendance_items:
+                abbr = str(item.get("course_abbr", "")).strip().upper()
+                section = str(item.get("section", "")).strip().upper()
+                if abbr and section:
+                    subjects.append({"abbr": abbr, "section": section})
+            if subjects:
+                record.cached_subjects = subjects
+            record.cached_attendance_rows = list(attendance_items)
+
+            total_attended = sum(int(r.get("attended") or 0) for r in attendance_items)
+            total_sessions = sum(int(r.get("sessions") or 0) for r in attendance_items)
+            refreshed_overall = round((total_attended / total_sessions) * 100, 1) if total_sessions > 0 else None
+            threading.Thread(
+                target=_evaluate_attendance_from_login,
+                args=(record.roll_number, refreshed_overall, list(attendance_items)),
+                daemon=True,
+                name=f"att-eval-refresh-{record.roll_number}",
+            ).start()
+
+        return payload
+    except PortalNetworkError as exc:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
+                       failure_kind="network", failure_code=getattr(exc, "code", None),
+                       failure_stage=getattr(exc, "stage", None), retriable=getattr(exc, "retriable", None))
+        raise
+    except PortalAuthenticationError as exc:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
+                       failure_kind="auth", failure_code=getattr(exc, "code", None))
+        raise
+    except Exception:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000, failure_kind="unknown")
+        raise
 
 
 def fetch_subject_history(token: str, semester_id: str | None, date: str | None) -> dict:
@@ -39,7 +337,103 @@ def fetch_subject_history(token: str, semester_id: str | None, date: str | None)
     if record is None:
         raise PortalAuthenticationError("Session token not found while fetching attendance history", code="SESSION_EXPIRED")
 
-    return record.scraper.fetch_subject_attendance_history(semester_id=semester_id, date=date)
+    started = time.perf_counter()
+    try:
+        payload = _run_with_session_lock(
+            record,
+            lambda: _run_with_network_retry(
+                lambda: record.scraper.fetch_subject_attendance_history(semester_id=semester_id, date=date)
+            ),
+        )
+        observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
+        resolved_id, resolved_label = _resolve_semester_usage_context(payload, semester_id)
+        observe_history_open(semester_id=resolved_id, semester_label=resolved_label)
+        return payload
+    except PortalNetworkError as exc:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
+                       failure_kind="network", failure_code=getattr(exc, "code", None),
+                       failure_stage=getattr(exc, "stage", None), retriable=getattr(exc, "retriable", None))
+        raise
+    except PortalAuthenticationError as exc:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
+                       failure_kind="auth", failure_code=getattr(exc, "code", None))
+        raise
+    except Exception:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000, failure_kind="unknown")
+        raise
+
+
+def fetch_consolidated_marks(token: str, semester_id: str | None, force_refresh: bool = False) -> dict:
+    record = session_store.get(token)
+    if record is None:
+        raise PortalAuthenticationError("Session token not found while fetching consolidated marks", code="SESSION_EXPIRED")
+
+    started = time.perf_counter()
+    try:
+        payload = _run_with_session_lock(
+            record,
+            lambda: _run_with_network_retry(
+                lambda: record.scraper.fetch_consolidated_marks(
+                    semester_id=semester_id,
+                    force_refresh=force_refresh,
+                )
+            )
+        )
+        observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
+        resolved_id, resolved_label = _resolve_semester_usage_context(payload, semester_id)
+        observe_marks_open(semester_id=resolved_id, semester_label=resolved_label)
+
+        try:
+            from services.marks_notification_service import check_and_notify_marks_update
+            check_and_notify_marks_update(record.roll_number, payload)
+        except Exception:
+            pass
+
+        return payload
+    except PortalNetworkError as exc:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
+                       failure_kind="network", failure_code=getattr(exc, "code", None),
+                       failure_stage=getattr(exc, "stage", None), retriable=getattr(exc, "retriable", None))
+        raise
+    except PortalAuthenticationError as exc:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
+                       failure_kind="auth", failure_code=getattr(exc, "code", None))
+        raise
+    except Exception:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000, failure_kind="unknown")
+        raise
+
+
+def fetch_faculty_contacts(token: str, semester_id: str | None, force_refresh: bool = False) -> dict:
+    record = session_store.get(token)
+    if record is None:
+        raise PortalAuthenticationError("Session token not found while fetching faculty contacts", code="SESSION_EXPIRED")
+
+    started = time.perf_counter()
+    try:
+        payload = _run_with_session_lock(
+            record,
+            lambda: _run_with_network_retry(
+                lambda: record.scraper.fetch_faculty_contacts(
+                    semester_id=semester_id,
+                    force_refresh=force_refresh,
+                )
+            )
+        )
+        observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
+        return payload
+    except PortalNetworkError as exc:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
+                       failure_kind="network", failure_code=getattr(exc, "code", None),
+                       failure_stage=getattr(exc, "stage", None), retriable=getattr(exc, "retriable", None))
+        raise
+    except PortalAuthenticationError as exc:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
+                       failure_kind="auth", failure_code=getattr(exc, "code", None))
+        raise
+    except Exception:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000, failure_kind="unknown")
+        raise
 
 
 def get_session_status(token: str) -> dict:
@@ -47,10 +441,113 @@ def get_session_status(token: str) -> dict:
     if record is None:
         return {"session_status": "expired"}
 
+    started = time.perf_counter()
     try:
-        record.scraper.fetch_attendance_for_semester()
+        _run_with_session_lock(
+            record,
+            lambda: _run_with_network_retry(lambda: record.scraper.fetch_attendance_for_semester(force_refresh=True)),
+        )
+        observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
         return {"session_status": "linked"}
-    except PortalAuthenticationError:
+    except PortalNetworkError as exc:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
+                       failure_kind="network", failure_code=getattr(exc, "code", None),
+                       failure_stage=getattr(exc, "stage", None), retriable=getattr(exc, "retriable", None))
+        return {"session_status": "unknown"}
+    except PortalAuthenticationError as exc:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
+                       failure_kind="auth", failure_code=getattr(exc, "code", None))
         return {"session_status": "expired"}
     except Exception:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000, failure_kind="unknown")
         return {"session_status": "unknown"}
+
+
+def track_feature_usage_event(
+    token: str,
+    feature_name: str,
+    action_type: str,
+    subject_code: str | None = None,
+    subject_name: str | None = None,
+    attendance_date: str | None = None,
+) -> dict:
+    record = session_store.get(token)
+    if record is None:
+        raise PortalAuthenticationError("Session token not found while tracking feature usage", code="SESSION_EXPIRED")
+
+    record_feature_usage_event(
+        feature_name=feature_name,
+        action_type=action_type,
+        user_identifier=record.roll_number,
+        subject_code=subject_code,
+        subject_name=subject_name,
+        attendance_date=attendance_date,
+    )
+
+    return {"tracked": True}
+
+
+def get_mails_sent(token: str) -> dict:
+    record = session_store.get(token)
+    if record is None:
+        raise PortalAuthenticationError("Session token not found while fetching mails sent count", code="SESSION_EXPIRED")
+
+    count = get_user_mails_sent_count(record.roll_number)
+    return {"mails_sent": count, "user_identifier": record.roll_number}
+
+
+def calculate_attendance_streak(token: str, semester_id: str | None) -> dict:
+    """Calculate current streak: consecutive academic days with full attendance, counting backwards from most recent."""
+    record = session_store.get(token)
+    if record is None:
+        raise PortalAuthenticationError("Session token not found while calculating streak", code="SESSION_EXPIRED")
+
+    started = time.perf_counter()
+    try:
+        payload = _run_with_session_lock(
+            record,
+            lambda: _run_with_network_retry(
+                lambda: record.scraper.fetch_subject_attendance_history(semester_id=semester_id, date=None)
+            ),
+        )
+        observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
+
+        history_by_date = payload.get("history_by_date", {})
+        if not history_by_date:
+            return {"streak": 0, "selected_semester": payload.get("selected_semester")}
+
+        sorted_dates = sorted(history_by_date.keys(), reverse=True)
+        streak = 0
+
+        for date_key in sorted_dates:
+            entries = history_by_date[date_key]
+            if not isinstance(entries, list) or len(entries) == 0:
+                continue
+
+            all_present = all(
+                entry.get("attended") is True
+                for entry in entries
+                if isinstance(entry, dict)
+            )
+
+            if all_present:
+                streak += 1
+            else:
+                break
+
+        return {
+            "streak": streak,
+            "selected_semester": payload.get("selected_semester"),
+        }
+    except PortalNetworkError as exc:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
+                       failure_kind="network", failure_code=getattr(exc, "code", None),
+                       failure_stage=getattr(exc, "stage", None), retriable=getattr(exc, "retriable", None))
+        raise
+    except PortalAuthenticationError as exc:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
+                       failure_kind="auth", failure_code=getattr(exc, "code", None))
+        raise
+    except Exception:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000, failure_kind="unknown")
+        raise
