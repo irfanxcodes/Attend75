@@ -48,33 +48,30 @@ function HistoryPage() {
     console.log('=================================')
     console.log('[History DEBUG] Component mounted!')
     console.log('[History DEBUG] session.token:', session.token ? 'EXISTS' : 'NULL')
-    console.log('[History DEBUG] session.selectedSemester:', session.selectedSemester)
+    console.log('[History DEBUG] session.selectedSemester (IGNORED):', session.selectedSemester)
     console.log('[History DEBUG] localStorage semester:', localStorageSemester)
     console.log('[History DEBUG] session.semesters:', session.semesters)
+    console.log('[History DEBUG] effectiveSemester (USING THIS):', effectiveSemester)
     console.log('=================================')
-    
-    // If localStorage has a valid semester, sync it to app state
-    if (localStorageSemester && localStorageSemester !== session.selectedSemester) {
-      console.log('[History FIX] Syncing localStorage semester to app state:', localStorageSemester)
-      actions.setSelectedSemester(localStorageSemester)
-      return
-    }
-    
-    // If localStorage is null but we have semesters, pick the FIRST one (current semester)
-    if (!localStorageSemester && session.semesters && session.semesters.length > 0) {
-      const firstSemester = session.semesters[0].id
-      console.log('[History FIX] No localStorage semester, using first available:', firstSemester)
-      actions.setSelectedSemester(firstSemester)
-      window.localStorage.setItem('attend75.selectedSemester', firstSemester)
-    }
-  }, [session.semesters, session.selectedSemester, actions])
+  }, [effectiveSemester, session.selectedSemester, session.semesters])
 
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(null)
   const [historyBySemesterDate, setHistoryBySemesterDate] = useState({})
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const [historyError, setHistoryError] = useState('')
-  const semesterCacheKey = String(session.selectedSemester || 'default')
+  
+  // FORCE FIX: Always use semester from localStorage or first semester, NOT session.selectedSemester
+  const effectiveSemester = useMemo(() => {
+    const stored = window.localStorage.getItem('attend75.selectedSemester')
+    if (stored) return stored
+    if (session.semesters && session.semesters.length > 0) {
+      return session.semesters[0].id
+    }
+    return session.selectedSemester
+  }, [session.semesters, session.selectedSemester])
+  
+  const semesterCacheKey = String(effectiveSemester || 'default')
 
   const subjectAbbreviationByCode = useMemo(() => {
     const map = {}
@@ -143,10 +140,10 @@ function HistoryPage() {
 
     try {
       setIsLoadingHistory(true)
-      console.log('[History] Calling fetchAttendanceHistory with:', { dateKey, semesterId: session.selectedSemester })
+      console.log('[History] Calling fetchAttendanceHistory with:', { dateKey, semesterId: effectiveSemester })
       const result = await fetchAttendanceHistory({
         token: session.token,
-        semesterId: session.selectedSemester,
+        semesterId: effectiveSemester,
         date: dateKey,
       })
       console.log('[History] API response:', result)
