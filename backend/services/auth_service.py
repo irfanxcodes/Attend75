@@ -154,10 +154,11 @@ def login_user(roll_number: str, password: str, user_agent: str | None = None) -
     max_ip_attempts = _portal_operation_retry_attempts()
     backoff = _portal_operation_retry_backoff_seconds()
 
+    from services.tier_selector import get_scraper_config, mark_current_tier_failed
+    from services.stage_preserving_session import StagePreservingSession
+
     for attempt in range(1, max_ip_attempts + 1):
         # ── Pick the highest-priority available tier ──────────────────────────
-        from services.tier_selector import get_scraper_config, mark_current_tier_failed
-        from services.stage_preserving_session import StagePreservingSession
         base_url, stage_prefix = get_scraper_config()
         session = StagePreservingSession(stage_prefix=stage_prefix)
         scraper = PortalScraper(session=session, base_url=base_url)
@@ -167,7 +168,7 @@ def login_user(roll_number: str, password: str, user_agent: str | None = None) -
             break  # success — exit retry loop
         except PortalNetworkError as exc:
             last_network_exc = exc
-            mark_current_tier_failed(is_session_issue=False)
+            mark_current_tier_failed(base_url=base_url, is_session_issue=False)
             if not getattr(exc, "retriable", True):
                 break
             if attempt < max_ip_attempts:
@@ -180,8 +181,8 @@ def login_user(roll_number: str, password: str, user_agent: str | None = None) -
             continue
         except PortalAuthenticationError as exc:
             if exc.code == "LOGIN_FAILED":
-                # IP-consistency issue (session page not wrong credentials) — penalise endpoint
-                mark_current_tier_failed(is_session_issue=True)
+                # IP-consistency issue (not wrong credentials) — short cooldown, retry next endpoint
+                mark_current_tier_failed(base_url=base_url, is_session_issue=True)
             raise
 
     if data is None and last_network_exc is not None:

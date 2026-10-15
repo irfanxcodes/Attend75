@@ -60,24 +60,57 @@ def get_scraper_config() -> tuple[str, str | None]:
     return _DIRECT_BASE, None
 
 
-def mark_current_tier_failed(is_session_issue: bool = False) -> None:
+def mark_current_tier_failed(base_url: str | None = None, is_session_issue: bool = False) -> None:
     """
-    Call this when a login attempt fails so the active tier endpoint gets
-    put on cooldown and the next attempt tries the next available endpoint.
+    Penalise the endpoint that just failed. base_url is the value returned by
+    get_scraper_config() so we know exactly which rotator owns it.
     """
+    if not base_url:
+        return
+
+    # Determine which rotator owns this URL by checking its endpoint list
     try:
         from services.lambda_rotator import lambda_rotator
-        if lambda_rotator.any_available():
-            lambda_rotator.mark_current_blocked(is_session_issue=is_session_issue)
-            logger.info("[TierSelector] Marked current Lambda endpoint as blocked")
-            return
-    except Exception:
-        pass
+        for ep in (lambda_rotator._endpoints or []):
+            if base_url.startswith(ep.rstrip("/")):
+                lambda_rotator.mark_current_blocked(is_session_issue=is_session_issue)
+                logger.info("[TierSelector] Marked Lambda endpoint blocked (%s): %s",
+                            "session" if is_session_issue else "IP block", ep)
+                return
+    except Exception as exc:
+        logger.warning("[TierSelector] Lambda block error: %s", exc)
 
     try:
         from services.api_gateway_rotator import api_gateway_rotator
-        if api_gateway_rotator.any_available():
-            api_gateway_rotator.mark_current_blocked(is_session_issue=is_session_issue)
-            logger.info("[TierSelector] Marked current API Gateway endpoint as blocked")
-    except Exception:
-        pass
+        for ep in (api_gateway_rotator._endpoints or []):
+            if base_url.startswith(ep.rstrip("/")):
+                api_gateway_rotator.mark_current_blocked(is_session_issue=is_session_issue)
+                logger.info("[TierSelector] Marked API Gateway endpoint blocked (%s): %s",
+                            "session" if is_session_issue else "IP block", ep)
+                return
+    except Exception as exc:
+        logger.warning("[TierSelector] API Gateway block error: %s", exc)
+
+
+def clear_all_blocks() -> dict:
+    """Clear all cooldown blocks on all tiers. Used by admin reset endpoint."""
+    cleared = {"lambda": 0, "api_gateway": 0}
+    try:
+        from services.lambda_rotator import lambda_rotator
+        cleared["lambda"] = len(lambda_rotator._blocked_until)
+        lambda_rotator._blocked_until.clear()
+        lambda_rotator._current_index = 0
+        logger.info("[TierSelector] Cleared all Lambda blocks")
+    except Exception as exc:
+        logger.warning("[TierSelector] Lambda clear error: %s", exc)
+
+    try:
+        from services.api_gateway_rotator import api_gateway_rotator
+        cleared["api_gateway"] = len(api_gateway_rotator._blocked_until)
+        api_gateway_rotator._blocked_until.clear()
+        api_gateway_rotator._current_index = 0
+        logger.info("[TierSelector] Cleared all API Gateway blocks")
+    except Exception as exc:
+        logger.warning("[TierSelector] API Gateway clear error: %s", exc)
+
+    return cleared

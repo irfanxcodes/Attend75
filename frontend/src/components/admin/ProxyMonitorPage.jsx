@@ -524,6 +524,7 @@ function ProxyMonitorPage({ sessionToken }) {
   const [error, setError] = useState('')
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [lastUpdated, setLastUpdated] = useState(null)
+  const [clearingBlocks, setClearingBlocks] = useState(false)
 
   const fetchProxyStatus = async () => {
     try {
@@ -539,6 +540,22 @@ function ProxyMonitorPage({ sessionToken }) {
       setError(err.message || 'Failed to load proxy monitor')
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const clearAllBlocks = async () => {
+    setClearingBlocks(true)
+    try {
+      const res = await fetch(`${API_BASE}/admin/proxy/clear-blocks`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${sessionToken}` },
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      await fetchProxyStatus()
+    } catch (err) {
+      setError(err.message || 'Failed to clear blocks')
+    } finally {
+      setClearingBlocks(false)
     }
   }
 
@@ -597,6 +614,13 @@ function ProxyMonitorPage({ sessionToken }) {
             className="rounded-lg bg-[#FF916C]/10 px-3 py-1.5 text-[11px] font-medium text-[#FF916C] hover:bg-[#FF916C]/20"
           >
             Refresh Now
+          </button>
+          <button
+            onClick={clearAllBlocks}
+            disabled={clearingBlocks}
+            className="rounded-lg bg-[#4EF0A0]/10 px-3 py-1.5 text-[11px] font-medium text-[#4EF0A0] hover:bg-[#4EF0A0]/20 disabled:opacity-50"
+          >
+            {clearingBlocks ? 'Clearing…' : 'Clear Blocks'}
           </button>
           {lastUpdated && (
             <span className="text-[10px] text-[#6E6A88]">Updated {formatTimeAgo(lastUpdated.toISOString())}</span>

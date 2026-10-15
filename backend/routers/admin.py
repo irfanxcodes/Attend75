@@ -838,6 +838,22 @@ async def admin_trigger_storage_health_check(_: dict = Depends(require_admin_use
 
 
 @router.get("/proxy-monitor", response_model=ApiResponse)
+@router.post("/proxy/clear-blocks", response_model=ApiResponse)
+async def admin_clear_proxy_blocks(_: dict = Depends(require_admin_user)):
+	"""
+	Clear all Lambda and API Gateway cooldown blocks immediately.
+	Use this to unblock endpoints that were put on cooldown by failed requests.
+	"""
+	from services.tier_selector import clear_all_blocks
+	cleared = clear_all_blocks()
+	return ApiResponse(
+		status="success",
+		message=f"Cleared {cleared['lambda']} Lambda block(s) and {cleared['api_gateway']} API Gateway block(s)",
+		data=cleared,
+	)
+
+
+@router.get("/proxy-monitor", response_model=ApiResponse)
 async def get_proxy_monitor_status(_: dict = Depends(require_admin_user)):
 	"""
 	Get real-time status of all proxy tiers: API Gateway, Lambda, HTTP proxies.
