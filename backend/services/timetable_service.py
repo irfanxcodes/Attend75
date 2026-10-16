@@ -1007,10 +1007,13 @@ def _parse_timetable_from_text(text: str) -> list[dict]:
 
         # Build a slot-jump map: when detected day order starts with non-Monday,
         # the BBA timetable skips certain standard slots (e.g. 11:20 AM, 1:15 PM).
-        # Map: 4-page BBA timetable with 6 cols → actual slot indices are 0,1,3,5
-        # (skipping 11:20 AM slot 2 and 1:15 PM slot 4).
-        # We detect this by seeing whether days[0] != "Monday".
-        _bba_6col_slot_sequence = [0, 1, 3, 5]   # 9:30, 10:25, 12:20, 2:10
+        # Map: 4-page BBA timetable with 6 cols → actual slot indices are 0,1,3,6
+        # (skipping 11:20 AM slot 2, 1:15 PM slot 4, and 2:10 PM slot 5).
+        # PAGE_TIME_SLOTS: 0=9:30, 1=10:25, 2=11:20, 3=12:20, 4=1:15, 5=2:10, 6=3:10
+        # BBA 4-page uses:    9:30,  10:25,          12:20,          2:10, 3:10
+        # Wait — need to check: is last slot 2:10 or 3:10?
+        # From PDF analysis: pages = 9:30, 10:25, 12:20, 3:10 (page 4 is 3:10, not 2:10)
+        _bba_6col_slot_sequence = [0, 1, 3, 6]   # 9:30, 10:25, 12:20, 3:10
         _slot_advance_count = -1   # how many times slot has actually advanced (-1 = not started)
         while line_no < len(lines):
             line = lines[line_no]
