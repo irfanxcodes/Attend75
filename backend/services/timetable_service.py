@@ -964,6 +964,43 @@ def _parse_timetable_from_text(text: str) -> list[dict]:
         in_bba_mode = False   # True once we detect the BBA no-TIME-column format
 
         lines = text.split('\n')
+
+        # ── Detect actual day order from the date header row ──────────────────
+        # BBA timetables often start on Thursday (e.g. "Thursday, 24 September ...
+        # Friday, 25 September ... Monday, 28 September ..."), not Monday.
+        # Scan for a pipe row containing weekday names with dates and extract order.
+        DAY_NAME_MAP = {
+            'MONDAY': 'Monday', 'TUESDAY': 'Tuesday', 'WEDNESDAY': 'Wednesday',
+            'THURSDAY': 'Thursday', 'FRIDAY': 'Friday', 'SATURDAY': 'Saturday',
+        }
+        detected_days = []
+        for scan_line in lines[:30]:  # header is always in the first ~30 lines
+            if not scan_line.startswith('|'):
+                continue
+            cells_scan = [c.strip() for c in scan_line.split('|')[1:-1]]
+            found = []
+            for cell in cells_scan:
+                upper = cell.upper()
+                for day_key, day_val in DAY_NAME_MAP.items():
+                    if day_key in upper:
+                        found.append(day_val)
+                        break
+            # Valid day-header: has at least 3 distinct day names
+            if len(set(found)) >= 3:
+                # Deduplicate while preserving order (Thu may appear twice for a week)
+                seen_days = set()
+                for d in found:
+                    if d not in seen_days:
+                        detected_days.append(d)
+                        seen_days.add(d)
+                break
+
+        # Use detected day order if found, else fall back to Mon–Fri default
+        if detected_days:
+            days = detected_days
+            logger.debug("Timetable parser: detected day order from header: %s", days)
+        # else: days stays as the default ["Monday", ..., "Friday"]
+
         line_no = 0
         while line_no < len(lines):
             line = lines[line_no]
