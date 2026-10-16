@@ -431,26 +431,50 @@ def _match_student_classes(schedule: list[dict], student_subjects: list[dict]) -
         
         # Find the room set that covers ALL student's subjects with minimum overlap
         # Some batches use multiple rooms (e.g. BB-6 + BB-4), so we need to find
-        # the best combination rather than just one dominant room
+        # the best combination rather than just one dominant room.
+        # Prefer multi-room combinations over single-room when both cover all subjects.
         if room_subject_counts:
             # Try to find a minimal room set that covers all subjects
             # Start with rooms sorted by subject coverage (descending)
             rooms_sorted = sorted(room_subject_counts.items(), key=lambda x: len(x[1]), reverse=True)
             
-            # Strategy: greedy set cover - pick rooms that add the most uncovered subjects
-            covered_subjects = set()
-            selected_rooms = []
-            for room, subjects in rooms_sorted:
-                new_subjects = subjects - covered_subjects
-                if new_subjects:
-                    selected_rooms.append(room)
-                    covered_subjects.update(subjects)
-                    if covered_subjects == abbr_set:
+            # Strategy 1: Try to find a 2-3 room combination that covers all subjects
+            # (multi-room schedules are common for split batches)
+            best_combination = None
+            best_room_count = float('inf')
+            
+            # Check if any 2-room combination covers all subjects
+            for i, (room1, subjects1) in enumerate(rooms_sorted):
+                for room2, subjects2 in rooms_sorted[i+1:]:
+                    combined = subjects1 | subjects2
+                    if combined == abbr_set and len([room1, room2]) < best_room_count:
+                        best_combination = [room1, room2]
+                        best_room_count = 2
+            
+            # Check if any single room covers all (but prefer 2-room if found)
+            if not best_combination or best_room_count > 2:
+                for room, subjects in rooms_sorted:
+                    if subjects == abbr_set:
+                        # Only use single room if no 2-room combination found
+                        if not best_combination:
+                            best_combination = [room]
+                            best_room_count = 1
                         break
             
-            # If we didn't cover all subjects, fall back to single best room
-            if covered_subjects != abbr_set and rooms_sorted:
-                selected_rooms = [rooms_sorted[0][0]]
+            # Fallback: greedy set cover if no perfect match
+            if not best_combination:
+                covered_subjects = set()
+                selected_rooms = []
+                for room, subjects in rooms_sorted:
+                    new_subjects = subjects - covered_subjects
+                    if new_subjects:
+                        selected_rooms.append(room)
+                        covered_subjects.update(subjects)
+                        if covered_subjects == abbr_set:
+                            break
+                best_combination = selected_rooms if covered_subjects == abbr_set else [rooms_sorted[0][0]]
+            
+            selected_rooms = best_combination
             
             # Resolve conflicts: for each time slot with multiple classes,
             # prefer classes in the selected room set, but keep all if no conflict
