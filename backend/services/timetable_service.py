@@ -429,29 +429,48 @@ def _match_student_classes(schedule: list[dict], student_subjects: list[dict]) -
             if room and course in abbr_set:
                 room_subject_counts[room].add(course)
         
-        # Find the dominant room (has most of student's subjects)
+        # Find the room set that covers ALL student's subjects with minimum overlap
+        # Some batches use multiple rooms (e.g. BB-6 + BB-4), so we need to find
+        # the best combination rather than just one dominant room
         if room_subject_counts:
-            dominant_room = max(room_subject_counts.items(), key=lambda x: len(x[1]))[0]
+            # Try to find a minimal room set that covers all subjects
+            # Start with rooms sorted by subject coverage (descending)
+            rooms_sorted = sorted(room_subject_counts.items(), key=lambda x: len(x[1]), reverse=True)
+            
+            # Strategy: greedy set cover - pick rooms that add the most uncovered subjects
+            covered_subjects = set()
+            selected_rooms = []
+            for room, subjects in rooms_sorted:
+                new_subjects = subjects - covered_subjects
+                if new_subjects:
+                    selected_rooms.append(room)
+                    covered_subjects.update(subjects)
+                    if covered_subjects == abbr_set:
+                        break
+            
+            # If we didn't cover all subjects, fall back to single best room
+            if covered_subjects != abbr_set and rooms_sorted:
+                selected_rooms = [rooms_sorted[0][0]]
             
             # Resolve conflicts: for each time slot with multiple classes,
-            # prefer classes in the dominant room, but keep all if no conflict
+            # prefer classes in the selected room set, but keep all if no conflict
             resolved_classes = []
             for key, classes in time_slots.items():
                 if len(classes) == 1:
                     resolved_classes.append(classes[0])
                 else:
-                    # Conflict detected - prefer dominant room
-                    dominant_room_classes = [c for c in classes if c.get('room') == dominant_room]
-                    if dominant_room_classes:
-                        resolved_classes.extend(dominant_room_classes)
+                    # Conflict detected - prefer classes in selected rooms
+                    selected_room_classes = [c for c in classes if c.get('room') in selected_rooms]
+                    if selected_room_classes:
+                        resolved_classes.extend(selected_room_classes)
                     else:
-                        # No classes in dominant room at this time, keep all (might be valid multi-room schedule)
+                        # No classes in selected rooms at this time, keep all (might be valid multi-room schedule)
                         resolved_classes.extend(classes)
             
             my_classes = resolved_classes
             batch_disambiguation_applied = True
-            logger.info("Timetable: batch disambiguation resolved conflicts, kept %d classes (dominant room: %s)", 
-                       len(my_classes), dominant_room)
+            logger.info("Timetable: batch disambiguation resolved conflicts, kept %d classes (rooms: %s)", 
+                       len(my_classes), ', '.join(selected_rooms))
 
     # Secondary match: abbr matches + section fuzzy match using _btech_section_matches
     # This handles cases like student="ACC" vs timetable="A (G-16)"
