@@ -441,9 +441,18 @@ def _match_student_classes(schedule: list[dict], student_subjects: list[dict]) -
             # Check if BB-6 exists in the room list
             has_bb6 = any(room == 'BB-6' for room, _ in rooms_sorted)
             if has_bb6:
-                # Filter out BB-9 from consideration
+                # Filter out BB-9 classes from my_classes AND from consideration
+                my_classes = [cls for cls in my_classes if cls.get('room') != 'BB-9']
                 rooms_sorted = [(room, subjects) for room, subjects in rooms_sorted if room != 'BB-9']
                 logger.info("Timetable: BB-6 detected, excluding BB-9 (separate batch)")
+                
+                # Rebuild time_slots without BB-9
+                time_slots = defaultdict(list)
+                for cls in my_classes:
+                    day = cls.get('day', '')
+                    time_sort = cls.get('time_sort', '')
+                    key = f"{day}_{time_sort}"
+                    time_slots[key].append(cls)
             
             best_combination = None
             min_conflicts = float('inf')
