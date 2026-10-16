@@ -432,34 +432,41 @@ def _match_student_classes(schedule: list[dict], student_subjects: list[dict]) -
         # Find the room set that covers ALL student's subjects with minimum overlap
         # Some batches use multiple rooms (e.g. BB-6 + BB-4), so we need to find
         # the best combination rather than just one dominant room.
-        # Prefer multi-room combinations over single-room when both cover all subjects.
+        # When multiple room sets cover all subjects, prefer the one with FEWEST conflicts.
         if room_subject_counts:
-            # Try to find a minimal room set that covers all subjects
-            # Start with rooms sorted by subject coverage (descending)
+            # Try all possible room combinations and score them
             rooms_sorted = sorted(room_subject_counts.items(), key=lambda x: len(x[1]), reverse=True)
             
-            # Strategy 1: Try to find a 2-3 room combination that covers all subjects
-            # (multi-room schedules are common for split batches)
             best_combination = None
-            best_room_count = float('inf')
+            min_conflicts = float('inf')
             
-            # Check if any 2-room combination covers all subjects
+            # Try single rooms
+            for room, subjects in rooms_sorted:
+                if subjects == abbr_set:
+                    # Count conflicts if we use only this room
+                    conflicts = 0
+                    for slot_classes in time_slots.values():
+                        room_classes = [c for c in slot_classes if c.get('room') == room]
+                        if len(room_classes) > 1:
+                            conflicts += len(room_classes) - 1
+                    if conflicts < min_conflicts:
+                        best_combination = [room]
+                        min_conflicts = conflicts
+            
+            # Try 2-room combinations
             for i, (room1, subjects1) in enumerate(rooms_sorted):
                 for room2, subjects2 in rooms_sorted[i+1:]:
                     combined = subjects1 | subjects2
-                    if combined == abbr_set and len([room1, room2]) < best_room_count:
-                        best_combination = [room1, room2]
-                        best_room_count = 2
-            
-            # Check if any single room covers all (but prefer 2-room if found)
-            if not best_combination or best_room_count > 2:
-                for room, subjects in rooms_sorted:
-                    if subjects == abbr_set:
-                        # Only use single room if no 2-room combination found
-                        if not best_combination:
-                            best_combination = [room]
-                            best_room_count = 1
-                        break
+                    if combined == abbr_set:
+                        # Count conflicts if we use these two rooms
+                        conflicts = 0
+                        for slot_classes in time_slots.values():
+                            combo_classes = [c for c in slot_classes if c.get('room') in [room1, room2]]
+                            if len(combo_classes) > 1:
+                                conflicts += len(combo_classes) - 1
+                        if conflicts < min_conflicts:
+                            best_combination = [room1, room2]
+                            min_conflicts = conflicts
             
             # Fallback: greedy set cover if no perfect match
             if not best_combination:
