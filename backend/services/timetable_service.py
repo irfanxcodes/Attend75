@@ -429,110 +429,29 @@ def _match_student_classes(schedule: list[dict], student_subjects: list[dict]) -
             if room and course in abbr_set:
                 room_subject_counts[room].add(course)
         
-        # Find the room set that covers ALL student's subjects with minimum overlap
-        # Some batches use multiple rooms (e.g. BB-6 + BB-4), so we need to find
-        # the best combination rather than just one dominant room.
-        # When multiple room sets cover all subjects, prefer the one with FEWEST conflicts.
+        # Find the dominant room (has most of student's subjects)
         if room_subject_counts:
-            # Special case: If BB-6 is present, exclude BB-9 (different Section L batches)
-            # BB-6 + BB-4 is the primary batch, BB-9 is a separate batch
-            rooms_sorted = sorted(room_subject_counts.items(), key=lambda x: len(x[1]), reverse=True)
-            
-            # Check if BB-6 exists in the room list
-            has_bb6 = any(room == 'BB-6' for room, _ in rooms_sorted)
-            if has_bb6:
-                # Filter out BB-9 classes from my_classes AND from consideration
-                my_classes = [cls for cls in my_classes if cls.get('room') != 'BB-9']
-                rooms_sorted = [(room, subjects) for room, subjects in rooms_sorted if room != 'BB-9']
-                logger.info("Timetable: BB-6 detected, excluding BB-9 (separate batch)")
-                
-                # Rebuild time_slots without BB-9
-                time_slots = defaultdict(list)
-                for cls in my_classes:
-                    day = cls.get('day', '')
-                    time_sort = cls.get('time_sort', '')
-                    key = f"{day}_{time_sort}"
-                    time_slots[key].append(cls)
-            
-            best_combination = None
-            min_conflicts = float('inf')
-            
-            # Try single rooms
-            for room, subjects in rooms_sorted:
-                if subjects == abbr_set:
-                    # Count conflicts if we use only this room
-                    conflicts = 0
-                    for slot_classes in time_slots.values():
-                        room_classes = [c for c in slot_classes if c.get('room') == room]
-                        if len(room_classes) > 1:
-                            conflicts += len(room_classes) - 1
-                    if conflicts < min_conflicts:
-                        best_combination = [room]
-                        min_conflicts = conflicts
-            
-            # Try 2-room combinations
-            for i, (room1, subjects1) in enumerate(rooms_sorted):
-                for room2, subjects2 in rooms_sorted[i+1:]:
-                    combined = subjects1 | subjects2
-                    if combined == abbr_set:
-                        # Count conflicts if we use these two rooms
-                        conflicts = 0
-                        for slot_classes in time_slots.values():
-                            combo_classes = [c for c in slot_classes if c.get('room') in [room1, room2]]
-                            if len(combo_classes) > 1:
-                                conflicts += len(combo_classes) - 1
-                        if conflicts < min_conflicts:
-                            best_combination = [room1, room2]
-                            min_conflicts = conflicts
-            
-            # Try 3-room combinations if needed
-            if not best_combination:
-                for i, (room1, subjects1) in enumerate(rooms_sorted):
-                    for j, (room2, subjects2) in enumerate(rooms_sorted[i+1:], i+1):
-                        for room3, subjects3 in rooms_sorted[j+1:]:
-                            combined = subjects1 | subjects2 | subjects3
-                            if combined == abbr_set:
-                                conflicts = 0
-                                for slot_classes in time_slots.values():
-                                    combo_classes = [c for c in slot_classes if c.get('room') in [room1, room2, room3]]
-                                    if len(combo_classes) > 1:
-                                        conflicts += len(combo_classes) - 1
-                                if conflicts < min_conflicts:
-                                    best_combination = [room1, room2, room3]
-                                    min_conflicts = conflicts
-            
-            # Fallback: greedy set cover if no perfect match
-            if not best_combination:
-                covered_subjects = set()
-                selected_rooms = []
-                for room, subjects in rooms_sorted:
-                    new_subjects = subjects - covered_subjects
-                    if new_subjects:
-                        selected_rooms.append(room)
-                        covered_subjects.update(subjects)
-                best_combination = selected_rooms if selected_rooms else [rooms_sorted[0][0] if rooms_sorted else 'unknown']
-            
-            selected_rooms = best_combination
+            dominant_room = max(room_subject_counts.items(), key=lambda x: len(x[1]))[0]
             
             # Resolve conflicts: for each time slot with multiple classes,
-            # prefer classes in the selected room set, but keep all if no conflict
+            # prefer classes in the dominant room, but keep all if no conflict
             resolved_classes = []
             for key, classes in time_slots.items():
                 if len(classes) == 1:
                     resolved_classes.append(classes[0])
                 else:
-                    # Conflict detected - prefer classes in selected rooms
-                    selected_room_classes = [c for c in classes if c.get('room') in selected_rooms]
-                    if selected_room_classes:
-                        resolved_classes.extend(selected_room_classes)
+                    # Conflict detected - prefer dominant room
+                    dominant_room_classes = [c for c in classes if c.get('room') == dominant_room]
+                    if dominant_room_classes:
+                        resolved_classes.extend(dominant_room_classes)
                     else:
-                        # No classes in selected rooms at this time, keep all (might be valid multi-room schedule)
+                        # No classes in dominant room at this time, keep all (might be valid multi-room schedule)
                         resolved_classes.extend(classes)
             
             my_classes = resolved_classes
             batch_disambiguation_applied = True
-            logger.info("Timetable: batch disambiguation resolved conflicts, kept %d classes (rooms: %s)", 
-                       len(my_classes), ', '.join(selected_rooms))
+            logger.info("Timetable: batch disambiguation resolved conflicts, kept %d classes (dominant room: %s)", 
+                       len(my_classes), dominant_room)
 
     # Secondary match: abbr matches + section fuzzy match using _btech_section_matches
     # This handles cases like student="ACC" vs timetable="A (G-16)"
@@ -606,13 +525,6 @@ def _match_student_classes(schedule: list[dict], student_subjects: list[dict]) -
                         and any(course.startswith(p) for p in SPECIFIC_LANGUAGE_PREFIXES)):
                     my_classes.append(cls)
 
-    # Final filter: If BB-6 is present in the final class list, exclude ALL BB-9 classes
-    # (BB-6 and BB-9 are separate Section L batches)
-    rooms_in_final = set(cls.get('room') for cls in my_classes)
-    if 'BB-6' in rooms_in_final and 'BB-9' in rooms_in_final:
-        my_classes = [cls for cls in my_classes if cls.get('room') != 'BB-9']
-        logger.info("Timetable: Final filter - removed BB-9 classes (BB-6 batch detected)")
-    
     return my_classes, batch_disambiguation_applied
 
 
