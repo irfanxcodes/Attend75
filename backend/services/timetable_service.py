@@ -434,8 +434,16 @@ def _match_student_classes(schedule: list[dict], student_subjects: list[dict]) -
         # the best combination rather than just one dominant room.
         # When multiple room sets cover all subjects, prefer the one with FEWEST conflicts.
         if room_subject_counts:
-            # Try all possible room combinations and score them
+            # Special case: If BB-6 is present, exclude BB-9 (different Section L batches)
+            # BB-6 + BB-4 is the primary batch, BB-9 is a separate batch
             rooms_sorted = sorted(room_subject_counts.items(), key=lambda x: len(x[1]), reverse=True)
+            
+            # Check if BB-6 exists in the room list
+            has_bb6 = any(room == 'BB-6' for room, _ in rooms_sorted)
+            if has_bb6:
+                # Filter out BB-9 from consideration
+                rooms_sorted = [(room, subjects) for room, subjects in rooms_sorted if room != 'BB-9']
+                logger.info("Timetable: BB-6 detected, excluding BB-9 (separate batch)")
             
             best_combination = None
             min_conflicts = float('inf')
@@ -468,6 +476,22 @@ def _match_student_classes(schedule: list[dict], student_subjects: list[dict]) -
                             best_combination = [room1, room2]
                             min_conflicts = conflicts
             
+            # Try 3-room combinations if needed
+            if not best_combination:
+                for i, (room1, subjects1) in enumerate(rooms_sorted):
+                    for j, (room2, subjects2) in enumerate(rooms_sorted[i+1:], i+1):
+                        for room3, subjects3 in rooms_sorted[j+1:]:
+                            combined = subjects1 | subjects2 | subjects3
+                            if combined == abbr_set:
+                                conflicts = 0
+                                for slot_classes in time_slots.values():
+                                    combo_classes = [c for c in slot_classes if c.get('room') in [room1, room2, room3]]
+                                    if len(combo_classes) > 1:
+                                        conflicts += len(combo_classes) - 1
+                                if conflicts < min_conflicts:
+                                    best_combination = [room1, room2, room3]
+                                    min_conflicts = conflicts
+            
             # Fallback: greedy set cover if no perfect match
             if not best_combination:
                 covered_subjects = set()
@@ -477,9 +501,7 @@ def _match_student_classes(schedule: list[dict], student_subjects: list[dict]) -
                     if new_subjects:
                         selected_rooms.append(room)
                         covered_subjects.update(subjects)
-                        if covered_subjects == abbr_set:
-                            break
-                best_combination = selected_rooms if covered_subjects == abbr_set else [rooms_sorted[0][0]]
+                best_combination = selected_rooms if selected_rooms else [rooms_sorted[0][0] if rooms_sorted else 'unknown']
             
             selected_rooms = best_combination
             
