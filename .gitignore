@@ -32,3 +32,22 @@ __pycache__/
 backend/backups/*.db
 backend/backups/*.sql
 backend/.env
+
+# ── Runtime uploads (user-generated, never commit) ──────────────────────────
+backend/uploads/lesson_audio/
+backend/uploads/lesson_pdfs/
+backend/uploads/ads/
+backend/uploads/
+
+# ── Build / deploy artifacts ─────────────────────────────────────────────────
+*.tar.gz
+*.zip
+
+# ── Database files ────────────────────────────────────────────────────────────
+*.db
+*.db-shm
+*.db-wal
+
+# ── Firebase credentials (secrets, never commit) ─────────────────────────────
+backend/firebase-service-account.json
+firebase-service-account.json
