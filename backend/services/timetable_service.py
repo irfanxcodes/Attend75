@@ -1003,6 +1003,15 @@ def _parse_timetable_from_text(text: str) -> list[dict]:
         line_no = 0
         seen_date_headers = set()  # track which date-header groups we've seen
         pending_slot_advance = True   # True initially so the first TIME header always fires
+        _accumulated_time_hint = ""   # collects garbled TIME column text for slot inference
+
+        # Build a slot-jump map: when detected day order starts with non-Monday,
+        # the BBA timetable skips certain standard slots (e.g. 11:20 AM, 1:15 PM).
+        # Map: 4-page BBA timetable with 6 cols → actual slot indices are 0,1,3,5
+        # (skipping 11:20 AM slot 2 and 1:15 PM slot 4).
+        # We detect this by seeing whether days[0] != "Monday".
+        _bba_6col_slot_sequence = [0, 1, 3, 5]   # 9:30, 10:25, 12:20, 2:10
+        _slot_advance_count = -1   # how many times slot has actually advanced (-1 = not started)
         while line_no < len(lines):
             line = lines[line_no]
             line_no += 1
@@ -1056,8 +1065,19 @@ def _parse_timetable_from_text(text: str) -> list[dict]:
                 if in_bba_mode:
                     in_bba_mode = False
                 elif pending_slot_advance:
-                    slot_idx += 1
+                    _slot_advance_count += 1
+                    # If days were detected and don't start on Monday, this is a BBA
+                    # 6-column weekly timetable — use the known slot sequence instead
+                    # of sequential slot_idx (which would hit 11:20 AM incorrectly).
+                    if detected_days and detected_days[0] != "Monday" and len(detected_days) >= 5:
+                        if _slot_advance_count < len(_bba_6col_slot_sequence):
+                            slot_idx = _bba_6col_slot_sequence[_slot_advance_count]
+                        else:
+                            slot_idx += 1  # fallback for extra pages
+                    else:
+                        slot_idx += 1
                     pending_slot_advance = False
+                    _accumulated_time_hint = ""
                 continue
 
             if (not has_time_col) and has_course_col and has_faculty_col:
