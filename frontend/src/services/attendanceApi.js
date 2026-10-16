@@ -55,10 +55,10 @@ function buildFriendlyMessage(endpoint, code, fallbackMessage) {
 
   // Portal down/unreachable — same message regardless of endpoint
   if (normalizedCode === 'PORTAL_UNREACHABLE') {
-    return 'The college portal is currently down or not responding. This is not an issue with your credentials — please try again later.'
+    return 'The portal is busy right now — too many students logging in at once. Give it a minute and try again.'
   }
   if (normalizedCode === 'PORTAL_TIMEOUT') {
-    return 'The college portal is taking too long to respond. Please try again in a few minutes.'
+    return 'The portal is responding slowly right now. Wait a moment and try again.'
   }
 
     if (endpoint === 'login') {
@@ -88,13 +88,13 @@ function buildFriendlyMessage(endpoint, code, fallbackMessage) {
       return 'Unable to switch semester on portal. Please try again.'
     }
     if (normalizedCode.includes('TIMEOUT') || normalizedCode === 'PORTAL_TIMEOUT') {
-      return 'The college portal is taking too long to respond. Please try again in a few minutes.'
+      return 'The portal is responding slowly right now. Wait a moment and try again.'
     }
     if (normalizedCode === 'DATA_FETCH_FAILED' || normalizedCode === 'PORTAL_UNREACHABLE') {
-      return 'The college portal is currently down or not responding. Please try again later.'
+      return 'The portal is busy right now — too many students logging in at once. Give it a minute and try again.'
     }
     if (normalizedCode.includes('HTTP_403') || normalizedCode.includes('HTTP_429')) {
-      return 'The college portal is temporarily blocking requests. Please try again in a moment.'
+      return 'The portal is temporarily busy. Give it a moment and try again.'
     }
     return 'Unable to load your data. Please try again later.'
   }
@@ -153,10 +153,10 @@ function buildFriendlyMessage(endpoint, code, fallbackMessage) {
       return 'Portal marks format changed. Please try again later.'
     }
     if (normalizedCode.includes('TIMEOUT') || normalizedCode === 'PORTAL_TIMEOUT') {
-      return 'The college portal is taking too long to load marks. Please try again in a few minutes.'
+      return 'The portal is responding slowly right now. Wait a moment and try again.'
     }
     if (normalizedCode === 'DATA_FETCH_FAILED' || normalizedCode === 'PORTAL_UNREACHABLE') {
-      return 'The college portal is currently down or not responding. Please try again later.'
+      return 'The portal is busy right now — too many students logging in at once. Give it a minute and try again.'
     }
     return 'Unable to load marks right now. Please try again.'
   }
@@ -390,7 +390,7 @@ export async function login(credentials) {
 
     // Both approaches failed — show generic portal error
     throw new ApiError(
-      'The college portal is currently unavailable. Please try again in a few minutes.',
+      'The portal is busy right now — too many students logging in at once. Give it a minute and try again.',
       { code: serverError || 'PORTAL_UNREACHABLE', status: 502, endpoint: 'login' },
     )
   }
@@ -464,7 +464,7 @@ export async function fetchAttendance({ token, semesterId, programId, forceRefre
       })
     } catch {
       throw new ApiError(
-        'The college portal is currently down or not responding. Please try again later.',
+        'The portal is busy right now — too many students logging in at once. Give it a minute and try again.',
         { code: 'PORTAL_UNREACHABLE', status: 0, endpoint: 'attendance' },
       )
     }
