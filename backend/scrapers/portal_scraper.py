@@ -65,10 +65,20 @@ class PortalScraper:
         from services.proxy_rotator import proxy_rotator as _proxy_rotator
         self._proxy_rotator = _proxy_rotator
         self._apply_fallback_tiers()
-        self.request_timeout = float(os.getenv("PORTAL_REQUEST_TIMEOUT_SECONDS", "15"))
-        self.marks_request_timeout = max(
-            float(os.getenv("PORTAL_MARKS_REQUEST_TIMEOUT_SECONDS", "7")),
-            1.0,
+        # Split timeout into (connect_timeout, read_timeout):
+        #   connect_timeout — max time to establish a TCP connection to the portal.
+        #                     10s: if the portal isn't reachable in 10s, fail fast.
+        #   read_timeout    — max time waiting for the portal to send data back
+        #                     after the connection is open. Portal pages are slow
+        #                     (15-25s each), so we give them up to 90s to respond.
+        #                     If they respond in 5s, we get the data in 5s — this
+        #                     is a ceiling, not a fixed wait.
+        _connect_timeout = float(os.getenv("PORTAL_CONNECT_TIMEOUT_SECONDS", "10"))
+        _read_timeout = float(os.getenv("PORTAL_REQUEST_TIMEOUT_SECONDS", "90"))
+        self.request_timeout = (_connect_timeout, _read_timeout)
+        self.marks_request_timeout = (
+            _connect_timeout,
+            max(float(os.getenv("PORTAL_MARKS_REQUEST_TIMEOUT_SECONDS", "7")), 1.0),
         )
         retry_attempts_raw = str(os.getenv("PORTAL_MARKS_TABLE_RETRY_ATTEMPTS", "2")).strip()
         retry_delay_raw = str(os.getenv("PORTAL_MARKS_TABLE_RETRY_DELAY_SECONDS", "1.2")).strip()
@@ -112,19 +122,36 @@ class PortalScraper:
         )
 
     def login(self, roll_number: str, password: str) -> dict:
-        # Skip workers (too slow) and try API Gateway first, then HTTP proxies
-        # Workers time out during navigation (10+ second responses)
-        # API Gateway and HTTP proxies are faster and more reliable
+        # Cloudflare Workers are too slow for login (10+ s navigation timeouts).
+        # Disable them and let _apply_fallback_tiers() pick the best available
+        # tier: Lambda (Tier 1) → API Gateway (Tier 2) → HTTP proxy (Tier 3) → direct.
         self._worker_base = None
-        self._apply_fallback_tiers()  # Try API Gateway, then HTTP proxy
-        
-        # Log what we're using
-        proxy_info = self.session.proxies.get('http', 'direct')
-        self._logger.info(
-            "[PortalScraper.login] Using HTTP proxy - proxy=%s",
-            proxy_info if 'direct' in str(proxy_info) else '***proxy***'
-        )
-        
+        self._apply_fallback_tiers()
+
+        # Log which tier is actually being used so dashboards are meaningful.
+        if self._api_gateway_base:
+            self._logger.info(
+                "[PortalScraper.login] Tier 2 — API Gateway: %s", self._api_gateway_base
+            )
+        elif self.session.proxies:
+            self._logger.info("[PortalScraper.login] Tier 3 — HTTP proxy pool")
+        else:
+            # Could be Lambda (base_url was rewritten) or direct access
+            try:
+                from services.lambda_rotator import lambda_rotator as _lr
+                lambda_active = any(
+                    self.base_url.startswith(ep.rstrip("/"))
+                    for ep in (_lr._endpoints or [])
+                )
+            except Exception:
+                lambda_active = False
+            if lambda_active:
+                self._logger.info(
+                    "[PortalScraper.login] Tier 1 — AWS Lambda: %s", self.base_url
+                )
+            else:
+                self._logger.warning("[PortalScraper.login] Tier 4 — direct portal access")
+
         return self._do_login(roll_number, password)
     
     def _do_login(self, roll_number: str, password: str) -> dict:
@@ -2311,9 +2338,22 @@ class PortalScraper:
         upper_stage = (stage or "DATA_FETCH").strip().upper()
 
         if isinstance(exc, requests.Timeout):
-            # Timeouts on authenticated portal pages strongly indicate the worker's
-            # IP range has been blocked. Mark the current worker as blocked so the
-            # rotator switches to the next one on the next login attempt.
+            # ── Timeout handling strategy ─────────────────────────────────────
+            # The college portal is genuinely slow (15-25s per page). A timeout
+            # does NOT mean the IP is blocked — it means the server was slow.
+            #
+            # Rules per tier:
+            #   Workers      — fixed IPs, so timeout CAN mean an IP block.
+            #                  Keep the existing block + rotate behaviour.
+            #   Lambda       — IPs rotate per invocation anyway. Don't block the
+            #                  endpoint. Just rotate to the next one so the retry
+            #                  hits a fresh Lambda execution context.
+            #   API Gateway  — Fireprox gives a new AWS IP on every request.
+            #                  Blocking the endpoint URL makes no sense. Rotate only.
+            #   HTTP proxy   — fixed datacenter IPs, could be blocked. Short block.
+            #
+            # In all non-Worker cases we just call _apply_fallback_tiers() so the
+            # next tier/endpoint is selected for the caller's retry — no cooldown.
             _authenticated_stages = {
                 "POST_LOGIN_NAVIGATION",
                 "ATTENDANCE_FETCH",
@@ -2325,24 +2365,54 @@ class PortalScraper:
                 "COURSES_FETCH",
             }
             if upper_stage in _authenticated_stages and self._worker_base:
+                # Worker timeout — fixed IP, could be a real block. Mark + rotate.
                 self._rotator.mark_current_blocked()
-                # Pick a fresh worker for the next request on this scraper instance
                 self._worker_base = self._resolve_worker_base()
-                # If all workers are now blocked, fall through to API Gateway / proxy tier
                 self._apply_fallback_tiers()
             elif upper_stage in _authenticated_stages and not self._worker_base:
-                # Already on fallback tier — try next fallback option
+                # Fallback tier timeout — portal was slow, not our IP being blocked.
+                # Rotate to the next endpoint without any cooldown penalty.
+                try:
+                    from services.lambda_rotator import lambda_rotator as _lr
+                    lambda_is_active = any(
+                        self.base_url.startswith(ep.rstrip("/"))
+                        for ep in (_lr._endpoints or [])
+                    )
+                    if lambda_is_active:
+                        # Just advance the rotator index — no cooldown
+                        _lr._usage_count = _lr._rotate_every  # force rotation on next pick
+                        self._logger.info(
+                            "[PortalScraper] Lambda timeout (slow portal) — rotating to next endpoint, no cooldown"
+                        )
+                        self._apply_fallback_tiers()
+                        return PortalNetworkError(
+                            f"{message_prefix}: request timed out (portal slow)",
+                            code=f"{upper_stage}_TIMEOUT",
+                            stage=upper_stage,
+                            retriable=True,
+                            http_status=504,
+                        )
+                except Exception:
+                    pass
+
                 if self._api_gateway_base:
-                    # API Gateway failed, mark blocked and try HTTP proxies
-                    self._api_gateway_rotator.mark_current_blocked()
+                    # API Gateway timeout — portal was slow, not a block.
+                    # Rotate to next gateway endpoint without cooldown.
+                    self._api_gateway_rotator._usage_count = self._api_gateway_rotator._rotate_every  # force rotation
                     self._api_gateway_base = None
+                    self._logger.info(
+                        "[PortalScraper] API Gateway timeout (slow portal) — rotating endpoint, no cooldown"
+                    )
                 elif self.session.proxies:
-                    # HTTP proxy failed, mark blocked and rotate
+                    # HTTP proxy timeout — fixed IP, short cooldown is appropriate
                     self._proxy_rotator.mark_current_blocked()
-                
+                    self._logger.info(
+                        "[PortalScraper] HTTP proxy timeout — marking blocked, rotating"
+                    )
+
                 self._apply_fallback_tiers()
             return PortalNetworkError(
-                f"{message_prefix}: request timed out",
+                f"{message_prefix}: request timed out (portal slow)",
                 code=f"{upper_stage}_TIMEOUT",
                 stage=upper_stage,
                 retriable=True,
@@ -2377,14 +2447,38 @@ class PortalScraper:
                 "COURSES_FETCH",
             }
             if status_code == 403 and upper_stage in _authenticated_stages:
+                # HTTP 403 = portal explicitly rejected our IP — apply the full
+                # long cooldown (is_session_issue=False) so that endpoint is
+                # avoided for a meaningful period.
                 is_retriable = True
                 if self._worker_base:
                     self._rotator.mark_current_blocked()
                     self._worker_base = self._resolve_worker_base()
                     self._apply_fallback_tiers()
                 else:
+                    # Check if Lambda is the active tier
+                    try:
+                        from services.lambda_rotator import lambda_rotator as _lr
+                        lambda_is_active = any(
+                            self.base_url.startswith(ep.rstrip("/"))
+                            for ep in (_lr._endpoints or [])
+                        )
+                        if lambda_is_active:
+                            _lr.mark_current_blocked(is_session_issue=False)
+                            self._apply_fallback_tiers()
+                            return PortalNetworkError(
+                                f"{message_prefix}: upstream returned 403",
+                                code=f"{upper_stage}_HTTP_403",
+                                stage=upper_stage,
+                                retriable=True,
+                                http_status=502,
+                            )
+                    except Exception:
+                        pass
+
                     if self._api_gateway_base:
-                        self._api_gateway_rotator.mark_current_blocked()
+                        # Full long cooldown — 403 is a real IP block
+                        self._api_gateway_rotator.mark_current_blocked(is_session_issue=False)
                         self._api_gateway_base = None
                     elif self.session.proxies:
                         self._proxy_rotator.mark_current_blocked()
@@ -2419,39 +2513,70 @@ class PortalScraper:
 
     def _apply_fallback_tiers(self) -> None:
         """
-        Apply fallback tiers when Cloudflare Workers are unavailable.
-        Tier 1: Cloudflare Workers (disabled - too slow)
-        Tier 2: AWS API Gateway (Fireprox) - rotating AWS IPs (TESTING - 0.4-7s)
-        Tier 3: HTTP Proxies - datacenter proxy pool (2-3s)
-        Tier 4: Direct access (fallback)
-        
-        Call this after any change to _worker_base.
+        Apply the best available egress tier for portal requests.
+
+        Priority order:
+          Tier 0: Cloudflare Workers      — disabled (too slow, 10+ s navigation)
+          Tier 1: AWS Lambda (intercept)  — runs full login flow in one invocation,
+                                            guarantees IP consistency for ASP.NET
+                                            session + captcha. Permanent free tier.
+          Tier 2: AWS API Gateway/Fireprox — per-request IP rotation across regions.
+                                             12-month free tier.
+          Tier 3: HTTP Proxy pool         — datacenter proxies, round-robin rotation.
+          Tier 4: Direct access           — last resort, no proxy.
+
+        Call this after any change to _worker_base or after marking a tier blocked.
         """
         if self._worker_base:
-            # Worker is active — clear everything else
+            # Cloudflare Worker active — clear everything else
             self._api_gateway_base = None
             self.session.proxies.clear()
             return
 
-        # Try API Gateway first (Tier 2 - TESTING)
+        # ── Tier 1: AWS Lambda ──────────────────────────────────────────────
+        try:
+            from services.lambda_rotator import lambda_rotator
+            if lambda_rotator.any_available():
+                lambda_url = lambda_rotator.get_lambda_url()
+                if lambda_url:
+                    # Rebase base_url onto the Lambda endpoint so _build_url()
+                    # routes all portal paths through Lambda.
+                    self.base_url = lambda_url.rstrip("/") + "/sz"
+                    self._api_gateway_base = None
+                    self.session.proxies.clear()
+                    # Keep stage prefix in sync if the session supports it
+                    if hasattr(self.session, "set_stage_prefix"):
+                        self.session.set_stage_prefix("/proxy")
+                    self._logger.info("[PortalScraper] Tier 1 — AWS Lambda: %s", lambda_url)
+                    return
+        except Exception as exc:
+            self._logger.warning("[PortalScraper] Lambda tier unavailable: %s", exc)
+
+        # ── Tier 2: AWS API Gateway (Fireprox) ──────────────────────────────
         gateway_url = self._api_gateway_rotator.get_gateway_url()
         if gateway_url:
             self._api_gateway_base = gateway_url
-            self.session.proxies.clear()  # Don't use proxy with API Gateway
-            self._logger.info(f"[PortalScraper] Using AWS API Gateway: {gateway_url}")
+            self.session.proxies.clear()
+            if hasattr(self.session, "set_stage_prefix"):
+                self.session.set_stage_prefix("/fireprox")
+            self._logger.info("[PortalScraper] Tier 2 — AWS API Gateway: %s", gateway_url)
             return
-        
-        # API Gateway unavailable, try HTTP proxies (Tier 3)
+
+        # ── Tier 3: HTTP Proxy pool ─────────────────────────────────────────
         self._api_gateway_base = None
         proxy_dict = self._proxy_rotator.get_proxy_dict()
         if proxy_dict:
             self.session.proxies.update(proxy_dict)
-            self._logger.info("[PortalScraper] No API Gateway — using HTTP proxy pool")
+            if hasattr(self.session, "set_stage_prefix"):
+                self.session.set_stage_prefix(None)
+            self._logger.info("[PortalScraper] Tier 3 — HTTP proxy pool")
             return
-        
-        # No proxies or API Gateway available, direct access (Tier 4)
+
+        # ── Tier 4: Direct access ───────────────────────────────────────────
         self.session.proxies.clear()
-        self._logger.warning("[PortalScraper] No API Gateway or proxies available — using direct portal access")
+        if hasattr(self.session, "set_stage_prefix"):
+            self.session.set_stage_prefix(None)
+        self._logger.warning("[PortalScraper] Tier 4 — direct portal access (no proxy available)")
 
     def _normalize_code(self, code: str) -> str:
         return "".join((code or "").upper().split())

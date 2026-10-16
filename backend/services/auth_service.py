@@ -168,13 +168,33 @@ def login_user(roll_number: str, password: str, user_agent: str | None = None) -
             break  # success — exit retry loop
         except PortalNetworkError as exc:
             last_network_exc = exc
-            mark_current_tier_failed(base_url=base_url, is_session_issue=False)
+            error_code = str(getattr(exc, "code", "") or "").upper()
+            is_timeout = error_code.endswith("_TIMEOUT")
+            is_confirmed_block = "_HTTP_403" in error_code
+
+            if is_confirmed_block:
+                # Portal explicitly rejected our IP — apply full tier penalty
+                mark_current_tier_failed(base_url=base_url, is_session_issue=False)
+            elif is_timeout:
+                # Portal was slow, not blocking us. Phase 2 already rotated the
+                # endpoint index inside _portal_network_error() without a cooldown.
+                # Don't add an extra tier-level penalty here — let the next
+                # attempt pick the next endpoint cleanly.
+                _logger.info(
+                    "[login_user] Timeout on attempt %d/%d (portal slow, no tier penalty) [%s]",
+                    attempt, max_ip_attempts, error_code,
+                )
+            else:
+                # Connection error, bad proxy response, or unknown — short penalty
+                # so we don't keep hammering a broken endpoint, but recover fast.
+                mark_current_tier_failed(base_url=base_url, is_session_issue=True)
+
             if not getattr(exc, "retriable", True):
                 break
             if attempt < max_ip_attempts:
                 _logger.warning(
                     "[login_user] Network error attempt %d/%d [%s] — retrying with next tier",
-                    attempt, max_ip_attempts, getattr(exc, "code", exc),
+                    attempt, max_ip_attempts, error_code or exc,
                 )
                 if backoff > 0:
                     time.sleep(backoff)
