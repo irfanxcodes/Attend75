@@ -606,6 +606,13 @@ def _match_student_classes(schedule: list[dict], student_subjects: list[dict]) -
                         and any(course.startswith(p) for p in SPECIFIC_LANGUAGE_PREFIXES)):
                     my_classes.append(cls)
 
+    # Final filter: If BB-6 is present in the final class list, exclude ALL BB-9 classes
+    # (BB-6 and BB-9 are separate Section L batches)
+    rooms_in_final = set(cls.get('room') for cls in my_classes)
+    if 'BB-6' in rooms_in_final and 'BB-9' in rooms_in_final:
+        my_classes = [cls for cls in my_classes if cls.get('room') != 'BB-9']
+        logger.info("Timetable: Final filter - removed BB-9 classes (BB-6 batch detected)")
+    
     return my_classes, batch_disambiguation_applied
 
 
