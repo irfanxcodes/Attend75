@@ -994,7 +994,6 @@ def _parse_timetable_from_text(text: str) -> list[dict]:
                         detected_days.append(d)
                         seen_days.add(d)
                 break
-
         # Use detected day order if found, else fall back to Mon–Fri default
         if detected_days:
             days = detected_days
@@ -1002,6 +1001,8 @@ def _parse_timetable_from_text(text: str) -> list[dict]:
         # else: days stays as the default ["Monday", ..., "Friday"]
 
         line_no = 0
+        seen_date_headers = set()  # track which date-header groups we've seen
+        pending_slot_advance = True   # True initially so the first TIME header always fires
         while line_no < len(lines):
             line = lines[line_no]
             line_no += 1
@@ -1024,6 +1025,13 @@ def _parse_timetable_from_text(text: str) -> list[dict]:
 
             joined = " ".join(cells).upper()
 
+            # Detect page-boundary date rows (e.g. "Thursday, 24 September | | | Friday, 25...")
+            # These signal that a new time slot page is starting — set pending advance flag.
+            date_cell_count = sum(1 for c in cells if any(d in c.upper() for d in DAY_NAME_MAP))
+            if date_cell_count >= 3:
+                pending_slot_advance = True
+                continue
+
             # ── Header detection ─────────────────────────────────────────────
             # Layout A header: contains "TIME" AND ("COURSE" OR "FACULTY")
             # Layout B header: contains "COURSE" AND "FACULTY NAME" but NOT "TIME"
@@ -1042,9 +1050,14 @@ def _parse_timetable_from_text(text: str) -> list[dict]:
                 continue
 
             if has_time_col and (has_course_col or has_faculty_col):
-                # Layout A: old format — each header marks a new slot
-                slot_idx += 1
-                in_bba_mode = False
+                # Layout A: TIME header row — advance slot ONLY if a fresh page
+                # date-header was seen since the last advance.
+                # This prevents duplicate TIME rows on the same page from double-counting.
+                if in_bba_mode:
+                    in_bba_mode = False
+                elif pending_slot_advance:
+                    slot_idx += 1
+                    pending_slot_advance = False
                 continue
 
             if (not has_time_col) and has_course_col and has_faculty_col:
