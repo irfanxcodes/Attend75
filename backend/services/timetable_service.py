@@ -996,26 +996,22 @@ def _parse_timetable_from_text(text: str) -> list[dict]:
                 break
         # Use detected day order if found, else fall back to Mon–Fri default
         if detected_days:
-            days = detected_days
-            # If Thursday appears twice (e.g. Thu 24 Sep and Thu 1 Oct in same week PDF),
-            # the parser will see duplicate Thursdays. We keep only UNIQUE days — already
-            # handled by the dedup above. But we need to know which Thursday column to use.
-            # Since the detected_days list preserves order and deduplicates, if the week
-            # starts on Thursday the days list will be [Thursday, Friday, Monday, Tuesday, Wednesday]
-            # which is correct — Thursday here maps to col 16 (Thu 1 Oct), the LATER date.
-            # The col 1 (Thu 24 Sep) entries will ALSO be mapped to "Thursday" by the parser
-            # since the day assignment is positional. We handle this in parsing by ensuring
-            # col 1 and col 16 both get labelled as Thursday, but only one appears in the
-            # deduplicated days list (index 0). This means col 1 data replaces col 16 data
-            # for the same time slot — last write wins. For this week format we actually want
-            # col 16 (Thu 1 Oct) since it's the ongoing schedule.
-            # The positional parser iterates day_idx 0..len(days)-1, processing 3 cells per day.
-            # With 6 data columns (18 cells) and 5 days, the 6th column (col 16) is ignored!
-            # So Thu 1 Oct is DROPPED. We need to include it — add Thursday again to days
-            # if there are 6 date columns but only 5 unique days.
-            if len(detected_days) == 5 and any(d.startswith('Thursday') for d in detected_days):
-                # Check if the raw scan found MORE than 5 day entries (i.e. Thursday twice)
-                # Rescan to count total day occurrences in the header
+            # If the week PDF has 6 columns (Thu 24 Sep, Fri, Mon, Tue, Wed, Thu 1 Oct),
+            # the detected_days will be [Thursday, Friday, Monday, Tuesday, Wednesday]
+            # after dedup. We need to process 6 data columns but map them correctly:
+            # col 1 (Thu 24) → skip (use col 16 as canonical Thursday)
+            # col 4 (Fri) → Friday
+            # col 7 (Mon) → Monday
+            # col 10 (Tue) → Tuesday
+            # col 13 (Wed) → Wednesday
+            # col 16 (Thu 1 Oct) → Thursday (canonical, most recent)
+            #
+            # The parser processes cells positionally in groups of 3. With 6 columns
+            # the mapping is day_idx 0→col1, 1→col4, 2→col7, 3→col10, 4→col13, (5→col16 if days has 6)
+            # To skip col 1 (Thu 24 Sep) and use col 16 (Thu 1 Oct), we rearrange days:
+            # Use sentinel None for col 1, then Fri, Mon, Tue, Wed, Thu for cols 4,7,10,13,16
+            if detected_days[0] == "Thursday" and len(detected_days) >= 5:
+                # Rescan header to count total columns
                 raw_day_count = 0
                 for scan_line in lines[:30]:
                     if not scan_line.startswith('|'):
@@ -1026,9 +1022,13 @@ def _parse_timetable_from_text(text: str) -> list[dict]:
                         raw_day_count = count_in_row
                         break
                 if raw_day_count >= 6:
-                    # 6 columns: Thu, Fri, Mon, Tue, Wed, Thu — the 6th column is a second Thursday
-                    # Append a second Thursday entry so the parser processes col 16 data too
-                    days = detected_days + ["Thursday"]
+                    # 6-column week starting Thursday: skip col 1 (Thu 24), use col 16 (Thu 1 Oct)
+                    # Map: [None, Friday, Monday, Tuesday, Wednesday, Thursday]
+                    days = [None, "Friday", "Monday", "Tuesday", "Wednesday", "Thursday"]
+                else:
+                    days = detected_days
+            else:
+                days = detected_days
             logger.debug("Timetable parser: detected day order from header: %s", days)
         # else: days stays as the default ["Monday", ..., "Friday"]
 
@@ -1172,20 +1172,22 @@ def _parse_timetable_from_text(text: str) -> list[dict]:
                 sem_raw    = data_cells[i + 2].strip() if i + 2 < len(data_cells) else ""
                 sem        = _clean_sem(sem_raw)
 
-                parsed = _extract_course(course_raw)
-                if parsed:
-                    course, section = parsed
-                    all_classes.append({
-                        "day":        days[day_idx],
-                        "time":       time_slot,
-                        "time_sort":  time_sort,
-                        "course_key": f"{course}-{section}",
-                        "course":     course,
-                        "section":    section,
-                        "faculty":    faculty,
-                        "semester":   sem,
-                        "room":       room,
-                    })
+                # Skip columns mapped to None (e.g. first Thursday in a Thu-Fri-Mon-...-Thu week)
+                if days[day_idx] is not None:
+                    parsed = _extract_course(course_raw)
+                    if parsed:
+                        course, section = parsed
+                        all_classes.append({
+                            "day":        days[day_idx],
+                            "time":       time_slot,
+                            "time_sort":  time_sort,
+                            "course_key": f"{course}-{section}",
+                            "course":     course,
+                            "section":    section,
+                            "faculty":    faculty,
+                            "semester":   sem,
+                            "room":       room,
+                        })
 
                 day_idx += 1
                 i += 3
