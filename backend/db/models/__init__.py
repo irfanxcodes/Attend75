@@ -1,5 +1,4 @@
 from db.models.attendance_alert_state import AttendanceAlertState
-from db.models.face_rater_score import FaceRaterScore
 from db.models.background_fetch_state import BackgroundFetchState
 from db.models.feedback_entry import FeedbackEntry
 from db.models.feature_usage_event import FeatureUsageEvent
@@ -42,12 +41,8 @@ from db.models.notes_problem_set import NotesProblemSet
 from db.models.notes_problem import NotesProblem
 from db.models.notes_solution_step import NotesSolutionStep
 
-# Career Compass models
-from db.models.career_profile import CareerProfile
-
 __all__ = [
     "AttendanceAlertState",
-    "FaceRaterScore",
     "BackgroundFetchState",
     "FeedbackEntry",
     "FeatureUsageEvent",
@@ -84,6 +79,4 @@ __all__ = [
     "NotesProblemSet",
     "NotesProblem",
     "NotesSolutionStep",
-    # Career Compass
-    "CareerProfile",
 ]

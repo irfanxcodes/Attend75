@@ -1,7 +1,7 @@
 """create ai lesson tables
 
 Revision ID: 20260807_0016
-Revises: 20260804_0015_add_username_to_face_rater_scores
+Revises: 20260802_0013_add_semester_filtering
 Create Date: 2026-08-07
 
 Creates all tables for the AI Lesson Player feature.
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers
 revision = "20260807_0016"
-down_revision = "20260804_0015"
+down_revision = "20260802_0013"
 branch_labels = None
 depends_on = None
 

@@ -22,12 +22,10 @@ from fastapi import Request
 from fastapi.staticfiles import StaticFiles
 
 from db.session import init_database
-from career.router import router as career_router
 from routers.advertisement import router as advertisement_router
 from routers.arcade import router as arcade_router
 from routers.auth import router as auth_router
 from routers.admin import router as admin_router
-from routers.face_rater import router as face_rater_router
 from routers.feedback import router as feedback_router
 from routers.firebase_auth import router as firebase_auth_router
 from routers.handout import router as handout_router
@@ -252,7 +250,6 @@ async def health_check():
     return {"status": "success", "message": "Backend is running", "data": {}}
 
 
-app.include_router(career_router)
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(internal_router)
@@ -261,7 +258,6 @@ app.include_router(portal_proxy_router)
 app.include_router(portal_helper_router)
 app.include_router(advertisement_router)
 app.include_router(arcade_router)
-app.include_router(face_rater_router)
 app.include_router(feedback_router)
 app.include_router(firebase_auth_router)
 app.include_router(handout_router)
