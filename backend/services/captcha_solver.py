@@ -82,7 +82,7 @@ def extract_from_image(image_bytes: bytes) -> str:
     try:
         ocr = _get_dddd_ocr()
         result = ocr.classification(image_bytes)
-        result = re.sub(r'\s+', '', result).strip()
+        result = re.sub(r'\s+', '', result).strip().upper()  # portal requires uppercase
         if result:
             logger.info("Captcha extracted via ddddocr [text=%s]", result)
             return result
