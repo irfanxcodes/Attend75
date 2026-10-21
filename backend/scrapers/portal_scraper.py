@@ -281,15 +281,13 @@ class PortalScraper:
                     "Portal rejected login details (login error shown on login response)",
                     code="LOGIN_FAILED",
                 )
-            # No specific error keyword matched — the page is likely garbage
-            # returned by a blocked/broken proxy. Treat as a retriable network
-            # error so the next proxy is tried automatically.
-            raise PortalNetworkError(
-                "Portal returned login page with no recognisable error — likely a bad proxy response",
-                code="LOGIN_REQUEST_BAD_PROXY_RESPONSE",
-                stage="LOGIN_REQUEST",
-                retriable=True,
-                http_status=502,
+            # No specific error keyword matched after captcha retries exhausted.
+            # This means OCR got the captcha wrong all 3 times — treat as a
+            # captcha failure (authentication error), NOT a proxy/network error.
+            # Using PortalAuthenticationError prevents the tier from being put on cooldown.
+            raise PortalAuthenticationError(
+                "Captcha verification failed after 3 attempts — OCR could not read the captcha correctly",
+                code="LOGIN_FAILED",
             )
 
         # Follow the same navigation chain observed in browser logs:
