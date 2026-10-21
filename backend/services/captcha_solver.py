@@ -74,6 +74,7 @@ def extract_from_image(image_bytes: bytes) -> str:
     try:
         from PIL import Image, ImageEnhance, ImageFilter, ImageOps
         import pytesseract
+        import numpy as np
     except ImportError as e:
         raise CaptchaSolveError(
             f"OCR dependencies not available: {e}",
@@ -81,55 +82,56 @@ def extract_from_image(image_bytes: bytes) -> str:
         )
 
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    arr = __import__('numpy').array(img)
 
-    def _ocr(pil_img) -> str:
-        text = pytesseract.image_to_string(pil_img, config=_TESS_CONFIG).strip()
-        # Keep only alnum chars
+    def _ocr(pil_img, psm=8) -> str:
+        cfg = f"--psm {psm} --oem 3 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        text = pytesseract.image_to_string(pil_img, config=cfg).strip()
         return re.sub(r"[^A-Z0-9]", "", text.upper())
 
-    def _preprocess_pipeline(base_img, scale=3, threshold=127, invert=False):
+    def _standard(base_img, scale=4, threshold=127, invert=False):
         grey = base_img.convert("L")
         if invert:
             grey = ImageOps.invert(grey)
-        # Scale up for better OCR accuracy
-        big = grey.resize(
-            (base_img.width * scale, base_img.height * scale),
-            Image.LANCZOS,
-        )
-        # Contrast enhancement
-        big = ImageEnhance.Contrast(big).enhance(2.0)
-        # Binarise
-        big = big.point(lambda p: 255 if p > threshold else 0)
-        return big
+        big = grey.resize((base_img.width * scale, base_img.height * scale), Image.LANCZOS)
+        big = ImageEnhance.Contrast(big).enhance(2.5)
+        return big.point(lambda p: 255 if p > threshold else 0)
+
+    def _dark_pixel_mask(base_img, scale=4, threshold=150):
+        """Keep only pixels significantly darker than background (text pixels)."""
+        import numpy as np
+        arr = np.array(base_img.convert("RGB"))
+        grey = np.mean(arr, axis=2)
+        mask = (grey < threshold).astype(np.uint8) * 255
+        pil = Image.fromarray(mask)
+        return pil.resize((base_img.width * scale, base_img.height * scale), Image.NEAREST)
 
     candidates = []
 
-    # Pipeline 1: standard greyscale + threshold
-    candidates.append(_ocr(_preprocess_pipeline(img, scale=3, threshold=127)))
+    # Pipeline 1: dark pixel mask (removes noisy background grid)
+    masked = _dark_pixel_mask(img, scale=4, threshold=150)
+    candidates.append(_ocr(masked, psm=8))
+    candidates.append(_ocr(masked, psm=7))
 
-    # Pipeline 2: lower threshold (dark captchas)
-    candidates.append(_ocr(_preprocess_pipeline(img, scale=3, threshold=100)))
+    # Pipeline 2: standard greyscale + threshold
+    candidates.append(_ocr(_standard(img, scale=4, threshold=100), psm=8))
+    candidates.append(_ocr(_standard(img, scale=4, threshold=127), psm=8))
 
-    # Pipeline 3: inverted (light text on dark background)
-    candidates.append(_ocr(_preprocess_pipeline(img, scale=3, threshold=127, invert=True)))
+    # Pipeline 3: inverted
+    candidates.append(_ocr(_standard(img, scale=4, threshold=127, invert=True), psm=8))
 
-    # Pipeline 4: higher scale for tiny fonts
-    candidates.append(_ocr(_preprocess_pipeline(img, scale=4, threshold=110)))
-
-    # Pipeline 5: median filter to remove noise, then OCR
-    grey = img.convert("L")
-    denoised = grey.filter(ImageFilter.MedianFilter(size=3))
-    big = denoised.resize((img.width * 3, img.height * 3), Image.LANCZOS)
-    candidates.append(_ocr(big))
+    # Pipeline 4: lower threshold (catch lighter chars)
+    candidates.append(_ocr(_standard(img, scale=4, threshold=80), psm=7))
 
     logger.debug("Captcha OCR candidates: %s", candidates)
 
-    # Pick the best: prefer exact 5-char results, then closest to 5 chars
+    # Pick best: prefer exact 5-char, then longest, then first
     exact = [c for c in candidates if len(c) == _EXPECTED_LEN]
     if exact:
-        best = exact[0]
+        # If multiple exact matches, pick the most common one
+        from collections import Counter
+        best = Counter(exact).most_common(1)[0][0]
     else:
-        # Take the longest non-empty candidate
         non_empty = [c for c in candidates if c]
         best = max(non_empty, key=len) if non_empty else ""
 
@@ -139,7 +141,7 @@ def extract_from_image(image_bytes: bytes) -> str:
             code="CAPTCHA_OCR_FAILED",
         )
 
-    logger.info("Captcha extracted from PNG via OCR [text=%s, pipeline_results=%s]", best, candidates)
+    logger.info("Captcha extracted from PNG via OCR [text=%s, candidates=%s]", best, candidates)
     return best
 
 
