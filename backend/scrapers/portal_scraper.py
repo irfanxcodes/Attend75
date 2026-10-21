@@ -284,10 +284,10 @@ class PortalScraper:
             # No specific error keyword matched after captcha retries exhausted.
             # This means OCR got the captcha wrong all 3 times — treat as a
             # captcha failure (authentication error), NOT a proxy/network error.
-            # Using PortalAuthenticationError prevents the tier from being put on cooldown.
+            # Using CAPTCHA_FAILED code prevents the tier from being put on cooldown.
             raise PortalAuthenticationError(
                 "Captcha verification failed after 3 attempts — OCR could not read the captcha correctly",
-                code="LOGIN_FAILED",
+                code="CAPTCHA_FAILED",
             )
 
         # Follow the same navigation chain observed in browser logs:

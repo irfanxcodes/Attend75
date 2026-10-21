@@ -139,6 +139,7 @@ def process_single_fetch(roll_number: str, encrypted_password: str) -> dict:
             return {"status": "invalid_credentials", "error": str(exc)}
         if code == "LOGIN_FAILED":
             mark_current_tier_failed(is_session_issue=True)
+        # CAPTCHA_FAILED — don't penalise the tier, just return transient failure
         return {"status": "transient_failure", "error": str(exc)}
     except (PortalNetworkError, Exception) as exc:
         return {"status": "transient_failure", "error": str(exc)}

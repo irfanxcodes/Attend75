@@ -203,6 +203,8 @@ def login_user(roll_number: str, password: str, user_agent: str | None = None) -
             if exc.code == "LOGIN_FAILED":
                 # IP-consistency issue (not wrong credentials) — short cooldown, retry next endpoint
                 mark_current_tier_failed(base_url=base_url, is_session_issue=True)
+            # CAPTCHA_FAILED: OCR couldn't solve the captcha — don't penalise the tier,
+            # the endpoint itself is fine. Just raise so the user can retry.
             raise
 
     if data is None and last_network_exc is not None:
