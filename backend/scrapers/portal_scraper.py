@@ -225,7 +225,7 @@ class PortalScraper:
                 # vs wrong password (portal shows specific error text).
                 if self._looks_like_login_page(response.text):
                     invalid_reason = self._classify_invalid_credentials(response.text)
-                    if invalid_reason in ("INVALID_USERNAME", "INCORRECT_PASSWORD", "LOGIN_FAILED"):
+                    if invalid_reason in ("INVALID_USERNAME", "INCORRECT_PASSWORD"):
                         # Definitive credential failure — no point retrying captcha
                         break
                     # Otherwise: likely a captcha failure — refresh and retry
@@ -1184,7 +1184,6 @@ class PortalScraper:
             "invalid security code",
             "login failed",
             "please enter valid",
-            "security code",
         ]
         if any(keyword in text for keyword in username_keywords):
             return "INVALID_USERNAME"
