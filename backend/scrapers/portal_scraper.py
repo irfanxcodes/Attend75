@@ -176,29 +176,73 @@ class PortalScraper:
             # Portal has Student/Parent radio options; enforce Student selection.
             payload.update(self._get_student_radio_payload(login_page.text))
 
-            # Solve the image captcha by parsing the SVG response directly.
+            # Solve the image captcha — retry up to 3 times with a fresh captcha
+            # image each attempt (captcha rotates on every fetch, VIEWSTATE stays
+            # valid so we don't need to re-GET the login page on retries).
             captcha_img = BeautifulSoup(login_page.text, "html.parser").find("img", {"id": "captchaImage"})
+            captcha_url = None
             if captcha_img:
                 img_src = (captcha_img.get("src") or "").strip()
                 if img_src:
                     captcha_url = urljoin(login_url, img_src)
+
+            MAX_CAPTCHA_ATTEMPTS = 3
+            response = None
+
+            for captcha_attempt in range(MAX_CAPTCHA_ATTEMPTS):
+                # Fetch a fresh captcha image each attempt
+                if captcha_url:
                     try:
                         captcha_text = fetch_and_solve(captcha_url, self.session)
                         payload["txtCaptcha"] = captcha_text
+                        self._logger.info(
+                            "Captcha attempt %d/%d solved: %s",
+                            captcha_attempt + 1, MAX_CAPTCHA_ATTEMPTS, captcha_text,
+                        )
                     except CaptchaSolveError as exc:
-                        self._logger.warning("Captcha solve failed [%s]: %s", exc.code, exc)
+                        self._logger.warning(
+                            "Captcha attempt %d/%d failed [%s]: %s",
+                            captcha_attempt + 1, MAX_CAPTCHA_ATTEMPTS, exc.code, exc,
+                        )
 
-            response = self.session.post(
-                login_url,
-                data=payload,
-                timeout=self.request_timeout,
-                allow_redirects=False,   # Follow manually so redirects go through the Worker
-                headers={
-                    "Referer": login_url,
-                    "Origin": self.base_url.rsplit("/", 1)[0],
-                },
-            )
-            # If the portal responded with a redirect, follow it through our proxy
+                response = self.session.post(
+                    login_url,
+                    data=payload,
+                    timeout=self.request_timeout,
+                    allow_redirects=False,
+                    headers={
+                        "Referer": login_url,
+                        "Origin": self.base_url.rsplit("/", 1)[0],
+                    },
+                )
+
+                # Success: redirect means login accepted
+                if response.status_code in (301, 302, 303, 307, 308):
+                    break
+
+                # If it's still the login page, check whether captcha was wrong
+                # (wrong captcha → portal re-renders login page with NEW captcha image)
+                # vs wrong password (portal shows specific error text).
+                if self._looks_like_login_page(response.text):
+                    invalid_reason = self._classify_invalid_credentials(response.text)
+                    if invalid_reason in ("INVALID_USERNAME", "INCORRECT_PASSWORD", "LOGIN_FAILED"):
+                        # Definitive credential failure — no point retrying captcha
+                        break
+                    # Otherwise: likely a captcha failure — refresh and retry
+                    if captcha_attempt < MAX_CAPTCHA_ATTEMPTS - 1:
+                        self._logger.info(
+                            "Login page returned (likely wrong captcha), retrying (%d/%d)…",
+                            captcha_attempt + 1, MAX_CAPTCHA_ATTEMPTS,
+                        )
+                        # Update VIEWSTATE from response in case it changed
+                        retry_payload = self._extract_hidden_form_fields(response.text)
+                        if retry_payload:
+                            payload.update(retry_payload)
+                        continue
+                else:
+                    break  # Non-login-page response (success or error page) — stop retrying
+
+            # Follow redirect if needed
             if response.status_code in (301, 302, 303, 307, 308):
                 location = response.headers.get("Location", "")
                 if location:
