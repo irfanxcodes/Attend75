@@ -158,11 +158,9 @@ function Marks() {
       return true
     }
 
-    if (!session.token) {
-      actions.logout()
-      navigate('/login', { replace: true })
-      return false
-    }
+    // Don't pre-check session.token here — let the API call determine if session is expired.
+    // The token might be loading from persistence or the check might be premature.
+    // If the session is truly expired, the API will return a 401 and we'll handle it below.
 
     try {
       setIsLoadingMarks(true)
