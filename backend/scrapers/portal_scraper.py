@@ -154,9 +154,126 @@ class PortalScraper:
 
         return self._do_login(roll_number, password)
     
+    def _try_lambda_intercept_login(self, roll_number: str, password: str) -> bool:
+        """
+        Use Lambda's /proxy/login intercept endpoint to perform the full login
+        (GET page + GET captcha + POST credentials) in a single Lambda invocation,
+        guaranteeing IP consistency across all 3 portal requests.
+
+        Returns True if login succeeded (session cookies are now set), False otherwise.
+        Raises PortalAuthenticationError on definitive credential failures.
+        """
+        try:
+            from services.lambda_rotator import lambda_rotator as _lr
+            # Find the Lambda endpoint that matches our current base_url
+            lambda_url = None
+            for ep in (_lr._endpoints or []):
+                if self.base_url.startswith(ep.rstrip("/")):
+                    lambda_url = ep.rstrip("/")
+                    break
+            if not lambda_url:
+                return False
+        except Exception as exc:
+            self._logger.warning("[PortalScraper] Lambda intercept setup failed: %s", exc)
+            return False
+
+        intercept_url = lambda_url.rstrip("/") + "/login"
+        normalized_roll = (roll_number or "").strip().upper()
+
+        try:
+            resp = self.session.post(
+                intercept_url,
+                json={"roll_number": normalized_roll, "password": password},
+                timeout=self.request_timeout,
+                allow_redirects=False,
+            )
+        except requests.RequestException as exc:
+            self._logger.warning("[PortalScraper] Lambda intercept request failed: %s", exc)
+            return False
+
+        if resp.status_code in (301, 302, 303, 307, 308):
+            # Legacy: Lambda returned a redirect with Set-Cookie headers
+            self._logger.info(
+                "[PortalScraper] Lambda intercept login succeeded (redirect) for %s", normalized_roll
+            )
+            return True
+
+        # Current: Lambda returns 200 JSON with cookies dict
+        try:
+            body = resp.json()
+        except Exception:
+            self._logger.warning("[PortalScraper] Lambda intercept bad response: %s", resp.text[:100])
+            return False
+
+        if body.get("success"):
+            # Inject cookies from Lambda response into our session.
+            # Navigation after intercept goes directly to 111.93.16.209.
+            cookies = body.get("cookies", {})
+            for name, value in cookies.items():
+                self.session.cookies.set(name, value, domain="111.93.16.209")
+            self._logger.info(
+                "[PortalScraper] Lambda intercept login succeeded (%d cookies) for %s",
+                len(cookies), normalized_roll,
+            )
+            return True
+
+        code = body.get("code", "")
+        error = body.get("error", "")
+
+        if code == "INCORRECT_CREDENTIALS":
+            raise PortalAuthenticationError(
+                "Portal rejected login due to incorrect credentials",
+                code="INCORRECT_PASSWORD",
+            )
+        if code == "CAPTCHA_FAILED":
+            self._logger.warning(
+                "[PortalScraper] Lambda intercept captcha failed: %s", error
+            )
+            return False
+
+        self._logger.warning(
+            "[PortalScraper] Lambda intercept login failed [%s]: %s", code, error
+        )
+        return False
+
     def _do_login(self, roll_number: str, password: str) -> dict:
         login_url = self._build_url(self.login_path)
         normalized_roll = (roll_number or "").strip().upper()
+
+        # ── Lambda intercept fast path ────────────────────────────────────────
+        # When Lambda is active, use /proxy/login which runs the full login flow
+        # (GET page + GET captcha + POST) in one invocation — same IP, no mismatch.
+        _lambda_intercept_succeeded = False
+        try:
+            from services.lambda_rotator import lambda_rotator as _lr
+            _lambda_is_active = any(
+                self.base_url.startswith(ep.rstrip("/"))
+                for ep in (_lr._endpoints or [])
+            )
+        except Exception:
+            _lambda_is_active = False
+
+        if _lambda_is_active:
+            _lambda_intercept_succeeded = self._try_lambda_intercept_login(roll_number, password)
+            # PortalAuthenticationError propagates automatically on credential failure
+
+            if _lambda_intercept_succeeded:
+                # Cookies set — Lambda already authenticated the session.
+                # Switch base_url to direct portal for navigation (the portal
+                # session was established on 111.93.16.209, not on Lambda).
+                saved_base_url = self.base_url
+                self.base_url = "http://111.93.16.209/sz"
+                try:
+                    navigation_payload = self._run_post_login_navigation(login_url)
+                finally:
+                    self.base_url = saved_base_url
+                return self._build_login_result(
+                    navigation_payload=navigation_payload,
+                    login_redirected=True,
+                    has_auth_session=True,
+                    normalized_roll=normalized_roll,
+                    login_url=login_url,
+                )
 
         try:
             # Load the login page first to receive cookies and optional CSRF token.
@@ -293,6 +410,23 @@ class PortalScraper:
         # Follow the same navigation chain observed in browser logs:
         # login POST -> Index.aspx -> SDB.aspx -> CommonS.aspx?qs=ap
         navigation_payload = self._run_post_login_navigation(login_url)
+        return self._build_login_result(
+            navigation_payload=navigation_payload,
+            login_redirected=login_redirected,
+            has_auth_session=has_auth_session,
+            normalized_roll=normalized_roll,
+            login_url=login_url,
+        )
+
+    def _build_login_result(
+        self,
+        navigation_payload: dict,
+        login_redirected: bool,
+        has_auth_session: bool,
+        normalized_roll: str,
+        login_url: str,
+    ) -> dict:
+        """Build the final login result dict from post-login navigation data."""
         attendance_response = navigation_payload["attendance_response"]
         student_name = navigation_payload.get("student_name")
         student_photo_url = navigation_payload.get("student_photo_url")
@@ -341,8 +475,6 @@ class PortalScraper:
                         payload["attendance"] = []
 
         # If student has multiple programs, switch to the earliest (default) and re-fetch
-        nav_programs = navigation_payload.get("programs", [])
-        nav_selected_program = navigation_payload.get("selected_program")
         if nav_programs and nav_selected_program:
             current_classof = (self.session.cookies.get("ClassofID") or "").strip()
             if current_classof and current_classof != nav_selected_program:
