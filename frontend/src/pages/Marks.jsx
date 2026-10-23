@@ -235,14 +235,6 @@ function Marks() {
     void loadMarksData(false)
   }, [hasFetchedMarks, isLoadingMarks, loadMarksData])
 
-  // Auto-select first subject once marks have loaded
-  useEffect(() => {
-    if (!hasFetchedMarks) return
-    if (selectedSubjectCode) return // user already picked one, don't override
-    const first = subjectOptions[0]
-    if (first) setSelectedSubjectCode(first.subjectCode)
-  }, [hasFetchedMarks, subjectOptions, selectedSubjectCode])
-
   return (
     <section className="space-y-3 pb-3">
       {/* Header */}
