@@ -2707,23 +2707,24 @@ class PortalScraper:
             return
 
         # ── Tier 1: AWS Lambda ──────────────────────────────────────────────
-        try:
-            from services.lambda_rotator import lambda_rotator
-            if lambda_rotator.any_available():
-                lambda_url = lambda_rotator.get_lambda_url()
-                if lambda_url:
-                    # Rebase base_url onto the Lambda endpoint so _build_url()
-                    # routes all portal paths through Lambda.
-                    self.base_url = lambda_url.rstrip("/") + "/sz"
-                    self._api_gateway_base = None
-                    self.session.proxies.clear()
-                    # Keep stage prefix in sync if the session supports it
-                    if hasattr(self.session, "set_stage_prefix"):
-                        self.session.set_stage_prefix("/proxy")
-                    self._logger.info("[PortalScraper] Tier 1 — AWS Lambda: %s", lambda_url)
-                    return
-        except Exception as exc:
-            self._logger.warning("[PortalScraper] Lambda tier unavailable: %s", exc)
+        # DISABLED: Portal is blocking Lambda IPs, causing login failures.
+        # try:
+        #     from services.lambda_rotator import lambda_rotator
+        #     if lambda_rotator.any_available():
+        #         lambda_url = lambda_rotator.get_lambda_url()
+        #         if lambda_url:
+        #             # Rebase base_url onto the Lambda endpoint so _build_url()
+        #             # routes all portal paths through Lambda.
+        #             self.base_url = lambda_url.rstrip("/") + "/sz"
+        #             self._api_gateway_base = None
+        #             self.session.proxies.clear()
+        #             # Keep stage prefix in sync if the session supports it
+        #             if hasattr(self.session, "set_stage_prefix"):
+        #                 self.session.set_stage_prefix("/proxy")
+        #             self._logger.info("[PortalScraper] Tier 1 — AWS Lambda: %s", lambda_url)
+        #             return
+        # except Exception as exc:
+        #     self._logger.warning("[PortalScraper] Lambda tier unavailable: %s", exc)
 
         # ── Tier 2: AWS API Gateway (Fireprox) ──────────────────────────────
         gateway_url = self._api_gateway_rotator.get_gateway_url()
