@@ -258,15 +258,11 @@ class PortalScraper:
             # PortalAuthenticationError propagates automatically on credential failure
 
             if _lambda_intercept_succeeded:
-                # Cookies set — Lambda already authenticated the session.
-                # Switch base_url to direct portal for navigation (the portal
-                # session was established on 111.93.16.209, not on Lambda).
-                saved_base_url = self.base_url
-                self.base_url = "http://111.93.16.209/sz"
-                try:
-                    navigation_payload = self._run_post_login_navigation(login_url)
-                finally:
-                    self.base_url = saved_base_url
+                # Cookies set — Lambda authenticated the session.
+                # IMPORTANT: Keep using Lambda base_url for all navigation!
+                # The portal session is tied to the Lambda IP that did the login.
+                # Switching to direct 111.93.16.209 would use a different IP and break the session.
+                navigation_payload = self._run_post_login_navigation(login_url)
                 return self._build_login_result(
                     navigation_payload=navigation_payload,
                     login_redirected=True,
@@ -2707,24 +2703,23 @@ class PortalScraper:
             return
 
         # ── Tier 1: AWS Lambda ──────────────────────────────────────────────
-        # DISABLED: Portal is blocking Lambda IPs, causing login failures.
-        # try:
-        #     from services.lambda_rotator import lambda_rotator
-        #     if lambda_rotator.any_available():
-        #         lambda_url = lambda_rotator.get_lambda_url()
-        #         if lambda_url:
-        #             # Rebase base_url onto the Lambda endpoint so _build_url()
-        #             # routes all portal paths through Lambda.
-        #             self.base_url = lambda_url.rstrip("/") + "/sz"
-        #             self._api_gateway_base = None
-        #             self.session.proxies.clear()
-        #             # Keep stage prefix in sync if the session supports it
-        #             if hasattr(self.session, "set_stage_prefix"):
-        #                 self.session.set_stage_prefix("/proxy")
-        #             self._logger.info("[PortalScraper] Tier 1 — AWS Lambda: %s", lambda_url)
-        #             return
-        # except Exception as exc:
-        #     self._logger.warning("[PortalScraper] Lambda tier unavailable: %s", exc)
+        try:
+            from services.lambda_rotator import lambda_rotator
+            if lambda_rotator.any_available():
+                lambda_url = lambda_rotator.get_lambda_url()
+                if lambda_url:
+                    # Rebase base_url onto the Lambda endpoint so _build_url()
+                    # routes all portal paths through Lambda.
+                    self.base_url = lambda_url.rstrip("/") + "/sz"
+                    self._api_gateway_base = None
+                    self.session.proxies.clear()
+                    # Keep stage prefix in sync if the session supports it
+                    if hasattr(self.session, "set_stage_prefix"):
+                        self.session.set_stage_prefix("/proxy")
+                    self._logger.info("[PortalScraper] Tier 1 — AWS Lambda: %s", lambda_url)
+                    return
+        except Exception as exc:
+            self._logger.warning("[PortalScraper] Lambda tier unavailable: %s", exc)
 
         # ── Tier 2: AWS API Gateway (Fireprox) ──────────────────────────────
         gateway_url = self._api_gateway_rotator.get_gateway_url()
