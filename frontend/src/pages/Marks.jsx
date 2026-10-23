@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import MarksDetailCard from '../components/marks/MarksDetailCard'
 import MarksRadarChart from '../components/marks/MarksRadarChart'
 import SubjectSelectorGrid from '../components/marks/SubjectSelectorGrid'
 import useAppStore from '../hooks/useAppStore'
-import { fetchConsolidatedMarks, isSessionExpiredError } from '../services/attendanceApi'
+import { fetchConsolidatedMarks } from '../services/attendanceApi'
 import { loadMarksSnapshot, persistMarksSnapshot } from '../services/sessionPersistence'
 
 function normalizeCode(value) {
@@ -73,7 +72,6 @@ function normalizeMarksSubject(raw) {
 }
 
 function Marks() {
-  const navigate = useNavigate()
   const { state: { attendance, session, user }, actions } = useAppStore()
   const isDemo = user.authProvider === 'demo'
 
@@ -194,8 +192,6 @@ function Marks() {
       setHasFetchedMarks(true)
       return true
     } catch (error) {
-      if (isSessionExpiredError(error)) { actions.logout(); navigate('/login', { replace: true }); return false }
-
       // Try to show cached marks if available
       const cachedMarks = loadMarksSnapshot()
       if (cachedMarks && Array.isArray(cachedMarks.subjects) && cachedMarks.subjects.length > 0) {
@@ -228,7 +224,7 @@ function Marks() {
     } finally {
       setIsLoadingMarks(false)
     }
-  }, [actions, hasFetchedMarks, navigate, session.selectedSemester, session.token, subjectOptions])
+  }, [actions, hasFetchedMarks, session.selectedSemester, session.token, subjectOptions])
 
   useEffect(() => {
     if (isLoadingMarks || hasFetchedMarks) return
