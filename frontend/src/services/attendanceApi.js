@@ -441,8 +441,12 @@ export async function fetchSessionStatus(token) {
 }
 
 export async function fetchAttendance({ token, semesterId, programId, forceRefresh = false }) {
-  // Don't pre-validate token here - let the backend determine if session is expired.
-  // If token is missing/invalid, the backend will return 401.
+  if (!token) {
+    throw new ApiError('Your session has expired. Please log in again.', {
+      code: 'SESSION_EXPIRED',
+      endpoint: 'attendance',
+    })
+  }
 
   const requestKey = `attendance:${token}:${programId || ''}:${semesterId || ''}:${forceRefresh ? 'fresh' : 'cache'}`
   return withInFlightRequest(requestKey, async () => {
@@ -483,9 +487,12 @@ export async function fetchAttendance({ token, semesterId, programId, forceRefre
 }
 
 export async function fetchAttendanceHistory({ token, semesterId, date }) {
-  // Don't pre-validate token here - let the backend determine if session is expired.
-  // If token is missing/invalid, the backend will return 401 and parseApiResponse
-  // will throw an ApiError with SESSION_EXPIRED code.
+  if (!token) {
+    throw new ApiError('Your session has expired. Please log in again.', {
+      code: 'SESSION_EXPIRED',
+      endpoint: 'attendance-history',
+    })
+  }
 
   if (!date) {
     return { entries: [] }
@@ -517,8 +524,12 @@ export async function fetchAttendanceHistory({ token, semesterId, date }) {
 }
 
 export async function fetchConsolidatedMarks({ token, semesterId, forceRefresh = false }) {
-  // Don't pre-validate token here - let the backend determine if session is expired.
-  // If token is missing/invalid, the backend will return 401.
+  if (!token) {
+    throw new ApiError('Your session has expired. Please log in again.', {
+      code: 'SESSION_EXPIRED',
+      endpoint: 'marks',
+    })
+  }
 
   const requestKey = `marks:${token}:${semesterId || ''}:${forceRefresh ? 'fresh' : 'cache'}`
   return withInFlightRequest(requestKey, async () => {
@@ -533,8 +544,12 @@ export async function fetchConsolidatedMarks({ token, semesterId, forceRefresh =
 }
 
 export async function fetchFacultyContacts({ token, semesterId, forceRefresh = false }) {
-  // Don't pre-validate token here - let the backend determine if session is expired.
-  // If token is missing/invalid, the backend will return 401.
+  if (!token) {
+    throw new ApiError('Your session has expired. Please log in again.', {
+      code: 'SESSION_EXPIRED',
+      endpoint: 'faculty-contacts',
+    })
+  }
 
   const requestKey = `faculty-contacts:${token}:${semesterId || ''}:${forceRefresh ? 'fresh' : 'cache'}`
   return withInFlightRequest(requestKey, async () => {
@@ -563,8 +578,12 @@ export async function trackFeatureUsageEvent({
   subjectName = null,
   attendanceDate = null,
 }) {
-  // Don't pre-validate token here - let the backend determine if session is expired.
-  // If token is missing/invalid, the backend will return 401.
+  if (!token) {
+    throw new ApiError('Your session has expired. Please log in again.', {
+      code: 'SESSION_EXPIRED',
+      endpoint: 'feature-usage-track',
+    })
+  }
 
   const payload = {
     token,
