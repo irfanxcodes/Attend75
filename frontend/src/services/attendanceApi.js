@@ -82,8 +82,7 @@ function buildFriendlyMessage(endpoint, code, fallbackMessage) {
 
   if (endpoint === 'attendance' || endpoint === 'attendance-history' || endpoint === 'session-status') {
     if (normalizedCode.startsWith('SESSION_EXPIRED')) {
-      // Session expired - user needs to log in again to get fresh credentials
-      return 'Your session has expired. Please log in again to continue.'
+      return 'Your session has expired. Please log in again.'
     }
     if (normalizedCode === 'SEMESTER_SWITCH_MISMATCH') {
       return 'Unable to switch semester on portal. Please try again.'
@@ -141,8 +140,7 @@ function buildFriendlyMessage(endpoint, code, fallbackMessage) {
 
   if (endpoint === 'marks') {
     if (normalizedCode.startsWith('SESSION_EXPIRED')) {
-      // Session expired - user needs to log in again to get fresh credentials
-      return 'Your session has expired. Please log in again to continue.'
+      return 'Your session has expired. Please log in again.'
     }
     if (
       normalizedCode === 'MARKS_TABLE_NOT_FOUND' ||
@@ -165,8 +163,7 @@ function buildFriendlyMessage(endpoint, code, fallbackMessage) {
 
   if (endpoint === 'faculty-contacts') {
     if (normalizedCode.startsWith('SESSION_EXPIRED')) {
-      // Session expired - user needs to log in again to get fresh credentials
-      return 'Your session has expired. Please log in again to continue.'
+      return 'Your session has expired. Please log in again.'
     }
     if (normalizedCode.includes('TIMEOUT')) {
       return 'Faculty details are taking too long to load. Please try again.'
@@ -239,8 +236,6 @@ async function parseApiResponse(response, endpoint = 'generic') {
 }
 
 export function isSessionExpiredError(error) {
-  // Portal session expired OR backend session expired - both require re-login
-  // But we want to give the user a helpful error message, not auto-redirect
   return (error?.code || '').toUpperCase().startsWith('SESSION_EXPIRED')
 }
 
