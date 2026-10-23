@@ -11,9 +11,6 @@ from services.feature_usage_metrics import observe_history_open, observe_marks_o
 from services.scraper_metrics import observe_scrape
 from services.session_store import session_store
 from services.student_registry_service import register_student_login
-from services.crypto_service import credential_crypto_service
-from db.models.portal_credential import PortalCredential
-from db.session import SessionLocal
 
 
 def _portal_operation_retry_attempts() -> int:
@@ -47,116 +44,6 @@ def _prefetch_marks_after_login_delay_seconds() -> float:
 
 def _run_with_session_lock(record, operation):
     with record.scraper_lock:
-        return operation()
-
-
-def _try_refresh_portal_session(record):
-    """
-    Attempt to re-authenticate with the portal when session cookies have expired.
-    Returns True if re-login succeeded, False otherwise.
-    
-    This happens when:
-    - Portal cookies expire (20-60 min) but backend session is still valid (12 hours)
-    - User clicks date/marks after being idle for 20+ minutes
-    """
-    try:
-        with SessionLocal() as db_session:
-            credential = (
-                db_session.query(PortalCredential)
-                .filter(PortalCredential.roll_number == record.roll_number)
-                .first()
-            )
-            
-            if not credential or credential.status != "valid":
-                _logger.warning(
-                    "[auth_service] Cannot refresh portal session for %s: no valid credentials stored",
-                    record.roll_number
-                )
-                return False
-            
-            # Decrypt stored password
-            password = credential_crypto_service.decrypt(credential.encrypted_password)
-            
-            # Re-authenticate with portal to get fresh cookies
-            _logger.info(
-                "[auth_service] Portal session expired for %s, re-authenticating...",
-                record.roll_number
-            )
-            
-            login_result = record.scraper.login(
-                roll_number=record.roll_number,
-                password=password
-            )
-            
-            _logger.info(
-                "[auth_service] Portal session refreshed successfully for %s",
-                record.roll_number
-            )
-            return True
-            
-    except PortalAuthenticationError as exc:
-        error_code = getattr(exc, "code", "UNKNOWN")
-        _logger.warning(
-            "[auth_service] Portal session refresh failed for %s [code=%s]: %s",
-            record.roll_number, error_code, str(exc)
-        )
-        # If credentials are invalid, mark them in DB
-        if error_code in ("INCORRECT_PASSWORD", "INVALID_USERNAME", "LOGIN_FAILED"):
-            try:
-                with SessionLocal() as db_session:
-                    credential = (
-                        db_session.query(PortalCredential)
-                        .filter(PortalCredential.roll_number == record.roll_number)
-                        .first()
-                    )
-                    if credential:
-                        credential.status = "invalid"
-                        db_session.commit()
-            except Exception:
-                pass
-        return False
-    except Exception as exc:
-        _logger.warning(
-            "[auth_service] Portal session refresh failed for %s: %s",
-            record.roll_number, str(exc)
-        )
-        return False
-
-
-def _run_with_portal_session_refresh(record, operation, operation_name="operation"):
-    """
-    Run an operation that may fail due to expired portal cookies.
-    If SESSION_EXPIRED is caught, attempt to refresh portal session and retry once.
-    """
-    try:
-        return operation()
-    except PortalAuthenticationError as exc:
-        error_code = getattr(exc, "code", "")
-        
-        # Only retry if it's a portal session expiry (not backend token missing)
-        if not error_code.upper().startswith("SESSION_EXPIRED"):
-            raise
-        
-        # Don't retry if it's backend session token not found
-        error_msg = str(exc).lower()
-        if "token not found" in error_msg:
-            raise
-        
-        # Portal session expired - try to refresh cookies
-        _logger.info(
-            "[auth_service] %s failed with SESSION_EXPIRED for %s, attempting to refresh portal session",
-            operation_name, record.roll_number
-        )
-        
-        if not _try_refresh_portal_session(record):
-            # Re-authentication failed, propagate original error
-            raise
-        
-        # Re-authentication succeeded, retry the operation once
-        _logger.info(
-            "[auth_service] Retrying %s after portal session refresh for %s",
-            operation_name, record.roll_number
-        )
         return operation()
 
 
@@ -417,19 +304,14 @@ def fetch_attendance_for_semester(token: str, semester_id: str | None, program_i
 
     started = time.perf_counter()
     try:
-        # Wrap with portal session refresh - will auto re-login if cookies expired
         payload = _run_with_session_lock(
             record,
-            lambda: _run_with_portal_session_refresh(
-                record,
-                lambda: _run_with_network_retry(
-                    lambda: record.scraper.fetch_attendance_for_semester(
-                        semester_id=semester_id,
-                        program_id=program_id,
-                        force_refresh=force_refresh,
-                    )
-                ),
-                operation_name="fetch_attendance_for_semester"
+            lambda: _run_with_network_retry(
+                lambda: record.scraper.fetch_attendance_for_semester(
+                    semester_id=semester_id,
+                    program_id=program_id,
+                    force_refresh=force_refresh,
+                )
             )
         )
         observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
@@ -480,16 +362,11 @@ def fetch_subject_history(token: str, semester_id: str | None, date: str | None)
 
     started = time.perf_counter()
     try:
-        # Wrap with portal session refresh - will auto re-login if cookies expired
         payload = _run_with_session_lock(
             record,
-            lambda: _run_with_portal_session_refresh(
-                record,
-                lambda: _run_with_network_retry(
-                    lambda: record.scraper.fetch_subject_attendance_history(semester_id=semester_id, date=date)
-                ),
-                operation_name="fetch_subject_attendance_history"
-            )
+            lambda: _run_with_network_retry(
+                lambda: record.scraper.fetch_subject_attendance_history(semester_id=semester_id, date=date)
+            ),
         )
         observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
         resolved_id, resolved_label = _resolve_semester_usage_context(payload, semester_id)
@@ -498,7 +375,7 @@ def fetch_subject_history(token: str, semester_id: str | None, date: str | None)
     except PortalNetworkError as exc:
         observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
                        failure_kind="network", failure_code=getattr(exc, "code", None),
-                       failure_stage=getattr(exc, "code", None), retriable=getattr(exc, "retriable", None))
+                       failure_stage=getattr(exc, "stage", None), retriable=getattr(exc, "retriable", None))
         raise
     except PortalAuthenticationError as exc:
         observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
@@ -516,18 +393,13 @@ def fetch_consolidated_marks(token: str, semester_id: str | None, force_refresh:
 
     started = time.perf_counter()
     try:
-        # Wrap with portal session refresh - will auto re-login if cookies expired
         payload = _run_with_session_lock(
             record,
-            lambda: _run_with_portal_session_refresh(
-                record,
-                lambda: _run_with_network_retry(
-                    lambda: record.scraper.fetch_consolidated_marks(
-                        semester_id=semester_id,
-                        force_refresh=force_refresh,
-                    )
-                ),
-                operation_name="fetch_consolidated_marks"
+            lambda: _run_with_network_retry(
+                lambda: record.scraper.fetch_consolidated_marks(
+                    semester_id=semester_id,
+                    force_refresh=force_refresh,
+                )
             )
         )
         observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
