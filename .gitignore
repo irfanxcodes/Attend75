@@ -51,3 +51,16 @@ backend/uploads/
 # ── Firebase credentials (secrets, never commit) ─────────────────────────────
 backend/firebase-service-account.json
 firebase-service-account.json
+
+# Lambda deployment artifacts
+lambda_final/
+lambda_pkg/
+lambda_build/
+*.zip
+lambda_function.py
+
+# Deployment scripts (temporary)
+DEPLOY_*.sh
+*_SUMMARY.md
+DEBUGGING_*.md
+DEPLOYMENT_*.md
