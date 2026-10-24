@@ -30,17 +30,18 @@ def get_scraper_config() -> tuple[str, str | None]:
     stage_prefix — "/proxy", "/fireprox", or None (for direct)
     """
     # ── Tier 1: AWS Lambda ────────────────────────────────────────────────────
-    try:
-        from services.lambda_rotator import lambda_rotator
-        if lambda_rotator.any_available():
-            lambda_url = lambda_rotator.get_lambda_url()
-            if lambda_url:
-                # lambda_url e.g. https://pfob2x3bd0.execute-api.ap-south-1.amazonaws.com/proxy
-                base_url = lambda_url.rstrip("/") + "/sz"
-                logger.info("[TierSelector] Tier 1 — Lambda: %s", lambda_url)
-                return base_url, "/proxy"
-    except Exception as exc:
-        logger.warning("[TierSelector] Lambda rotator error: %s", exc)
+    # DISABLED: Lambda deployment is broken (missing ddddocr dependencies).
+    # Using API Gateway as primary until Lambda is properly fixed.
+    # try:
+    #     from services.lambda_rotator import lambda_rotator
+    #     if lambda_rotator.any_available():
+    #         lambda_url = lambda_rotator.get_lambda_url()
+    #         if lambda_url:
+    #             base_url = lambda_url.rstrip("/") + "/sz"
+    #             logger.info("[TierSelector] Tier 1 — Lambda: %s", lambda_url)
+    #             return base_url, "/proxy"
+    # except Exception as exc:
+    #     logger.warning("[TierSelector] Lambda rotator error: %s", exc)
 
     # ── Tier 2: API Gateway (Fireprox) ────────────────────────────────────────
     try:
