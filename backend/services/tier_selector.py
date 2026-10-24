@@ -30,18 +30,18 @@ def get_scraper_config() -> tuple[str, str | None]:
     stage_prefix — "/proxy", "/fireprox", or None (for direct)
     """
     # ── Tier 1: AWS Lambda ────────────────────────────────────────────────────
-    # DISABLED: Deployment is fragile (ddddocr dependencies keep breaking).
-    # API Gateway is stable and sufficient (5-15s login depending on portal).
-    # try:
-    #     from services.lambda_rotator import lambda_rotator
-    #     if lambda_rotator.any_available():
-    #         lambda_url = lambda_rotator.get_lambda_url()
-    #         if lambda_url:
-    #             base_url = lambda_url.rstrip("/") + "/sz"
-    #             logger.info("[TierSelector] Tier 1 — Lambda: %s", lambda_url)
-    #             return base_url, "/proxy"
-    # except Exception as exc:
-    #     logger.warning("[TierSelector] Lambda rotator error: %s", exc)
+    # Lambda v5 restored with ddddocr 1.0.6 (stable, compatible versions).
+    # Package: 39MB bundled - ddddocr 1.0.6 + onnxruntime 1.16.3 + numpy 1.26.4 + Pillow 9.5.0
+    try:
+        from services.lambda_rotator import lambda_rotator
+        if lambda_rotator.any_available():
+            lambda_url = lambda_rotator.get_lambda_url()
+            if lambda_url:
+                base_url = lambda_url.rstrip("/") + "/sz"
+                logger.info("[TierSelector] Tier 1 — Lambda: %s", lambda_url)
+                return base_url, "/proxy"
+    except Exception as exc:
+        logger.warning("[TierSelector] Lambda rotator error: %s", exc)
 
     # ── Tier 2: API Gateway (Fireprox) ────────────────────────────────────────
     try:
