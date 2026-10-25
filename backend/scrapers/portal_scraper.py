@@ -156,16 +156,77 @@ class PortalScraper:
     
     def _try_lambda_intercept_login(self, roll_number: str, password: str) -> bool:
         """
-        Lambda v5 auto-intercepts login POSTs to /sz/login.aspx when requests go through it.
+        Lambda v5 auto-intercepts when it receives a POST to /sz/login.aspx with form data.
         
-        We don't call a special endpoint - we just ensure base_url is Lambda and let
-        the normal login flow proceed. Lambda will detect and intercept automatically.
+        We trigger the intercept by POSTing login form data directly to Lambda's /sz/login.aspx.
+        Lambda detects this is a login POST, runs full flow internally, and returns with cookies.
         
-        Returns False to proceed with normal login (which Lambda intercepts transparently).
+        Returns True if Lambda handled login successfully, False to fall back to normal flow.
         """
-        # Let normal login flow proceed - Lambda URL is already set as base_url
-        # Lambda will detect POST to /sz/login.aspx and run intercept automatically
-        return False
+        try:
+            from services.lambda_rotator import lambda_rotator as _lr
+            # Check if Lambda is active for this base_url
+            lambda_is_active = any(
+                self.base_url.startswith(ep.rstrip("/"))
+                for ep in (_lr._endpoints or [])
+            )
+            if not lambda_is_active:
+                return False
+        except Exception:
+            return False
+
+        # Build the login form payload (same as normal login)
+        normalized_roll = (roll_number or "").strip().upper()
+        
+        # Lambda intercept: POST form data to /sz/login.aspx
+        # Lambda will detect this is a login POST and handle it internally
+        login_url = self._build_url(self.login_path)  # This will use Lambda base_url
+        
+        payload = {
+            "txtLogin": normalized_roll,
+            "txtPassword": self._normalize_password(password),
+            "bl": "Student",
+            "btnSubmit": "Submit",
+            # We'll let Lambda handle captcha solving
+        }
+        
+        try:
+            # POST to Lambda's /sz/login.aspx - Lambda will intercept and handle login
+            response = self.session.post(
+                login_url,
+                data=payload,
+                timeout=self.request_timeout,
+                allow_redirects=True,  # Follow Lambda's redirects
+                headers={
+                    "Referer": login_url,
+                    "Origin": self.base_url.rsplit("/", 1)[0],
+                },
+            )
+            
+            # If Lambda successfully logged in, we should have cookies and be on Index.aspx
+            if response.status_code == 200:
+                # Check if we got authenticated
+                if self._has_authenticated_session():
+                    self._logger.info(
+                        "[PortalScraper] Lambda intercept login succeeded for %s", 
+                        normalized_roll
+                    )
+                    return True
+                else:
+                    self._logger.warning(
+                        "[PortalScraper] Lambda responded but no auth cookies received"
+                    )
+                    return False
+            else:
+                self._logger.warning(
+                    "[PortalScraper] Lambda intercept returned status %d", 
+                    response.status_code
+                )
+                return False
+                
+        except requests.RequestException as exc:
+            self._logger.warning("[PortalScraper] Lambda intercept request failed: %s", exc)
+            return False
 
     def _do_login(self, roll_number: str, password: str) -> dict:
         login_url = self._build_url(self.login_path)
