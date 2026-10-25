@@ -1434,6 +1434,17 @@ class PortalScraper:
                 "programs": programs,
                 "selected_program": selected_program,
             }
+        except (requests.Timeout, requests.exceptions.ReadTimeout):
+            # Timeout during post-login navigation - portal is very slow.
+            # Don't fail the entire login - return minimal data and let attendance fetch on-demand.
+            self._logger.warning("[PortalScraper] Post-login navigation timeout, returning minimal data")
+            return {
+                "attendance_response": None,
+                "student_name": None,
+                "student_photo_url": None,
+                "programs": [],
+                "selected_program": None,
+            }
         except requests.RequestException as exc:
             raise self._portal_network_error(
                 exc,
