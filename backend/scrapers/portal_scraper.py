@@ -2602,9 +2602,9 @@ class PortalScraper:
             is_retriable = status_code >= 500 or status_code == 0
             code_suffix = f"HTTP_{status_code}" if status_code else "HTTP_ERROR"
 
-            # 403 from the portal on authenticated pages means our VPS IP is blocked.
-            # Rotate the proxy tier exactly like we do for timeouts so the next
-            # request uses a different IP, and mark it as retriable.
+            # 502 from Lambda during POST_LOGIN_NAVIGATION means a Lambda timeout
+            # (Lambda returns 502 when it times out). Treat this as a timeout,
+            # not a session issue — just rotate to next endpoint with no cooldown.
             _authenticated_stages = {
                 "POST_LOGIN_NAVIGATION",
                 "ATTENDANCE_FETCH",
@@ -2615,6 +2615,34 @@ class PortalScraper:
                 "FACULTY_FETCH",
                 "COURSES_FETCH",
             }
+            if status_code == 502 and upper_stage in _authenticated_stages:
+                # Check if Lambda is the active tier
+                try:
+                    from services.lambda_rotator import lambda_rotator as _lr
+                    lambda_is_active = any(
+                        self.base_url.startswith(ep.rstrip("/"))
+                        for ep in (_lr._endpoints or [])
+                    )
+                    if lambda_is_active:
+                        # Lambda timeout (502) — just rotate, no cooldown
+                        _lr._usage_count = _lr._rotate_every  # force rotation on next pick
+                        self._logger.info(
+                            "[PortalScraper] Lambda 502 (timeout) — rotating to next endpoint, no cooldown"
+                        )
+                        self._apply_fallback_tiers()
+                        return PortalNetworkError(
+                            f"{message_prefix}: Lambda timeout (portal slow)",
+                            code=f"{upper_stage}_TIMEOUT",  # Mark as TIMEOUT not HTTP_502
+                            stage=upper_stage,
+                            retriable=True,
+                            http_status=504,
+                        )
+                except Exception:
+                    pass
+
+            # 403 from the portal on authenticated pages means our VPS IP is blocked.
+            # Rotate the proxy tier exactly like we do for timeouts so the next
+            # request uses a different IP, and mark it as retriable.
             if status_code == 403 and upper_stage in _authenticated_stages:
                 # HTTP 403 = portal explicitly rejected our IP — apply the full
                 # long cooldown (is_session_issue=False) so that endpoint is
