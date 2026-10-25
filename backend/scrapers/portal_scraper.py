@@ -429,19 +429,24 @@ class PortalScraper:
         nav_programs = navigation_payload.get("programs", [])
         nav_selected_program = navigation_payload.get("selected_program")
 
-        if self._looks_like_login_page(attendance_response.text) and not (login_redirected or has_auth_session):
-            raise PortalAuthenticationError(
-                "Portal redirected to login while loading attendance (session not authenticated)",
-                code="LOGIN_FAILED",
-            )
+        # Handle case where post-login navigation timed out (attendance_response is None)
+        if attendance_response is None:
+            logger.warning("Post-login navigation timed out, returning minimal login data")
+            payload = {"attendance": None}
+        else:
+            if self._looks_like_login_page(attendance_response.text) and not (login_redirected or has_auth_session):
+                raise PortalAuthenticationError(
+                    "Portal redirected to login while loading attendance (session not authenticated)",
+                    code="LOGIN_FAILED",
+                )
 
-        if self._looks_like_login_page(attendance_response.text) and not self._contains_attendance_table(attendance_response.text):
-            raise PortalAuthenticationError(
-                "Portal returned login page while loading attendance (session expired or invalid)",
-                code="LOGIN_FAILED",
-            )
+            if self._looks_like_login_page(attendance_response.text) and not self._contains_attendance_table(attendance_response.text):
+                raise PortalAuthenticationError(
+                    "Portal returned login page while loading attendance (session expired or invalid)",
+                    code="LOGIN_FAILED",
+                )
 
-        payload = self._build_attendance_payload(attendance_response.text)
+            payload = self._build_attendance_payload(attendance_response.text)
         if payload.get("attendance") is None:
             payload["attendance"] = []
 
