@@ -74,9 +74,15 @@ def mark_current_tier_failed(base_url: str | None = None, is_session_issue: bool
         from services.lambda_rotator import lambda_rotator
         for ep in (lambda_rotator._endpoints or []):
             if base_url.startswith(ep.rstrip("/")):
-                lambda_rotator.mark_current_blocked(is_session_issue=is_session_issue)
-                logger.info("[TierSelector] Marked Lambda endpoint blocked (%s): %s",
-                            "session" if is_session_issue else "IP block", ep)
+                # Lambda: Only block on confirmed IP blocks (403), not session issues.
+                # Session issues (HTML errors, timeouts) just rotate without cooldown.
+                if not is_session_issue:
+                    lambda_rotator.mark_current_blocked(is_session_issue=False)
+                    logger.info("[TierSelector] Marked Lambda endpoint blocked (IP block): %s", ep)
+                else:
+                    # Session issue - just force rotation, no cooldown
+                    lambda_rotator._usage_count = lambda_rotator._rotate_every
+                    logger.info("[TierSelector] Lambda session issue - forcing rotation, no block: %s", ep)
                 return
     except Exception as exc:
         logger.warning("[TierSelector] Lambda block error: %s", exc)
