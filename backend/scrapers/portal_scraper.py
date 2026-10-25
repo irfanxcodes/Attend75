@@ -156,13 +156,15 @@ class PortalScraper:
     
     def _try_lambda_intercept_login(self, roll_number: str, password: str) -> bool:
         """
-        Lambda v5 intercepts login POSTs automatically when they go through /sz/login.aspx.
-        This method is deprecated - Lambda intercept happens transparently through the normal
-        scraper flow when base_url points to Lambda.
+        Lambda v5 intercepts login POSTs automatically at /sz/login.aspx.
         
-        Returns False to skip this method and use normal login flow (which goes through Lambda).
+        This method is deprecated but kept for backward compatibility.
+        When base_url points to Lambda, the normal login flow (GET page + POST credentials)
+        goes through Lambda, and Lambda auto-detects the POST and runs intercept.
+        
+        Returns False to let normal login flow proceed (which Lambda will intercept).
         """
-        # Disable special intercept endpoint - Lambda intercepts automatically
+        # Let normal login flow proceed - Lambda intercepts automatically
         return False
 
     def _do_login(self, roll_number: str, password: str) -> dict:
