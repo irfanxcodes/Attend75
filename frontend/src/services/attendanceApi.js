@@ -299,7 +299,7 @@ export async function login(credentials) {
     // Poll for result
     const pollStart = Date.now()
     const MAX_WAIT_MS = 270000 // 4.5 minutes
-    const POLL_INTERVAL_MS = 3000
+    const POLL_INTERVAL_MS = 1000 // Poll every 1s for faster login feedback
 
     while (Date.now() - pollStart < MAX_WAIT_MS) {
       await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
