@@ -431,7 +431,7 @@ class PortalScraper:
 
         # Handle case where post-login navigation timed out (attendance_response is None)
         if attendance_response is None:
-            logger.warning("Post-login navigation timed out, returning minimal login data")
+            self._logger.warning("Post-login navigation timed out, returning minimal login data")
             payload = {"attendance": None}
         else:
             if self._looks_like_login_page(attendance_response.text) and not (login_redirected or has_auth_session):
