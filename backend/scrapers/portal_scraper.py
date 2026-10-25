@@ -1388,10 +1388,14 @@ class PortalScraper:
         # New portal uses AttendanceDashboard.aspx; fall back to CommonS.aspx?qs=ap for older sessions
         attendance_url = self._build_url("AttendanceDashboard.aspx")
 
+        # Use shorter timeout for post-login navigation (15s instead of 90s)
+        # to fail fast when portal is slow, rather than making user wait 90s
+        nav_timeout = 15
+
         try:
             index_response = self.session.get(
                 index_url,
-                timeout=self.request_timeout,
+                timeout=nav_timeout,
                 headers={"Referer": login_url},
             )
             index_response.raise_for_status()
@@ -1403,14 +1407,14 @@ class PortalScraper:
 
             sdb_response = self.session.get(
                 sdb_url,
-                timeout=self.request_timeout,
+                timeout=nav_timeout,
                 headers={"Referer": index_url},
             )
             sdb_response.raise_for_status()
 
             attendance_response = self.session.get(
                 attendance_url,
-                timeout=self.request_timeout,
+                timeout=nav_timeout,
                 headers={"Referer": index_url},
             )
             attendance_response.raise_for_status()
@@ -1420,7 +1424,7 @@ class PortalScraper:
                 fallback_url = self._build_url("CommonS.aspx?qs=ap")
                 fallback_response = self.session.get(
                     fallback_url,
-                    timeout=self.request_timeout,
+                    timeout=nav_timeout,
                     headers={"Referer": index_url},
                 )
                 fallback_response.raise_for_status()
@@ -1437,7 +1441,7 @@ class PortalScraper:
         except (requests.Timeout, requests.exceptions.ReadTimeout):
             # Timeout during post-login navigation - portal is very slow.
             # Don't fail the entire login - return minimal data and let attendance fetch on-demand.
-            self._logger.warning("[PortalScraper] Post-login navigation timeout, returning minimal data")
+            self._logger.warning("[PortalScraper] Post-login navigation timeout (>%ds), returning minimal data", nav_timeout)
             return {
                 "attendance_response": None,
                 "student_name": None,
