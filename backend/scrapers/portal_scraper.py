@@ -156,15 +156,84 @@ class PortalScraper:
     
     def _try_lambda_intercept_login(self, roll_number: str, password: str) -> bool:
         """
-        Lambda v5 intercepts login POSTs automatically at /sz/login.aspx.
-        
-        This method is deprecated but kept for backward compatibility.
-        When base_url points to Lambda, the normal login flow (GET page + POST credentials)
-        goes through Lambda, and Lambda auto-detects the POST and runs intercept.
-        
-        Returns False to let normal login flow proceed (which Lambda will intercept).
+        Use Lambda's /login intercept endpoint to perform the full login
+        (GET page + GET captcha + POST credentials) in a single Lambda invocation,
+        guaranteeing IP consistency across all 3 portal requests.
+
+        Returns True if login succeeded (session cookies are now set), False otherwise.
+        Raises PortalAuthenticationError on definitive credential failures.
         """
-        # Let normal login flow proceed - Lambda intercepts automatically
+        try:
+            from services.lambda_rotator import lambda_rotator as _lr
+            # Find the Lambda endpoint that matches our current base_url
+            lambda_url = None
+            for ep in (_lr._endpoints or []):
+                if self.base_url.startswith(ep.rstrip("/")):
+                    lambda_url = ep.rstrip("/")
+                    break
+            if not lambda_url:
+                return False
+        except Exception as exc:
+            self._logger.warning("[PortalScraper] Lambda intercept setup failed: %s", exc)
+            return False
+
+        intercept_url = lambda_url.rstrip("/") + "/login"
+        normalized_roll = (roll_number or "").strip().upper()
+
+        try:
+            resp = self.session.post(
+                intercept_url,
+                json={"roll_number": normalized_roll, "password": password},
+                timeout=self.request_timeout,
+                allow_redirects=False,
+            )
+        except requests.RequestException as exc:
+            self._logger.warning("[PortalScraper] Lambda intercept request failed: %s", exc)
+            return False
+
+        if resp.status_code in (301, 302, 303, 307, 308):
+            # Legacy: Lambda returned a redirect with Set-Cookie headers
+            self._logger.info(
+                "[PortalScraper] Lambda intercept login succeeded (redirect) for %s", normalized_roll
+            )
+            return True
+
+        # Current: Lambda returns 200 JSON with cookies dict
+        try:
+            body = resp.json()
+        except Exception:
+            self._logger.warning("[PortalScraper] Lambda intercept bad response: %s", resp.text[:100])
+            return False
+
+        if body.get("success"):
+            # Inject cookies from Lambda response into our session.
+            # Navigation after intercept goes directly to 111.93.16.209.
+            cookies = body.get("cookies", {})
+            for name, value in cookies.items():
+                self.session.cookies.set(name, value, domain="111.93.16.209")
+            self._logger.info(
+                "[PortalScraper] Lambda intercept login succeeded (%d cookies) for %s",
+                len(cookies), normalized_roll,
+            )
+            return True
+
+        code = body.get("code", "")
+        error = body.get("error", "")
+
+        if code == "INCORRECT_CREDENTIALS":
+            raise PortalAuthenticationError(
+                "Portal rejected login due to incorrect credentials",
+                code="INCORRECT_PASSWORD",
+            )
+        if code == "CAPTCHA_FAILED":
+            self._logger.warning(
+                "[PortalScraper] Lambda intercept captcha failed: %s", error
+            )
+            return False
+
+        self._logger.warning(
+            "[PortalScraper] Lambda intercept login failed [%s]: %s", code, error
+        )
         return False
 
     def _do_login(self, roll_number: str, password: str) -> dict:
