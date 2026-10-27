@@ -427,23 +427,10 @@ function Login() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className={`h-[46px] w-full rounded-full text-sm font-semibold text-[#1D183E] transition hover:brightness-105 active:scale-[0.99] disabled:opacity-60 ${
-                preLoginStarted && !isSubmitting
-                  ? 'bg-gradient-to-r from-[#F59B74] to-[#F2A07A] animate-pulse'
-                  : 'bg-[#F59B74]'
-              }`}
+              className="h-[46px] w-full rounded-full bg-[#F59B74] text-sm font-semibold text-[#1D183E] transition hover:brightness-105 active:scale-[0.99] disabled:opacity-60"
             >
-              <span key={signingInMessage} className="animate-fade-in inline-flex items-center gap-2">
-                {isSubmitting ? (
-                  signingInMessage
-                ) : preLoginStarted ? (
-                  <>
-                    <span>⚡</span>
-                    <span>Sign in (Ready!)</span>
-                  </>
-                ) : (
-                  'Sign in'
-                )}
+              <span key={signingInMessage} className="animate-fade-in">
+                {isSubmitting ? signingInMessage : 'Sign in'}
               </span>
             </button>
             <p className="text-center text-[10px] text-[#7A6F94]">
