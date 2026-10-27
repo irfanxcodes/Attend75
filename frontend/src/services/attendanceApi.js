@@ -255,7 +255,7 @@ export function isPortalCredentialError(error) {
   return (error?.code || '').toUpperCase() === 'PORTAL_CREDENTIALS_INVALID'
 }
 
-export async function login(credentials) {
+export async function login(credentials, preStartedJobId = null) {
   const username = credentials?.username?.trim()
   const password = credentials?.password?.trim()
 
@@ -266,35 +266,43 @@ export async function login(credentials) {
   // --- Attempt 1: Server-side scraping (async — non-blocking) ---
   let serverError = null
   try {
-    // Start login job (returns instantly)
-    let startResp
-    try {
-      startResp = await fetch(`${API_BASE_URL}/login/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roll_number: username, password }),
-      })
-    } catch {
-      throw new ApiError(
-        'Unable to reach the server. Please check your internet connection and try again.',
-        { code: 'PORTAL_UNREACHABLE', status: 0, endpoint: 'login' },
-      )
-    }
+    let jobId = preStartedJobId
 
-    if (!startResp.ok) {
-      const errData = await startResp.json().catch(() => ({}))
-      const errorCode = (errData?.error_code || '').toUpperCase()
-      if (['INVALID_USERNAME', 'INCORRECT_PASSWORD'].includes(errorCode)) {
+    // If we don't have a pre-started job, start one now
+    if (!jobId) {
+      // Start login job (returns instantly)
+      let startResp
+      try {
+        startResp = await fetch(`${API_BASE_URL}/login/start`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roll_number: username, password }),
+        })
+      } catch {
         throw new ApiError(
-          buildFriendlyMessage('login', errorCode, errData?.message || ''),
-          { code: errorCode, status: startResp.status, endpoint: 'login' },
+          'Unable to reach the server. Please check your internet connection and try again.',
+          { code: 'PORTAL_UNREACHABLE', status: 0, endpoint: 'login' },
         )
       }
-      serverError = errorCode || `HTTP_${startResp.status}`
-      throw new ApiError('server_error', { code: serverError, status: startResp.status, endpoint: 'login' })
-    }
 
-    const { job_id: jobId } = await startResp.json()
+      if (!startResp.ok) {
+        const errData = await startResp.json().catch(() => ({}))
+        const errorCode = (errData?.error_code || '').toUpperCase()
+        if (['INVALID_USERNAME', 'INCORRECT_PASSWORD'].includes(errorCode)) {
+          throw new ApiError(
+            buildFriendlyMessage('login', errorCode, errData?.message || ''),
+            { code: errorCode, status: startResp.status, endpoint: 'login' },
+          )
+        }
+        serverError = errorCode || `HTTP_${startResp.status}`
+        throw new ApiError('server_error', { code: serverError, status: startResp.status, endpoint: 'login' })
+      }
+
+      const startData = await startResp.json()
+      jobId = startData.job_id
+    } else {
+      console.log('[Login] Using pre-started job ID:', jobId)
+    }
 
     // Poll for result
     const pollStart = Date.now()

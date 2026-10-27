@@ -469,7 +469,7 @@ After the streak endpoint populates the history cache, all date clicks on the Hi
 | `PORTAL_FACULTY_CACHE_TTL_SECONDS` | `60` | Faculty cache TTL |
 | `PORTAL_OPERATION_RETRY_ATTEMPTS` | `2` | Network retry count |
 | `SESSION_STORE_MAX_SESSIONS` | `5000` | Maximum concurrent sessions |
-| `SESSION_STORE_TTL_SECONDS` | `43200` | Session lifetime (12h) |
+| `SESSION_STORE_TTL_SECONDS` | `86400` | Session lifetime (24h) |
 | `ADMIN_USERNAME` | `admin` | Admin login username |
 | `ADMIN_PASSWORD_HASH` | None | PBKDF2 SHA256 hash for admin password |
 | `CORS_ALLOW_ORIGINS` | `localhost:5173` | Allowed CORS origins |

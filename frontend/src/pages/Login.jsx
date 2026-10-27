@@ -5,6 +5,7 @@ import useAppStore from '../hooks/useAppStore'
 import { isFirebaseAuthError, isPortalCredentialError, linkFirebaseCredentials, login, loginWithFirebase } from '../services/attendanceApi'
 import { signInWithGoogleAndGetIdToken, signOutFirebaseUser } from '../services/firebaseAuth'
 import { buildDemoSession } from '../constants/demoData'
+import { usePreLogin } from '../services/preLoginService'
 
 const REMEMBERED_LOGIN_ID_KEY = 'attend75.rememberedLoginId'
 const REMEMBERED_PASSWORD_KEY = 'attend75.rememberedPassword'
@@ -129,9 +130,50 @@ function Login() {
   const [linkForm, setLinkForm] = useState({ rollNumber: '', password: '' })
   const [isLinkingSubmitting, setIsLinkingSubmitting] = useState(false)
   const [linkError, setLinkError] = useState('')
-  const isAuthLoading = isGoogleSubmitting || isLinkingSubmitting
   const [isAuthOverlayMounted, setIsAuthOverlayMounted] = useState(false)
   const [isAuthOverlayVisible, setIsAuthOverlayVisible] = useState(false)
+
+  // Pre-login: Start login process when fields are detected as filled
+  const [preLoginStarted, setPreLoginStarted] = useState(false)
+  const { 
+    triggerPreLogin, 
+    schedulePreLoginCheck, 
+    getJobId, 
+    reset: resetPreLogin 
+  } = usePreLogin({
+    username: form.username,
+    password: form.password,
+    enabled: !isSubmitting && !isGoogleSubmitting && !isLinkingSubmitting,
+    onStart: ({ jobId, timeSaved }) => {
+      console.log(`[PreLogin] Started early! Job ID: ${jobId}, Time saved: ${timeSaved}ms`)
+      setPreLoginStarted(true)
+    }
+  })
+
+  // Auto-detect autofill and trigger pre-login
+  useEffect(() => {
+    // Check for autofill immediately (catches fast browser autofill)
+    schedulePreLoginCheck()
+
+    // Set up interval to catch delayed autofill (Face ID, password managers)
+    const autofillInterval = setInterval(() => {
+      if (form.username && form.password && !preLoginStarted) {
+        schedulePreLoginCheck()
+      }
+    }, 500)
+
+    return () => clearInterval(autofillInterval)
+  }, [form.username, form.password, preLoginStarted, schedulePreLoginCheck])
+
+  // Trigger pre-login on manual typing
+  useEffect(() => {
+    if (form.username && !preLoginStarted) {
+      // User started typing - schedule pre-login check
+      schedulePreLoginCheck()
+    }
+  }, [form.username, preLoginStarted, schedulePreLoginCheck])
+
+  const isAuthLoading = isGoogleSubmitting || isLinkingSubmitting
 
   useEffect(() => {
     let closeTimer = null
@@ -158,11 +200,19 @@ function Login() {
   async function handleSubmit(event) {
     event.preventDefault()
 
+    // Check if we have a pre-started job
+    const preStartedJobId = getJobId()
+    if (preStartedJobId) {
+      console.log('[PreLogin] Using pre-started job:', preStartedJobId)
+    }
+
     try {
       setError('')
       setIsSubmitting(true)
       startMessageCycle()
-      const session = await login(form)
+      
+      // Pass pre-started job ID to login function (will be used in next step)
+      const session = await login(form, preStartedJobId)
 
       try {
         localStorage.removeItem(LEGACY_REMEMBER_KEY)
@@ -185,6 +235,7 @@ function Login() {
     } finally {
       setIsSubmitting(false)
       stopMessageCycle()
+      resetPreLogin()
     }
   }
 
@@ -376,10 +427,23 @@ function Login() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="h-[46px] w-full rounded-full bg-[#F59B74] text-sm font-semibold text-[#1D183E] transition hover:brightness-105 active:scale-[0.99] disabled:opacity-60"
+              className={`h-[46px] w-full rounded-full text-sm font-semibold text-[#1D183E] transition hover:brightness-105 active:scale-[0.99] disabled:opacity-60 ${
+                preLoginStarted && !isSubmitting
+                  ? 'bg-gradient-to-r from-[#F59B74] to-[#F2A07A] animate-pulse'
+                  : 'bg-[#F59B74]'
+              }`}
             >
-              <span key={signingInMessage} className="animate-fade-in">
-                {isSubmitting ? signingInMessage : 'Sign in'}
+              <span key={signingInMessage} className="animate-fade-in inline-flex items-center gap-2">
+                {isSubmitting ? (
+                  signingInMessage
+                ) : preLoginStarted ? (
+                  <>
+                    <span>⚡</span>
+                    <span>Sign in (Ready!)</span>
+                  </>
+                ) : (
+                  'Sign in'
+                )}
               </span>
             </button>
             <p className="text-center text-[10px] text-[#7A6F94]">
