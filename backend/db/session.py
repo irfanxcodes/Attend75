@@ -80,6 +80,7 @@ def init_database() -> None:
     from db.models import push_subscription  # noqa: F401
     from db.models import pwa_install  # noqa: F401
     from db.models import advertisement  # noqa: F401
+    from db.models import portal_session  # noqa: F401
 
     if IS_SQLITE:
         # For SQLite local dev, auto-create all tables directly (no Alembic needed)

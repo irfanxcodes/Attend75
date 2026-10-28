@@ -68,6 +68,13 @@ DEPLOYMENT_*.md
 # Cleanup backups
 cleanup_backup_*/
 
+# Temporary cleanup scripts
+cleanup_project.sh
+git_cleanup.sh
+
+# IDE-specific files
+.kiro/specs/
+
 # Test artifacts
 backend/investigation_results_*.json
 backend/*_response*.html

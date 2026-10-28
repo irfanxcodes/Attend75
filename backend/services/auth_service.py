@@ -83,6 +83,12 @@ def _try_refresh_portal_session(record):
                 record.roll_number
             )
             
+            # Ensure scraper has db_session for cookie storage
+            if not record.scraper._db_session:
+                from services.cookie_manager import CookieManager
+                record.scraper._db_session = db_session
+                record.scraper._cookie_manager = CookieManager(db_session)
+            
             login_result = record.scraper.login(
                 roll_number=record.roll_number,
                 password=password
@@ -269,16 +275,27 @@ def login_user(roll_number: str, password: str, user_agent: str | None = None) -
 
     from services.tier_selector import get_scraper_config, mark_current_tier_failed
     from services.stage_preserving_session import StagePreservingSession
+    from db.session import SessionLocal
 
     for attempt in range(1, max_ip_attempts + 1):
         # ── Pick the highest-priority available tier ──────────────────────────
         base_url, stage_prefix = get_scraper_config()
         session = StagePreservingSession(stage_prefix=stage_prefix)
-        scraper = PortalScraper(session=session, base_url=base_url)
-
+        
+        # Create database session for cookie storage
+        db = SessionLocal()
         try:
-            data = scraper.login(roll_number=roll_number, password=password)
-            break  # success — exit retry loop
+            scraper = PortalScraper(session=session, base_url=base_url, db_session=db)
+
+            try:
+                data = scraper.login(roll_number=roll_number, password=password)
+                break  # success — exit retry loop
+            finally:
+                # Close database session after login attempt
+                db.close()
+        except Exception:
+            db.close()
+            raise
         except PortalNetworkError as exc:
             last_network_exc = exc
             error_code = str(getattr(exc, "code", "") or "").upper()
