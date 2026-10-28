@@ -147,6 +147,18 @@ def fetch_and_solve(captcha_image_url: str, session: requests.Session) -> str:
 
     content_type = response.headers.get("content-type", "").lower()
 
+    # Check if Lambda returned base64-encoded response
+    # Lambda + API Gateway may return base64 for binary data
+    if content[:20].isascii() and not content[:4] in (b"\x89PNG", b"\xff\xd8", b"<?xml", b"<svg"):
+        try:
+            import base64
+            decoded = base64.b64decode(content)
+            if decoded[:4] == b"\x89PNG" or decoded[:2] == b"\xff\xd8":
+                logger.info("Detected base64-encoded image from Lambda, decoding...")
+                content = decoded
+        except Exception:
+            pass  # Not base64, continue with original content
+
     # SVG path (old portal format)
     if "svg" in content_type or content[:5] == b"<?xml" or content[:4] == b"<svg":
         return extract_from_svg(content)

@@ -1,6 +1,7 @@
 import os
 import re
 import time
+import base64
 import copy
 import logging
 from datetime import datetime
@@ -36,11 +37,18 @@ class PortalNetworkError(Exception):
 
 
 class PortalScraper:
-    def __init__(self, session: requests.Session | None = None, base_url: str | None = None):
+    def __init__(self, session: requests.Session | None = None, base_url: str | None = None, db_session = None):
         self._logger = logging.getLogger(__name__)
         self.session = session or requests.Session()
         self.base_url = base_url or os.getenv("PORTAL_BASE_URL", "http://111.93.16.209/sz")
         self.login_path = os.getenv("PORTAL_LOGIN_PATH", "login.aspx")
+        
+        # Database session for cookie storage (optional)
+        self._db_session = db_session
+        self._cookie_manager = None
+        if db_session:
+            from services.cookie_manager import CookieManager
+            self._cookie_manager = CookieManager(db_session)
         
         # Generate a unique session ID for this scraper instance
         # Workers will use this to maintain portal cookies server-side
@@ -121,6 +129,87 @@ class PortalScraper:
             }
         )
 
+    def _save_cookies_to_db(self, roll_number: str) -> None:
+        """Save current session cookies to database for Lambda/Worker reuse."""
+        if not self._cookie_manager:
+            return
+        
+        # Convert session cookies to dict
+        cookies_dict = {}
+        for cookie in self.session.cookies:
+            cookies_dict[cookie.name] = cookie.value
+        
+        if cookies_dict:
+            self._cookie_manager.save_cookies(roll_number, cookies_dict)
+            self._logger.info(
+                f"[PortalScraper] Saved {len(cookies_dict)} cookies to database for {roll_number}"
+            )
+
+    def _load_cookies_from_db(self, roll_number: str) -> bool:
+        """Load cookies from database into session. Returns True if cookies were loaded."""
+        if not self._cookie_manager:
+            return False
+        
+        cookies_dict = self._cookie_manager.load_cookies(roll_number)
+        if not cookies_dict:
+            return False
+        
+        # Inject cookies into session
+        for name, value in cookies_dict.items():
+            self.session.cookies.set(name, value, domain="", path="/")
+        
+        self._logger.info(
+            f"[PortalScraper] Loaded {len(cookies_dict)} cookies from database for {roll_number}"
+        )
+        return True
+
+    def _delete_cookies_from_db(self, roll_number: str) -> None:
+        """Delete cookies from database (on logout or session expiry)."""
+        if not self._cookie_manager:
+            return
+        
+        self._cookie_manager.delete_session(roll_number)
+        self._logger.info(f"[PortalScraper] Deleted cookies from database for {roll_number}")
+
+    def _get_roll_number_from_cookies(self) -> str | None:
+        """Extract roll number from current session cookies."""
+        # Try multiple cookie names that might contain the roll number
+        candidates = ['UserID', 'Enrolno', 'CurrentSession']
+        
+        for name in candidates:
+            value = self.session.cookies.get(name)
+            if value:
+                # Roll numbers are typically uppercase and numeric
+                value = str(value).strip().upper()
+                if value and len(value) > 5:  # Reasonable roll number length
+                    return value
+        
+        return None
+
+    def _ensure_cookies_loaded(self) -> None:
+        """
+        Ensure cookies are loaded before fetch operations.
+        If no cookies in session but database has them, load from database.
+        This enables Lambda/Worker to reuse sessions without re-login.
+        """
+        if not self._cookie_manager:
+            return
+        
+        # Check if we already have authentication cookies
+        has_auth_cookies = any(
+            self.session.cookies.get(name) 
+            for name in ['ASP.NET_SessionId', 'UserID', 'Enrolno']
+        )
+        
+        if has_auth_cookies:
+            return  # Already authenticated
+        
+        # Try to load from database using roll number from previous session
+        # In a Lambda/Worker scenario, the roll number would be passed as parameter
+        # For now, we'll rely on the calling code to set cookies beforehand
+        # or call _load_cookies_from_db() explicitly with the roll number
+        self._logger.debug("[PortalScraper] No auth cookies in session, may need to load from DB")
+
     def login(self, roll_number: str, password: str) -> dict:
         # Cloudflare Workers are too slow for login (10+ s navigation timeouts).
         # Disable them and let _apply_fallback_tiers() pick the best available
@@ -177,16 +266,23 @@ class PortalScraper:
             self._logger.warning("[PortalScraper] Lambda intercept setup failed: %s", exc)
             return False
 
-        # Call the dedicated /login endpoint on the Lambda function.
-        # This endpoint runs the full flow (GET page + GET captcha + POST creds)
-        # inside a single Lambda invocation — same IP for all 3 portal requests.
-        intercept_url = lambda_url.rstrip("/") + "/login"
+        # The Lambda intercepts POST requests to /sz/login.aspx when it detects
+        # form data with txtLogin, txtPassword, and bl fields. It then runs the full
+        # login flow (GET page + GET captcha + POST creds) in a single invocation,
+        # ensuring IP consistency across all 3 portal requests.
+        intercept_url = lambda_url.rstrip("/") + "/sz/login.aspx"
         normalized_roll = (roll_number or "").strip().upper()
 
         try:
+            # Send minimal form data that triggers Lambda intercept mode
             resp = self.session.post(
                 intercept_url,
-                json={"roll_number": normalized_roll, "password": password},
+                data={
+                    "txtLogin": normalized_roll,
+                    "txtPassword": password,
+                    "bl": "Student",
+                    "btnSubmit": "Submit"
+                },
                 timeout=self.request_timeout,
                 allow_redirects=False,
             )
@@ -212,13 +308,17 @@ class PortalScraper:
             return False
 
         if body.get("success"):
-            # Inject cookies into our session bound to the portal's direct IP.
-            # All subsequent navigation (Index.aspx, SDB.aspx, attendance) goes
-            # through Lambda which proxies to 111.93.16.209 — the cookie domain
-            # must match the portal host, not the Lambda function URL.
+            # Inject cookies into our session. Use update() instead of set() to
+            # avoid domain restrictions - cookies become session-scoped automatically.
             cookies = body.get("cookies", {})
+            
+            # Convert cookie dict to a proper cookie jar update
+            # This allows subsequent requests to work regardless of domain
+            cookie_jar = self.session.cookies
             for name, value in cookies.items():
-                self.session.cookies.set(name, value, domain="111.93.16.209")
+                # Set cookie without domain - makes it work for all requests in session
+                cookie_jar.set(name, value, domain="", path="/")
+            
             self._logger.info(
                 "[PortalScraper] Lambda intercept login succeeded (%d cookies) for %s",
                 len(cookies), normalized_roll,
@@ -245,6 +345,51 @@ class PortalScraper:
         )
         return False
 
+    def _switch_from_lambda_to_api_gateway_after_login(self) -> None:
+        """
+        Switch from Lambda to API Gateway after login and copy cookies.
+        
+        Lambda intercept login works, but Lambda doesn't maintain sessions across
+        invocations. Copy cookies from Lambda domain to API Gateway domain and
+        switch the base tier.
+        """
+        # Get all cookies from Lambda domain
+        lambda_cookies = {}
+        for cookie in list(self.session.cookies):
+            if 'execute-api' in (cookie.domain or ''):
+                lambda_cookies[cookie.name] = cookie.value
+        
+        # Mark Lambda as unavailable so _apply_fallback_tiers skips it
+        try:
+            from services.lambda_rotator import lambda_rotator
+            # Mark all Lambda endpoints as blocked temporarily (just for this session)
+            for endpoint in (lambda_rotator._endpoints or []):
+                lambda_rotator._endpoint_status[endpoint] = {
+                    'blocked': True,
+                    'blocked_until': float('inf'),  # Blocked for rest of session
+                }
+        except Exception:
+            pass
+        
+        # Reset base_url to portal default so _apply_fallback_tiers can reassign it
+        self.base_url = "http://111.93.16.209/sz"
+        
+        # Switch to API Gateway tier
+        self._apply_fallback_tiers()
+        
+        # Copy cookies to API Gateway domain
+        if self._api_gateway_base:
+            from urllib.parse import urlparse
+            api_gateway_domain = urlparse(self._api_gateway_base).netloc
+            for name, value in lambda_cookies.items():
+                self.session.cookies.set(name, value, domain=api_gateway_domain)
+            self._logger.info(
+                "[PortalScraper] Switched from Lambda to API Gateway, copied %d cookies",
+                len(lambda_cookies)
+            )
+        else:
+            self._logger.warning("[PortalScraper] Could not switch to API Gateway after login")
+
     def _do_login(self, roll_number: str, password: str) -> dict:
         login_url = self._build_url(self.login_path)
         normalized_roll = (roll_number or "").strip().upper()
@@ -268,9 +413,8 @@ class PortalScraper:
 
             if _lambda_intercept_succeeded:
                 # Cookies set — Lambda authenticated the session.
-                # IMPORTANT: Keep using Lambda base_url for all navigation!
-                # The portal session is tied to the Lambda IP that did the login.
-                # Switching to direct 111.93.16.209 would use a different IP and break the session.
+                # Lambda proxy can handle all subsequent requests with the session cookies.
+                # Stay on Lambda tier for faster navigation (1-2s per request vs 3-5s API Gateway).
                 navigation_payload = self._run_post_login_navigation(login_url)
                 return self._build_login_result(
                     navigation_payload=navigation_payload,
@@ -285,7 +429,7 @@ class PortalScraper:
             login_page = self.session.get(login_url, timeout=self.request_timeout)
             login_page.raise_for_status()
 
-            payload = self._extract_hidden_form_fields(login_page.text)
+            payload = self._extract_hidden_form_fields(self._decode_response_if_needed(login_page.text))
             payload.update(
                 {
                     "txtLogin": normalized_roll,
@@ -296,7 +440,7 @@ class PortalScraper:
             )
 
             # Portal has Student/Parent radio options; enforce Student selection.
-            payload.update(self._get_student_radio_payload(login_page.text))
+            payload.update(self._get_student_radio_payload(self._decode_response_if_needed(login_page.text)))
 
             # Solve the image captcha — retry up to 3 times with a fresh captcha
             # image each attempt (captcha rotates on every fetch, VIEWSTATE stays
@@ -345,8 +489,8 @@ class PortalScraper:
                 # If it's still the login page, check whether captcha was wrong
                 # (wrong captcha → portal re-renders login page with NEW captcha image)
                 # vs wrong password (portal shows specific error text).
-                if self._looks_like_login_page(response.text):
-                    invalid_reason = self._classify_invalid_credentials(response.text)
+                if self._looks_like_login_page(self._decode_response_if_needed(response.text)):
+                    invalid_reason = self._classify_invalid_credentials(self._decode_response_if_needed(response.text))
                     if invalid_reason in ("INVALID_USERNAME", "INCORRECT_PASSWORD"):
                         # Definitive credential failure — no point retrying captcha
                         break
@@ -357,7 +501,7 @@ class PortalScraper:
                             captcha_attempt + 1, MAX_CAPTCHA_ATTEMPTS,
                         )
                         # Update VIEWSTATE from response in case it changed
-                        retry_payload = self._extract_hidden_form_fields(response.text)
+                        retry_payload = self._extract_hidden_form_fields(self._decode_response_if_needed(response.text))
                         if retry_payload:
                             payload.update(retry_payload)
                         continue
@@ -386,8 +530,8 @@ class PortalScraper:
         login_redirected = self._is_success_redirect(response)
         has_auth_session = self._has_authenticated_session()
 
-        if self._looks_like_login_page(response.text) and not (login_redirected or has_auth_session):
-            invalid_reason = self._classify_invalid_credentials(response.text)
+        if self._looks_like_login_page(self._decode_response_if_needed(response.text)) and not (login_redirected or has_auth_session):
+            invalid_reason = self._classify_invalid_credentials(self._decode_response_if_needed(response.text))
             if invalid_reason == "INVALID_USERNAME":
                 raise PortalAuthenticationError(
                     "Portal rejected login due to invalid username/roll number",
@@ -433,6 +577,7 @@ class PortalScraper:
     ) -> dict:
         """Build the final login result dict from post-login navigation data."""
         attendance_response = navigation_payload["attendance_response"]
+        marks_response = navigation_payload.get("marks_response")
         student_name = navigation_payload.get("student_name")
         student_photo_url = navigation_payload.get("student_photo_url")
         nav_programs = navigation_payload.get("programs", [])
@@ -443,19 +588,19 @@ class PortalScraper:
             self._logger.warning("Post-login navigation timed out, returning minimal login data")
             payload = {"attendance": None}
         else:
-            if self._looks_like_login_page(attendance_response.text) and not (login_redirected or has_auth_session):
+            if self._looks_like_login_page(self._decode_response_if_needed(attendance_response.text)) and not (login_redirected or has_auth_session):
                 raise PortalAuthenticationError(
                     "Portal redirected to login while loading attendance (session not authenticated)",
                     code="LOGIN_FAILED",
                 )
 
-            if self._looks_like_login_page(attendance_response.text) and not self._contains_attendance_table(attendance_response.text):
+            if self._looks_like_login_page(self._decode_response_if_needed(attendance_response.text)) and not self._contains_attendance_table(self._decode_response_if_needed(attendance_response.text)):
                 raise PortalAuthenticationError(
                     "Portal returned login page while loading attendance (session expired or invalid)",
                     code="LOGIN_FAILED",
                 )
 
-            payload = self._build_attendance_payload(attendance_response.text)
+            payload = self._build_attendance_payload(self._decode_response_if_needed(attendance_response.text))
         if payload.get("attendance") is None:
             payload["attendance"] = []
 
@@ -519,17 +664,39 @@ class PortalScraper:
         payload["student_photo_url"] = student_photo_url
 
         # Extract program and semester from portal cookies set at login
-        payload["program_sn"] = (self.session.cookies.get("ProgramSN") or "").strip() or None
-        payload["program_full"] = (self.session.cookies.get("Program") or "").strip() or None
+        # Handle potential duplicate cookies from Lambda intercept + navigation responses
+        def get_cookie_value(name: str) -> str:
+            """Get cookie value, handling duplicates by taking the first one."""
+            try:
+                return self.session.cookies.get(name) or ""
+            except Exception:
+                # If duplicate cookies exist, get the first matching one
+                for cookie in self.session.cookies:
+                    if cookie.name == name:
+                        return cookie.value or ""
+                return ""
+        
+        payload["program_sn"] = get_cookie_value("ProgramSN").strip() or None
+        payload["program_full"] = get_cookie_value("Program").strip() or None
 
         # Use programs extracted from Index.aspx during navigation (ddlClassof only lives there)
         if nav_programs:
             payload["programs"] = nav_programs
             payload["selected_program"] = nav_selected_program
 
+        # Save cookies to database after successful login (for Lambda/Worker reuse)
+        try:
+            self._save_cookies_to_db(normalized_roll)
+        except Exception as e:
+            # Don't fail login if cookie storage fails - just log it
+            self._logger.error(f"[PortalScraper] Failed to save cookies after login: {e}")
+
         return payload
 
     def fetch_attendance_for_semester(self, semester_id: str | None = None, program_id: str | None = None, force_refresh: bool = False) -> dict:
+        # Load cookies from database if available (for Lambda/Worker session reuse)
+        self._ensure_cookies_loaded()
+        
         cache_key = self._semester_cache_key(semester_id, program_id)
         if not force_refresh:
             cached_payload = self._read_cache(self._attendance_cache, cache_key, self._attendance_cache_ttl_seconds)
@@ -552,7 +719,7 @@ class PortalScraper:
                 message_prefix="Unable to fetch attendance data from college portal",
             ) from exc
 
-        html = attendance_response.text
+        html = self._decode_response_if_needed(attendance_response.text)
 
         # Fall back to old portal URL if new dashboard returns no cards
         if not self._contains_attendance_cards(html) and not self._contains_attendance_table(html):
@@ -564,9 +731,9 @@ class PortalScraper:
                     headers={"Referer": self._build_url("Index.aspx")},
                 )
                 fallback_response.raise_for_status()
-                if self._contains_attendance_table(fallback_response.text) or self._contains_attendance_cards(fallback_response.text):
+                if self._contains_attendance_table(self._decode_response_if_needed(fallback_response.text)) or self._contains_attendance_cards(self._decode_response_if_needed(fallback_response.text)):
                     attendance_url = fallback_url
-                    html = fallback_response.text
+                    html = self._decode_response_if_needed(fallback_response.text)
             except requests.RequestException:
                 pass  # stick with AttendanceDashboard response
 
@@ -616,32 +783,68 @@ class PortalScraper:
         return payload
 
     def fetch_subject_attendance_history(self, semester_id: str | None = None, date: str | None = None) -> dict:
+        # Load cookies from database if available (for Lambda/Worker session reuse)
+        self._ensure_cookies_loaded()
+        
         attendance_payload = self.fetch_attendance_for_semester(semester_id=semester_id)
         selected_semester = attendance_payload.get("selected_semester") or semester_id or "default"
         cache_key = str(selected_semester)
 
+        _logger.debug(f"Fetch history: semester={selected_semester}, date={date}, subjects={len(attendance_payload.get('attendance', []))}")
+
+        # Check if we need to fetch fresh history
+        need_fresh_history = cache_key not in self._history_cache
+        
         if cache_key in self._history_cache:
             history_by_date = self._history_cache[cache_key]
             if not self._history_cache_has_abbreviations(history_by_date):
-                history_by_date = self._scrape_all_subject_history(attendance_payload.get("attendance", []))
-                self._history_cache[cache_key] = history_by_date
-        else:
+                _logger.debug(f"Cache needs refresh (no abbreviations)")
+                need_fresh_history = True
+            else:
+                _logger.debug(f"Using cached history data: {len(history_by_date)} dates")
+        
+        if need_fresh_history:
+            _logger.debug(f"Scraping fresh history for {len(attendance_payload.get('attendance', []))} subjects")
+            
+            # Ensure we're on the attendance page before scraping history
+            # This maintains proper session context and cookies
+            try:
+                attendance_url = self._build_url("AttendanceDashboard.aspx")
+                response = self.session.get(
+                    attendance_url,
+                    timeout=self.request_timeout,
+                    headers={
+                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                        "Accept-Language": "en-US,en;q=0.9",
+                    },
+                    allow_redirects=True,
+                )
+                _logger.debug(f"Pre-navigated to attendance page: {response.status_code}")
+            except Exception as e:
+                _logger.warning(f"Pre-navigation to attendance page failed: {e}")
+            
             history_by_date = self._scrape_all_subject_history(attendance_payload.get("attendance", []))
             self._history_cache[cache_key] = history_by_date
 
         if date:
+            entries = history_by_date.get(date, [])
+            _logger.debug(f"History for {date}: {len(entries)} entries")
             return {
                 "date": date,
-                "entries": history_by_date.get(date, []),
+                "entries": entries,
                 "selected_semester": selected_semester,
             }
 
+        _logger.debug(f"History fetched: {len(history_by_date)} dates")
         return {
             "history_by_date": history_by_date,
             "selected_semester": selected_semester,
         }
 
     def fetch_consolidated_marks(self, semester_id: str | None = None, force_refresh: bool = False) -> dict:
+        # Load cookies from database if available (for Lambda/Worker session reuse)
+        self._ensure_cookies_loaded()
+        
         cache_key = self._semester_cache_key(semester_id)
         if not force_refresh:
             cached_payload = self._read_cache(self._marks_cache, cache_key, self._marks_cache_ttl_seconds)
@@ -662,11 +865,22 @@ class PortalScraper:
             try:
                 html, page_url = self._load_consolidated_marks_page()
 
-                if semester_id:
-                    switched_html = self._switch_semester_on_page(html, page_url, semester_id)
+                # Marks pages need a postback to populate the card-body, even when
+                # the semester is already selected. If no semester_id was provided,
+                # extract the currently selected semester and use it to trigger postback.
+                target_semester = semester_id
+                if not target_semester:
+                    _, selected_semester = self._extract_semesters(html)
+                    if selected_semester:
+                        target_semester = str(selected_semester).strip()
+                
+                if target_semester:
+                    switched_html = self._switch_semester_on_page(html, page_url, target_semester)
                     if switched_html is not None:
                         html = switched_html
-                    self.session.cookies.set("SemesterID", str(semester_id).strip())
+                    # Only update cookie if user explicitly provided semester_id
+                    if semester_id:
+                        self.session.cookies.set("SemesterID", str(semester_id).strip())
 
                 if self._looks_like_login_page(html):
                     raise PortalAuthenticationError(
@@ -722,6 +936,9 @@ class PortalScraper:
         return payload
 
     def fetch_faculty_contacts(self, semester_id: str | None = None, force_refresh: bool = False) -> dict:
+        # Load cookies from database if available (for Lambda/Worker session reuse)
+        self._ensure_cookies_loaded()
+        
         cache_key = self._semester_cache_key(semester_id)
         if not force_refresh:
             cached_payload = self._read_cache(self._faculty_cache, cache_key, self._faculty_cache_ttl_seconds)
@@ -744,7 +961,7 @@ class PortalScraper:
                 message_prefix="Unable to fetch faculty page from college portal",
             ) from exc
 
-        html = response.text
+        html = self._decode_response_if_needed(response.text)
         if semester_id:
             switched_html = self._switch_semester_on_page(html, faculty_url, semester_id)
             if switched_html is not None:
@@ -846,7 +1063,7 @@ class PortalScraper:
                     ) from exc
                 continue
 
-            html = response.text
+            html = self._decode_response_if_needed(response.text)
             response_status = int(getattr(response, "status_code", 0) or 0)
             final_url = str(getattr(response, "url", "") or "")
             html_preview = self._build_safe_html_preview(html)
@@ -879,6 +1096,24 @@ class PortalScraper:
                     html_preview=html_preview,
                 )
                 continue
+
+            # If page has semester dropdown but no marks table, try postback to populate it
+            soup = BeautifulSoup(html, "html.parser")
+            select_element = soup.find("select", {"name": "ddlSem"})
+            if select_element:
+                selected_option = select_element.find("option", selected=True)
+                if selected_option:
+                    selected_value = (selected_option.get("value") or "").strip()
+                    # Skip placeholder options like " Select" or empty
+                    if selected_value and selected_value != "Select" and not selected_value.startswith(" "):
+                        # Try postback with the selected semester
+                        try:
+                            switched_html = self._switch_semester_on_page(html, url, selected_value)
+                            if switched_html and switched_html != html:
+                                html = switched_html
+                                html_preview = self._build_safe_html_preview(html)
+                        except Exception:
+                            pass  # If postback fails, continue with original HTML
 
             has_marks_table = self._find_consolidated_marks_table(BeautifulSoup(html, "html.parser")) is not None
             if has_marks_table:
@@ -1413,11 +1648,11 @@ class PortalScraper:
                 headers={"Referer": login_url},
             )
             index_response.raise_for_status()
-            student_name = self._extract_student_name(index_response.text)
-            student_photo_url = self._extract_student_photo(index_response.text)
+            student_name = self._extract_student_name(self._decode_response_if_needed(index_response.text))
+            student_photo_url = self._extract_student_photo(self._decode_response_if_needed(index_response.text))
 
             # Extract programs from Index.aspx — ddlClassof is only available here
-            programs, selected_program = self._extract_programs(index_response.text)
+            programs, selected_program = self._extract_programs(self._decode_response_if_needed(index_response.text))
 
             sdb_response = self.session.get(
                 sdb_url,
@@ -1434,7 +1669,7 @@ class PortalScraper:
             attendance_response.raise_for_status()
 
             # If new dashboard returns no ad-card divs, fall back to old CommonS page
-            if not self._contains_attendance_cards(attendance_response.text):
+            if not self._contains_attendance_cards(self._decode_response_if_needed(attendance_response.text)):
                 fallback_url = self._build_url("CommonS.aspx?qs=ap")
                 fallback_response = self.session.get(
                     fallback_url,
@@ -1442,11 +1677,26 @@ class PortalScraper:
                     headers={"Referer": index_url},
                 )
                 fallback_response.raise_for_status()
-                if self._contains_attendance_table(fallback_response.text) or self._contains_attendance_cards(fallback_response.text):
+                if self._contains_attendance_table(self._decode_response_if_needed(fallback_response.text)) or self._contains_attendance_cards(self._decode_response_if_needed(fallback_response.text)):
                     attendance_response = fallback_response
+
+            # Fetch marks during login while Lambda session is fresh
+            marks_response = None
+            try:
+                marks_url = self._build_url("CommonS.aspx?qs=cmarks")
+                marks_response = self.session.get(
+                    marks_url,
+                    timeout=nav_timeout,
+                    headers={"Referer": index_url},
+                )
+                marks_response.raise_for_status()
+                self._logger.info("[PortalScraper] Fetched marks during login navigation")
+            except Exception as e:
+                self._logger.warning("[PortalScraper] Could not fetch marks during login: %s", e)
 
             return {
                 "attendance_response": attendance_response,
+                "marks_response": marks_response,
                 "student_name": student_name,
                 "student_photo_url": student_photo_url,
                 "programs": programs,
@@ -1732,7 +1982,7 @@ class PortalScraper:
             index_resp = self.session.get(index_url, timeout=self.request_timeout,
                                           headers={"Referer": index_url})
             index_resp.raise_for_status()
-            index_html = index_resp.text
+            index_html = self._decode_response_if_needed(index_resp.text)
 
             if "ddlClassof" not in index_html:
                 return None
@@ -1825,7 +2075,7 @@ class PortalScraper:
                 headers={"Referer": attendance_url},
             )
             response.raise_for_status()
-            switched_html = response.text
+            switched_html = self._decode_response_if_needed(response.text)
 
             # If the response looks like a login page, session is stale
             if self._looks_like_login_page(switched_html):
@@ -1846,7 +2096,7 @@ class PortalScraper:
                         headers={"Referer": self._build_url("Index.aspx")},
                     )
                     fresh_response.raise_for_status()
-                    fresh_html = fresh_response.text
+                    fresh_html = self._decode_response_if_needed(fresh_response.text)
                     if not self._looks_like_login_page(fresh_html):
                         fresh_payload = self._extract_hidden_form_fields(fresh_html)
                         fresh_payload.update({
@@ -1862,7 +2112,7 @@ class PortalScraper:
                             headers={"Referer": attendance_url},
                         )
                         retry_response.raise_for_status()
-                        retry_html = retry_response.text
+                        retry_html = self._decode_response_if_needed(retry_response.text)
                         _, retry_selected = self._extract_semesters(retry_html)
                         if retry_selected == requested_value:
                             return retry_html
@@ -2006,7 +2256,7 @@ class PortalScraper:
                 message_prefix="Unable to fetch Courses page from college portal",
             ) from exc
 
-        html = courses_response.text
+        html = self._decode_response_if_needed(courses_response.text)
         if semester_id:
             switched_html = self._switch_semester_on_page(html, courses_url, semester_id)
             if switched_html is not None:
@@ -2044,7 +2294,7 @@ class PortalScraper:
                 message_prefix="Unable to fetch Courses page from college portal",
             ) from exc
 
-        html = courses_response.text
+        html = self._decode_response_if_needed(courses_response.text)
         if semester_id:
             switched_html = self._switch_semester_on_page(html, courses_url, semester_id)
             if switched_html is not None:
@@ -2086,8 +2336,10 @@ class PortalScraper:
         if requested_value not in available_values:
             return html
 
-        if selected_value == requested_value:
-            return html
+        # REMOVED: Early return when semester matches - marks pages need postback even
+        # when the semester is already selected to populate the card-body.
+        # if selected_value == requested_value:
+        #     return html
 
         select_name = (select_element.get("name") or "").strip()
         event_target = self._resolve_event_target(select_element)
@@ -2112,7 +2364,7 @@ class PortalScraper:
                 headers={"Referer": page_url},
             )
             response.raise_for_status()
-            switched_html = response.text
+            switched_html = self._decode_response_if_needed(response.text)
             switched_semesters, switched_selected = self._extract_semesters(switched_html)
             has_requested_semester = any(str(item.get("id") or "").strip() == requested_value for item in switched_semesters)
             if has_requested_semester and switched_selected and switched_selected != requested_value:
@@ -2295,24 +2547,39 @@ class PortalScraper:
     def _scrape_all_subject_history(self, attendance_items: list[dict[str, str]]) -> dict[str, list[dict[str, str | bool]]]:
         history_by_date: dict[str, list[dict[str, str | bool]]] = {}
 
-        for item in attendance_items:
+        _logger.debug(f"Scraping history for {len(attendance_items)} subjects")
+        
+        for idx, item in enumerate(attendance_items):
             history_link = str(item.get("history_link") or "").strip()
+            code = str(item.get("code") or "").strip()
+            
             if not history_link:
+                _logger.debug(f"Skipping {code} - no history link")
                 continue
 
-            entries = self._scrape_subject_history_page(
-                history_link=history_link,
-                subject=str(item.get("subject") or "").strip(),
-                subject_abbr=str(item.get("course_abbr") or "").strip(),
-                code=str(item.get("code") or "").strip(),
-            )
+            # Add a small delay between requests to avoid overwhelming the portal
+            if idx > 0:
+                time.sleep(0.3)
 
-            for entry in entries:
-                entry_date = str(entry.get("date") or "").strip()
-                if not entry_date:
-                    continue
-                history_by_date.setdefault(entry_date, []).append(entry)
+            try:
+                entries = self._scrape_subject_history_page(
+                    history_link=history_link,
+                    subject=str(item.get("subject") or "").strip(),
+                    subject_abbr=str(item.get("course_abbr") or "").strip(),
+                    code=str(item.get("code") or "").strip(),
+                )
 
+                for entry in entries:
+                    entry_date = str(entry.get("date") or "").strip()
+                    if not entry_date:
+                        continue
+                    history_by_date.setdefault(entry_date, []).append(entry)
+            except Exception as e:
+                _logger.error(f"Failed to scrape history for {code}: {e}")
+                # Continue with next subject instead of failing entirely
+                continue
+
+        _logger.debug(f"History scraping complete: {len(history_by_date)} dates")
         return history_by_date
 
     def _scrape_subject_history_page(
@@ -2325,13 +2592,40 @@ class PortalScraper:
         url = self._resolve_url(history_link)
 
         try:
+            # Ensure session cookies are fresh and include all necessary cookies
+            # The portal requires proper referer and session cookies
+            headers = {
+                "Referer": self._build_url("AttendanceDashboard.aspx"),
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept-Encoding": "gzip, deflate",
+                "Connection": "keep-alive",
+                "Upgrade-Insecure-Requests": "1",
+                "Cache-Control": "max-age=0",
+            }
+            
+            _logger.debug(f"Fetching history: {url}")
+            
             response = self.session.get(
                 url,
                 timeout=self.request_timeout,
-                headers={"Referer": self._build_url("AttendanceDashboard.aspx")},
+                headers=headers,
+                allow_redirects=True,
             )
             response.raise_for_status()
+            
+            # Check if we got redirected to login page (session expired)
+            if self._looks_like_login_page(response.text):
+                _logger.error(f"Session expired while fetching history for {code}")
+                return []
+            
+            # Check if response is too small (likely an error page)
+            if len(response.text) < 100:
+                _logger.error(f"Invalid response for {code}: {len(response.text)} bytes")
+                return []
+                
         except requests.RequestException as exc:
+            _logger.error(f"Network error fetching history for {code}: {exc}")
             raise self._portal_network_error(
                 exc,
                 stage="HISTORY_FETCH",
@@ -2339,6 +2633,18 @@ class PortalScraper:
             ) from exc
 
         soup = BeautifulSoup(response.text, "html.parser")
+        
+        # Save first response for debugging if needed (only in debug mode)
+        if _logger.isEnabledFor(logging.DEBUG) and not hasattr(self, '_history_debug_saved'):
+            try:
+                debug_file = f"/tmp/history_debug_{code}.html"
+                with open(debug_file, 'w', encoding='utf-8') as f:
+                    f.write(response.text)
+                _logger.debug(f"Saved history page to {debug_file}")
+                self._history_debug_saved = True
+            except Exception:
+                pass
+        
         entries: list[dict[str, str | bool]] = []
 
         # --- New portal: swatt.aspx with dw-table and dw-status-badge spans ---
@@ -2387,13 +2693,14 @@ class PortalScraper:
 
             if entries:
                 return entries
+            _logger.debug(f"Found dw-table but no entries for {code}")
 
         # --- Old portal: generic table parsing ---
-        for table in soup.find_all("table"):
+        for table_idx, table in enumerate(soup.find_all("table")):
             headers = [th.get_text(" ", strip=True).lower() for th in table.find_all("th")]
             if not headers:
                 continue
-
+            
             date_index = self._find_column_index(headers, ["date", "session date", "ssessiondt"])
             attended_index = self._find_column_index(headers, ["attended", "attendance"])
 
@@ -2423,6 +2730,9 @@ class PortalScraper:
 
             if entries:
                 break
+
+        if not entries:
+            _logger.debug(f"No entries found for {code}")
 
         return entries
 
@@ -2869,3 +3179,159 @@ class PortalScraper:
         normalized_base = base.rstrip("/") + "/"
         normalized_path = path.lstrip("/")
         return urljoin(normalized_base, normalized_path)
+
+    def _decode_response_if_needed(self, response_text: str) -> str:
+        """
+        Decode base64-encoded responses from Lambda/API Gateway.
+        
+        Lambda functions sometimes return base64-encoded HTML instead of raw HTML.
+        This method detects base64-encoded responses and decodes them.
+        
+        Args:
+            response_text: Raw response text (might be base64-encoded)
+            
+        Returns:
+            Decoded HTML string
+        """
+        # Check if response looks like base64 (starts with base64 chars, no <)
+        if not response_text:
+            return response_text
+        
+        # If it starts with standard HTML markers, it's not encoded
+        if response_text.lstrip().startswith(('<', '<!', '<html', '<HTML')):
+            return response_text
+        
+        # Try to decode as base64
+        try:
+            decoded = base64.b64decode(response_text).decode('utf-8')
+            # Verify the decoded content looks like HTML
+            if decoded.lstrip().startswith(('<', '<!', '<html', '<HTML')):
+                self._logger.debug('Decoded base64-encoded response (%d -> %d chars)', 
+                                 len(response_text), len(decoded))
+                return decoded
+            else:
+                # Decoded but doesn't look like HTML, return original
+                return response_text
+        except Exception:
+            # Not base64 or decode failed, return original
+            return response_text
+
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # Cookie Management Methods (for Lambda/Worker with database storage)
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def _get_roll_number_from_cookies(self) -> str | None:
+        """
+        Extract roll number from session cookies.
+        Used to identify which database session to load.
+        
+        Returns:
+            Roll number if found in cookies, None otherwise
+        """
+        # Check common cookie names that contain roll number
+        for cookie_name in ('Enrolno', 'UserID', 'CurrentSession'):
+            for cookie in self.session.cookies:
+                if cookie.name == cookie_name:
+                    value = (cookie.value or "").strip().upper()
+                    if value:
+                        return value
+        return None
+    
+    def _ensure_cookies_loaded(self) -> None:
+        """
+        Ensure cookies are loaded from database before making requests.
+        Called automatically by fetch methods to reuse existing sessions.
+        """
+        if not self._cookie_manager:
+            return  # No cookie management available
+        
+        # Check if we already have auth cookies in session
+        if self._has_authenticated_session():
+            return  # Already have valid cookies
+        
+        # Extract roll number from any existing cookies
+        roll_number = self._get_roll_number_from_cookies()
+        if not roll_number:
+            self._logger.debug("[PortalScraper] No roll number in cookies, cannot load from DB")
+            return
+        
+        # Try to load cookies from database
+        loaded = self._load_cookies_from_db(roll_number)
+        if loaded:
+            self._logger.info(f"[PortalScraper] Loaded cookies from DB for {roll_number}")
+    
+    def _save_cookies_to_db(self, roll_number: str) -> None:
+        """
+        Save current session cookies to database.
+        Used after login to persist cookies for future requests.
+        
+        Args:
+            roll_number: Student roll number (primary key)
+        """
+        if not self._cookie_manager:
+            self._logger.debug("[PortalScraper] Cookie manager not available, skipping save")
+            return
+        
+        # Extract cookies from session
+        cookies = {cookie.name: cookie.value for cookie in self.session.cookies}
+        
+        if not cookies:
+            self._logger.warning(f"[PortalScraper] No cookies to save for {roll_number}")
+            return
+        
+        try:
+            self._cookie_manager.save_cookies(roll_number, cookies)
+            self._logger.info(f"[PortalScraper] Saved {len(cookies)} cookies for {roll_number}")
+        except Exception as e:
+            self._logger.error(f"[PortalScraper] Failed to save cookies: {e}")
+    
+    def _load_cookies_from_db(self, roll_number: str) -> bool:
+        """
+        Load cookies from database and apply to session.
+        Used before making requests to reuse existing portal session.
+        
+        Args:
+            roll_number: Student roll number
+            
+        Returns:
+            True if cookies were loaded, False if not found/expired
+        """
+        if not self._cookie_manager:
+            self._logger.debug("[PortalScraper] Cookie manager not available, skipping load")
+            return False
+        
+        try:
+            cookies = self._cookie_manager.load_cookies(roll_number)
+            
+            if not cookies:
+                self._logger.debug(f"[PortalScraper] No cookies found for {roll_number}")
+                return False
+            
+            # Apply cookies to session
+            for name, value in cookies.items():
+                self.session.cookies.set(name, value)
+            
+            self._logger.info(f"[PortalScraper] Loaded {len(cookies)} cookies for {roll_number}")
+            return True
+            
+        except Exception as e:
+            self._logger.error(f"[PortalScraper] Failed to load cookies: {e}")
+            return False
+    
+    def _delete_cookies_from_db(self, roll_number: str) -> None:
+        """
+        Delete stored cookies from database.
+        Used on logout or when session is invalid.
+        
+        Args:
+            roll_number: Student roll number
+        """
+        if not self._cookie_manager:
+            return
+        
+        try:
+            self._cookie_manager.delete_session(roll_number)
+            self._logger.info(f"[PortalScraper] Deleted cookies for {roll_number}")
+        except Exception as e:
+            self._logger.error(f"[PortalScraper] Failed to delete cookies: {e}")

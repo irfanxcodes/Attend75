@@ -1,0 +1,13 @@
+name = "attend75-portal-proxy"
+main = "cloudflare-worker-simple-proxy.js"
+compatibility_date = "2024-10-01"
+
+# Worker will be deployed at: https://attend75-portal-proxy.YOUR_SUBDOMAIN.workers.dev
+# or custom domain if configured
+
+[observability]
+enabled = true
+
+# Increase limits for portal responses
+[limits]
+cpu_ms = 50

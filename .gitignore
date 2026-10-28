@@ -64,3 +64,32 @@ DEPLOY_*.sh
 *_SUMMARY.md
 DEBUGGING_*.md
 DEPLOYMENT_*.md
+
+# Cleanup backups
+cleanup_backup_*/
+
+# Test artifacts
+backend/investigation_results_*.json
+backend/*_response*.html
+backend/*.patch
+backend/*.backup
+backend/*.original*
+
+# Test databases
+backend/*_test*.db
+backend/*_cap_test.db
+backend/*_lambda_test.db
+backend/*_migration_test.db
+*_test_cookies.db
+
+# Lambda builds (keep only latest)
+lambda_function.zip
+lambda_function_v2.zip
+
+# Temporary files
+*.log
+*.tmp
+.DS_Store
+
+# Environment backups
+*.backup_before_*
