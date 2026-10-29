@@ -2928,6 +2928,40 @@ class PortalScraper:
             )
 
         if isinstance(exc, requests.ConnectionError):
+            # Detect different types of connection failures for better user messaging
+            error_msg = str(exc).lower()
+            
+            # Connection timeout: portal server not responding (offline/maintenance)
+            if "timed out" in error_msg or "timeout" in error_msg:
+                return PortalNetworkError(
+                    f"{message_prefix}: college portal is not responding (connection timeout)",
+                    code=f"{upper_stage}_PORTAL_DOWN",
+                    stage=upper_stage,
+                    retriable=True,
+                    http_status=502,
+                )
+            
+            # Connection refused: portal server offline or unreachable
+            if "connection refused" in error_msg or "refused" in error_msg:
+                return PortalNetworkError(
+                    f"{message_prefix}: college portal refused connection (server offline)",
+                    code=f"{upper_stage}_PORTAL_OFFLINE",
+                    stage=upper_stage,
+                    retriable=True,
+                    http_status=502,
+                )
+            
+            # Host unreachable: network routing issue
+            if "host" in error_msg and ("unreachable" in error_msg or "not found" in error_msg):
+                return PortalNetworkError(
+                    f"{message_prefix}: college portal host unreachable (network issue)",
+                    code=f"{upper_stage}_PORTAL_UNREACHABLE",
+                    stage=upper_stage,
+                    retriable=True,
+                    http_status=502,
+                )
+            
+            # Generic connection failure
             return PortalNetworkError(
                 f"{message_prefix}: connection failed",
                 code=f"{upper_stage}_CONNECTION_FAILED",
@@ -3003,8 +3037,8 @@ class PortalScraper:
                             _lr.mark_current_blocked(is_session_issue=False)
                             self._apply_fallback_tiers()
                             return PortalNetworkError(
-                                f"{message_prefix}: upstream returned 403",
-                                code=f"{upper_stage}_HTTP_403",
+                                f"{message_prefix}: college portal blocked the request (HTTP 403)",
+                                code=f"{upper_stage}_PORTAL_BLOCKED",
                                 stage=upper_stage,
                                 retriable=True,
                                 http_status=502,
@@ -3019,6 +3053,15 @@ class PortalScraper:
                     elif self.session.proxies:
                         self._proxy_rotator.mark_current_blocked()
                     self._apply_fallback_tiers()
+                
+                # Return PORTAL_BLOCKED code for better user messaging
+                return PortalNetworkError(
+                    f"{message_prefix}: college portal blocked the request (HTTP 403)",
+                    code=f"{upper_stage}_PORTAL_BLOCKED",
+                    stage=upper_stage,
+                    retriable=True,
+                    http_status=502,
+                )
 
             return PortalNetworkError(
                 f"{message_prefix}: upstream returned {status_code or 'an error'}",

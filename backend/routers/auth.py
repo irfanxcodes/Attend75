@@ -22,15 +22,128 @@ router = APIRouter(tags=["auth"])
 logger = logging.getLogger(__name__)
 
 
+@router.get("/portal-status")
+async def check_portal_status():
+    """
+    Quick health check of college portal (doesn't require login).
+    Returns portal status: online, degraded, or offline.
+    Frontend can use this to show a status banner before login.
+    """
+    import requests as http_requests
+    
+    portal_url = "http://111.93.16.209/sz/login.aspx"
+    
+    try:
+        resp = http_requests.get(
+            portal_url,
+            timeout=10,  # 10 second timeout for quick check
+            allow_redirects=False
+        )
+        
+        if resp.status_code == 200:
+            # Portal is responding normally
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "status": "success",
+                    "portal_status": "online",
+                    "message": "College portal is reachable and responding normally.",
+                }
+            )
+        else:
+            # Portal returned non-200 status (degraded)
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "status": "success",
+                    "portal_status": "degraded",
+                    "message": f"College portal is reachable but returned status {resp.status_code}.",
+                    "http_status": resp.status_code,
+                }
+            )
+    except http_requests.Timeout:
+        # Portal is not responding within timeout
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "success",
+                "portal_status": "offline",
+                "message": "College portal is not responding (connection timeout).",
+                "error_type": "timeout",
+            }
+        )
+    except http_requests.ConnectionError as exc:
+        # Portal connection failed
+        error_msg = str(exc).lower()
+        
+        if "refused" in error_msg:
+            error_type = "connection_refused"
+            message = "College portal refused connection (server offline)."
+        elif "timed out" in error_msg or "timeout" in error_msg:
+            error_type = "timeout"
+            message = "College portal is not responding (connection timeout)."
+        else:
+            error_type = "connection_error"
+            message = "Unable to connect to college portal."
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "success",
+                "portal_status": "offline",
+                "message": message,
+                "error_type": error_type,
+            }
+        )
+    except Exception as exc:
+        # Unexpected error during health check
+        logger.warning("Portal status check failed unexpectedly: %s", exc)
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "success",
+                "portal_status": "unknown",
+                "message": "Unable to determine portal status.",
+                "error_type": "unknown",
+            }
+        )
+
+
+def _map_network_error_code(error_code: str) -> str:
+    """Map detailed network error codes to user-friendly error codes."""
+    if "PORTAL_DOWN" in error_code:
+        return "PORTAL_DOWN"
+    elif "PORTAL_OFFLINE" in error_code:
+        return "PORTAL_OFFLINE"
+    elif "PORTAL_BLOCKED" in error_code:
+        return "PORTAL_BLOCKED"
+    elif "PORTAL_UNREACHABLE" in error_code or "CONNECTION_FAILED" in error_code:
+        return "PORTAL_UNREACHABLE"
+    elif "TIMEOUT" in error_code:
+        return "PORTAL_TIMEOUT"
+    else:
+        # Keep specific codes like MARKS_TABLE_NOT_FOUND, SESSION_EXPIRED, etc.
+        return error_code
+
+
 def _login_error_response(error_code: str) -> JSONResponse:
     message_map = {
         "INVALID_USERNAME": "Invalid username or roll number. Please check and try again.",
         "INCORRECT_PASSWORD": "Incorrect password. Please try again.",
         "LOGIN_FAILED": "Login failed. Please verify your credentials and try again.",
-        "PORTAL_UNREACHABLE": "The college portal is currently down or not responding. Please try again later.",
-        "PORTAL_TIMEOUT": "The college portal is taking too long to respond. Please try again in a few minutes.",
+        "CAPTCHA_FAILED": "Could not verify the captcha image. Please try logging in again.",
+        "PORTAL_DOWN": "The college portal is currently offline. Please try again later.",
+        "PORTAL_OFFLINE": "The college portal server is not responding. It might be under maintenance.",
+        "PORTAL_BLOCKED": "Access to the college portal was blocked. Please try again later.",
+        "PORTAL_UNREACHABLE": "Unable to connect to the college portal. Please check your internet connection.",
+        "PORTAL_TIMEOUT": "The college portal is taking too long to respond. It might be under heavy load. Please try again in a few minutes.",
     }
-    status_code = 502 if error_code in ("PORTAL_UNREACHABLE", "PORTAL_TIMEOUT") else 401
+    # Network errors get 502 status, auth errors get 401
+    network_error_codes = (
+        "PORTAL_DOWN", "PORTAL_OFFLINE", "PORTAL_BLOCKED", 
+        "PORTAL_UNREACHABLE", "PORTAL_TIMEOUT"
+    )
+    status_code = 502 if error_code in network_error_codes else 401
     return JSONResponse(
         status_code=status_code,
         content={
@@ -45,8 +158,11 @@ def _data_error_response(error_code: str, status_code: int = 502) -> JSONRespons
     message_map = {
         "SESSION_EXPIRED": "Your session has expired. Please log in again.",
         "DATA_FETCH_FAILED": "Unable to load your data. Please try again later.",
-        "PORTAL_UNREACHABLE": "The college portal is currently down or not responding. Please try again later.",
-        "PORTAL_TIMEOUT": "The college portal is taking too long to respond. Please try again in a few minutes.",
+        "PORTAL_DOWN": "The college portal is currently offline. Please try again later.",
+        "PORTAL_OFFLINE": "The college portal server is not responding. It might be under maintenance.",
+        "PORTAL_BLOCKED": "Access to the college portal was blocked. Please try again later.",
+        "PORTAL_UNREACHABLE": "Unable to connect to the college portal. Please check your internet connection.",
+        "PORTAL_TIMEOUT": "The college portal is taking too long to respond. It might be under heavy load. Please try again in a few minutes.",
         "MARKS_TABLE_NOT_FOUND": "Marks are not available right now for this semester.",
         "MARKS_ROWS_NOT_FOUND": "Marks are not available right now for this semester.",
         "MARKS_EMPTY_RESPONSE": "Portal returned an empty marks response. Please try again.",
@@ -90,13 +206,25 @@ async def login(payload: LoginRequest, request: Request):
         return _login_error_response(error_code)
     except PortalNetworkError as exc:
         error_code = getattr(exc, "code", "DATA_FETCH_FAILED")
-        is_timeout = "TIMEOUT" in str(error_code).upper() or "timeout" in str(exc).lower()
-        logger.exception("Guest login portal/network error for roll_number=%s [code=%s]", payload.roll_number, error_code)
-        return _login_error_response("PORTAL_TIMEOUT" if is_timeout else "PORTAL_UNREACHABLE")
+        mapped_code = _map_network_error_code(error_code)
+        
+        logger.exception(
+            "Guest login portal/network error for roll_number=%s [code=%s, mapped=%s]", 
+            payload.roll_number, error_code, mapped_code
+        )
+        return _login_error_response(mapped_code)
     except Exception as exc:
         # Log full traceback for debugging unexpected errors
         logger.exception("Unexpected guest login error for roll_number=%s: %s", payload.roll_number, str(exc))
-        return _login_error_response("PORTAL_UNREACHABLE")
+        # Return INTERNAL_ERROR instead of misleading PORTAL_UNREACHABLE
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "error_code": "INTERNAL_ERROR",
+                "message": "An unexpected error occurred. Please try again or contact support if this persists.",
+            },
+        )
 
 
 # ── Async login (non-blocking) ────────────────────────────────────────────────
@@ -119,16 +247,14 @@ def _run_async_login(job_id: str, roll_number: str, password: str, ua: str) -> N
             _async_login_jobs[job_id] = {"status": "auth_error", "code": code}
     except PortalNetworkError as exc:
         code = getattr(exc, "code", "PORTAL_UNREACHABLE")
-        is_timeout = "TIMEOUT" in str(code).upper()
+        mapped_code = _map_network_error_code(code)
+        
         with _async_login_lock:
-            _async_login_jobs[job_id] = {
-                "status": "network_error",
-                "code": "PORTAL_TIMEOUT" if is_timeout else "PORTAL_UNREACHABLE",
-            }
+            _async_login_jobs[job_id] = {"status": "network_error", "code": mapped_code}
     except Exception as exc:
         logger.exception("Async login error job_id=%s: %s", job_id, exc)
         with _async_login_lock:
-            _async_login_jobs[job_id] = {"status": "network_error", "code": "PORTAL_UNREACHABLE"}
+            _async_login_jobs[job_id] = {"status": "internal_error", "code": "INTERNAL_ERROR"}
 
 
 @router.post("/login/start")
@@ -204,11 +330,13 @@ async def attendance(payload: AttendanceRequest):
         return _data_error_response(error_code, status_code=502)
     except PortalNetworkError as exc:
         error_code = getattr(exc, "code", "DATA_FETCH_FAILED")
-        logger.exception("Attendance portal/network failure [code=%s]", error_code)
+        mapped_code = _map_network_error_code(error_code)
+        
+        logger.exception("Attendance portal/network failure [code=%s, mapped=%s]", error_code, mapped_code)
         status_code = int(getattr(exc, "http_status", 502) or 502)
         if status_code < 400:
             status_code = 502
-        return _data_error_response(error_code, status_code=status_code)
+        return _data_error_response(mapped_code, status_code=status_code)
     except Exception:
         logger.exception("Unexpected attendance fetch error")
         return _data_error_response("DATA_FETCH_FAILED", status_code=500)
@@ -232,11 +360,12 @@ async def attendance_history(payload: AttendanceHistoryRequest):
         return _data_error_response(error_code, status_code=502)
     except PortalNetworkError as exc:
         error_code = getattr(exc, "code", "DATA_FETCH_FAILED")
-        logger.exception("Attendance history portal/network failure [code=%s]", error_code)
+        mapped_code = _map_network_error_code(error_code)
+        logger.exception("Attendance history portal/network failure [code=%s, mapped=%s]", error_code, mapped_code)
         status_code = int(getattr(exc, "http_status", 502) or 502)
         if status_code < 400:
             status_code = 502
-        return _data_error_response(error_code, status_code=status_code)
+        return _data_error_response(mapped_code, status_code=status_code)
     except Exception:
         logger.exception("Unexpected attendance history fetch error")
         return _data_error_response("DATA_FETCH_FAILED", status_code=500)
@@ -276,7 +405,8 @@ async def marks_consolidated(payload: AttendanceRequest):
         return _data_error_response(error_code, status_code=502)
     except PortalNetworkError as exc:
         error_code = getattr(exc, "code", "DATA_FETCH_FAILED")
-        logger.exception("Consolidated marks portal/network failure [code=%s, detail=%s]", error_code, str(exc))
+        mapped_code = _map_network_error_code(error_code)
+        logger.exception("Consolidated marks portal/network failure [code=%s, mapped=%s, detail=%s]", error_code, mapped_code, str(exc))
         transient_codes = {
             "MARKS_TABLE_NOT_FOUND",
             "MARKS_ROWS_NOT_FOUND",
@@ -300,7 +430,7 @@ async def marks_consolidated(payload: AttendanceRequest):
         status_code = int(getattr(exc, "http_status", 502) or 502)
         if status_code < 400:
             status_code = 502
-        return _data_error_response(error_code, status_code=status_code)
+        return _data_error_response(mapped_code, status_code=status_code)
     except Exception:
         logger.exception("Unexpected consolidated marks fetch error")
         return _data_error_response("DATA_FETCH_FAILED", status_code=500)
@@ -324,11 +454,12 @@ async def faculty_contacts(payload: AttendanceRequest):
         return _data_error_response(error_code, status_code=502)
     except PortalNetworkError as exc:
         error_code = getattr(exc, "code", "DATA_FETCH_FAILED")
-        logger.exception("Faculty contacts portal/network failure [code=%s]", error_code)
+        mapped_code = _map_network_error_code(error_code)
+        logger.exception("Faculty contacts portal/network failure [code=%s, mapped=%s]", error_code, mapped_code)
         status_code = int(getattr(exc, "http_status", 502) or 502)
         if status_code < 400:
             status_code = 502
-        return _data_error_response(error_code, status_code=status_code)
+        return _data_error_response(mapped_code, status_code=status_code)
     except Exception:
         logger.exception("Unexpected faculty contacts fetch error")
         return _data_error_response("DATA_FETCH_FAILED", status_code=500)
@@ -430,11 +561,12 @@ async def attendance_streak(payload: AttendanceRequest):
         return _data_error_response(error_code, status_code=502)
     except PortalNetworkError as exc:
         error_code = getattr(exc, "code", "DATA_FETCH_FAILED")
-        logger.exception("Streak calculation network failure [code=%s]", error_code)
+        mapped_code = _map_network_error_code(error_code)
+        logger.exception("Streak calculation network failure [code=%s, mapped=%s]", error_code, mapped_code)
         status_code = int(getattr(exc, "http_status", 502) or 502)
         if status_code < 400:
             status_code = 502
-        return _data_error_response(error_code, status_code=status_code)
+        return _data_error_response(mapped_code, status_code=status_code)
     except Exception:
         logger.exception("Unexpected streak calculation error")
         return _data_error_response("DATA_FETCH_FAILED", status_code=500)
