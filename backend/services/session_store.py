@@ -37,6 +37,10 @@ class SessionStore:
         self._sessions: dict[str, SessionRecord] = {}
         self._max_sessions = int(os.getenv("SESSION_STORE_MAX_SESSIONS", "5000"))
         self._session_ttl_seconds = int(os.getenv("SESSION_STORE_TTL_SECONDS", "43200"))
+        # How long to consider a session "active" for dashboard display (default: 10 hours)
+        # This is independent of authentication TTL - sessions remain valid for full TTL,
+        # but only show in "active sessions" feed if accessed within this threshold.
+        self._active_display_threshold_seconds = int(os.getenv("SESSION_ACTIVE_DISPLAY_HOURS", "10")) * 3600
 
     def _close_scraper(self, record: "SessionRecord") -> None:
         """Close the underlying requests.Session to release socket file descriptors."""
@@ -108,14 +112,28 @@ class SessionStore:
         now = time.time()
         with self._lock:
             self._prune_expired_locked(now)
+            
+            # Count recently active sessions (within display threshold)
+            active_threshold = now - self._active_display_threshold_seconds
+            recently_active_count = sum(
+                1 for record in self._sessions.values()
+                if record.last_accessed_at > active_threshold
+            )
+            
             return {
-                "active_sessions": len(self._sessions),
+                "active_sessions": len(self._sessions),  # All authenticated sessions
+                "recently_active_sessions": recently_active_count,  # Active within threshold
                 "max_sessions": self._max_sessions,
                 "session_ttl_seconds": self._session_ttl_seconds,
+                "active_display_threshold_seconds": self._active_display_threshold_seconds,
             }
 
     def active_sessions_list(self) -> list[dict]:
         """Return all active sessions for admin display, deduplicated by roll number.
+
+        Only shows sessions that have been accessed within the active display threshold
+        (default: 10 hours). Sessions remain authenticated for the full TTL (24 hours),
+        but only appear as "active" if they were recently used.
 
         When the same user has multiple active sessions (e.g. multiple browser
         tabs or re-logins), only the most-recently-accessed session is kept so
@@ -124,8 +142,16 @@ class SessionStore:
         now = time.time()
         with self._lock:
             self._prune_expired_locked(now)
+            
+            # Filter: only include sessions accessed within the active display threshold
+            active_threshold = now - self._active_display_threshold_seconds
+            recently_active = [
+                record for record in self._sessions.values()
+                if record.last_accessed_at > active_threshold
+            ]
+            
             sorted_sessions = sorted(
-                self._sessions.values(),
+                recently_active,
                 key=lambda r: r.last_accessed_at,
                 reverse=True,
             )
@@ -144,6 +170,7 @@ class SessionStore:
         results = []
         for record in deduped:
             started_seconds_ago = int(now - record.created_at)
+            last_active_seconds_ago = int(now - record.last_accessed_at)
             results.append({
                 "rollNumber": record.roll_number,
                 "userName": record.user_name,
@@ -151,6 +178,7 @@ class SessionStore:
                 "attendancePercent": record.attendance_percent,
                 "userAgent": record.user_agent,
                 "startedSecondsAgo": started_seconds_ago,
+                "lastActiveSecondsAgo": last_active_seconds_ago,  # NEW: when they last made a request
                 "eventCount": record.event_count,
                 "email": getattr(record, 'email', None),
                 "programSn": record.program_sn,
