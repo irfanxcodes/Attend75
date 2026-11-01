@@ -105,24 +105,24 @@ function DesktopHorizontalSwipe({ games, activeIndex, setActiveIndex, personalBe
   const topScore = activeLeaderboard.entries[0]?.score || null
 
   return (
-    <section className="min-h-screen flex flex-col items-center justify-center px-6 py-12 bg-[#0A0A0A]">
-      {/* Header - centered */}
-      <div className="text-center mb-8">
-        <h1 className="text-4xl font-extrabold text-white tracking-tight mb-2">Arcade</h1>
-        <p className="text-sm text-gray-400">Swipe to explore games</p>
+    <section className="min-h-screen flex flex-col items-center justify-center px-6 py-16 bg-gradient-to-br from-[#0f0f23] via-[#1a1a2e] to-[#16213e]">
+      {/* Header - centered with better spacing */}
+      <div className="text-center mb-12">
+        <h1 className="text-5xl font-black text-white tracking-tight mb-3">Arcade</h1>
+        <p className="text-base text-gray-400">Swipe to explore games</p>
       </div>
       
-      {/* Card Display Area */}
-      <div className="relative w-full max-w-4xl mb-8">
-        <div className="relative h-[500px] flex items-center justify-center">
+      {/* Card Display Area - more space */}
+      <div className="relative w-full max-w-6xl mb-12">
+        <div className="relative h-[520px] flex items-center justify-center">
           {games.map((game, i) => {
             const distFromActive = i - activeIndex
-            let className = 'absolute transition-all duration-500 ease-out cursor-pointer'
+            let className = 'absolute transition-all duration-700 ease-out cursor-pointer'
             let transform = ''
             let opacity = 0
             let zIndex = 0
             let pointerEvents = 'none'
-            let filter = 'grayscale(100%) brightness(0.4)'
+            let filter = 'grayscale(100%) brightness(0.3)'
             
             if (distFromActive === 0) {
               // Center active card
@@ -133,14 +133,14 @@ function DesktopHorizontalSwipe({ games, activeIndex, setActiveIndex, personalBe
               filter = 'none'
             } else if (distFromActive === -1 || (activeIndex === 0 && i === games.length - 1)) {
               // Left card
-              transform = 'translateX(-85%) scale(0.75)'
-              opacity = 1
+              transform = 'translateX(-75%) scale(0.8)'
+              opacity = 0.6
               zIndex = 20
               pointerEvents = 'auto'
             } else if (distFromActive === 1 || (activeIndex === games.length - 1 && i === 0)) {
               // Right card
-              transform = 'translateX(85%) scale(0.75)'
-              opacity = 1
+              transform = 'translateX(75%) scale(0.8)'
+              opacity = 0.6
               zIndex = 20
               pointerEvents = 'auto'
             }
@@ -155,7 +155,7 @@ function DesktopHorizontalSwipe({ games, activeIndex, setActiveIndex, personalBe
                   zIndex,
                   pointerEvents,
                   filter,
-                  width: '480px',
+                  width: '550px',
                   height: '100%'
                 }}
                 onClick={() => distFromActive !== 0 && setActiveIndex(i)}
@@ -174,20 +174,20 @@ function DesktopHorizontalSwipe({ games, activeIndex, setActiveIndex, personalBe
         </div>
       </div>
 
-      {/* Bottom Controls */}
-      <div className="flex items-center gap-6">
+      {/* Bottom Controls - better styling */}
+      <div className="flex items-center gap-8 mb-8">
         {/* Left Arrow */}
         <button
           onClick={prevCard}
-          className="w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all hover:scale-110 backdrop-blur-sm"
+          className="w-14 h-14 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white flex items-center justify-center transition-all hover:scale-110 backdrop-blur-xl"
         >
-          <span className="text-2xl">‹</span>
+          <span className="text-3xl font-light">‹</span>
         </button>
         
         {/* Play Button */}
         <button
           onClick={() => navigate(`/app/arcade/${activeGame.slug}`)}
-          className="px-12 py-4 rounded-full font-bold text-lg text-black bg-white hover:bg-gray-100 transition-all hover:scale-105 shadow-xl flex items-center gap-3"
+          className="px-16 py-5 rounded-full font-bold text-xl text-black bg-white hover:bg-gray-100 transition-all hover:scale-105 shadow-2xl shadow-white/20 flex items-center gap-3"
         >
           <span className="text-2xl">▶</span>
           <span>Play Now</span>
@@ -196,22 +196,22 @@ function DesktopHorizontalSwipe({ games, activeIndex, setActiveIndex, personalBe
         {/* Right Arrow */}
         <button
           onClick={nextCard}
-          className="w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all hover:scale-110 backdrop-blur-sm"
+          className="w-14 h-14 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white flex items-center justify-center transition-all hover:scale-110 backdrop-blur-xl"
         >
-          <span className="text-2xl">›</span>
+          <span className="text-3xl font-light">›</span>
         </button>
       </div>
       
       {/* Dot Indicators */}
-      <div className="flex justify-center gap-2 mt-8">
+      <div className="flex justify-center gap-2.5">
         {games.map((game, i) => (
           <button
             key={game.slug}
             onClick={() => setActiveIndex(i)}
-            className={`h-1.5 rounded-full transition-all duration-300 ${
+            className={`h-2 rounded-full transition-all duration-300 ${
               i === activeIndex 
-                ? 'w-8 bg-white' 
-                : 'w-1.5 bg-white/30 hover:bg-white/50'
+                ? 'w-10 bg-white shadow-lg shadow-white/50' 
+                : 'w-2 bg-white/30 hover:bg-white/50'
             }`}
           />
         ))}
@@ -221,19 +221,19 @@ function DesktopHorizontalSwipe({ games, activeIndex, setActiveIndex, personalBe
 }
 
 function DesktopGameCard({ game, personalBest, userRank, topScore, navigate, isActive }) {
-  // Card gradient colors based on game
+  // Improved card gradients with better color harmony
   const cardGradients = {
-    flappy: 'from-[#87CEEB] via-[#B8E8F0] to-[#A8E6CF]',
-    pacman: 'from-[#FF1493] via-[#FF69B4] to-[#FFB6C1]',
-    snake: 'from-[#2C5F2D] via-[#4EF0A0] to-[#60FFA8]',
-    geodash: 'from-[#1e3a8a] via-[#3b82f6] to-[#60a5fa]',
-    stack: 'from-[#87CEEB] via-[#B8E8F8] to-[#E8F4FD]'
+    flappy: 'from-[#4facfe] via-[#00f2fe] to-[#43e97b]',
+    pacman: 'from-[#fa709a] via-[#fee140] to-[#30cfd0]',
+    snake: 'from-[#0f2027] via-[#203a43] to-[#2c5364]',
+    geodash: 'from-[#667eea] via-[#764ba2] to-[#f093fb]',
+    stack: 'from-[#4facfe] via-[#00f2fe] to-[#43e97b]'
   }
 
   return (
-    <div className={`h-full rounded-3xl overflow-hidden relative ${isActive ? 'shadow-2xl' : ''}`}>
+    <div className={`h-full rounded-[32px] overflow-hidden relative ${isActive ? 'shadow-2xl shadow-black/50' : ''}`}>
       {/* Background gradient */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${cardGradients[game.slug] || 'from-purple-500 to-pink-500'}`} />
+      <div className={`absolute inset-0 bg-gradient-to-br ${cardGradients[game.slug] || 'from-[#667eea] to-[#764ba2]'}`} />
       
       {/* Game Visual - full card */}
       <div className="absolute inset-0">
@@ -241,13 +241,13 @@ function DesktopGameCard({ game, personalBest, userRank, topScore, navigate, isA
       </div>
       
       {/* Dark overlay gradient for text readability */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/90" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/80" />
       
       {/* Content overlay */}
-      <div className="absolute inset-0 flex flex-col justify-between p-8">
+      <div className="absolute inset-0 flex flex-col justify-between p-10">
         {/* Top badge */}
         <div>
-          <span className="inline-block px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider bg-white/20 backdrop-blur-md text-white">
+          <span className="inline-block px-5 py-2 rounded-full text-xs font-bold uppercase tracking-wider bg-white/20 backdrop-blur-xl text-white border border-white/30">
             {game.slug === 'flappy' ? "This week's game" : 'Classic arcade'}
           </span>
         </div>
@@ -255,33 +255,33 @@ function DesktopGameCard({ game, personalBest, userRank, topScore, navigate, isA
         {/* Bottom info */}
         <div>
           {/* Game title */}
-          <h2 className="text-4xl font-black text-white mb-2 drop-shadow-lg">{game.title}</h2>
-          <p className="text-white/80 text-sm mb-6">{game.description}</p>
+          <h2 className="text-5xl font-black text-white mb-3 drop-shadow-2xl tracking-tight">{game.title}</h2>
+          <p className="text-white/90 text-base mb-8 drop-shadow-lg">{game.description}</p>
           
-          {/* Stats row - only on active card */}
-          {isActive && (
-            <div className="flex gap-4 mb-4">
+          {/* Stats row - only on active card with improved styling */}
+          {isActive && (personalBest || userRank || topScore) && (
+            <div className="grid grid-cols-3 gap-4">
               {/* Personal Best */}
               {personalBest && (
-                <div className="flex-1 rounded-2xl bg-black/40 backdrop-blur-md p-4 text-center">
-                  <div className="text-3xl font-bold text-white">{personalBest}</div>
-                  <div className="text-xs text-white/60 uppercase tracking-wider mt-1">Best</div>
+                <div className="rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 p-5 text-center">
+                  <div className="text-4xl font-black text-white drop-shadow-lg">{personalBest}</div>
+                  <div className="text-xs text-white/70 uppercase tracking-widest mt-2 font-semibold">Best</div>
                 </div>
               )}
               
               {/* User Rank */}
               {userRank && (
-                <div className="flex-1 rounded-2xl bg-black/40 backdrop-blur-md p-4 text-center">
-                  <div className="text-3xl font-bold text-white">#{userRank}</div>
-                  <div className="text-xs text-white/60 uppercase tracking-wider mt-1">Rank</div>
+                <div className="rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 p-5 text-center">
+                  <div className="text-4xl font-black text-white drop-shadow-lg">#{userRank}</div>
+                  <div className="text-xs text-white/70 uppercase tracking-widest mt-2 font-semibold">Rank</div>
                 </div>
               )}
               
               {/* Top Score */}
               {topScore && (
-                <div className="flex-1 rounded-2xl bg-black/40 backdrop-blur-md p-4 text-center">
-                  <div className="text-3xl font-bold text-white">{topScore}</div>
-                  <div className="text-xs text-white/60 uppercase tracking-wider mt-1">Top</div>
+                <div className="rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 p-5 text-center">
+                  <div className="text-4xl font-black text-white drop-shadow-lg">{topScore}</div>
+                  <div className="text-xs text-white/70 uppercase tracking-widest mt-2 font-semibold">Top</div>
                 </div>
               )}
             </div>
