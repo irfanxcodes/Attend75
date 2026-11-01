@@ -418,21 +418,31 @@ function GameVisual({ game, personalBest, fullscreen = false }) {
   if (game.slug === 'flappy') {
     return (
       <div className={`relative flex flex-col items-center justify-center overflow-hidden ${heightClass}`} style={{ background: 'linear-gradient(180deg, #B8E8F0 0%, #87CEEB 40%, #A8E6CF 100%)' }}>
+        {/* Clouds */}
         <div className="absolute left-[5%] top-[15%] h-7 w-20 rounded-full bg-white/60" />
         <div className="absolute right-[10%] top-[10%] h-6 w-14 rounded-full bg-white/50" />
+        {/* Pipes */}
         <div className="absolute bottom-0 left-[20%] flex flex-col items-center">
           <div className="h-16 w-11 rounded-t-md bg-[#4EC04E] ring-1 ring-[#3A9A3A]/50" />
           <div className="h-2.5 w-14 rounded-sm bg-[#3A9A3A]" />
         </div>
-        {!fullscreen && (
-          <div className="relative z-10">
-            <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-              <rect x="9" y="11" width="42" height="42" rx="12" fill="#FF916C" />
-              <circle cx="38" cy="28" r="9" fill="white" />
-              <circle cx="40" cy="28" r="5" fill="#1D183E" />
-            </svg>
-          </div>
-        )}
+        <div className="absolute bottom-0 right-[22%] flex flex-col items-center">
+          <div className="h-24 w-11 rounded-t-md bg-[#4EC04E] ring-1 ring-[#3A9A3A]/50" />
+          <div className="h-2.5 w-14 rounded-sm bg-[#3A9A3A]" />
+        </div>
+        {/* Ground */}
+        <div className="absolute bottom-0 left-0 right-0 h-7 bg-[#8BC34A]" />
+        {/* Bird - show on mobile too */}
+        <div className="relative z-10">
+          <svg width={fullscreen ? "80" : "64"} height={fullscreen ? "80" : "64"} viewBox="0 0 64 64" fill="none">
+            <rect x="12" y="14" width="42" height="42" rx="12" fill="rgba(0,0,0,0.15)" />
+            <rect x="9" y="11" width="42" height="42" rx="12" fill="#FF916C" />
+            <rect x="9" y="11" width="42" height="42" rx="12" stroke="#E07A58" strokeWidth="2.5" fill="none" />
+            <circle cx="38" cy="28" r="9" fill="white" />
+            <circle cx="40" cy="28" r="5" fill="#1D183E" />
+            <circle cx="42" cy="26" r="1.5" fill="white" />
+          </svg>
+        </div>
       </div>
     )
   }
@@ -440,17 +450,30 @@ function GameVisual({ game, personalBest, fullscreen = false }) {
   if (game.slug === 'pacman') {
     return (
       <div className={`relative flex flex-col items-center justify-center overflow-hidden bg-black ${heightClass}`}>
+        {/* Maze background */}
         <div className="absolute inset-0 opacity-20">
           {[...Array(8)].map((_, i) => (
             <div key={i} className="absolute h-0.5 bg-[#2121DE]" style={{ top: `${12 + i * 12}%`, left: '8%', right: '8%' }} />
           ))}
+          {[...Array(6)].map((_, i) => (
+            <div key={`v${i}`} className="absolute w-0.5 bg-[#2121DE]" style={{ left: `${15 + i * 14}%`, top: '8%', bottom: '8%' }} />
+          ))}
         </div>
-        {!fullscreen && (
-          <svg width="70" height="70" viewBox="0 0 64 64" fill="none">
+        {/* Pac-Man - show on mobile too */}
+        <div className="relative z-10">
+          <svg width={fullscreen ? "90" : "70"} height={fullscreen ? "90" : "70"} viewBox="0 0 64 64" fill="none">
             <path d="M32 4 C50 4 60 18 60 32 C60 46 50 60 32 60 C14 60 4 46 4 32 C4 18 14 4 32 4 Z" fill="#FFFF00" />
             <path d="M32 32 L58 18 L58 46 Z" fill="#000" />
             <circle cx="30" cy="18" r="4" fill="#000" />
           </svg>
+        </div>
+        {/* Ghosts */}
+        {fullscreen && (
+          <div className="relative z-10 mt-4 flex gap-3">
+            <span className="text-3xl">👻</span>
+            <span className="text-3xl" style={{ filter: 'hue-rotate(180deg)' }}>👻</span>
+            <span className="text-3xl" style={{ filter: 'hue-rotate(90deg)' }}>👻</span>
+          </div>
         )}
       </div>
     )
@@ -459,10 +482,32 @@ function GameVisual({ game, personalBest, fullscreen = false }) {
   if (game.slug === 'snake') {
     return (
       <div className={`relative flex flex-col items-center justify-center overflow-hidden bg-[#1A1A2E] ${heightClass}`}>
+        {/* Grid */}
         <div className="absolute inset-0 opacity-10">
           {[...Array(10)].map((_, i) => (
             <div key={'h'+i} className="absolute h-px bg-[#4EF0A0]" style={{ top: `${10 + i * 9}%`, left: '5%', right: '5%' }} />
           ))}
+          {[...Array(10)].map((_, i) => (
+            <div key={'v'+i} className="absolute w-px bg-[#4EF0A0]" style={{ left: `${10 + i * 9}%`, top: '5%', bottom: '5%' }} />
+          ))}
+        </div>
+        {/* Snake - show on mobile too */}
+        <div className="relative z-10 flex flex-col items-center gap-2">
+          <div className="flex items-center gap-1">
+            {/* Head */}
+            <div className={`${fullscreen ? 'h-9 w-9' : 'h-7 w-7'} rounded-md bg-[#4EF0A0] ring-1 ring-[#1A9A58] flex items-center justify-center shadow-[0_0_10px_rgba(78,240,160,0.4)]`}>
+              <div className="flex gap-0.5">
+                <div className="h-1.5 w-1.5 rounded-full bg-[#1A1A2E]" />
+                <div className="h-1.5 w-1.5 rounded-full bg-[#1A1A2E]" />
+              </div>
+            </div>
+            {/* Body */}
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className={`${fullscreen ? 'h-8 w-8' : 'h-6 w-6'} rounded-sm`} style={{ backgroundColor: `rgba(45,192,120,${1 - i * 0.15})` }} />
+            ))}
+          </div>
+          {/* Food */}
+          <div className={`${fullscreen ? 'h-7 w-7 mt-4' : 'h-6 w-6 mt-3'} rounded-full bg-[#FF916C] shadow-[0_0_14px_rgba(255,145,108,0.6)]`} />
         </div>
       </div>
     )
@@ -471,12 +516,25 @@ function GameVisual({ game, personalBest, fullscreen = false }) {
   if (game.slug === 'geodash') {
     return (
       <div className={`relative flex flex-col items-center justify-center overflow-hidden bg-[#0a1628] ${heightClass}`}>
+        {/* Grid */}
+        <div className="absolute inset-0 opacity-10">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="absolute top-0 bottom-0 w-px bg-[#00ff87]" style={{ left: `${15 + i * 14}%` }} />
+          ))}
+        </div>
+        {/* Ground */}
         <div className="absolute bottom-0 left-0 right-0 h-10 bg-[#1a4a7a]" />
-        {!fullscreen && (
-          <div className="relative z-10">
-            <div className="h-8 w-8 rounded-sm bg-[#00ff87] shadow-[0_0_12px_rgba(0,255,135,0.5)]" />
+        <div className="absolute bottom-10 left-0 right-0 h-0.5 bg-white" />
+        {/* Spikes */}
+        {[20, 35, 55, 70].map((left, i) => (
+          <div key={i} className="absolute bottom-10" style={{ left: `${left}%` }}>
+            <div className="w-0 h-0" style={{ borderLeft: '9px solid transparent', borderRight: '9px solid transparent', borderBottom: '16px solid #ccc' }} />
           </div>
-        )}
+        ))}
+        {/* Cube - show on mobile too */}
+        <div className={`absolute ${fullscreen ? 'bottom-[44px] h-10 w-10' : 'bottom-[38px] h-8 w-8'} left-[12%] rounded-sm bg-[#00ff87] border-2 border-black flex items-center justify-center shadow-[0_0_12px_rgba(0,255,135,0.5)]`}>
+          <div className={`${fullscreen ? 'h-4 w-4' : 'h-3.5 w-3.5'} bg-white rounded-sm opacity-60`} />
+        </div>
       </div>
     )
   }
@@ -484,9 +542,27 @@ function GameVisual({ game, personalBest, fullscreen = false }) {
   if (game.slug === 'stack') {
     return (
       <div className={`relative flex flex-col items-center justify-end overflow-hidden ${heightClass}`} style={{ background: 'linear-gradient(180deg, #7EC8E3 0%, #B8E8F8 50%, #E8F4FD 100%)' }}>
+        {/* Clouds */}
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute top-[10%] left-[5%] h-11 w-26 rounded-full bg-white/70 blur-[2px]" />
           <div className="absolute top-[8%] right-[8%] h-10 w-22 rounded-full bg-white/60 blur-[2px]" />
+          <div className="absolute bottom-[30%] right-[5%] h-11 w-30 rounded-full bg-white/60 blur-[2px]" />
+        </div>
+        {/* Swinging block */}
+        <div className="absolute top-[28%] left-[32%]">
+          <div className="h-5 w-13 rounded-sm shadow-md" style={{ background: 'linear-gradient(180deg, #FFE066, #FFD700)' }} />
+        </div>
+        {/* Stacked tower - show on mobile too */}
+        <div className={`relative z-10 mb-4 flex flex-col items-center ${fullscreen ? 'mb-8' : 'mb-4'}`}>
+          {[
+            { w: fullscreen ? 'w-20' : 'w-16', bg: 'linear-gradient(180deg, #FFE066, #CC9900)', shadow: true },
+            { w: fullscreen ? 'w-[90px]' : 'w-[70px]', bg: 'linear-gradient(180deg, #FF9A5C, #D84315)' },
+            { w: fullscreen ? 'w-[94px]' : 'w-[74px]', bg: 'linear-gradient(180deg, #AED581, #558B2F)' },
+            { w: fullscreen ? 'w-[98px]' : 'w-[78px]', bg: 'linear-gradient(180deg, #CE93D8, #7B1FA2)' },
+            { w: fullscreen ? 'w-24' : 'w-20', bg: 'linear-gradient(180deg, #4FC3F7, #0277BD)' },
+          ].map((blk, i) => (
+            <div key={i} className={`${blk.w} ${fullscreen ? 'h-[18px]' : 'h-[15px]'} rounded-[2px] ${blk.shadow ? 'shadow-lg' : 'shadow-sm'} -mt-[1px]`} style={{ background: blk.bg }} />
+          ))}
         </div>
       </div>
     )
@@ -494,7 +570,7 @@ function GameVisual({ game, personalBest, fullscreen = false }) {
   
   return (
     <div className={`relative flex flex-col items-center justify-center overflow-hidden bg-[#302A52] ${heightClass}`}>
-      <span className="text-5xl">🎮</span>
+      <span className={fullscreen ? "text-7xl" : "text-5xl"}>🎮</span>
     </div>
   )
 }
