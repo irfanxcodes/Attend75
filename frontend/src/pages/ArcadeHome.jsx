@@ -74,23 +74,36 @@ function ArcadeHome() {
   const activeGame = games[activeIndex]
   const activeLeaderboard = leaderboards[activeGame.slug] || { entries: [], userEntry: null }
 
-  return isMobile ? (
-    <MobileVerticalFeed
-      games={games}
-      personalBests={personalBests}
-      leaderboards={leaderboards}
-      lbLoading={lbLoading}
-      navigate={navigate}
-    />
-  ) : (
-    <DesktopHorizontalSwipe
-      games={games}
-      activeIndex={activeIndex}
-      setActiveIndex={setActiveIndex}
-      personalBests={personalBests}
-      activeLeaderboard={activeLeaderboard}
-      navigate={navigate}
-    />
+  return (
+    <>
+      {/* Back Button - Fixed at top left */}
+      <button
+        onClick={() => navigate('/app/dashboard')}
+        className="fixed top-4 left-4 z-50 w-10 h-10 rounded-full bg-[#4A466A] hover:bg-[#5A566A] text-white flex items-center justify-center transition-all hover:scale-110 shadow-lg"
+        aria-label="Back to dashboard"
+      >
+        <span className="text-xl">←</span>
+      </button>
+
+      {isMobile ? (
+        <MobileVerticalFeed
+          games={games}
+          personalBests={personalBests}
+          leaderboards={leaderboards}
+          lbLoading={lbLoading}
+          navigate={navigate}
+        />
+      ) : (
+        <DesktopHorizontalSwipe
+          games={games}
+          activeIndex={activeIndex}
+          setActiveIndex={setActiveIndex}
+          personalBests={personalBests}
+          activeLeaderboard={activeLeaderboard}
+          navigate={navigate}
+        />
+      )}
+    </>
   )
 }
 
@@ -103,7 +116,7 @@ function DesktopHorizontalSwipe({ games, activeIndex, setActiveIndex, personalBe
   const personalBest = personalBests[activeGame.slug]
 
   return (
-    <section className="min-h-screen flex flex-col px-6 py-6 space-y-6">
+    <section className="min-h-screen flex flex-col px-6 py-6 pb-24 space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-extrabold text-[#F7F4FF] tracking-tight">Arcade</h1>
@@ -358,7 +371,7 @@ function MobileGameSlide({ game, personalBest, leaderboard, navigate }) {
       </div>
       
       {/* Content */}
-      <div className="relative z-10 flex-1 flex flex-col justify-between p-6 pt-16 pb-8">
+      <div className="relative z-10 flex-1 flex flex-col justify-between p-6 pt-16 pb-24">
         {/* Top: Title & Stats */}
         <div>
           <h1 className="text-5xl font-black text-white mb-3 tracking-tight drop-shadow-lg">
