@@ -483,7 +483,7 @@ function MobileGameSlide({ game, personalBest, leaderboard, navigate }) {
         </div>
         
         {/* Bottom: Action & Leaderboard */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           {/* Play Button */}
           <button
             onClick={() => navigate(`/app/arcade/${game.slug}`)}
@@ -493,40 +493,38 @@ function MobileGameSlide({ game, personalBest, leaderboard, navigate }) {
             ▶ Play Now
           </button>
           
-          {/* Enhanced Scrollable Leaderboard */}
+          {/* Compact Scrollable Leaderboard */}
           {leaderboard.entries.length > 0 && (
             <div className="rounded-2xl bg-black/40 backdrop-blur-md overflow-hidden">
-              {/* Header */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-                <span className="text-sm font-bold text-white flex items-center gap-2">
+              {/* Header - compact */}
+              <div className="flex items-center justify-between px-4 py-2 border-b border-white/10">
+                <span className="text-xs font-bold text-white flex items-center gap-1.5">
                   🏆 Leaderboard
                 </span>
-                <span className="text-xs text-white/50 flex items-center gap-1">
-                  {canScrollRight && (
-                    <>
-                      Swipe <span className="animate-pulse">→</span>
-                    </>
-                  )}
-                </span>
+                {canScrollRight && (
+                  <span className="text-[10px] text-white/50 flex items-center gap-1">
+                    Swipe <span className="animate-pulse">→</span>
+                  </span>
+                )}
               </div>
               
-              {/* Scrollable Player Cards */}
+              {/* Scrollable Player Cards - compact */}
               <div className="relative">
                 {/* Left fade indicator */}
                 {canScrollLeft && (
-                  <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-black/60 to-transparent z-10 pointer-events-none" />
+                  <div className="absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-black/60 to-transparent z-10 pointer-events-none" />
                 )}
                 
                 {/* Right fade indicator */}
                 {canScrollRight && (
-                  <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-black/60 to-transparent z-10 pointer-events-none" />
+                  <div className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-black/60 to-transparent z-10 pointer-events-none" />
                 )}
                 
-                {/* Horizontal scroll container */}
+                {/* Horizontal scroll container - reduced height */}
                 <div 
                   ref={leaderboardRef}
                   onScroll={checkScroll}
-                  className="flex gap-3 overflow-x-auto px-4 py-4 snap-x snap-mandatory scrollbar-hide"
+                  className="flex gap-2 overflow-x-auto px-3 py-3 snap-x snap-mandatory scrollbar-hide"
                   style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                 >
                   {leaderboard.entries.slice(0, 10).map((entry, i) => {
@@ -536,17 +534,17 @@ function MobileGameSlide({ game, personalBest, leaderboard, navigate }) {
                     return (
                       <div 
                         key={i} 
-                        className={`flex-shrink-0 w-[140px] rounded-xl p-3 snap-start transition-all ${
+                        className={`flex-shrink-0 w-[110px] rounded-lg p-2.5 snap-start transition-all ${
                           isUserEntry 
-                            ? 'bg-gradient-to-br from-[#FFB366]/30 to-[#FF916C]/30 ring-2 ring-[#FF916C]/50 shadow-lg shadow-[#FF916C]/20' 
+                            ? 'bg-gradient-to-br from-[#FFB366]/30 to-[#FF916C]/30 ring-1 ring-[#FF916C]/50' 
                             : isTopThree
                             ? 'bg-white/10'
                             : 'bg-white/5'
                         }`}
                       >
-                        {/* Rank badge */}
-                        <div className="flex items-center justify-between mb-2">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                        {/* Rank badge - smaller */}
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
                             entry.rank === 1 ? 'bg-gradient-to-br from-[#FFD700] to-[#FFA500] text-[#1C2030]' :
                             entry.rank === 2 ? 'bg-gradient-to-br from-[#C0C0C0] to-[#A0A0A0] text-[#1C2030]' :
                             entry.rank === 3 ? 'bg-gradient-to-br from-[#CD7F32] to-[#B8860B] text-[#1C2030]' :
@@ -555,21 +553,21 @@ function MobileGameSlide({ game, personalBest, leaderboard, navigate }) {
                             {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : entry.rank}
                           </div>
                           {isUserEntry && (
-                            <span className="text-[10px] font-bold text-[#FF916C] bg-[#FF916C]/20 px-2 py-0.5 rounded-full">
+                            <span className="text-[9px] font-bold text-[#FF916C] bg-[#FF916C]/20 px-1.5 py-0.5 rounded-full">
                               YOU
                             </span>
                           )}
                         </div>
                         
-                        {/* Player name */}
-                        <div className="text-sm font-semibold text-white/90 truncate mb-1">
+                        {/* Player name - smaller */}
+                        <div className="text-xs font-semibold text-white/90 truncate mb-1">
                           {entry.username?.split(' ')[0] || 'Anonymous'}
                         </div>
                         
-                        {/* Score */}
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-2xl font-bold text-[#4EF0A0]">{entry.score}</span>
-                          <span className="text-xs text-white/50">pts</span>
+                        {/* Score - compact */}
+                        <div className="flex items-baseline gap-0.5">
+                          <span className="text-lg font-bold text-[#4EF0A0]">{entry.score}</span>
+                          <span className="text-[9px] text-white/50">pts</span>
                         </div>
                       </div>
                     )
@@ -577,21 +575,22 @@ function MobileGameSlide({ game, personalBest, leaderboard, navigate }) {
                 </div>
               </div>
               
-              {/* User's rank if not in top 10 */}
+              {/* User's rank if not in top 10 - compact */}
               {leaderboard.userEntry && leaderboard.userEntry.rank > 10 && (
-                <div className="px-4 pb-3 pt-2 border-t border-white/10">
-                  <div className="text-xs text-white/50 mb-2">Your Rank:</div>
-                  <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-gradient-to-r from-[#FFB366]/20 to-[#FF916C]/20 ring-1 ring-[#FF916C]/30">
-                    <span className="text-sm font-bold text-white">#{leaderboard.userEntry.rank}</span>
-                    <span className="flex-1 text-sm text-white/90 truncate">
+                <div className="px-3 pb-2 pt-1 border-t border-white/10">
+                  <div className="text-[9px] text-white/50 mb-1">Your Rank:</div>
+                  <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-[#FFB366]/20 to-[#FF916C]/20 ring-1 ring-[#FF916C]/30">
+                    <span className="text-xs font-bold text-white">#{leaderboard.userEntry.rank}</span>
+                    <span className="flex-1 text-xs text-white/90 truncate">
                       {leaderboard.userEntry.username?.split(' ')[0] || 'You'}
                     </span>
-                    <span className="text-sm font-bold text-[#4EF0A0]">{leaderboard.userEntry.score}</span>
+                    <span className="text-xs font-bold text-[#4EF0A0]">{leaderboard.userEntry.score}</span>
                   </div>
                 </div>
               )}
             </div>
           )}
+
         </div>
       </div>
     </div>
