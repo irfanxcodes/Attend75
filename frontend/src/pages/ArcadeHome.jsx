@@ -105,16 +105,16 @@ function DesktopHorizontalSwipe({ games, activeIndex, setActiveIndex, personalBe
   const topScore = activeLeaderboard.entries[0]?.score || null
 
   return (
-    <section className="min-h-screen flex flex-col items-center justify-center px-6 py-12 bg-[#1C2030] pb-24">
+    <section className="fixed inset-0 flex flex-col items-center justify-center bg-[#1C2030] pb-24">
       {/* Header - centered */}
-      <div className="text-center mb-10">
+      <div className="text-center mb-8">
         <h1 className="text-4xl font-extrabold text-white tracking-tight mb-2">Arcade</h1>
         <p className="text-sm text-gray-400">Swipe to explore games</p>
       </div>
       
-      {/* Card Display Area */}
-      <div className="relative w-full max-w-5xl mb-10">
-        <div className="relative h-[480px] flex items-center justify-center">
+      {/* Card Display Area - smaller cards */}
+      <div className="relative w-full max-w-4xl mb-8">
+        <div className="relative h-[400px] flex items-center justify-center">
           {games.map((game, i) => {
             const distFromActive = i - activeIndex
             let className = 'absolute transition-all duration-500 ease-out cursor-pointer'
@@ -133,14 +133,14 @@ function DesktopHorizontalSwipe({ games, activeIndex, setActiveIndex, personalBe
               filter = 'none'
             } else if (distFromActive === -1 || (activeIndex === 0 && i === games.length - 1)) {
               // Left card
-              transform = 'translateX(-80%) scale(0.85)'
-              opacity = 0.5
+              transform = 'translateX(-85%) scale(0.8)'
+              opacity = 0.4
               zIndex = 20
               pointerEvents = 'auto'
             } else if (distFromActive === 1 || (activeIndex === games.length - 1 && i === 0)) {
               // Right card
-              transform = 'translateX(80%) scale(0.85)'
-              opacity = 0.5
+              transform = 'translateX(85%) scale(0.8)'
+              opacity = 0.4
               zIndex = 20
               pointerEvents = 'auto'
             }
@@ -155,7 +155,7 @@ function DesktopHorizontalSwipe({ games, activeIndex, setActiveIndex, personalBe
                   zIndex,
                   pointerEvents,
                   filter,
-                  width: '520px',
+                  width: '420px',
                   height: '100%'
                 }}
                 onClick={() => distFromActive !== 0 && setActiveIndex(i)}
@@ -187,7 +187,7 @@ function DesktopHorizontalSwipe({ games, activeIndex, setActiveIndex, personalBe
         {/* Play Button */}
         <button
           onClick={() => navigate(`/app/arcade/${activeGame.slug}`)}
-          className="px-14 py-4 rounded-full font-bold text-lg text-black transition-all hover:scale-105 shadow-xl flex items-center gap-3"
+          className="px-12 py-3.5 rounded-full font-bold text-lg text-black transition-all hover:scale-105 shadow-xl flex items-center gap-2"
           style={{ background: 'linear-gradient(135deg, #B8F77D 0%, #7BE056 100%)' }}
         >
           <span className="text-xl">▶</span>
@@ -223,20 +223,20 @@ function DesktopHorizontalSwipe({ games, activeIndex, setActiveIndex, personalBe
 
 function DesktopGameCard({ game, personalBest, userRank, topScore, navigate, isActive }) {
   return (
-    <div className="h-full rounded-[28px] overflow-hidden relative shadow-2xl">
+    <div className="h-full rounded-3xl overflow-hidden relative shadow-2xl bg-[#2A2640]">
       {/* Game Visual - full card background */}
-      <div className="absolute inset-0 bg-[#4A466A]">
+      <div className="absolute inset-0">
         <GameVisual game={game} personalBest={personalBest} />
       </div>
       
       {/* Dark overlay gradient for text readability */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/80" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/75" />
       
       {/* Content overlay */}
-      <div className="absolute inset-0 flex flex-col justify-between p-8">
+      <div className="absolute inset-0 flex flex-col justify-between p-6">
         {/* Top badge */}
         <div>
-          <span className="inline-block px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-wider bg-white/20 backdrop-blur-md text-white">
+          <span className="inline-block px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-white/20 backdrop-blur-md text-white">
             {game.slug === 'flappy' ? "This week's game" : 'Classic arcade'}
           </span>
         </div>
@@ -244,33 +244,33 @@ function DesktopGameCard({ game, personalBest, userRank, topScore, navigate, isA
         {/* Bottom info */}
         <div>
           {/* Game title */}
-          <h2 className="text-4xl font-black text-white mb-2 drop-shadow-lg">{game.title}</h2>
-          <p className="text-white/90 text-sm mb-6 drop-shadow">{game.description}</p>
+          <h2 className="text-3xl font-black text-white mb-2 drop-shadow-lg">{game.title}</h2>
+          <p className="text-white/90 text-sm mb-5 drop-shadow">{game.description}</p>
           
-          {/* Stats row - only on active card */}
+          {/* Stats row - only on active card, smaller */}
           {isActive && (personalBest || userRank || topScore) && (
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-2.5">
               {/* Personal Best */}
               {personalBest && (
-                <div className="rounded-xl bg-white/15 backdrop-blur-md p-4 text-center border border-white/20">
-                  <div className="text-3xl font-bold text-white">{personalBest}</div>
-                  <div className="text-xs text-white/70 uppercase tracking-wider mt-1">Best</div>
+                <div className="rounded-xl bg-white/15 backdrop-blur-md p-3 text-center border border-white/20">
+                  <div className="text-2xl font-bold text-white">{personalBest}</div>
+                  <div className="text-[10px] text-white/70 uppercase tracking-wider mt-0.5">Best</div>
                 </div>
               )}
               
               {/* User Rank */}
               {userRank && (
-                <div className="rounded-xl bg-white/15 backdrop-blur-md p-4 text-center border border-white/20">
-                  <div className="text-3xl font-bold text-white">#{userRank}</div>
-                  <div className="text-xs text-white/70 uppercase tracking-wider mt-1">Rank</div>
+                <div className="rounded-xl bg-white/15 backdrop-blur-md p-3 text-center border border-white/20">
+                  <div className="text-2xl font-bold text-white">#{userRank}</div>
+                  <div className="text-[10px] text-white/70 uppercase tracking-wider mt-0.5">Rank</div>
                 </div>
               )}
               
               {/* Top Score */}
               {topScore && (
-                <div className="rounded-xl bg-white/15 backdrop-blur-md p-4 text-center border border-white/20">
-                  <div className="text-3xl font-bold text-white">{topScore}</div>
-                  <div className="text-xs text-white/70 uppercase tracking-wider mt-1">Top</div>
+                <div className="rounded-xl bg-white/15 backdrop-blur-md p-3 text-center border border-white/20">
+                  <div className="text-2xl font-bold text-white">{topScore}</div>
+                  <div className="text-[10px] text-white/70 uppercase tracking-wider mt-0.5">Top</div>
                 </div>
               )}
             </div>
