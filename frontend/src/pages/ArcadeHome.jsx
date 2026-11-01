@@ -505,19 +505,21 @@ function GameVisual({ game, personalBest, fullscreen = false }) {
           <svg width={fullscreen ? "120" : "90"} height={fullscreen ? "120" : "90"} viewBox="0 0 100 100" fill="none">
             {/* Shadow */}
             <ellipse cx="50" cy="90" rx="35" ry="8" fill="rgba(0,0,0,0.3)" />
-            {/* Pac-Man body with gradient */}
+            {/* Pac-Man body - perfect circle with wedge cut out */}
             <defs>
               <radialGradient id="pacGradient">
                 <stop offset="0%" stopColor="#FFFF00" />
+                <stop offset="70%" stopColor="#FFFF00" />
                 <stop offset="100%" stopColor="#FFD700" />
               </radialGradient>
             </defs>
-            <path d="M50 10 C73 10 92 29 92 52 C92 75 73 94 50 94 C27 94 8 75 8 52 C8 29 27 10 50 10 Z" fill="url(#pacGradient)" />
-            {/* Mouth opening */}
-            <path d="M50 52 L85 30 L85 74 Z" fill="#0D0D33" />
+            {/* Main circle */}
+            <circle cx="50" cy="52" r="42" fill="url(#pacGradient)" />
+            {/* Mouth wedge - cut out triangle */}
+            <path d="M 50 52 L 90 35 L 90 69 Z" fill="#0D0D33" />
             {/* Eye */}
-            <circle cx="45" cy="35" r="6" fill="#000" />
-            <circle cx="47" cy="33" r="2" fill="#fff" />
+            <circle cx="45" cy="32" r="7" fill="#000" />
+            <circle cx="47" cy="30" r="3" fill="#fff" />
           </svg>
         </div>
         
