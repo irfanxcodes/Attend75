@@ -312,10 +312,19 @@ function MobileVerticalFeed({ games, personalBests, leaderboards, lbLoading, nav
         
         @keyframes bounce-slow {
           0%, 100% { 
-            transform: translateY(0px);
+            transform: translateY(0px) rotate(45deg);
           }
           50% { 
-            transform: translateY(-8px);
+            transform: translateY(-12px) rotate(45deg);
+          }
+        }
+        
+        @keyframes swing {
+          0%, 100% { 
+            transform: translateX(-50%) rotate(-15deg);
+          }
+          50% { 
+            transform: translateX(-50%) rotate(15deg);
           }
         }
         
@@ -581,47 +590,103 @@ function GameVisual({ game, personalBest, fullscreen = false }) {
   
   if (game.slug === 'geodash') {
     return (
-      <div className={`relative flex flex-col items-center justify-center overflow-hidden bg-[#0a1628] ${heightClass}`}>
-        {/* Grid */}
-        <div className="absolute inset-0 opacity-10">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="absolute top-0 bottom-0 w-px bg-[#00ff87]" style={{ left: `${15 + i * 14}%` }} />
+      <div className={`relative flex flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-[#0a1628] via-[#0d1f3a] to-[#1a2744] ${heightClass}`}>
+        {/* Animated grid lines */}
+        <div className="absolute inset-0 opacity-20">
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="absolute top-0 bottom-0 w-px bg-[#00ff87]" style={{ left: `${10 + i * 11}%`, animationDelay: `${i * 0.1}s` }} />
           ))}
         </div>
-        {/* Ground */}
-        <div className="absolute bottom-0 left-0 right-0 h-10 bg-[#1a4a7a]" />
-        <div className="absolute bottom-10 left-0 right-0 h-0.5 bg-white" />
-        {/* Spikes */}
-        {[20, 35, 55, 70].map((left, i) => (
-          <div key={i} className="absolute bottom-10" style={{ left: `${left}%` }}>
-            <div className="w-0 h-0" style={{ borderLeft: '9px solid transparent', borderRight: '9px solid transparent', borderBottom: '16px solid #ccc' }} />
+        
+        {/* Particles floating */}
+        <div className="absolute inset-0">
+          {[15, 35, 55, 75, 25, 65].map((left, i) => (
+            <div 
+              key={i} 
+              className="absolute w-1 h-1 rounded-full bg-[#00ff87]"
+              style={{ 
+                left: `${left}%`, 
+                top: `${20 + (i * 12)}%`,
+                animation: `float ${2 + (i * 0.3)}s ease-in-out infinite`,
+                animationDelay: `${i * 0.2}s`,
+                opacity: 0.4
+              }}
+            />
+          ))}
+        </div>
+        
+        {/* Ground with glow */}
+        <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[#1a4a7a] to-transparent" />
+        <div className="absolute bottom-12 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#00ff87] to-transparent shadow-[0_0_8px_rgba(0,255,135,0.6)]" />
+        
+        {/* Spikes with gradient */}
+        {[15, 32, 52, 72, 88].map((left, i) => (
+          <div key={i} className="absolute bottom-12" style={{ left: `${left}%` }}>
+            <div className="w-0 h-0" style={{ 
+              borderLeft: '10px solid transparent', 
+              borderRight: '10px solid transparent', 
+              borderBottom: '18px solid #e0e0e0',
+              filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))'
+            }} />
           </div>
         ))}
-        {/* Cube - show on mobile too */}
-        <div className={`absolute ${fullscreen ? 'bottom-[44px] h-10 w-10' : 'bottom-[38px] h-8 w-8'} left-[12%] rounded-sm bg-[#00ff87] border-2 border-black flex items-center justify-center shadow-[0_0_12px_rgba(0,255,135,0.5)]`} style={{ animation: 'bounce-slow 1.5s ease-in-out infinite' }}>
-          <div className={`${fullscreen ? 'h-4 w-4' : 'h-3.5 w-3.5'} bg-white rounded-sm opacity-60`} />
+        
+        {/* Main Cube - centered and animated */}
+        <div 
+          className={`relative ${fullscreen ? 'h-16 w-16' : 'h-12 w-12'} rounded-md flex items-center justify-center`}
+          style={{ 
+            background: 'linear-gradient(135deg, #00ff87 0%, #00d9ff 50%, #00ff87 100%)',
+            animation: 'bounce-slow 1.5s ease-in-out infinite',
+            boxShadow: '0 0 20px rgba(0,255,135,0.6), inset 0 0 10px rgba(255,255,255,0.3)',
+            border: '3px solid rgba(0,0,0,0.4)',
+            transform: 'rotate(45deg)'
+          }}
+        >
+          {/* Inner highlight */}
+          <div className={`${fullscreen ? 'h-8 w-8' : 'h-6 w-6'} rounded-sm bg-gradient-to-br from-white/40 to-transparent`} />
+          
+          {/* Corner accents */}
+          <div className="absolute top-1 left-1 w-2 h-2 bg-white/60 rounded-sm" style={{ transform: 'rotate(-45deg)' }} />
+          <div className="absolute bottom-1 right-1 w-2 h-2 bg-black/20 rounded-sm" style={{ transform: 'rotate(-45deg)' }} />
         </div>
+        
+        {/* Trail particles behind cube */}
+        {fullscreen && [0, 1, 2].map((i) => (
+          <div 
+            key={`trail-${i}`}
+            className="absolute w-3 h-3 rounded-sm"
+            style={{
+              left: `${30 - (i * 8)}%`,
+              top: '50%',
+              background: 'linear-gradient(135deg, #00ff87, #00d9ff)',
+              opacity: 0.3 - (i * 0.1),
+              transform: 'rotate(45deg)',
+              animation: `float ${1.5 + i * 0.2}s ease-in-out infinite`,
+              animationDelay: `${i * 0.1}s`
+            }}
+          />
+        ))}
       </div>
     )
   }
   
   if (game.slug === 'stack') {
     return (
-      <div className={`relative flex flex-col items-center justify-end overflow-hidden ${heightClass}`} style={{ background: 'linear-gradient(180deg, #7EC8E3 0%, #B8E8F8 50%, #E8F4FD 100%)' }}>
+      <div className={`relative flex flex-col items-center justify-center overflow-hidden ${heightClass}`} style={{ background: 'linear-gradient(180deg, #7EC8E3 0%, #B8E8F8 50%, #E8F4FD 100%)' }}>
         {/* Clouds */}
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute top-[10%] left-[5%] h-11 w-26 rounded-full bg-white/70 blur-[2px]" />
           <div className="absolute top-[8%] right-[8%] h-10 w-22 rounded-full bg-white/60 blur-[2px]" />
           <div className="absolute bottom-[30%] right-[5%] h-11 w-30 rounded-full bg-white/60 blur-[2px]" />
         </div>
-        {/* Swinging block */}
-        <div className="absolute top-[28%] left-[32%]">
-          <div className="h-5 w-13 rounded-sm shadow-md" style={{ background: 'linear-gradient(180deg, #FFE066, #FFD700)' }} />
+        {/* Swinging block above tower */}
+        <div className="absolute" style={{ top: fullscreen ? '35%' : '30%', left: '50%', transform: 'translateX(-50%)', animation: 'swing 2s ease-in-out infinite', transformOrigin: 'center top' }}>
+          <div className={`${fullscreen ? 'h-[18px] w-20' : 'h-[15px] w-16'} rounded-sm shadow-lg`} style={{ background: 'linear-gradient(180deg, #FFE066, #FFD700)' }} />
         </div>
-        {/* Stacked tower - show on mobile too */}
-        <div className={`relative z-10 mb-4 flex flex-col items-center ${fullscreen ? 'mb-8' : 'mb-4'}`}>
+        {/* Stacked tower - centered */}
+        <div className={`relative z-10 flex flex-col items-center ${fullscreen ? 'mt-12' : 'mt-8'}`} style={{ animation: 'float 2.5s ease-in-out infinite' }}>
           {[
-            { w: fullscreen ? 'w-20' : 'w-16', bg: 'linear-gradient(180deg, #FFE066, #CC9900)', shadow: true },
+            { w: fullscreen ? 'w-20' : 'w-16', bg: 'linear-gradient(180deg, #FF6B9D, #C2185B)', shadow: true },
             { w: fullscreen ? 'w-[90px]' : 'w-[70px]', bg: 'linear-gradient(180deg, #FF9A5C, #D84315)' },
             { w: fullscreen ? 'w-[94px]' : 'w-[74px]', bg: 'linear-gradient(180deg, #AED581, #558B2F)' },
             { w: fullscreen ? 'w-[98px]' : 'w-[78px]', bg: 'linear-gradient(180deg, #CE93D8, #7B1FA2)' },
