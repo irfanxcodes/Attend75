@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Manual CAPTCHA Login - Localhost Only</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      max-width: 450px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+    
+    .badge {
+      display: inline-block;
+      background: #ff6b6b;
+      color: white;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+    
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #333;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    
+    input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 15px;
+      transition: all 0.2s;
+    }
+    
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    
+    button {
+      width: 100%;
+      padding: 14px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    button:hover:not(:disabled) {
+      background: #5568d3;
+      transform: translateY(-1px);
+    }
+    
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    
+    .captcha-section {
+      display: none;
+      margin-top: 20px;
+      padding: 20px;
+      background: #f5f5f5;
+      border-radius: 10px;
+    }
+    
+    .captcha-section.show {
+      display: block;
+    }
+    
+    .captcha-image {
+      width: 100%;
+      height: auto;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      margin-bottom: 15px;
+    }
+    
+    .error {
+      background: #fee;
+      border: 1px solid #fcc;
+      color: #c33;
+      padding: 12px;
+      border-radius: 8px;
+      margin-top: 15px;
+      font-size: 14px;
+    }
+    
+    .success {
+      background: #efe;
+      border: 1px solid #cfc;
+      color: #3c3;
+      padding: 12px;
+      border-radius: 8px;
+      margin-top: 15px;
+      font-size: 14px;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <span class="badge">Localhost Only</span>
+    <h1>🔐 Manual CAPTCHA Login</h1>
+    <p class="subtitle">Enter your credentials to get the CAPTCHA image</p>
+    
+    <!-- Step 1: Credentials -->
+    <div id="step1">
+      <div class="form-group">
+        <label>Roll Number</label>
+        <input type="text" id="rollNumber" value="24fmuchh014059" placeholder="e.g., 24fmuchh014059">
+      </div>
+      
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="password" value="Hulk@112233" placeholder="Your portal password">
+      </div>
+      
+      <button onclick="getCaptcha()" id="getCaptchaBtn">
+        Get CAPTCHA Image
+      </button>
+    </div>
+    
+    <!-- Step 2: CAPTCHA Entry -->
+    <div id="step2" class="captcha-section">
+      <h3 style="margin-bottom: 15px; color: #333;">Enter the CAPTCHA:</h3>
+      <img id="captchaImage" class="captcha-image" alt="CAPTCHA" />
+      
+      <div class="form-group">
+        <label>Type what you see above</label>
+        <input type="text" id="captchaText" placeholder="Enter CAPTCHA text" autocomplete="off">
+      </div>
+      
+      <button onclick="submitCaptcha()" id="submitBtn">
+        Submit & Login
+      </button>
+    </div>
+    
+    <div id="message"></div>
+  </div>
+
+  <script>
+    let captchaId = null;
+
+    async function getCaptcha() {
+      const rollNumber = document.getElementById('rollNumber').value.trim();
+      const password = document.getElementById('password').value;
+      const btn = document.getElementById('getCaptchaBtn');
+      const messageDiv = document.getElementById('message');
+      
+      if (!rollNumber || !password) {
+        messageDiv.innerHTML = '<div class="error">Please enter both roll number and password</div>';
+        return;
+      }
+      
+      btn.disabled = true;
+      btn.textContent = 'Fetching CAPTCHA...';
+      messageDiv.innerHTML = '';
+      
+      try {
+        const response = await fetch('http://localhost:8000/local/get-captcha', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            roll_number: rollNumber,
+            password: password
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.status === 'success') {
+          // Show CAPTCHA image
+          captchaId = data.captcha_id;
+          document.getElementById('captchaImage').src = 'data:image/png;base64,' + data.captcha_image_base64;
+          document.getElementById('step2').classList.add('show');
+          document.getElementById('captchaText').focus();
+          
+          messageDiv.innerHTML = '<div class="success">CAPTCHA loaded! Enter the text you see above.</div>';
+        } else {
+          messageDiv.innerHTML = '<div class="error">' + (data.detail || data.message || 'Failed to get CAPTCHA') + '</div>';
+        }
+      } catch (error) {
+        messageDiv.innerHTML = '<div class="error">Network error: ' + error.message + '</div>';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Get CAPTCHA Image';
+      }
+    }
+    
+    async function submitCaptcha() {
+      const captchaText = document.getElementById('captchaText').value.trim();
+      const btn = document.getElementById('submitBtn');
+      const messageDiv = document.getElementById('message');
+      
+      if (!captchaText) {
+        messageDiv.innerHTML = '<div class="error">Please enter the CAPTCHA text</div>';
+        return;
+      }
+      
+      if (!captchaId) {
+        messageDiv.innerHTML = '<div class="error">No CAPTCHA session found. Please get CAPTCHA first.</div>';
+        return;
+      }
+      
+      btn.disabled = true;
+      btn.textContent = 'Logging in...';
+      messageDiv.innerHTML = '<div class="loading">Submitting to portal...</div>';
+      
+      try {
+        const response = await fetch(`http://localhost:8000/local/submit-captcha?captcha_id=${captchaId}&captcha_text=${encodeURIComponent(captchaText)}`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'}
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.status === 'success') {
+          messageDiv.innerHTML = '<div class="success">✅ Login successful! Redirecting to arcade...</div>';
+          
+          // Set the session cookie
+          document.cookie = `session_token=${data.token}; path=/; max-age=604800; SameSite=Lax`;
+          
+          // Redirect to arcade
+          setTimeout(() => {
+            window.location.href = 'http://localhost:5173/app/arcade';
+          }, 1500);
+        } else {
+          messageDiv.innerHTML = '<div class="error">❌ ' + (data.message || data.detail || 'Login failed. CAPTCHA might be wrong.') + '</div>';
+          // Reset for retry
+          document.getElementById('captchaText').value = '';
+          document.getElementById('captchaText').focus();
+        }
+      } catch (error) {
+        messageDiv.innerHTML = '<div class="error">Network error: ' + error.message + '</div>';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Submit & Login';
+      }
+    }
+    
+    // Allow Enter key to submit
+    document.getElementById('captchaText').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        submitCaptcha();
+      }
+    });
+    
+    document.getElementById('rollNumber').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        document.getElementById('password').focus();
+      }
+    });
+    
+    document.getElementById('password').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        getCaptcha();
+      }
+    });
+  </script>
+</body>
+</html>
