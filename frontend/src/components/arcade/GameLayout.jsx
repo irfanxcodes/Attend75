@@ -217,79 +217,39 @@ function GameLayout({ gameSlug, children }) {
   // --- Render ---
   return (
     <div
-      className="fixed inset-x-0 flex flex-col bg-gradient-to-b from-[#0a0e1a] to-[#1a1d3a]"
-      style={{
-        top: 0,
-        bottom: 0,
-        zIndex: 10,
-      }}
+      className="fixed inset-0 flex flex-col bg-[#0a0a0f]"
+      style={{ zIndex: 10 }}
     >
-      {/* Top Stats Bar - Rounded Container */}
-      <div className="shrink-0 px-4 pt-4 pb-3">
-        <div className="flex items-center justify-between gap-3 bg-[#1e2139] rounded-2xl px-5 py-4 border border-[#2d3152]">
-          {/* Score */}
-          <div className="flex flex-col">
-            <span className="text-[10px] font-semibold text-[#9ca3af] uppercase tracking-wider">Score</span>
-            <span className="text-2xl font-black text-[#fbbf24]">{currentScore}</span>
+      {/* Minimal Top Bar with just stats */}
+      <div className="shrink-0 flex items-center justify-between px-6 py-3 bg-[#12121a]/80 backdrop-blur-sm">
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400 uppercase tracking-wide">Score</span>
+            <span className="text-xl font-bold text-yellow-400">{currentScore}</span>
           </div>
-          
-          {/* Best */}
-          <div className="flex flex-col">
-            <span className="text-[10px] font-semibold text-[#9ca3af] uppercase tracking-wider">Best</span>
-            <span className="text-2xl font-black text-white">{submissionResult?.personal_best || 0}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400 uppercase tracking-wide">Best</span>
+            <span className="text-xl font-bold text-white">{submissionResult?.personal_best || 0}</span>
           </div>
-          
-          {/* Level */}
-          <div className="flex flex-col">
-            <span className="text-[10px] font-semibold text-[#9ca3af] uppercase tracking-wider">Level</span>
-            <span className="text-2xl font-black text-white">1</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400 uppercase tracking-wide">Level</span>
+            <span className="text-xl font-bold text-white">1</span>
           </div>
-          
-          {/* Control Buttons */}
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => navigate('/app/arcade')}
-              className="w-10 h-10 rounded-xl bg-[#2d3152] border border-[#3d4162] flex items-center justify-center text-white/70 hover:text-white hover:bg-[#3d4162] transition active:scale-95"
-              aria-label="Back to Arcade"
-            >
-              <ArrowLeft size={18} />
-            </button>
-            <button
-              type="button"
-              className="w-10 h-10 rounded-xl bg-[#2d3152] border border-[#3d4162] flex items-center justify-center text-white/70 hover:text-white hover:bg-[#3d4162] transition active:scale-95"
-              aria-label="Pause"
-            >
-              <span className="text-lg">❚❚</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Lives & Power Bar */}
-      <div className="shrink-0 flex items-center justify-between px-6 pb-3">
-        {/* Lives - Pac-Man icons */}
-        <div className="flex gap-2">
-          <span className="text-2xl">🟡</span>
-          <span className="text-2xl">🟡</span>
-          <span className="text-2xl">🟡</span>
         </div>
         
-        {/* Power Bar */}
-        <div className="flex items-center gap-2">
-          <div className="w-48 h-2 bg-[#1e2139] rounded-full overflow-hidden border border-[#2d3152]">
-            <div className="h-full bg-gradient-to-r from-[#60a5fa] to-[#3b82f6] w-0 transition-all duration-300" />
-          </div>
-          <span className="text-[10px] font-semibold text-[#9ca3af] uppercase tracking-wider">Power</span>
-        </div>
+        <button
+          type="button"
+          onClick={() => navigate('/app/arcade')}
+          className="p-2 rounded-lg hover:bg-white/5 text-white/60 hover:text-white transition"
+          aria-label="Back"
+        >
+          <ArrowLeft size={20} />
+        </button>
       </div>
 
-      {/* Game canvas area */}
-      <div className="relative flex-1 min-h-0 flex items-center justify-center px-4 pb-4">
-        <div
-          className="relative w-full rounded-2xl overflow-hidden border-2 border-[#3b82f6]/30 shadow-2xl shadow-[#3b82f6]/10"
-          style={{ aspectRatio: '1/1', maxHeight: '100%' }}
-        >
+      {/* Large Game Canvas - takes all available space */}
+      <div className="relative flex-1 min-h-0 flex items-center justify-center p-4">
+        <div className="relative w-full h-full max-w-[600px] max-h-[600px] aspect-square">
           {typeof children === 'function'
             ? children({
                 onGameEnd: handleGameEnd,
@@ -302,29 +262,29 @@ function GameLayout({ gameSlug, children }) {
 
           {/* Game-over overlay */}
           {isGameOver && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/80 backdrop-blur-md">
-              <div className="flex w-[88%] max-w-sm flex-col items-center gap-4 rounded-2xl bg-[#1e2139] border border-[#2d3152] p-6 shadow-xl">
-                <h2 className="text-3xl font-black text-[#fbbf24] uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Game Over</h2>
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/90 backdrop-blur-sm">
+              <div className="flex w-[88%] max-w-sm flex-col items-center gap-4 rounded-xl bg-[#12121a] border border-gray-800 p-6">
+                <h2 className="text-3xl font-bold text-yellow-400 uppercase tracking-wide">Game Over</h2>
 
-                <p className="text-sm text-[#9ca3af]">Score {currentScore}. Best {submissionResult?.personal_best || 0}.</p>
+                <p className="text-sm text-gray-400">Score: {currentScore} • Best: {submissionResult?.personal_best || 0}</p>
 
                 {currentCoins > 0 && (
-                  <div className="flex items-center gap-2 rounded-full bg-[#ffd700]/15 px-4 py-1.5">
-                    <span className="text-base leading-none">🪙</span>
-                    <span className="text-sm font-bold text-[#ffd700]">
+                  <div className="flex items-center gap-2 rounded-full bg-yellow-400/10 px-4 py-1.5">
+                    <span className="text-base">🪙</span>
+                    <span className="text-sm font-bold text-yellow-400">
                       {currentCoins} coin{currentCoins !== 1 ? 's' : ''}
                     </span>
                   </div>
                 )}
 
                 {isSubmitting && (
-                  <p className="text-sm text-[#9ca3af]">Saving score…</p>
+                  <p className="text-sm text-gray-400">Saving score…</p>
                 )}
 
                 {submissionResult && (
-                  <div className="flex w-full flex-col gap-1 rounded-xl bg-[#2d3152] px-4 py-3 text-center border border-[#3d4162]">
-                    <p className="text-sm text-[#9ca3af]">
-                      Rank: <span className="font-bold text-[#4EF0A0]">#{submissionResult.rank}</span>
+                  <div className="flex w-full flex-col gap-1 rounded-lg bg-gray-800/50 px-4 py-3 text-center">
+                    <p className="text-sm text-gray-300">
+                      Rank: <span className="font-bold text-green-400">#{submissionResult.rank}</span>
                     </p>
                   </div>
                 )}
@@ -332,16 +292,15 @@ function GameLayout({ gameSlug, children }) {
                 <button
                   type="button"
                   onClick={() => handleRestart(0)}
-                  className="w-full rounded-xl bg-[#fbbf24] py-3 text-base font-black text-black transition active:scale-[0.97] uppercase tracking-wide"
-                  style={{ fontFamily: 'monospace' }}
+                  className="w-full rounded-lg bg-yellow-400 py-3 text-base font-bold text-black transition hover:bg-yellow-300 active:scale-[0.98]"
                 >
-                  Play again
+                  PLAY AGAIN
                 </button>
 
                 <button
                   type="button"
                   onClick={handleViewLeaderboard}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl border border-[#3d4162] bg-[#2d3152] py-3 text-sm font-semibold text-white transition hover:bg-[#3d4162] active:scale-[0.97]"
+                  className="w-full flex items-center justify-center gap-2 rounded-lg border border-gray-700 bg-gray-800/50 py-3 text-sm font-semibold text-white transition hover:bg-gray-700 active:scale-[0.98]"
                 >
                   <Trophy size={16} />
                   Leaderboard
@@ -351,7 +310,7 @@ function GameLayout({ gameSlug, children }) {
                   <button
                     type="button"
                     onClick={handleWatchAd}
-                    className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl border border-[#A78BFA]/40 bg-[#A78BFA]/10 py-2.5 text-xs font-semibold text-[#A78BFA] transition hover:bg-[#A78BFA]/20 active:scale-[0.97]"
+                    className="mt-1 flex w-full items-center justify-center gap-2 rounded-lg border border-purple-500/40 bg-purple-500/10 py-2.5 text-xs font-semibold text-purple-400 transition hover:bg-purple-500/20 active:scale-[0.98]"
                   >
                     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
                     Watch ad to continue
@@ -363,39 +322,39 @@ function GameLayout({ gameSlug, children }) {
         </div>
       </div>
 
-      {/* Arrow Pad Controls */}
-      <div className="shrink-0 flex flex-col items-center gap-2 pb-safe pb-6">
+      {/* Arrow Pad Controls - Simple and Clean */}
+      <div className="shrink-0 flex flex-col items-center gap-1 pb-safe pb-6">
         {/* Up */}
         <button
           type="button"
-          className="w-14 h-14 rounded-xl bg-[#2d3152] border border-[#3d4162] flex items-center justify-center text-white/90 hover:bg-[#3d4162] hover:text-white transition active:scale-95 active:bg-[#4d5172]"
+          className="w-16 h-16 rounded-lg bg-gray-800/80 backdrop-blur-sm flex items-center justify-center text-white hover:bg-gray-700 transition active:scale-95"
           aria-label="Up"
         >
-          <span className="text-2xl">▲</span>
+          <span className="text-3xl">▲</span>
         </button>
         
         {/* Left, Down, Right */}
-        <div className="flex gap-2">
+        <div className="flex gap-1">
           <button
             type="button"
-            className="w-14 h-14 rounded-xl bg-[#2d3152] border border-[#3d4162] flex items-center justify-center text-white/90 hover:bg-[#3d4162] hover:text-white transition active:scale-95 active:bg-[#4d5172]"
+            className="w-16 h-16 rounded-lg bg-gray-800/80 backdrop-blur-sm flex items-center justify-center text-white hover:bg-gray-700 transition active:scale-95"
             aria-label="Left"
           >
-            <span className="text-2xl">◀</span>
+            <span className="text-3xl">◀</span>
           </button>
           <button
             type="button"
-            className="w-14 h-14 rounded-xl bg-[#2d3152] border border-[#3d4162] flex items-center justify-center text-white/90 hover:bg-[#3d4162] hover:text-white transition active:scale-95 active:bg-[#4d5172]"
+            className="w-16 h-16 rounded-lg bg-gray-800/80 backdrop-blur-sm flex items-center justify-center text-white hover:bg-gray-700 transition active:scale-95"
             aria-label="Down"
           >
-            <span className="text-2xl">▼</span>
+            <span className="text-3xl">▼</span>
           </button>
           <button
             type="button"
-            className="w-14 h-14 rounded-xl bg-[#2d3152] border border-[#3d4162] flex items-center justify-center text-white/90 hover:bg-[#3d4162] hover:text-white transition active:scale-95 active:bg-[#4d5172]"
+            className="w-16 h-16 rounded-lg bg-gray-800/80 backdrop-blur-sm flex items-center justify-center text-white hover:bg-gray-700 transition active:scale-95"
             aria-label="Right"
           >
-            <span className="text-2xl">▶</span>
+            <span className="text-3xl">▶</span>
           </button>
         </div>
       </div>
