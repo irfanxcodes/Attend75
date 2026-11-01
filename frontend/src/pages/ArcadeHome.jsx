@@ -299,6 +299,35 @@ function MobileVerticalFeed({ games, personalBests, leaderboards, lbLoading, nav
 
   return (
     <div className="fixed inset-0 bg-[#1C2030]">
+      {/* CSS Animations */}
+      <style>{`
+        @keyframes float {
+          0%, 100% { 
+            transform: translateY(0px);
+          }
+          50% { 
+            transform: translateY(-15px);
+          }
+        }
+        
+        @keyframes bounce-slow {
+          0%, 100% { 
+            transform: translateY(0px);
+          }
+          50% { 
+            transform: translateY(-8px);
+          }
+        }
+        
+        .animate-float {
+          animation: float 2.5s ease-in-out infinite;
+        }
+        
+        .animate-bounce-slow {
+          animation: bounce-slow 1.5s ease-in-out infinite;
+        }
+      `}</style>
+      
       {/* Scroll Indicators */}
       <div className="fixed right-4 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-2">
         {games.map((_, i) => (
@@ -433,7 +462,7 @@ function GameVisual({ game, personalBest, fullscreen = false }) {
         {/* Ground */}
         <div className="absolute bottom-0 left-0 right-0 h-7 bg-[#8BC34A]" />
         {/* Bird - show on mobile too */}
-        <div className="relative z-10">
+        <div className="relative z-10 animate-float">
           <svg width={fullscreen ? "80" : "64"} height={fullscreen ? "80" : "64"} viewBox="0 0 64 64" fill="none">
             <rect x="12" y="14" width="42" height="42" rx="12" fill="rgba(0,0,0,0.15)" />
             <rect x="9" y="11" width="42" height="42" rx="12" fill="#FF916C" />
@@ -460,7 +489,7 @@ function GameVisual({ game, personalBest, fullscreen = false }) {
           ))}
         </div>
         {/* Pac-Man - show on mobile too */}
-        <div className="relative z-10">
+        <div className="relative z-10 animate-float">
           <svg width={fullscreen ? "90" : "70"} height={fullscreen ? "90" : "70"} viewBox="0 0 64 64" fill="none">
             <path d="M32 4 C50 4 60 18 60 32 C60 46 50 60 32 60 C14 60 4 46 4 32 C4 18 14 4 32 4 Z" fill="#FFFF00" />
             <path d="M32 32 L58 18 L58 46 Z" fill="#000" />
@@ -492,7 +521,7 @@ function GameVisual({ game, personalBest, fullscreen = false }) {
           ))}
         </div>
         {/* Snake - show on mobile too */}
-        <div className="relative z-10 flex flex-col items-center gap-2">
+        <div className="relative z-10 flex flex-col items-center gap-2 animate-float">
           <div className="flex items-center gap-1">
             {/* Head */}
             <div className={`${fullscreen ? 'h-9 w-9' : 'h-7 w-7'} rounded-md bg-[#4EF0A0] ring-1 ring-[#1A9A58] flex items-center justify-center shadow-[0_0_10px_rgba(78,240,160,0.4)]`}>
@@ -532,7 +561,7 @@ function GameVisual({ game, personalBest, fullscreen = false }) {
           </div>
         ))}
         {/* Cube - show on mobile too */}
-        <div className={`absolute ${fullscreen ? 'bottom-[44px] h-10 w-10' : 'bottom-[38px] h-8 w-8'} left-[12%] rounded-sm bg-[#00ff87] border-2 border-black flex items-center justify-center shadow-[0_0_12px_rgba(0,255,135,0.5)]`}>
+        <div className={`absolute ${fullscreen ? 'bottom-[44px] h-10 w-10' : 'bottom-[38px] h-8 w-8'} left-[12%] rounded-sm bg-[#00ff87] border-2 border-black flex items-center justify-center shadow-[0_0_12px_rgba(0,255,135,0.5)] animate-bounce-slow`}>
           <div className={`${fullscreen ? 'h-4 w-4' : 'h-3.5 w-3.5'} bg-white rounded-sm opacity-60`} />
         </div>
       </div>
