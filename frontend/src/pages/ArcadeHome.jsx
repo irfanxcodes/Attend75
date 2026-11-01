@@ -683,28 +683,88 @@ function GameVisual({ game, personalBest, fullscreen = false }) {
   
   if (game.slug === 'stack') {
     return (
-      <div className={`relative flex flex-col items-center justify-center overflow-hidden ${heightClass}`} style={{ background: 'linear-gradient(180deg, #7EC8E3 0%, #B8E8F8 50%, #E8F4FD 100%)' }}>
-        {/* Clouds */}
+      <div className={`relative flex flex-col items-center justify-center overflow-hidden ${heightClass}`} style={{ background: 'linear-gradient(180deg, #87CEEB 0%, #B8E8F8 50%, #E8F4FD 100%)' }}>
+        {/* Enhanced clouds with depth */}
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute top-[10%] left-[5%] h-11 w-26 rounded-full bg-white/70 blur-[2px]" />
-          <div className="absolute top-[8%] right-[8%] h-10 w-22 rounded-full bg-white/60 blur-[2px]" />
-          <div className="absolute bottom-[30%] right-[5%] h-11 w-30 rounded-full bg-white/60 blur-[2px]" />
+          {/* Large background clouds */}
+          <div className="absolute top-[8%] left-[-5%] h-16 w-36 rounded-full bg-white/40 blur-[3px]" />
+          <div className="absolute top-[12%] left-[0%] h-14 w-28 rounded-full bg-white/50 blur-[2px]" />
+          <div className="absolute top-[5%] right-[0%] h-14 w-32 rounded-full bg-white/45 blur-[3px]" />
+          <div className="absolute top-[10%] right-[5%] h-12 w-24 rounded-full bg-white/55 blur-[2px]" />
+          
+          {/* Mid-layer clouds */}
+          <div className="absolute top-[30%] right-[-3%] h-20 w-40 rounded-full bg-white/50 blur-[2px]" />
+          <div className="absolute top-[34%] right-[2%] h-16 w-32 rounded-full bg-white/60 blur-[1px]" />
+          <div className="absolute bottom-[25%] left-[-2%] h-18 w-36 rounded-full bg-white/45 blur-[2px]" />
+          <div className="absolute bottom-[28%] left-[3%] h-14 w-28 rounded-full bg-white/55 blur-[1px]" />
+          
+          {/* Small accent clouds */}
+          <div className="absolute top-[20%] left-[15%] h-8 w-16 rounded-full bg-white/60 blur-[1px]" />
+          <div className="absolute bottom-[40%] right-[12%] h-10 w-20 rounded-full bg-white/50 blur-[1px]" />
         </div>
-        {/* Swinging block above tower */}
-        <div className="absolute" style={{ top: fullscreen ? '35%' : '30%', left: '50%', transform: 'translateX(-50%)', animation: 'swing 2s ease-in-out infinite', transformOrigin: 'center top' }}>
-          <div className={`${fullscreen ? 'h-[18px] w-20' : 'h-[15px] w-16'} rounded-sm shadow-lg`} style={{ background: 'linear-gradient(180deg, #FFE066, #FFD700)' }} />
+        
+        {/* Swinging block with crane/rope */}
+        <div className="absolute" style={{ top: fullscreen ? '28%' : '25%', left: '50%', transform: 'translateX(-50%)' }}>
+          {/* Rope */}
+          <div className="absolute top-[-60px] left-1/2 w-0.5 h-[60px] bg-gray-700/60" style={{ transform: 'translateX(-50%)' }} />
+          <div className="absolute top-[-64px] left-1/2 w-1 h-1 rounded-full bg-gray-800" style={{ transform: 'translateX(-50%)' }} />
+          
+          {/* Animated swinging block with 3D depth */}
+          <div style={{ animation: 'swing 2.2s ease-in-out infinite', transformOrigin: 'center top' }}>
+            <div className={`${fullscreen ? 'h-[22px] w-24' : 'h-[18px] w-20'} relative`}>
+              {/* 3D block layers */}
+              <div className="absolute inset-0 rounded-lg" style={{ 
+                background: 'linear-gradient(135deg, #FFE066 0%, #FFD700 100%)',
+                boxShadow: '0 4px 8px rgba(0,0,0,0.2), inset 0 -2px 4px rgba(0,0,0,0.15), inset 0 2px 4px rgba(255,255,255,0.4)'
+              }} />
+              {/* Top highlight */}
+              <div className="absolute top-0 left-[10%] right-[10%] h-[30%] bg-gradient-to-b from-white/40 to-transparent rounded-t-lg" />
+              {/* Side shadow */}
+              <div className="absolute bottom-0 right-0 w-[20%] h-[40%] bg-gradient-to-l from-black/20 to-transparent rounded-br-lg" />
+            </div>
+          </div>
         </div>
-        {/* Stacked tower - centered */}
-        <div className={`relative z-10 flex flex-col items-center ${fullscreen ? 'mt-12' : 'mt-8'}`} style={{ animation: 'float 2.5s ease-in-out infinite' }}>
+        
+        {/* Enhanced 3D stacked tower */}
+        <div className={`relative z-10 flex flex-col items-center ${fullscreen ? 'mt-12' : 'mt-8'}`} style={{ animation: 'float 2.8s ease-in-out infinite' }}>
           {[
-            { w: fullscreen ? 'w-20' : 'w-16', bg: 'linear-gradient(180deg, #FF6B9D, #C2185B)', shadow: true },
-            { w: fullscreen ? 'w-[90px]' : 'w-[70px]', bg: 'linear-gradient(180deg, #FF9A5C, #D84315)' },
-            { w: fullscreen ? 'w-[94px]' : 'w-[74px]', bg: 'linear-gradient(180deg, #AED581, #558B2F)' },
-            { w: fullscreen ? 'w-[98px]' : 'w-[78px]', bg: 'linear-gradient(180deg, #CE93D8, #7B1FA2)' },
-            { w: fullscreen ? 'w-24' : 'w-20', bg: 'linear-gradient(180deg, #4FC3F7, #0277BD)' },
-          ].map((blk, i) => (
-            <div key={i} className={`${blk.w} ${fullscreen ? 'h-[18px]' : 'h-[15px]'} rounded-[2px] ${blk.shadow ? 'shadow-lg' : 'shadow-sm'} -mt-[1px]`} style={{ background: blk.bg }} />
+            { w: fullscreen ? 'w-24' : 'w-20', h: fullscreen ? 'h-[22px]' : 'h-[18px]', color1: '#FF6B9D', color2: '#C2185B', highlight: '#FFB3D1' },
+            { w: fullscreen ? 'w-28' : 'w-24', h: fullscreen ? 'h-[22px]' : 'h-[18px]', color1: '#FF9A5C', color2: '#D84315', highlight: '#FFCAA8' },
+            { w: fullscreen ? 'w-32' : 'w-28', h: fullscreen ? 'h-[22px]' : 'h-[18px]', color1: '#AED581', color2: '#558B2F', highlight: '#D4EFA7' },
+            { w: fullscreen ? 'w-36' : 'w-32', h: fullscreen ? 'h-[22px]' : 'h-[18px]', color1: '#CE93D8', color2: '#7B1FA2', highlight: '#E1BEE7' },
+            { w: fullscreen ? 'w-40' : 'w-36', h: fullscreen ? 'h-[24px]' : 'h-[20px]', color1: '#4FC3F7', color2: '#0277BD', highlight: '#A8E0F8' },
+          ].map((block, i) => (
+            <div key={i} className={`${block.w} ${block.h} relative rounded-lg overflow-hidden`} style={{ 
+              marginTop: i === 0 ? '0' : '-2px',
+              boxShadow: '0 4px 8px rgba(0,0,0,0.15)'
+            }}>
+              {/* Main gradient */}
+              <div className="absolute inset-0" style={{ 
+                background: `linear-gradient(135deg, ${block.color1} 0%, ${block.color2} 100%)`
+              }} />
+              {/* Top highlight */}
+              <div className="absolute top-0 left-[8%] right-[8%] h-[35%] rounded-t-lg" style={{
+                background: `linear-gradient(to bottom, ${block.highlight}40, transparent)`
+              }} />
+              {/* Bottom shadow */}
+              <div className="absolute bottom-0 left-0 right-0 h-[25%]" style={{
+                background: 'linear-gradient(to top, rgba(0,0,0,0.2), transparent)'
+              }} />
+              {/* Side depth */}
+              <div className="absolute top-[15%] bottom-[15%] right-0 w-[15%]" style={{
+                background: 'linear-gradient(to left, rgba(0,0,0,0.15), transparent)'
+              }} />
+              {/* Shine effect */}
+              <div className="absolute top-[20%] left-[15%] w-[30%] h-[40%] rounded-full" style={{
+                background: 'radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%)'
+              }} />
+            </div>
           ))}
+        </div>
+        
+        {/* Shadow under tower */}
+        <div className={`absolute ${fullscreen ? 'bottom-[15%]' : 'bottom-[20%]'}`}>
+          <div className={`${fullscreen ? 'w-48 h-4' : 'w-40 h-3'} rounded-full bg-black/10 blur-[4px]`} />
         </div>
       </div>
     )
