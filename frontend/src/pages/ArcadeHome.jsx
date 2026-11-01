@@ -74,36 +74,23 @@ function ArcadeHome() {
   const activeGame = games[activeIndex]
   const activeLeaderboard = leaderboards[activeGame.slug] || { entries: [], userEntry: null }
 
-  return (
-    <>
-      {/* Back Button - Fixed at top left */}
-      <button
-        onClick={() => navigate('/app/dashboard')}
-        className="fixed top-4 left-4 z-50 w-10 h-10 rounded-full bg-[#4A466A] hover:bg-[#5A566A] text-white flex items-center justify-center transition-all hover:scale-110 shadow-lg"
-        aria-label="Back to dashboard"
-      >
-        <span className="text-xl">←</span>
-      </button>
-
-      {isMobile ? (
-        <MobileVerticalFeed
-          games={games}
-          personalBests={personalBests}
-          leaderboards={leaderboards}
-          lbLoading={lbLoading}
-          navigate={navigate}
-        />
-      ) : (
-        <DesktopHorizontalSwipe
-          games={games}
-          activeIndex={activeIndex}
-          setActiveIndex={setActiveIndex}
-          personalBests={personalBests}
-          activeLeaderboard={activeLeaderboard}
-          navigate={navigate}
-        />
-      )}
-    </>
+  return isMobile ? (
+    <MobileVerticalFeed
+      games={games}
+      personalBests={personalBests}
+      leaderboards={leaderboards}
+      lbLoading={lbLoading}
+      navigate={navigate}
+    />
+  ) : (
+    <DesktopHorizontalSwipe
+      games={games}
+      activeIndex={activeIndex}
+      setActiveIndex={setActiveIndex}
+      personalBests={personalBests}
+      activeLeaderboard={activeLeaderboard}
+      navigate={navigate}
+    />
   )
 }
 
