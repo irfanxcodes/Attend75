@@ -249,7 +249,9 @@ function DesktopLeaderboard({ game, leaderboard }) {
   return (
     <div className="rounded-2xl bg-[#4A466A] ring-1 ring-white/5 overflow-hidden">
       <div className="px-5 py-4 border-b border-white/10">
-        <h3 className="text-lg font-bold text-[#F7F4FF]">Top Players — {game.title}</h3>
+        <h3 className="text-lg font-bold text-[#F7F4FF] flex items-center gap-2">
+          🏆 {game.title} Leaderboard
+        </h3>
       </div>
       <div className="p-4">
         {leaderboard.entries.length === 0 ? (
@@ -258,17 +260,62 @@ function DesktopLeaderboard({ game, leaderboard }) {
           </div>
         ) : (
           <div className="space-y-2">
-            {leaderboard.entries.slice(0, 5).map((entry) => (
-              <div key={entry.rank} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#3E3A5C]/50">
-                <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-sm font-bold text-[#F7F4FF]">
-                  {entry.rank}
+            {leaderboard.entries.slice(0, 10).map((entry) => {
+              const isUserEntry = leaderboard.userEntry && entry.rank === leaderboard.userEntry.rank
+              const isTopThree = entry.rank <= 3
+              
+              return (
+                <div 
+                  key={entry.rank} 
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                    isUserEntry
+                      ? 'bg-gradient-to-r from-[#FFB366]/20 to-[#FF916C]/20 ring-2 ring-[#FF916C]/40 shadow-lg'
+                      : isTopThree
+                      ? 'bg-[#3E3A5C]/70 hover:bg-[#3E3A5C]/90'
+                      : 'bg-[#3E3A5C]/50 hover:bg-[#3E3A5C]/70'
+                  }`}
+                >
+                  {/* Rank badge */}
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${
+                    entry.rank === 1 ? 'bg-gradient-to-br from-[#FFD700] to-[#FFA500] text-[#1C2030]' :
+                    entry.rank === 2 ? 'bg-gradient-to-br from-[#C0C0C0] to-[#A0A0A0] text-[#1C2030]' :
+                    entry.rank === 3 ? 'bg-gradient-to-br from-[#CD7F32] to-[#B8860B] text-[#1C2030]' :
+                    'bg-white/5 text-[#F7F4FF]'
+                  }`}>
+                    {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : entry.rank}
+                  </div>
+                  
+                  {/* Player name */}
+                  <span className="flex-1 text-sm font-medium text-[#F7F4FF] truncate">
+                    {entry.username?.split(' ')[0] || 'Anonymous'}
+                    {isUserEntry && (
+                      <span className="ml-2 text-xs font-bold text-[#FF916C] bg-[#FF916C]/20 px-2 py-0.5 rounded-full">
+                        YOU
+                      </span>
+                    )}
+                  </span>
+                  
+                  {/* Score */}
+                  <span className="text-sm font-bold text-[#4EF0A0]">{entry.score}</span>
                 </div>
-                <span className="flex-1 text-sm font-medium text-[#F7F4FF] truncate">
-                  {entry.username?.split(' ')[0] || 'Anonymous'}
-                </span>
-                <span className="text-sm font-bold text-[#4EF0A0]">{entry.score}</span>
+              )
+            })}
+            
+            {/* User's rank if not in top 10 */}
+            {leaderboard.userEntry && leaderboard.userEntry.rank > 10 && (
+              <div className="mt-4 pt-4 border-t border-white/10">
+                <div className="text-xs text-[#9F9AB5] mb-2">Your Rank:</div>
+                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-[#FFB366]/20 to-[#FF916C]/20 ring-2 ring-[#FF916C]/40">
+                  <div className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center text-sm font-bold text-[#F7F4FF]">
+                    {leaderboard.userEntry.rank}
+                  </div>
+                  <span className="flex-1 text-sm font-medium text-[#F7F4FF] truncate">
+                    {leaderboard.userEntry.username?.split(' ')[0] || 'You'}
+                  </span>
+                  <span className="text-sm font-bold text-[#4EF0A0]">{leaderboard.userEntry.score}</span>
+                </div>
               </div>
-            ))}
+            )}
           </div>
         )}
       </div>
@@ -396,6 +443,22 @@ function MobileVerticalFeed({ games, personalBests, leaderboards, lbLoading, nav
 }
 
 function MobileGameSlide({ game, personalBest, leaderboard, navigate }) {
+  const leaderboardRef = useRef(null)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
+
+  const checkScroll = () => {
+    if (leaderboardRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = leaderboardRef.current
+      setCanScrollLeft(scrollLeft > 10)
+      setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10)
+    }
+  }
+
+  useEffect(() => {
+    checkScroll()
+  }, [leaderboard])
+
   return (
     <div className="h-full flex flex-col relative overflow-hidden">
       {/* Game Visual Background */}
@@ -419,7 +482,7 @@ function MobileGameSlide({ game, personalBest, leaderboard, navigate }) {
           )}
         </div>
         
-        {/* Bottom: Action & Leaderboard Preview */}
+        {/* Bottom: Action & Leaderboard */}
         <div className="space-y-4">
           {/* Play Button */}
           <button
@@ -430,26 +493,103 @@ function MobileGameSlide({ game, personalBest, leaderboard, navigate }) {
             ▶ Play Now
           </button>
           
-          {/* Mini Leaderboard */}
+          {/* Enhanced Scrollable Leaderboard */}
           {leaderboard.entries.length > 0 && (
-            <div className="rounded-2xl bg-black/40 backdrop-blur-md p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-bold text-white">🏆 Top Players</span>
-                <span className="text-xs text-white/60">Swipe for more →</span>
+            <div className="rounded-2xl bg-black/40 backdrop-blur-md overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+                <span className="text-sm font-bold text-white flex items-center gap-2">
+                  🏆 Leaderboard
+                </span>
+                <span className="text-xs text-white/50 flex items-center gap-1">
+                  {canScrollRight && (
+                    <>
+                      Swipe <span className="animate-pulse">→</span>
+                    </>
+                  )}
+                </span>
               </div>
-              <div className="space-y-2">
-                {leaderboard.entries.slice(0, 3).map((entry, i) => (
-                  <div key={i} className="flex items-center gap-3 text-sm">
-                    <span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-xs font-bold text-white">
-                      {entry.rank}
+              
+              {/* Scrollable Player Cards */}
+              <div className="relative">
+                {/* Left fade indicator */}
+                {canScrollLeft && (
+                  <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-black/60 to-transparent z-10 pointer-events-none" />
+                )}
+                
+                {/* Right fade indicator */}
+                {canScrollRight && (
+                  <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-black/60 to-transparent z-10 pointer-events-none" />
+                )}
+                
+                {/* Horizontal scroll container */}
+                <div 
+                  ref={leaderboardRef}
+                  onScroll={checkScroll}
+                  className="flex gap-3 overflow-x-auto px-4 py-4 snap-x snap-mandatory scrollbar-hide"
+                  style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                >
+                  {leaderboard.entries.slice(0, 10).map((entry, i) => {
+                    const isUserEntry = leaderboard.userEntry && entry.rank === leaderboard.userEntry.rank
+                    const isTopThree = entry.rank <= 3
+                    
+                    return (
+                      <div 
+                        key={i} 
+                        className={`flex-shrink-0 w-[140px] rounded-xl p-3 snap-start transition-all ${
+                          isUserEntry 
+                            ? 'bg-gradient-to-br from-[#FFB366]/30 to-[#FF916C]/30 ring-2 ring-[#FF916C]/50 shadow-lg shadow-[#FF916C]/20' 
+                            : isTopThree
+                            ? 'bg-white/10'
+                            : 'bg-white/5'
+                        }`}
+                      >
+                        {/* Rank badge */}
+                        <div className="flex items-center justify-between mb-2">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                            entry.rank === 1 ? 'bg-gradient-to-br from-[#FFD700] to-[#FFA500] text-[#1C2030]' :
+                            entry.rank === 2 ? 'bg-gradient-to-br from-[#C0C0C0] to-[#A0A0A0] text-[#1C2030]' :
+                            entry.rank === 3 ? 'bg-gradient-to-br from-[#CD7F32] to-[#B8860B] text-[#1C2030]' :
+                            'bg-white/10 text-white'
+                          }`}>
+                            {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : entry.rank}
+                          </div>
+                          {isUserEntry && (
+                            <span className="text-[10px] font-bold text-[#FF916C] bg-[#FF916C]/20 px-2 py-0.5 rounded-full">
+                              YOU
+                            </span>
+                          )}
+                        </div>
+                        
+                        {/* Player name */}
+                        <div className="text-sm font-semibold text-white/90 truncate mb-1">
+                          {entry.username?.split(' ')[0] || 'Anonymous'}
+                        </div>
+                        
+                        {/* Score */}
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-2xl font-bold text-[#4EF0A0]">{entry.score}</span>
+                          <span className="text-xs text-white/50">pts</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+              
+              {/* User's rank if not in top 10 */}
+              {leaderboard.userEntry && leaderboard.userEntry.rank > 10 && (
+                <div className="px-4 pb-3 pt-2 border-t border-white/10">
+                  <div className="text-xs text-white/50 mb-2">Your Rank:</div>
+                  <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-gradient-to-r from-[#FFB366]/20 to-[#FF916C]/20 ring-1 ring-[#FF916C]/30">
+                    <span className="text-sm font-bold text-white">#{leaderboard.userEntry.rank}</span>
+                    <span className="flex-1 text-sm text-white/90 truncate">
+                      {leaderboard.userEntry.username?.split(' ')[0] || 'You'}
                     </span>
-                    <span className="flex-1 text-white/90 truncate">
-                      {entry.username?.split(' ')[0] || 'Anonymous'}
-                    </span>
-                    <span className="font-bold text-[#4EF0A0]">{entry.score}</span>
+                    <span className="text-sm font-bold text-[#4EF0A0]">{leaderboard.userEntry.score}</span>
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
             </div>
           )}
         </div>
