@@ -328,6 +328,15 @@ function MobileVerticalFeed({ games, personalBests, leaderboards, lbLoading, nav
           }
         }
         
+        @keyframes blink {
+          0%, 100% { 
+            opacity: 0.2;
+          }
+          50% { 
+            opacity: 1;
+          }
+        }
+        
         .animate-float {
           animation: float 2.5s ease-in-out infinite;
         }
@@ -590,29 +599,31 @@ function GameVisual({ game, personalBest, fullscreen = false }) {
   
   if (game.slug === 'geodash') {
     return (
-      <div className={`relative flex flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-[#0a1628] via-[#0d1f3a] to-[#1a2744] ${heightClass}`}>
-        {/* Animated grid lines */}
-        <div className="absolute inset-0 opacity-20">
-          {[...Array(8)].map((_, i) => (
-            <div key={i} className="absolute top-0 bottom-0 w-px bg-[#00ff87]" style={{ left: `${10 + i * 11}%`, animationDelay: `${i * 0.1}s` }} />
-          ))}
-        </div>
-        
-        {/* Particles floating */}
+      <div className={`relative flex flex-col items-center justify-center overflow-hidden bg-[#0a0e1a] ${heightClass}`}>
+        {/* Blinking stars */}
         <div className="absolute inset-0">
-          {[15, 35, 55, 75, 25, 65].map((left, i) => (
-            <div 
-              key={i} 
-              className="absolute w-1 h-1 rounded-full bg-[#00ff87]"
-              style={{ 
-                left: `${left}%`, 
-                top: `${20 + (i * 12)}%`,
-                animation: `float ${2 + (i * 0.3)}s ease-in-out infinite`,
-                animationDelay: `${i * 0.2}s`,
-                opacity: 0.4
-              }}
-            />
-          ))}
+          {[...Array(30)].map((_, i) => {
+            const size = Math.random() > 0.7 ? 2 : 1;
+            const left = Math.random() * 100;
+            const top = Math.random() * 100;
+            const duration = 2 + Math.random() * 3;
+            const delay = Math.random() * 2;
+            
+            return (
+              <div
+                key={i}
+                className="absolute rounded-full bg-white"
+                style={{
+                  width: `${size}px`,
+                  height: `${size}px`,
+                  left: `${left}%`,
+                  top: `${top}%`,
+                  animation: `blink ${duration}s ease-in-out infinite`,
+                  animationDelay: `${delay}s`
+                }}
+              />
+            );
+          })}
         </div>
         
         {/* Ground with glow */}
