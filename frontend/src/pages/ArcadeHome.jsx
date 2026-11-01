@@ -101,227 +101,197 @@ function DesktopHorizontalSwipe({ games, activeIndex, setActiveIndex, personalBe
 
   const activeGame = games[activeIndex]
   const personalBest = personalBests[activeGame.slug]
+  const userRank = activeLeaderboard.userEntry?.rank || null
+  const topScore = activeLeaderboard.entries[0]?.score || null
 
   return (
-    <section className="min-h-screen flex flex-col px-6 py-6 pb-24 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-extrabold text-[#F7F4FF] tracking-tight">Arcade</h1>
-        <p className="text-sm text-[#9F9AB5] mt-1">Swipe through games</p>
+    <section className="min-h-screen flex flex-col items-center justify-center px-6 py-12 bg-[#0A0A0A]">
+      {/* Header - centered */}
+      <div className="text-center mb-8">
+        <h1 className="text-4xl font-extrabold text-white tracking-tight mb-2">Arcade</h1>
+        <p className="text-sm text-gray-400">Swipe to explore games</p>
       </div>
       
       {/* Card Display Area */}
-      <div className="flex-1 flex items-center justify-center relative">
-        <div className="relative w-full max-w-lg">
-          {/* Card Stack */}
-          <div className="relative h-[480px] flex items-center justify-center">
-            {games.map((game, i) => {
-              const distFromActive = i - activeIndex
-              let className = 'absolute inset-0 transition-all duration-500 ease-out'
-              let transform = ''
-              let opacity = 0
-              let zIndex = 0
-              let pointerEvents = 'none'
-              
-              if (distFromActive === 0) {
-                // Center active card
-                transform = 'translateX(0) scale(1) rotateY(0deg)'
-                opacity = 1
-                zIndex = 30
-                pointerEvents = 'auto'
-              } else if (distFromActive === -1 || (activeIndex === 0 && i === games.length - 1)) {
-                // Left card
-                transform = 'translateX(-120%) scale(0.85) rotateY(25deg)'
-                opacity = 0.4
-                zIndex = 20
-                pointerEvents = 'auto'
-              } else if (distFromActive === 1 || (activeIndex === games.length - 1 && i === 0)) {
-                // Right card
-                transform = 'translateX(120%) scale(0.85) rotateY(-25deg)'
-                opacity = 0.4
-                zIndex = 20
-                pointerEvents = 'auto'
-              }
-              
-              return (
-                <div
-                  key={game.slug}
-                  className={className}
-                  style={{
-                    transform,
-                    opacity,
-                    zIndex,
-                    pointerEvents,
-                    transformStyle: 'preserve-3d',
-                  }}
-                  onClick={() => distFromActive !== 0 && setActiveIndex(i)}
-                >
-                  <DesktopGameCard 
-                    game={game} 
-                    personalBest={personalBests[game.slug]} 
-                    navigate={navigate}
-                    isActive={distFromActive === 0}
-                  />
-                </div>
-              )
-            })}
-          </div>
-          
-          {/* Navigation Buttons */}
-          <button
-            onClick={prevCard}
-            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-16 w-12 h-12 rounded-full bg-[#4A466A] hover:bg-[#5A566A] text-white flex items-center justify-center transition-all hover:scale-110 shadow-lg"
-          >
-            <span className="text-2xl">‹</span>
-          </button>
-          <button
-            onClick={nextCard}
-            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-16 w-12 h-12 rounded-full bg-[#4A466A] hover:bg-[#5A566A] text-white flex items-center justify-center transition-all hover:scale-110 shadow-lg"
-          >
-            <span className="text-2xl">›</span>
-          </button>
-          
-          {/* Dot Indicators */}
-          <div className="flex justify-center gap-2 mt-6">
-            {games.map((game, i) => (
-              <button
+      <div className="relative w-full max-w-4xl mb-8">
+        <div className="relative h-[500px] flex items-center justify-center">
+          {games.map((game, i) => {
+            const distFromActive = i - activeIndex
+            let className = 'absolute transition-all duration-500 ease-out cursor-pointer'
+            let transform = ''
+            let opacity = 0
+            let zIndex = 0
+            let pointerEvents = 'none'
+            let filter = 'grayscale(100%) brightness(0.4)'
+            
+            if (distFromActive === 0) {
+              // Center active card
+              transform = 'translateX(0) scale(1)'
+              opacity = 1
+              zIndex = 30
+              pointerEvents = 'auto'
+              filter = 'none'
+            } else if (distFromActive === -1 || (activeIndex === 0 && i === games.length - 1)) {
+              // Left card
+              transform = 'translateX(-85%) scale(0.75)'
+              opacity = 1
+              zIndex = 20
+              pointerEvents = 'auto'
+            } else if (distFromActive === 1 || (activeIndex === games.length - 1 && i === 0)) {
+              // Right card
+              transform = 'translateX(85%) scale(0.75)'
+              opacity = 1
+              zIndex = 20
+              pointerEvents = 'auto'
+            }
+            
+            return (
+              <div
                 key={game.slug}
-                onClick={() => setActiveIndex(i)}
-                className={`h-2 rounded-full transition-all duration-300 ${
-                  i === activeIndex 
-                    ? 'w-8 bg-[#FF916C]' 
-                    : 'w-2 bg-white/30 hover:bg-white/50'
-                }`}
-              />
-            ))}
-          </div>
+                className={className}
+                style={{
+                  transform,
+                  opacity,
+                  zIndex,
+                  pointerEvents,
+                  filter,
+                  width: '480px',
+                  height: '100%'
+                }}
+                onClick={() => distFromActive !== 0 && setActiveIndex(i)}
+              >
+                <DesktopGameCard 
+                  game={game} 
+                  personalBest={personalBests[game.slug]}
+                  userRank={distFromActive === 0 ? userRank : null}
+                  topScore={distFromActive === 0 ? topScore : null}
+                  navigate={navigate}
+                  isActive={distFromActive === 0}
+                />
+              </div>
+            )
+          })}
         </div>
       </div>
 
-      {/* Leaderboard */}
-      <div className="max-w-lg mx-auto w-full">
-        <DesktopLeaderboard 
-          game={activeGame} 
-          leaderboard={activeLeaderboard}
-        />
+      {/* Bottom Controls */}
+      <div className="flex items-center gap-6">
+        {/* Left Arrow */}
+        <button
+          onClick={prevCard}
+          className="w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all hover:scale-110 backdrop-blur-sm"
+        >
+          <span className="text-2xl">‹</span>
+        </button>
+        
+        {/* Play Button */}
+        <button
+          onClick={() => navigate(`/app/arcade/${activeGame.slug}`)}
+          className="px-12 py-4 rounded-full font-bold text-lg text-black bg-white hover:bg-gray-100 transition-all hover:scale-105 shadow-xl flex items-center gap-3"
+        >
+          <span className="text-2xl">▶</span>
+          <span>Play Now</span>
+        </button>
+        
+        {/* Right Arrow */}
+        <button
+          onClick={nextCard}
+          className="w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all hover:scale-110 backdrop-blur-sm"
+        >
+          <span className="text-2xl">›</span>
+        </button>
+      </div>
+      
+      {/* Dot Indicators */}
+      <div className="flex justify-center gap-2 mt-8">
+        {games.map((game, i) => (
+          <button
+            key={game.slug}
+            onClick={() => setActiveIndex(i)}
+            className={`h-1.5 rounded-full transition-all duration-300 ${
+              i === activeIndex 
+                ? 'w-8 bg-white' 
+                : 'w-1.5 bg-white/30 hover:bg-white/50'
+            }`}
+          />
+        ))}
       </div>
     </section>
   )
 }
 
-function DesktopGameCard({ game, personalBest, navigate, isActive }) {
+function DesktopGameCard({ game, personalBest, userRank, topScore, navigate, isActive }) {
+  // Card gradient colors based on game
+  const cardGradients = {
+    flappy: 'from-[#87CEEB] via-[#B8E8F0] to-[#A8E6CF]',
+    pacman: 'from-[#FF1493] via-[#FF69B4] to-[#FFB6C1]',
+    snake: 'from-[#2C5F2D] via-[#4EF0A0] to-[#60FFA8]',
+    geodash: 'from-[#1e3a8a] via-[#3b82f6] to-[#60a5fa]',
+    stack: 'from-[#87CEEB] via-[#B8E8F8] to-[#E8F4FD]'
+  }
+
   return (
-    <div className="h-full rounded-3xl overflow-hidden bg-[#4A466A] shadow-2xl ring-1 ring-white/10">
-      {/* Game Visual */}
-      <div className="h-64 relative">
+    <div className={`h-full rounded-3xl overflow-hidden relative ${isActive ? 'shadow-2xl' : ''}`}>
+      {/* Background gradient */}
+      <div className={`absolute inset-0 bg-gradient-to-br ${cardGradients[game.slug] || 'from-purple-500 to-pink-500'}`} />
+      
+      {/* Game Visual - full card */}
+      <div className="absolute inset-0">
         <GameVisual game={game} personalBest={personalBest} />
       </div>
       
-      {/* Card Info */}
-      <div className="p-6 space-y-4">
+      {/* Dark overlay gradient for text readability */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/90" />
+      
+      {/* Content overlay */}
+      <div className="absolute inset-0 flex flex-col justify-between p-8">
+        {/* Top badge */}
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-[#9F9AB5] mb-1">
+          <span className="inline-block px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider bg-white/20 backdrop-blur-md text-white">
             {game.slug === 'flappy' ? "This week's game" : 'Classic arcade'}
-          </p>
-          <h2 className="text-2xl font-bold text-[#F7F4FF]">{game.title}</h2>
-          <p className="text-sm text-[#9F9AB5] mt-1">{game.description}</p>
+          </span>
         </div>
         
-        {personalBest && (
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#4EF0A0]/10">
-            <span className="text-xs font-semibold text-[#4EF0A0]">Your Best: {personalBest}</span>
-          </div>
-        )}
-        
-        <button
-          onClick={() => navigate(`/app/arcade/${game.slug}`)}
-          className="w-full py-3.5 rounded-full font-bold text-[#1C2030] transition-all hover:scale-105 active:scale-95 shadow-lg"
-          style={{ background: 'linear-gradient(135deg, #B8F77D 0%, #7BE056 100%)' }}
-        >
-          Play Now
-        </button>
+        {/* Bottom info */}
+        <div>
+          {/* Game title */}
+          <h2 className="text-4xl font-black text-white mb-2 drop-shadow-lg">{game.title}</h2>
+          <p className="text-white/80 text-sm mb-6">{game.description}</p>
+          
+          {/* Stats row - only on active card */}
+          {isActive && (
+            <div className="flex gap-4 mb-4">
+              {/* Personal Best */}
+              {personalBest && (
+                <div className="flex-1 rounded-2xl bg-black/40 backdrop-blur-md p-4 text-center">
+                  <div className="text-3xl font-bold text-white">{personalBest}</div>
+                  <div className="text-xs text-white/60 uppercase tracking-wider mt-1">Best</div>
+                </div>
+              )}
+              
+              {/* User Rank */}
+              {userRank && (
+                <div className="flex-1 rounded-2xl bg-black/40 backdrop-blur-md p-4 text-center">
+                  <div className="text-3xl font-bold text-white">#{userRank}</div>
+                  <div className="text-xs text-white/60 uppercase tracking-wider mt-1">Rank</div>
+                </div>
+              )}
+              
+              {/* Top Score */}
+              {topScore && (
+                <div className="flex-1 rounded-2xl bg-black/40 backdrop-blur-md p-4 text-center">
+                  <div className="text-3xl font-bold text-white">{topScore}</div>
+                  <div className="text-xs text-white/60 uppercase tracking-wider mt-1">Top</div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
 }
 
-function DesktopLeaderboard({ game, leaderboard }) {
-  return (
-    <div className="rounded-2xl bg-[#4A466A] ring-1 ring-white/5 overflow-hidden">
-      <div className="px-5 py-4 border-b border-white/10">
-        <h3 className="text-lg font-bold text-[#F7F4FF] flex items-center gap-2">
-          🏆 {game.title} Leaderboard
-        </h3>
-      </div>
-      <div className="p-4">
-        {leaderboard.entries.length === 0 ? (
-          <div className="text-center py-8 text-[#9F9AB5] text-sm">
-            No scores yet. Be the first!
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {leaderboard.entries.slice(0, 10).map((entry) => {
-              const isUserEntry = leaderboard.userEntry && entry.rank === leaderboard.userEntry.rank
-              const isTopThree = entry.rank <= 3
-              
-              return (
-                <div 
-                  key={entry.rank} 
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                    isUserEntry
-                      ? 'bg-gradient-to-r from-[#FFB366]/20 to-[#FF916C]/20 ring-2 ring-[#FF916C]/40 shadow-lg'
-                      : isTopThree
-                      ? 'bg-[#3E3A5C]/70 hover:bg-[#3E3A5C]/90'
-                      : 'bg-[#3E3A5C]/50 hover:bg-[#3E3A5C]/70'
-                  }`}
-                >
-                  {/* Rank badge */}
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${
-                    entry.rank === 1 ? 'bg-gradient-to-br from-[#FFD700] to-[#FFA500] text-[#1C2030]' :
-                    entry.rank === 2 ? 'bg-gradient-to-br from-[#C0C0C0] to-[#A0A0A0] text-[#1C2030]' :
-                    entry.rank === 3 ? 'bg-gradient-to-br from-[#CD7F32] to-[#B8860B] text-[#1C2030]' :
-                    'bg-white/5 text-[#F7F4FF]'
-                  }`}>
-                    {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : entry.rank}
-                  </div>
-                  
-                  {/* Player name */}
-                  <span className="flex-1 text-sm font-medium text-[#F7F4FF] truncate">
-                    {entry.username?.split(' ')[0] || 'Anonymous'}
-                    {isUserEntry && (
-                      <span className="ml-2 text-xs font-bold text-[#FF916C] bg-[#FF916C]/20 px-2 py-0.5 rounded-full">
-                        YOU
-                      </span>
-                    )}
-                  </span>
-                  
-                  {/* Score */}
-                  <span className="text-sm font-bold text-[#4EF0A0]">{entry.score}</span>
-                </div>
-              )
-            })}
-            
-            {/* User's rank if not in top 10 */}
-            {leaderboard.userEntry && leaderboard.userEntry.rank > 10 && (
-              <div className="mt-4 pt-4 border-t border-white/10">
-                <div className="text-xs text-[#9F9AB5] mb-2">Your Rank:</div>
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-[#FFB366]/20 to-[#FF916C]/20 ring-2 ring-[#FF916C]/40">
-                  <div className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center text-sm font-bold text-[#F7F4FF]">
-                    {leaderboard.userEntry.rank}
-                  </div>
-                  <span className="flex-1 text-sm font-medium text-[#F7F4FF] truncate">
-                    {leaderboard.userEntry.username?.split(' ')[0] || 'You'}
-                  </span>
-                  <span className="text-sm font-bold text-[#4EF0A0]">{leaderboard.userEntry.score}</span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
 
 // ==================== MOBILE: Vertical Feed ====================
 function MobileVerticalFeed({ games, personalBests, leaderboards, lbLoading, navigate }) {
