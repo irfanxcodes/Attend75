@@ -565,33 +565,88 @@ function GameVisual({ game, personalBest, fullscreen = false }) {
   
   if (game.slug === 'snake') {
     return (
-      <div className={`relative flex flex-col items-center justify-center overflow-hidden bg-[#1A1A2E] ${heightClass}`}>
-        {/* Grid */}
-        <div className="absolute inset-0 opacity-10">
-          {[...Array(10)].map((_, i) => (
-            <div key={'h'+i} className="absolute h-px bg-[#4EF0A0]" style={{ top: `${10 + i * 9}%`, left: '5%', right: '5%' }} />
-          ))}
-          {[...Array(10)].map((_, i) => (
-            <div key={'v'+i} className="absolute w-px bg-[#4EF0A0]" style={{ left: `${10 + i * 9}%`, top: '5%', bottom: '5%' }} />
+      <div className={`relative flex flex-col items-center justify-center overflow-hidden ${heightClass}`} style={{ background: 'linear-gradient(135deg, #1a2332 0%, #2d3748 50%, #1a2332 100%)' }}>
+        {/* Animated gradient orbs in background */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute top-[10%] left-[10%] w-32 h-32 rounded-full bg-[#4EF0A0]/10 blur-[40px]" style={{ animation: 'float 4s ease-in-out infinite' }} />
+          <div className="absolute top-[60%] right-[15%] w-40 h-40 rounded-full bg-[#4EF0A0]/8 blur-[50px]" style={{ animation: 'float 5s ease-in-out infinite', animationDelay: '1s' }} />
+          <div className="absolute bottom-[20%] left-[20%] w-36 h-36 rounded-full bg-[#60FFA8]/8 blur-[45px]" style={{ animation: 'float 4.5s ease-in-out infinite', animationDelay: '2s' }} />
+        </div>
+        
+        {/* Subtle dotted pattern */}
+        <div className="absolute inset-0 opacity-5">
+          {[...Array(12)].map((_, i) => (
+            <div key={`row-${i}`} className="flex justify-around" style={{ marginTop: '8%' }}>
+              {[...Array(8)].map((_, j) => (
+                <div key={`dot-${i}-${j}`} className="w-1 h-1 rounded-full bg-[#4EF0A0]" />
+              ))}
+            </div>
           ))}
         </div>
-        {/* Snake - show on mobile too */}
-        <div className="relative z-10 flex flex-col items-center gap-2" style={{ animation: 'float 2.5s ease-in-out infinite' }}>
-          <div className="flex items-center gap-1">
-            {/* Head */}
-            <div className={`${fullscreen ? 'h-9 w-9' : 'h-7 w-7'} rounded-md bg-[#4EF0A0] ring-1 ring-[#1A9A58] flex items-center justify-center shadow-[0_0_10px_rgba(78,240,160,0.4)]`}>
-              <div className="flex gap-0.5">
-                <div className="h-1.5 w-1.5 rounded-full bg-[#1A1A2E]" />
-                <div className="h-1.5 w-1.5 rounded-full bg-[#1A1A2E]" />
+        
+        {/* Smooth organic snake */}
+        <div className="relative z-10 flex items-center" style={{ animation: 'float 2.8s ease-in-out infinite' }}>
+          {/* Snake head - rounded with gradient and eyes */}
+          <div className={`${fullscreen ? 'h-12 w-12' : 'h-10 w-10'} relative rounded-[20px] flex items-center justify-center`}
+            style={{ 
+              background: 'linear-gradient(135deg, #60FFA8 0%, #4EF0A0 50%, #2DC078 100%)',
+              boxShadow: '0 0 20px rgba(78, 240, 160, 0.5), inset 0 2px 6px rgba(255,255,255,0.3), inset 0 -2px 4px rgba(0,0,0,0.2)'
+            }}
+          >
+            {/* Eyes */}
+            <div className="flex gap-1.5">
+              <div className={`${fullscreen ? 'h-2.5 w-2.5' : 'h-2 w-2'} rounded-full bg-[#1A1A2E] relative`}>
+                <div className="absolute top-0 right-0 w-1 h-1 rounded-full bg-white/80" />
+              </div>
+              <div className={`${fullscreen ? 'h-2.5 w-2.5' : 'h-2 w-2'} rounded-full bg-[#1A1A2E] relative`}>
+                <div className="absolute top-0 right-0 w-1 h-1 rounded-full bg-white/80" />
               </div>
             </div>
-            {/* Body */}
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className={`${fullscreen ? 'h-8 w-8' : 'h-6 w-6'} rounded-sm`} style={{ backgroundColor: `rgba(45,192,120,${1 - i * 0.15})` }} />
-            ))}
+            {/* Tongue */}
+            <div className="absolute left-full top-1/2 -translate-y-1/2 ml-0.5">
+              <div className="w-3 h-0.5 bg-[#FF6B6B] rounded-full" />
+            </div>
           </div>
-          {/* Food */}
-          <div className={`${fullscreen ? 'h-7 w-7 mt-4' : 'h-6 w-6 mt-3'} rounded-full bg-[#FF916C] shadow-[0_0_14px_rgba(255,145,108,0.6)]`} />
+          
+          {/* Snake body segments - smooth curved connection */}
+          <div className="flex items-center -ml-2">
+            {[...Array(5)].map((_, i) => {
+              const size = fullscreen ? 11 - i * 0.4 : 9 - i * 0.3;
+              const opacity = 1 - i * 0.12;
+              const greenIntensity = 160 - i * 15;
+              
+              return (
+                <div 
+                  key={i} 
+                  className="rounded-[18px] -ml-1.5"
+                  style={{ 
+                    width: `${size * 4}px`,
+                    height: `${size * 4}px`,
+                    background: `linear-gradient(135deg, rgba(96, 255, 168, ${opacity}) 0%, rgba(78, 240, ${greenIntensity}, ${opacity}) 50%, rgba(45, 192, 120, ${opacity * 0.9}) 100%)`,
+                    boxShadow: `0 0 ${12 - i * 2}px rgba(78, 240, 160, ${0.3 - i * 0.04})`,
+                    opacity: opacity
+                  }}
+                />
+              );
+            })}
+          </div>
+        </div>
+        
+        {/* Enhanced food - apple/fruit style */}
+        <div className={`relative z-10 ${fullscreen ? 'mt-8' : 'mt-6'}`}>
+          <div className={`${fullscreen ? 'h-10 w-10' : 'h-8 w-8'} relative rounded-full`}
+            style={{ 
+              background: 'linear-gradient(135deg, #FF916C 0%, #FF6B4A 50%, #E8553D 100%)',
+              boxShadow: '0 0 24px rgba(255, 145, 108, 0.7), 0 4px 12px rgba(0,0,0,0.3), inset -3px -3px 6px rgba(0,0,0,0.2), inset 3px 3px 6px rgba(255,255,255,0.3)'
+            }}
+          >
+            {/* Highlight shine */}
+            <div className="absolute top-[20%] left-[25%] w-[35%] h-[35%] rounded-full bg-white/40 blur-[2px]" />
+            {/* Leaf on top */}
+            <div className="absolute -top-1 left-1/2 -translate-x-1/2">
+              <div className="w-2 h-3 rounded-full bg-[#4EF0A0] transform -rotate-12" style={{ clipPath: 'polygon(50% 0%, 100% 100%, 0% 100%)' }} />
+            </div>
+          </div>
         </div>
       </div>
     )
