@@ -105,19 +105,19 @@ function DesktopHorizontalSwipe({ games, activeIndex, setActiveIndex, personalBe
   const topScore = activeLeaderboard.entries[0]?.score || null
 
   return (
-    <section className="fixed inset-0 flex flex-col items-center justify-center bg-[#1C2030] pb-24">
+    <section className="fixed inset-0 flex flex-col items-center justify-center bg-[#1C2030] pb-24 overflow-hidden">
       {/* Header - centered */}
       <div className="text-center mb-8">
         <h1 className="text-4xl font-extrabold text-white tracking-tight mb-2">Arcade</h1>
         <p className="text-sm text-gray-400">Swipe to explore games</p>
       </div>
       
-      {/* Card Display Area - smaller cards */}
-      <div className="relative w-full max-w-4xl mb-8">
-        <div className="relative h-[400px] flex items-center justify-center">
+      {/* Card Display Area - centered with proper constraints */}
+      <div className="relative w-full flex items-center justify-center mb-8">
+        <div className="relative h-[400px] w-[420px]">
           {games.map((game, i) => {
             const distFromActive = i - activeIndex
-            let className = 'absolute transition-all duration-500 ease-out cursor-pointer'
+            let className = 'absolute top-0 left-0 transition-all duration-500 ease-out cursor-pointer'
             let transform = ''
             let opacity = 0
             let zIndex = 0
@@ -133,13 +133,13 @@ function DesktopHorizontalSwipe({ games, activeIndex, setActiveIndex, personalBe
               filter = 'none'
             } else if (distFromActive === -1 || (activeIndex === 0 && i === games.length - 1)) {
               // Left card
-              transform = 'translateX(-85%) scale(0.8)'
+              transform = 'translateX(-100%) scale(0.8)'
               opacity = 0.4
               zIndex = 20
               pointerEvents = 'auto'
             } else if (distFromActive === 1 || (activeIndex === games.length - 1 && i === 0)) {
               // Right card
-              transform = 'translateX(85%) scale(0.8)'
+              transform = 'translateX(100%) scale(0.8)'
               opacity = 0.4
               zIndex = 20
               pointerEvents = 'auto'
@@ -174,8 +174,8 @@ function DesktopHorizontalSwipe({ games, activeIndex, setActiveIndex, personalBe
         </div>
       </div>
 
-      {/* Bottom Controls */}
-      <div className="flex items-center gap-6 mb-6">
+      {/* Bottom Controls - centered */}
+      <div className="flex items-center justify-center gap-6 mb-6">
         {/* Left Arrow */}
         <button
           onClick={prevCard}
@@ -203,7 +203,7 @@ function DesktopHorizontalSwipe({ games, activeIndex, setActiveIndex, personalBe
         </button>
       </div>
       
-      {/* Dot Indicators */}
+      {/* Dot Indicators - centered */}
       <div className="flex justify-center gap-2">
         {games.map((game, i) => (
           <button
