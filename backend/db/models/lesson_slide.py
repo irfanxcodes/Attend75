@@ -10,10 +10,13 @@ from db.base import Base
 
 def _json_column():
     """Use JSONB on PostgreSQL, JSON on SQLite."""
-    try:
-        from sqlalchemy.dialects.postgresql import JSONB
+    import os
+    from sqlalchemy.dialects.postgresql import JSONB
+    
+    db_url = os.getenv("DATABASE_URL", "")
+    if db_url.startswith("postgresql"):
         return JSONB
-    except ImportError:
+    else:
         return JSON
 
 

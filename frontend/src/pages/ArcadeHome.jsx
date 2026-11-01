@@ -9,26 +9,31 @@ const games = Object.values(gameRegistry)
 function ArcadeHome() {
   const { state: { session } } = useAppStore()
   const navigate = useNavigate()
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
 
   const [activeIndex, setActiveIndex] = useState(0)
   const [personalBests, setPersonalBests] = useState({})
-  const [leaderboard, setLeaderboard] = useState({ entries: [], userEntry: null })
-  const [lbLoading, setLbLoading] = useState(true)
-  const [lbError, setLbError] = useState(null)
-  const touchStartRef = useRef(null)
-  const containerRef = useRef(null)
+  const [leaderboards, setLeaderboards] = useState({})
+  const [lbLoading, setLbLoading] = useState({})
 
-  const activeGame = games[activeIndex]
+  // Handle resize
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   // Fetch personal bests
   useEffect(() => {
     if (!session.token) return
     let cancelled = false
     async function fetchBests() {
-      for (const g of Object.values(gameRegistry)) {
+      for (const g of games) {
         try {
           const data = await getPersonalBest(session.token, g.slug)
-          if (!cancelled && data) setPersonalBests(prev => ({ ...prev, [g.slug]: data.score }))
+          if (!cancelled && data) {
+            setPersonalBests(prev => ({ ...prev, [g.slug]: data.score }))
+          }
         } catch { /* ignore */ }
       }
     }
@@ -36,499 +41,765 @@ function ArcadeHome() {
     return () => { cancelled = true }
   }, [session.token])
 
-  // Fetch leaderboard for active game
-  const fetchLb = useCallback(async () => {
-    setLbLoading(true)
-    setLbError(null)
-    try {
-      const data = await getLeaderboard(activeGame.slug, session.token)
-      setLeaderboard({ entries: data?.entries || [], userEntry: data?.user_entry || null })
-    } catch (err) {
-      setLbError(err.message || 'Unable to load leaderboard.')
-    } finally {
-      setLbLoading(false)
+  // Fetch leaderboards for all games
+  useEffect(() => {
+    if (!session.token) return
+    let cancelled = false
+    
+    async function fetchAllLeaderboards() {
+      for (const game of games) {
+        setLbLoading(prev => ({ ...prev, [game.slug]: true }))
+        try {
+          const data = await getLeaderboard(game.slug, session.token)
+          if (!cancelled) {
+            setLeaderboards(prev => ({
+              ...prev,
+              [game.slug]: { entries: data?.entries || [], userEntry: data?.user_entry || null }
+            }))
+          }
+        } catch (err) {
+          console.error(`Failed to load leaderboard for ${game.slug}`, err)
+        } finally {
+          if (!cancelled) {
+            setLbLoading(prev => ({ ...prev, [game.slug]: false }))
+          }
+        }
+      }
     }
-  }, [activeGame.slug, session.token])
+    
+    fetchAllLeaderboards()
+    return () => { cancelled = true }
+  }, [session.token])
 
-  useEffect(() => { fetchLb() }, [fetchLb])
+  const activeGame = games[activeIndex]
+  const activeLeaderboard = leaderboards[activeGame.slug] || { entries: [], userEntry: null }
 
-  // Swipe handling
+  return isMobile ? (
+    <MobileVerticalFeed
+      games={games}
+      personalBests={personalBests}
+      leaderboards={leaderboards}
+      lbLoading={lbLoading}
+      navigate={navigate}
+    />
+  ) : (
+    <DesktopHorizontalSwipe
+      games={games}
+      activeIndex={activeIndex}
+      setActiveIndex={setActiveIndex}
+      personalBests={personalBests}
+      activeLeaderboard={activeLeaderboard}
+      navigate={navigate}
+    />
+  )
+}
+
+// Desktop: Horizontal Swipe Cards
+function DesktopHorizontalSwipe({ games, activeIndex, setActiveIndex, personalBests, activeLeaderboard, navigate }) {
+  const stackRef = useRef(null)
+  const [startX, setStartX] = useState(0)
+
   const handleTouchStart = (e) => {
-    touchStartRef.current = e.touches[0].clientX
-  }
-  const handleTouchEnd = (e) => {
-    if (touchStartRef.current === null) return
-    const diff = e.changedTouches[0].clientX - touchStartRef.current
-    if (Math.abs(diff) > 50) {
-      if (diff < 0 && activeIndex < games.length - 1) setActiveIndex(i => i + 1)
-      else if (diff > 0 && activeIndex > 0) setActiveIndex(i => i - 1)
-    }
-    touchStartRef.current = null
+    setStartX(e.touches[0].clientX)
   }
 
-  const personalBest = personalBests[activeGame.slug] ?? null
+  const handleTouchEnd = (e) => {
+    const endX = e.changedTouches[0].clientX
+    const diff = startX - endX
+    
+    if (Math.abs(diff) > 50) {
+      if (diff > 0) nextCard()
+      else prevCard()
+    }
+  }
+
+  const nextCard = () => setActiveIndex((activeIndex + 1) % games.length)
+  const prevCard = () => setActiveIndex((activeIndex - 1 + games.length) % games.length)
+
+  const activeGame = games[activeIndex]
+  const personalBest = personalBests[activeGame.slug]
 
   return (
-    <section className="space-y-5 pb-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-extrabold text-[#F7F4FF]">Arcade</h1>
-        <p className="text-xs text-[#9F9AB5]">Quick games between classes</p>
+    <section className="arcade-desktop">
+      <style>{desktopStyles}</style>
+      
+      <div className="arcade-desktop-header">
+        <h1 className="arcade-desktop-title">Arcade</h1>
+        <p className="arcade-desktop-subtitle">Swipe to explore games</p>
       </div>
-
-      {/* Stacked Game Cards */}
-      <div
-        ref={containerRef}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        className="relative"
-        style={{ paddingTop: `${(games.length - 1) * 18}px` }}
-      >
-        {/* Background stacked cards (peek strips behind the active card) */}
-        {games.map((game, i) => {
-          const distFromActive = i - activeIndex
-          // Only show cards that are behind or at the active position
-          if (distFromActive > 0) return null // cards "below" the deck not visible
-          if (i === activeIndex) return null // active card rendered separately
-
-          const stackOffset = (activeIndex - i) // how many cards behind
-          const topOffset = (games.length - 1 - stackOffset) * 18
-          const scaleVal = 1 - stackOffset * 0.04
-          const opacity = 1 - stackOffset * 0.3
-
-          return (
+      
+      <div className="arcade-desktop-swipe" ref={stackRef} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+        <div className="arcade-desktop-stack">
+          {games.map((game, i) => {
+            const distFromActive = i - activeIndex
+            let className = 'arcade-desktop-card'
+            
+            if (distFromActive === 0) className += ' center'
+            else if (distFromActive === -1 || (activeIndex === 0 && i === games.length - 1)) className += ' left'
+            else if (distFromActive === 1 || (activeIndex === games.length - 1 && i === 0)) className += ' right'
+            
+            return (
+              <div key={game.slug} className={className} onClick={() => distFromActive !== 0 && setActiveIndex(i)}>
+                <div className="arcade-desktop-card-inner">
+                  <div className={`arcade-desktop-card-visual bg-${game.slug}`}>
+                    <div className="arcade-desktop-game-icon">{getGameIcon(game.slug)}</div>
+                  </div>
+                  <div className="arcade-desktop-card-info">
+                    <h2 className="arcade-desktop-game-name">{game.title}</h2>
+                    <p className="arcade-desktop-game-tagline">{game.description}</p>
+                    <div className="arcade-desktop-stats">
+                      <div className="arcade-desktop-stat">
+                        <span className="arcade-desktop-stat-val">{personalBests[game.slug] ?? '—'}</span>
+                        <span className="arcade-desktop-stat-label">Best</span>
+                      </div>
+                      <div className="arcade-desktop-stat">
+                        <span className="arcade-desktop-stat-val">#—</span>
+                        <span className="arcade-desktop-stat-label">Rank</span>
+                      </div>
+                      <div className="arcade-desktop-stat">
+                        <span className="arcade-desktop-stat-val">{activeLeaderboard.entries[0]?.score ?? '—'}</span>
+                        <span className="arcade-desktop-stat-label">Top</span>
+                      </div>
+                    </div>
+                    <button 
+                      className="arcade-desktop-play-btn"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        navigate(`/app/arcade/${game.slug}`)
+                      }}
+                    >
+                      Play Now
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        
+        <div className="arcade-desktop-dots">
+          {games.map((game, i) => (
             <div
               key={game.slug}
-              className="absolute left-0 right-0 overflow-hidden rounded-2xl ring-1 ring-white/10 cursor-pointer"
-              style={{
-                top: `${topOffset}px`,
-                transform: `scale(${scaleVal})`,
-                transformOrigin: 'top center',
-                opacity: Math.max(opacity, 0.4),
-                zIndex: i,
-              }}
+              className={`arcade-desktop-dot ${i === activeIndex ? 'active' : ''}`}
               onClick={() => setActiveIndex(i)}
-            >
-              <GameHeroCard game={game} personalBest={personalBests[game.slug] ?? null} navigate={navigate} />
-            </div>
-          )
-        })}
-
-        {/* Active card (front of stack) */}
-        <div
-          className="relative overflow-hidden rounded-2xl ring-1 ring-white/10 transition-all duration-300"
-          style={{ zIndex: games.length }}
-        >
-          <GameHeroCard game={activeGame} personalBest={personalBests[activeGame.slug] ?? null} navigate={navigate} />
+            />
+          ))}
         </div>
-
-        {/* Dot indicators */}
-        {games.length > 1 && (
-          <div className="mt-3 flex justify-center gap-1.5">
-            {games.map((g, i) => (
-              <button
-                key={g.slug}
-                type="button"
-                onClick={() => setActiveIndex(i)}
-                className={`h-2 rounded-full transition-all ${i === activeIndex ? 'w-5 bg-[#FF916C]' : 'w-2 bg-white/30'}`}
-                aria-label={`Go to ${g.title}`}
-              />
-            ))}
-          </div>
-        )}
       </div>
-
-
-      {/* Leaderboard Section — updates based on active game */}
-      <div className="rounded-2xl bg-[#4A466A] ring-1 ring-white/5">
-        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-          <h2 className="text-base font-bold text-[#F7F4FF]">Leaderboard — {activeGame.title}</h2>
-          <button type="button" onClick={fetchLb} className="text-[10px] font-semibold text-[#9F9AB5] transition-colors hover:text-[#F7F4FF]">
-            Refresh
-          </button>
-        </div>
-        <div className="px-3 py-2">
-          {lbLoading && <LeaderboardSkeleton />}
-          {lbError && (
-            <div className="flex flex-col items-center gap-2 py-6 text-center">
-              <p className="text-sm text-[#9F9AB5]">{lbError}</p>
-              <button onClick={fetchLb} className="rounded-lg bg-[#FF916C]/20 px-4 py-1.5 text-xs font-semibold text-[#FF916C]">Retry</button>
-            </div>
-          )}
-          {!lbLoading && !lbError && leaderboard.entries.length === 0 && (
-            <div className="py-8 text-center">
-              <p className="text-sm text-[#9F9AB5]">No scores yet. Be the first to play!</p>
-            </div>
-          )}
-          {!lbLoading && !lbError && leaderboard.entries.length > 0 && (
-            <div className="space-y-1.5">
-              {leaderboard.entries.map((entry) => (
-                <LeaderboardRow key={entry.rank} entry={entry} isCurrentUser={leaderboard.userEntry?.user_id === entry.user_id} />
-              ))}
-            </div>
-          )}
-        </div>
-        {!lbLoading && !lbError && leaderboard.userEntry && !leaderboard.entries.some(e => e.user_id === leaderboard.userEntry.user_id) && (
-          <div className="border-t border-[#FF916C]/30 bg-[#3E3A5C] px-3 py-2">
-            <LeaderboardRow entry={leaderboard.userEntry} isCurrentUser />
-          </div>
-        )}
+      
+      <div className="arcade-desktop-nav">
+        <button className="arcade-desktop-nav-btn" onClick={prevCard}>‹</button>
+        <button className="arcade-desktop-nav-btn primary" onClick={() => navigate(`/app/arcade/${activeGame.slug}`)}>▶</button>
+        <button className="arcade-desktop-nav-btn" onClick={nextCard}>›</button>
       </div>
     </section>
   )
 }
 
-// --- Game Hero Card (per game) ---
-function GameHeroCard({ game, personalBest, navigate }) {
-  if (game.slug === 'flappy')  return <FlappyHeroCard  game={game} personalBest={personalBest} navigate={navigate} />
-  if (game.slug === 'pacman')  return <PacmanHeroCard  game={game} personalBest={personalBest} navigate={navigate} />
-  if (game.slug === 'stack')   return <StackHeroCard   game={game} personalBest={personalBest} navigate={navigate} />
-  if (game.slug === 'geodash') return <GeodashHeroCard game={game} personalBest={personalBest} navigate={navigate} />
-  if (game.slug === 'snake')   return <SnakeHeroCard   game={game} personalBest={personalBest} navigate={navigate} />
-  return <GenericHeroCard game={game} personalBest={personalBest} navigate={navigate} />
-}
+// Mobile: Vertical Feed (TikTok Style)
+function MobileVerticalFeed({ games, personalBests, leaderboards, lbLoading, navigate }) {
+  const feedRef = useRef(null)
+  const [activeSlide, setActiveSlide] = useState(0)
 
-function FlappyHeroCard({ game, personalBest, navigate }) {
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!feedRef.current) return
+      const scrollPosition = feedRef.current.scrollTop
+      const slideHeight = window.innerHeight
+      const currentIndex = Math.round(scrollPosition / slideHeight)
+      setActiveSlide(currentIndex)
+    }
+
+    const feed = feedRef.current
+    if (feed) {
+      feed.addEventListener('scroll', handleScroll)
+      return () => feed.removeEventListener('scroll', handleScroll)
+    }
+  }, [])
+
   return (
-    <div>
-      <div className="relative flex h-52 flex-col items-center justify-center overflow-hidden" style={{ background: 'linear-gradient(180deg, #B8E8F0 0%, #87CEEB 40%, #A8E6CF 100%)' }}>
-        <div className="absolute left-[5%] top-[15%] h-6 w-16 rounded-full bg-white/60" />
-        <div className="absolute left-[2%] top-[20%] h-5 w-10 rounded-full bg-white/40" />
-        <div className="absolute right-[10%] top-[10%] h-5 w-12 rounded-full bg-white/50" />
-        <div className="absolute right-[5%] top-[14%] h-4 w-8 rounded-full bg-white/35" />
-        <div className="absolute bottom-0 left-[20%] flex flex-col items-center">
-          <div className="h-14 w-10 rounded-t-md bg-[#4EC04E] ring-1 ring-[#3A9A3A]/50" />
-          <div className="h-2 w-12 rounded-sm bg-[#3A9A3A]" />
-        </div>
-        <div className="absolute bottom-0 right-[22%] flex flex-col items-center">
-          <div className="h-20 w-10 rounded-t-md bg-[#4EC04E] ring-1 ring-[#3A9A3A]/50" />
-          <div className="h-2 w-12 rounded-sm bg-[#3A9A3A]" />
-        </div>
-        <div className="absolute top-0 right-[22%] flex flex-col items-center">
-          <div className="h-2 w-12 rounded-sm bg-[#3A9A3A]" />
-          <div className="h-10 w-10 rounded-b-md bg-[#4EC04E] ring-1 ring-[#3A9A3A]/50" />
-        </div>
-        <div className="absolute bottom-0 left-0 right-0 h-6 bg-[#8BC34A]" />
-        <div className="relative z-10 -mt-4">
-          <svg width="56" height="56" viewBox="0 0 64 64" fill="none">
-            <rect x="12" y="14" width="42" height="42" rx="12" fill="rgba(0,0,0,0.15)" />
-            <rect x="9" y="11" width="42" height="42" rx="12" fill="#FF916C" />
-            <rect x="9" y="11" width="42" height="42" rx="12" stroke="#E07A58" strokeWidth="2.5" fill="none" />
-            <circle cx="38" cy="28" r="9" fill="white" />
-            <circle cx="40" cy="28" r="5" fill="#1D183E" />
-            <circle cx="42" cy="26" r="1.5" fill="white" />
-          </svg>
-        </div>
-        <div className="relative z-10 mt-2">
-          <span className="text-lg font-extrabold tracking-wider text-[#2D5F2D] drop-shadow-sm">{game.title}</span>
-        </div>
-      </div>
-      <CardFooter game={game} personalBest={personalBest} navigate={navigate} />
-    </div>
-  )
-}
-
-function PacmanHeroCard({ game, personalBest, navigate }) {
-  return (
-    <div>
-      <div className="relative flex h-52 flex-col items-center justify-center overflow-hidden bg-black">
-        {/* Maze-like blue lines background */}
-        <div className="absolute inset-0 opacity-30">
-          {[...Array(8)].map((_, i) => (
-            <div key={i} className="absolute h-0.5 bg-[#2121DE]" style={{ top: `${12 + i * 12}%`, left: '8%', right: '8%' }} />
-          ))}
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="absolute w-0.5 bg-[#2121DE]" style={{ left: `${15 + i * 14}%`, top: '8%', bottom: '8%' }} />
-          ))}
-        </div>
-
-        {/* Pac-Man character */}
-        <div className="relative z-10 -mt-2">
-          <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-            <path d="M32 4 C50 4 60 18 60 32 C60 46 50 60 32 60 C14 60 4 46 4 32 C4 18 14 4 32 4 Z" fill="#FFFF00" />
-            <path d="M32 32 L58 18 L58 46 Z" fill="#000" />
-            <circle cx="30" cy="18" r="4" fill="#000" />
-          </svg>
-        </div>
-
-        {/* Ghosts */}
-        <div className="relative z-10 mt-2 flex gap-3">
-          <span className="text-2xl">👻</span>
-          <span className="text-2xl" style={{ filter: 'hue-rotate(180deg)' }}>👻</span>
-          <span className="text-2xl" style={{ filter: 'hue-rotate(90deg)' }}>👻</span>
-          <span className="text-2xl" style={{ filter: 'hue-rotate(270deg)' }}>👻</span>
-        </div>
-
-        {/* Dots trail */}
-        <div className="absolute bottom-[30%] left-[10%] flex gap-2">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="h-1.5 w-1.5 rounded-full bg-[#FFB8AE]" />
-          ))}
-        </div>
-
-        <div className="relative z-10 mt-3">
-          <span className="text-lg font-extrabold tracking-wider text-[#FFFF00] drop-shadow-sm">{game.title}</span>
-        </div>
-      </div>
-      <CardFooter game={game} personalBest={personalBest} navigate={navigate} />
-    </div>
-  )
-}
-
-function GeodashHeroCard({ game, personalBest, navigate }) {
-  return (
-    <div>
-      <div className="relative flex h-52 flex-col items-center justify-center overflow-hidden bg-[#0a1628]">
-        {/* Grid lines */}
-        <div className="absolute inset-0 opacity-10">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="absolute top-0 bottom-0 w-px bg-[#00ff87]" style={{ left: `${15 + i * 14}%` }} />
-          ))}
-        </div>
-        {/* Ground */}
-        <div className="absolute bottom-0 left-0 right-0 h-8 bg-[#1a4a7a]" />
-        <div className="absolute bottom-8 left-0 right-0 h-0.5 bg-white" />
-        {/* Spikes */}
-        {[20, 35, 55, 70].map((left, i) => (
-          <div key={i} className="absolute bottom-8" style={{ left: `${left}%` }}>
-            <div className="w-0 h-0" style={{ borderLeft: '8px solid transparent', borderRight: '8px solid transparent', borderBottom: '14px solid #ccc' }} />
-          </div>
+    <section className="arcade-mobile">
+      <style>{mobileStyles}</style>
+      
+      <div className="arcade-mobile-scroll-indicator">
+        {games.map((_, i) => (
+          <div key={i} className={`arcade-mobile-scroll-dot ${i === activeSlide ? 'active' : ''}`} />
         ))}
-        {/* Player cube */}
-        <div className="absolute bottom-[38px] left-[12%] h-7 w-7 rounded-sm bg-[#00ff87] border-2 border-black flex items-center justify-center">
-          <div className="h-3 w-3 bg-white rounded-sm opacity-60" />
-        </div>
-        {/* Title */}
-        <div className="relative z-10 mb-12 text-center">
-          <span className="text-lg font-extrabold tracking-wider text-[#00ff87] drop-shadow-[0_0_8px_rgba(0,255,135,0.5)]">{game.title}</span>
-        </div>
-        {/* Score badge */}
-        {personalBest != null && (
-          <div className="absolute top-3 left-3 rounded-md bg-[#00ff87]/15 px-2 py-1">
-            <span className="text-[9px] font-bold text-[#00ff87]">BEST {personalBest}</span>
-          </div>
-        )}
       </div>
-      <CardFooter game={game} personalBest={personalBest} navigate={navigate} />
-    </div>
-  )
-}
-
-function SnakeHeroCard({ game, personalBest, navigate }) {
-  return (
-    <div>
-      <div className="relative flex h-52 flex-col items-center justify-center overflow-hidden bg-[#1A1A2E]">
-        {/* Grid lines */}
-        <div className="absolute inset-0 opacity-10">
-          {[...Array(10)].map((_, i) => (
-            <div key={'h'+i} className="absolute h-px bg-[#4EF0A0]" style={{ top: `${10 + i * 9}%`, left: '5%', right: '5%' }} />
-          ))}
-          {[...Array(10)].map((_, i) => (
-            <div key={'v'+i} className="absolute w-px bg-[#4EF0A0]" style={{ left: `${10 + i * 9}%`, top: '5%', bottom: '5%' }} />
-          ))}
-        </div>
-        {/* Snake */}
-        <div className="relative z-10 flex flex-col items-center gap-1">
-          <div className="flex items-center gap-1">
-            {/* Head */}
-            <div className="h-6 w-6 rounded-md bg-[#4EF0A0] ring-1 ring-[#1A9A58] flex items-center justify-center">
-              <div className="flex gap-0.5">
-                <div className="h-1.5 w-1.5 rounded-full bg-[#1A1A2E]" />
-                <div className="h-1.5 w-1.5 rounded-full bg-[#1A1A2E]" />
+      
+      <div className="arcade-mobile-feed" ref={feedRef}>
+        {games.map((game, index) => {
+          const leaderboard = leaderboards[game.slug] || { entries: [] }
+          const personalBest = personalBests[game.slug]
+          
+          return (
+            <div key={game.slug} className="arcade-mobile-slide" data-index={index}>
+              <div className={`arcade-mobile-content bg-${game.slug}`}>
+                <div className="arcade-mobile-top">
+                  <h1 className="arcade-mobile-title">{game.title}</h1>
+                  <p className="arcade-mobile-subtitle">{game.description}</p>
+                  <div className="arcade-mobile-quick-stats">
+                    <div className="arcade-mobile-quick-stat">
+                      <span className="arcade-mobile-quick-icon">🏆</span>
+                      <span>Best: {personalBest ?? '—'}</span>
+                    </div>
+                    <div className="arcade-mobile-quick-stat">
+                      <span className="arcade-mobile-quick-icon">📊</span>
+                      <span>Rank #—</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="arcade-mobile-center">
+                  <div className="arcade-mobile-emoji">{getGameIcon(game.slug)}</div>
+                </div>
+                
+                <div className="arcade-mobile-bottom">
+                  <div className="arcade-mobile-actions">
+                    <button 
+                      className="arcade-mobile-play-btn"
+                      onClick={() => navigate(`/app/arcade/${game.slug}`)}
+                    >
+                      <span>▶</span>
+                      <span>Play Now</span>
+                    </button>
+                    <button className="arcade-mobile-more-btn">⋮</button>
+                  </div>
+                  
+                  <div className="arcade-mobile-leaderboard">
+                    <div className="arcade-mobile-lb-header">
+                      <div className="arcade-mobile-lb-title">
+                        <span>🏆</span>
+                        <span>Top Players</span>
+                      </div>
+                      <a href="#" className="arcade-mobile-lb-view-all">View All</a>
+                    </div>
+                    <div className="arcade-mobile-lb-top3">
+                      {leaderboard.entries.slice(0, 3).map((entry, i) => (
+                        <div key={entry.rank || i} className={`arcade-mobile-leader ${['first', 'second', 'third'][i]}`}>
+                          <span className="arcade-mobile-leader-rank">{entry.rank}</span>
+                          <div className="arcade-mobile-leader-name">{entry.username?.split(' ')[0] || 'Player'}</div>
+                          <div className="arcade-mobile-leader-score">{entry.score}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-            {/* Body */}
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-5 w-5 rounded-sm" style={{ backgroundColor: `rgba(45,192,120,${1 - i * 0.15})` }} />
-            ))}
-          </div>
-          {/* Food */}
-          <div className="mt-3 h-5 w-5 rounded-full bg-[#FF916C] shadow-[0_0_12px_rgba(255,145,108,0.6)]" />
-        </div>
-        {/* Title */}
-        <div className="absolute bottom-4 left-0 right-0 text-center">
-          <span className="text-lg font-extrabold tracking-wider text-[#4EF0A0] drop-shadow-[0_0_8px_rgba(78,240,160,0.4)]">{game.title}</span>
-        </div>
-        {personalBest != null && (
-          <div className="absolute top-3 left-3 rounded-md bg-[#4EF0A0]/15 px-2 py-1">
-            <span className="text-[9px] font-bold text-[#4EF0A0]">BEST {personalBest}</span>
-          </div>
-        )}
+          )
+        })}
       </div>
-      <CardFooter game={game} personalBest={personalBest} navigate={navigate} />
-    </div>
+    </section>
   )
 }
 
-function GenericHeroCard({ game, personalBest, navigate }) {
-  return (
-    <div>
-      <div className="relative flex h-52 flex-col items-center justify-center overflow-hidden bg-[#302A52]">
-        <span className="text-5xl">🎮</span>
-        <span className="mt-2 text-lg font-extrabold text-[#F7F4FF]">{game.title}</span>
-      </div>
-      <CardFooter game={game} personalBest={personalBest} navigate={navigate} />
-    </div>
-  )
-}
-
-function StackHeroCard({ game, personalBest, navigate }) {
-  return (
-    <div>
-      <div className="relative flex h-52 flex-col items-center justify-end overflow-hidden" style={{ background: 'linear-gradient(180deg, #7EC8E3 0%, #B8E8F8 50%, #E8F4FD 100%)' }}>
-        {/* Clouds background */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute top-[10%] left-[5%] h-10 w-24 rounded-full bg-white/70 blur-[2px]" />
-          <div className="absolute top-[15%] left-[15%] h-7 w-16 rounded-full bg-white/50 blur-[1px]" />
-          <div className="absolute top-[8%] right-[8%] h-9 w-20 rounded-full bg-white/60 blur-[2px]" />
-          <div className="absolute top-[20%] right-[20%] h-6 w-14 rounded-full bg-white/40 blur-[1px]" />
-          <div className="absolute bottom-[25%] left-[10%] h-8 w-20 rounded-full bg-white/50 blur-[1px]" />
-          <div className="absolute bottom-[30%] right-[5%] h-10 w-28 rounded-full bg-white/60 blur-[2px]" />
-        </div>
-
-        {/* City silhouette in distance */}
-        <div className="absolute bottom-0 left-0 right-0 flex items-end justify-center opacity-15">
-          {[40, 55, 35, 70, 45, 60, 38, 50, 65, 42].map((h, i) => (
-            <div key={i} className="bg-[#2D5F8A]" style={{ width: '8%', height: `${h}px`, marginRight: '1px' }} />
-          ))}
-        </div>
-
-        {/* Swinging block (in the air) */}
-        <div className="absolute top-[28%] left-[32%]">
-          <div className="h-5 w-12 rounded-sm shadow-md" style={{ background: 'linear-gradient(180deg, #FFE066, #FFD700)' }} />
-        </div>
-
-        {/* Stacked tower - 3D-ish blocks with gradients */}
-        <div className="relative z-10 mb-4 flex flex-col items-center">
-          {[
-            { w: 'w-16', bg: 'linear-gradient(180deg, #FFE066, #CC9900)', shadow: true },
-            { w: 'w-[70px]', bg: 'linear-gradient(180deg, #FF9A5C, #D84315)' },
-            { w: 'w-[74px]', bg: 'linear-gradient(180deg, #AED581, #558B2F)' },
-            { w: 'w-[78px]', bg: 'linear-gradient(180deg, #CE93D8, #7B1FA2)' },
-            { w: 'w-20', bg: 'linear-gradient(180deg, #4FC3F7, #0277BD)' },
-          ].map((blk, i) => (
-            <div key={i} className={`${blk.w} h-[14px] rounded-[2px] ${blk.shadow ? 'shadow-lg' : 'shadow-sm'} -mt-[1px]`} style={{ background: blk.bg }} />
-          ))}
-        </div>
-
-        {/* Combo text */}
-        <div className="absolute top-[35%] right-[12%] rotate-[-5deg]">
-          <span className="text-sm font-extrabold text-[#FF6B35] drop-shadow-md">COMBO</span>
-          <br />
-          <span className="text-lg font-black text-[#FF6B35] drop-shadow-md">x15!</span>
-        </div>
-
-        {/* Game title */}
-        <div className="relative z-10 mb-12">
-          <span className="text-lg font-extrabold tracking-wider text-[#2D4A5C] drop-shadow-sm">{game.title}</span>
-        </div>
-
-        {/* Floor badge (top-left corner) */}
-        <div className="absolute top-3 left-3 rounded-md bg-[#2D5F8A]/80 px-2 py-1 backdrop-blur-sm">
-          <span className="text-[9px] font-bold text-white/80">FLOOR</span>
-          <span className="ml-1 text-xs font-black text-white">185</span>
-        </div>
-      </div>
-      <CardFooter game={game} personalBest={personalBest} navigate={navigate} />
-    </div>
-  )
-}
-
-function CardFooter({ game, personalBest, navigate }) {
-  const destination = game.externalRoute ?? `/app/arcade/${game.slug}`
-  const isExternal  = !!game.externalRoute
-  return (
-    <div className="bg-[#4A466A] px-4 py-4 pb-8">
-      <div className="flex items-center gap-3">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#302A52] ring-1 ring-white/10">
-          {game.slug === 'flappy' ? (
-            <svg width="28" height="28" viewBox="0 0 64 64" fill="none">
-              <rect x="9" y="11" width="42" height="42" rx="12" fill="#FF916C" />
-              <rect x="9" y="11" width="42" height="42" rx="12" stroke="#E07A58" strokeWidth="2" fill="none" />
-              <circle cx="38" cy="28" r="7" fill="white" />
-              <circle cx="40" cy="28" r="4" fill="#1D183E" />
-            </svg>
-          ) : game.slug === 'pacman' ? (
-            <svg width="28" height="28" viewBox="0 0 64 64" fill="none">
-              <path d="M32 8 C48 8 56 20 56 32 C56 44 48 56 32 56 C16 56 8 44 8 32 C8 20 16 8 32 8 Z" fill="#FFFF00" />
-              <path d="M32 32 L54 20 L54 44 Z" fill="#302A52" />
-            </svg>
-          ) : game.slug === 'stack' ? (
-            <svg width="28" height="28" viewBox="0 0 64 64" fill="none">
-              <rect x="18" y="40" width="28" height="8" fill="#FFD700" rx="1" />
-              <rect x="20" y="32" width="24" height="8" fill="#FFC107" rx="1" />
-              <rect x="22" y="24" width="20" height="8" fill="#FF9800" rx="1" />
-              <rect x="24" y="16" width="16" height="8" fill="#FF5722" rx="1" />
-            </svg>
-          ) : game.slug === 'geodash' ? (
-            <svg width="28" height="28" viewBox="0 0 64 64" fill="none">
-              <rect x="8" y="44" width="48" height="6" fill="#1a4a7a" rx="1"/>
-              <polygon points="16,44 22,30 28,44" fill="#ccc"/>
-              <polygon points="32,44 38,30 44,44" fill="#ccc"/>
-              <rect x="8" y="34" width="10" height="10" fill="#00ff87" rx="2"/>
-              <rect x="11" y="37" width="4" height="4" fill="white" rx="1" opacity="0.6"/>
-            </svg>
-          ) : game.slug === 'snake' ? (
-            <span className="text-2xl">🐍</span>
-          ) : (
-            <span className="text-xl">🎮</span>
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#9F9AB5]">
-            {isExternal ? 'Face rating' : game.slug === 'flappy' ? "This week's game" : 'Classic arcade'}
-          </p>
-          <h2 className="text-base font-bold text-[#F7F4FF]">{game.title}</h2>
-        </div>
-        <span className="text-xs font-semibold text-[#4EF0A0]">
-          {personalBest != null
-            ? isExternal ? `Best: ${personalBest}/10` : `Best: ${personalBest}`
-            : ''}
-        </span>
-      </div>
-      <button
-        type="button"
-        onClick={() => navigate(destination)}
-        className="mt-3 w-full rounded-full py-3 text-sm font-bold text-[#1C2030] transition-all active:scale-[0.97]"
-        style={{ background: 'linear-gradient(135deg, #B8F77D 0%, #7BE056 100%)', boxShadow: '0 4px 14px rgba(123, 224, 86, 0.3)' }}
-      >
-        {isExternal ? 'Get Mogged 🪞' : 'Play Now'}
-      </button>
-    </div>
-  )
-}
-
-function LeaderboardRow({ entry, isCurrentUser }) {
-  const getMedalColor = (rank) => {
-    if (rank === 1) return 'bg-yellow-500/20 text-yellow-400'
-    if (rank === 2) return 'bg-gray-400/20 text-gray-300'
-    if (rank === 3) return 'bg-amber-600/20 text-amber-500'
-    return 'bg-white/5 text-[#9F9AB5]'
+// Helper function to get game icons
+function getGameIcon(slug) {
+  const icons = {
+    flappy: '🐦',
+    pacman: '👻',
+    stack: '📦',
+    geodash: '🟩',
+    snake: '🐍'
   }
-  return (
-    <div className={['flex items-center gap-3 rounded-xl px-3 py-2.5', isCurrentUser ? 'bg-[#FF916C]/10 ring-1 ring-[#FF916C]/30' : 'bg-[#3E3A5C]/50'].join(' ')}>
-      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${getMedalColor(entry.rank)}`}>{entry.rank}</div>
-      <span className="min-w-0 flex-1 truncate text-sm font-medium text-[#F7F4FF]">
-        {(entry.username || 'Anonymous').split(' ')[0]}
-        {isCurrentUser && <span className="ml-1 text-[10px] text-[#FF916C]">(you)</span>}
-      </span>
-      <span className="shrink-0 text-sm font-bold text-[#4EF0A0]">{entry.score}</span>
-    </div>
-  )
+  return icons[slug] || '🎮'
 }
 
-function LeaderboardSkeleton() {
-  return (
-    <div className="space-y-1.5 py-2">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="flex animate-pulse items-center gap-3 rounded-xl bg-[#3E3A5C]/50 px-3 py-2.5">
-          <div className="h-8 w-8 rounded-full bg-white/10" />
-          <div className="h-4 flex-1 rounded bg-white/10" />
-          <div className="h-4 w-10 rounded bg-white/10" />
-        </div>
-      ))}
-    </div>
-  )
-}
+// Desktop Styles
+const desktopStyles = `
+  .arcade-desktop {
+    min-height: 100vh;
+    background: #0d0d0d;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 24px;
+  }
+  
+  .arcade-desktop-header {
+    padding: 20px 24px 16px;
+  }
+  
+  .arcade-desktop-title {
+    font-size: 28px;
+    font-weight: 800;
+    margin-bottom: 4px;
+  }
+  
+  .arcade-desktop-subtitle {
+    font-size: 13px;
+    color: #888;
+    font-weight: 500;
+  }
+  
+  .arcade-desktop-swipe {
+    flex: 1;
+    position: relative;
+    padding: 20px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .arcade-desktop-stack {
+    position: relative;
+    width: 100%;
+    height: 520px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .arcade-desktop-card {
+    position: absolute;
+    width: 340px;
+    height: 520px;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    cursor: pointer;
+  }
+  
+  .arcade-desktop-card.center {
+    z-index: 3;
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+  
+  .arcade-desktop-card.left {
+    z-index: 2;
+    transform: translateX(-50%) scale(0.9);
+    opacity: 0.5;
+    pointer-events: none;
+  }
+  
+  .arcade-desktop-card.right {
+    z-index: 2;
+    transform: translateX(50%) scale(0.9);
+    opacity: 0.5;
+    pointer-events: none;
+  }
+  
+  .arcade-desktop-card-inner {
+    width: 100%;
+    height: 100%;
+    background: #1a1a1a;
+    border-radius: 24px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  
+  .arcade-desktop-card-visual {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  
+  .arcade-desktop-card-visual::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, transparent 40%, rgba(0,0,0,0.9) 100%);
+  }
+  
+  .bg-flappy { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+  .bg-pacman { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+  .bg-stack { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+  .bg-geodash { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+  .bg-snake { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+  
+  .arcade-desktop-game-icon {
+    font-size: 120px;
+    position: relative;
+    z-index: 1;
+    filter: drop-shadow(0 10px 30px rgba(0,0,0,0.5));
+  }
+  
+  .arcade-desktop-card-info {
+    padding: 24px;
+    background: #1a1a1a;
+  }
+  
+  .arcade-desktop-game-name {
+    font-size: 32px;
+    font-weight: 900;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+  }
+  
+  .arcade-desktop-game-tagline {
+    font-size: 14px;
+    color: #888;
+    margin-bottom: 20px;
+    font-weight: 500;
+  }
+  
+  .arcade-desktop-stats {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  
+  .arcade-desktop-stat {
+    flex: 1;
+    padding: 12px;
+    background: #0d0d0d;
+    border-radius: 12px;
+    text-align: center;
+  }
+  
+  .arcade-desktop-stat-val {
+    font-size: 20px;
+    font-weight: 800;
+    display: block;
+    margin-bottom: 2px;
+    color: #fff;
+  }
+  
+  .arcade-desktop-stat-label {
+    font-size: 10px;
+    color: #666;
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  
+  .arcade-desktop-play-btn {
+    width: 100%;
+    padding: 16px;
+    border: none;
+    border-radius: 16px;
+    background: #fff;
+    color: #000;
+    font-size: 17px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .arcade-desktop-play-btn:active {
+    transform: scale(0.96);
+  }
+  
+  .arcade-desktop-dots {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 6px;
+  }
+  
+  .arcade-desktop-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #333;
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+  
+  .arcade-desktop-dot.active {
+    width: 20px;
+    border-radius: 3px;
+    background: #fff;
+  }
+  
+  .arcade-desktop-nav {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    padding: 24px;
+  }
+  
+  .arcade-desktop-nav-btn {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    background: #1a1a1a;
+    color: #fff;
+    font-size: 24px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .arcade-desktop-nav-btn:active {
+    transform: scale(0.9);
+    background: #2a2a2a;
+  }
+  
+  .arcade-desktop-nav-btn.primary {
+    width: 64px;
+    height: 64px;
+    background: #fff;
+    color: #000;
+    font-size: 28px;
+  }
+`
+
+// Mobile Styles
+const mobileStyles = `
+  .arcade-mobile {
+    position: relative;
+    height: 100vh;
+    overflow: hidden;
+    background: #000;
+    color: white;
+  }
+  
+  .arcade-mobile-scroll-indicator {
+    position: fixed;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 10;
+  }
+  
+  .arcade-mobile-scroll-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.3);
+    transition: all 0.3s ease;
+  }
+  
+  .arcade-mobile-scroll-dot.active {
+    height: 24px;
+    border-radius: 4px;
+    background: #fff;
+  }
+  
+  .arcade-mobile-feed {
+    height: 100vh;
+    overflow-y: scroll;
+    scroll-snap-type: y mandatory;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  
+  .arcade-mobile-feed::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .arcade-mobile-slide {
+    height: 100vh;
+    scroll-snap-align: start;
+    position: relative;
+  }
+  
+  .arcade-mobile-content {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 60px 24px 40px;
+    position: relative;
+  }
+  
+  .arcade-mobile-content::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, transparent 20%, rgba(0,0,0,0.7) 80%);
+    z-index: 0;
+  }
+  
+  .arcade-mobile-top,
+  .arcade-mobile-center,
+  .arcade-mobile-bottom {
+    position: relative;
+    z-index: 1;
+  }
+  
+  .arcade-mobile-title {
+    font-size: 56px;
+    font-weight: 900;
+    margin-bottom: 12px;
+    letter-spacing: -2px;
+    text-shadow: 0 4px 20px rgba(0,0,0,0.8);
+  }
+  
+  .arcade-mobile-subtitle {
+    font-size: 18px;
+    color: rgba(255,255,255,0.85);
+    font-weight: 600;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+    margin-bottom: 24px;
+  }
+  
+  .arcade-mobile-quick-stats {
+    display: inline-flex;
+    gap: 12px;
+    padding: 12px 18px;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(20px);
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  
+  .arcade-mobile-quick-stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  
+  .arcade-mobile-quick-icon {
+    font-size: 16px;
+  }
+  
+  .arcade-mobile-center {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .arcade-mobile-emoji {
+    font-size: 180px;
+    filter: drop-shadow(0 20px 50px rgba(0,0,0,0.6));
+    animation: floatSlow 4s ease-in-out infinite;
+  }
+  
+  @keyframes floatSlow {
+    0%, 100% { transform: translateY(0) rotate(-2deg); }
+    50% { transform: translateY(-20px) rotate(2deg); }
+  }
+  
+  .arcade-mobile-actions {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  
+  .arcade-mobile-play-btn {
+    flex: 1;
+    padding: 20px;
+    border: none;
+    border-radius: 18px;
+    background: #fff;
+    color: #000;
+    font-size: 18px;
+    font-weight: 900;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  
+  .arcade-mobile-play-btn:active {
+    transform: scale(0.95);
+  }
+  
+  .arcade-mobile-more-btn {
+    width: 64px;
+    height: 64px;
+    border: none;
+    border-radius: 18px;
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    font-size: 24px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .arcade-mobile-more-btn:active {
+    transform: scale(0.9);
+  }
+  
+  .arcade-mobile-leaderboard {
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
+    padding: 16px;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  
+  .arcade-mobile-lb-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  
+  .arcade-mobile-lb-title {
+    font-size: 16px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  
+  .arcade-mobile-lb-view-all {
+    font-size: 12px;
+    color: rgba(255,255,255,0.6);
+    text-decoration: none;
+    font-weight: 700;
+  }
+  
+  .arcade-mobile-lb-top3 {
+    display: flex;
+    gap: 8px;
+  }
+  
+  .arcade-mobile-leader {
+    flex: 1;
+    text-align: center;
+    padding: 12px 8px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+  }
+  
+  .arcade-mobile-leader-rank {
+    font-size: 20px;
+    font-weight: 900;
+    display: block;
+    margin-bottom: 4px;
+  }
+  
+  .arcade-mobile-leader-name {
+    font-size: 11px;
+    color: rgba(255,255,255,0.7);
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  
+  .arcade-mobile-leader-score {
+    font-size: 14px;
+    font-weight: 800;
+    color: #fff;
+  }
+  
+  .arcade-mobile-leader.first .arcade-mobile-leader-rank {
+    color: #fbbf24;
+  }
+  
+  .arcade-mobile-leader.second .arcade-mobile-leader-rank {
+    color: #e5e7eb;
+  }
+  
+  .arcade-mobile-leader.third .arcade-mobile-leader-rank {
+    color: #fb923c;
+  }
+`
 
 export default ArcadeHome
