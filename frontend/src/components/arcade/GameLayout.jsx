@@ -217,41 +217,77 @@ function GameLayout({ gameSlug, children }) {
   // --- Render ---
   return (
     <div
-      className="fixed inset-x-0 flex flex-col bg-[#0a0e1a]"
+      className="fixed inset-x-0 flex flex-col bg-gradient-to-b from-[#0a0e1a] to-[#1a1d3a]"
       style={{
         top: 0,
-        bottom: 'calc(72px + env(safe-area-inset-bottom, 0px))',
+        bottom: 0,
         zIndex: 10,
       }}
     >
-      {/* Header bar */}
-      <div className="flex shrink-0 items-center justify-between bg-[#2D2845]/95 px-4 py-3 backdrop-blur-sm border-b border-white/10">
-        <button
-          type="button"
-          onClick={() => navigate('/app/arcade')}
-          className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-[#F7F4FF] transition hover:bg-white/10 active:scale-95"
-          aria-label="Back to Arcade"
-        >
-          <ArrowLeft size={18} />
-          <span className="hidden sm:inline">Back</span>
-        </button>
-
-        <h1 className="text-base font-bold text-[#F7F4FF] sm:text-lg">{gameTitle}</h1>
-
-        <div className="min-w-[60px] text-right">
-          {!isGameOver && (
-            <span className="text-sm font-semibold text-[#4EF0A0]">
-              {currentScore > 0 ? currentScore : ''}
-            </span>
-          )}
+      {/* Top Stats Bar - Rounded Container */}
+      <div className="shrink-0 px-4 pt-4 pb-3">
+        <div className="flex items-center justify-between gap-3 bg-[#1e2139] rounded-2xl px-5 py-4 border border-[#2d3152]">
+          {/* Score */}
+          <div className="flex flex-col">
+            <span className="text-[10px] font-semibold text-[#9ca3af] uppercase tracking-wider">Score</span>
+            <span className="text-2xl font-black text-[#fbbf24]">{currentScore}</span>
+          </div>
+          
+          {/* Best */}
+          <div className="flex flex-col">
+            <span className="text-[10px] font-semibold text-[#9ca3af] uppercase tracking-wider">Best</span>
+            <span className="text-2xl font-black text-white">{submissionResult?.personal_best || 0}</span>
+          </div>
+          
+          {/* Level */}
+          <div className="flex flex-col">
+            <span className="text-[10px] font-semibold text-[#9ca3af] uppercase tracking-wider">Level</span>
+            <span className="text-2xl font-black text-white">1</span>
+          </div>
+          
+          {/* Control Buttons */}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => navigate('/app/arcade')}
+              className="w-10 h-10 rounded-xl bg-[#2d3152] border border-[#3d4162] flex items-center justify-center text-white/70 hover:text-white hover:bg-[#3d4162] transition active:scale-95"
+              aria-label="Back to Arcade"
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <button
+              type="button"
+              className="w-10 h-10 rounded-xl bg-[#2d3152] border border-[#3d4162] flex items-center justify-center text-white/70 hover:text-white hover:bg-[#3d4162] transition active:scale-95"
+              aria-label="Pause"
+            >
+              <span className="text-lg">❚❚</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Game canvas area — 16:9 container, full width, centered vertically */}
-      <div className="relative flex-1 min-h-0 flex items-center justify-center bg-[#0a0e1a]">
-        {/* 1:1 box matching the game's 480×480 logical world */}
+      {/* Lives & Power Bar */}
+      <div className="shrink-0 flex items-center justify-between px-6 pb-3">
+        {/* Lives - Pac-Man icons */}
+        <div className="flex gap-2">
+          <span className="text-2xl">🟡</span>
+          <span className="text-2xl">🟡</span>
+          <span className="text-2xl">🟡</span>
+        </div>
+        
+        {/* Power Bar */}
+        <div className="flex items-center gap-2">
+          <div className="w-48 h-2 bg-[#1e2139] rounded-full overflow-hidden border border-[#2d3152]">
+            <div className="h-full bg-gradient-to-r from-[#60a5fa] to-[#3b82f6] w-0 transition-all duration-300" />
+          </div>
+          <span className="text-[10px] font-semibold text-[#9ca3af] uppercase tracking-wider">Power</span>
+        </div>
+      </div>
+
+      {/* Game canvas area */}
+      <div className="relative flex-1 min-h-0 flex items-center justify-center px-4 pb-4">
         <div
-          className="relative w-full"
+          className="relative w-full rounded-2xl overflow-hidden border-2 border-[#3b82f6]/30 shadow-2xl shadow-[#3b82f6]/10"
           style={{ aspectRatio: '1/1', maxHeight: '100%' }}
         >
           {typeof children === 'function'
@@ -266,61 +302,56 @@ function GameLayout({ gameSlug, children }) {
 
           {/* Game-over overlay */}
           {isGameOver && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-              <div className="flex w-[88%] max-w-sm flex-col items-center gap-4 rounded-2xl bg-[#2D2845] p-6 shadow-xl ring-1 ring-white/10">
-                <h2 className="text-xl font-bold text-[#F7F4FF]">Game Over</h2>
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/80 backdrop-blur-md">
+              <div className="flex w-[88%] max-w-sm flex-col items-center gap-4 rounded-2xl bg-[#1e2139] border border-[#2d3152] p-6 shadow-xl">
+                <h2 className="text-3xl font-black text-[#fbbf24] uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Game Over</h2>
 
-                <p className="text-4xl font-extrabold text-[#F7F4FF]">{currentScore}</p>
-                <p className="text-xs text-[#F7F4FF]/50">Final Score</p>
+                <p className="text-sm text-[#9ca3af]">Score {currentScore}. Best {submissionResult?.personal_best || 0}.</p>
 
                 {currentCoins > 0 && (
                   <div className="flex items-center gap-2 rounded-full bg-[#ffd700]/15 px-4 py-1.5">
                     <span className="text-base leading-none">🪙</span>
                     <span className="text-sm font-bold text-[#ffd700]">
-                      {currentCoins} coin{currentCoins !== 1 ? 's' : ''} collected
+                      {currentCoins} coin{currentCoins !== 1 ? 's' : ''}
                     </span>
                   </div>
                 )}
 
                 {isSubmitting && (
-                  <p className="text-sm text-[#F7F4FF]/70">Saving score…</p>
+                  <p className="text-sm text-[#9ca3af]">Saving score…</p>
                 )}
 
                 {submissionResult && (
-                  <div className="flex w-full flex-col gap-1 rounded-xl bg-white/5 px-4 py-3 text-center">
-                    <p className="text-sm text-[#F7F4FF]/80">
-                      Personal Best: <span className="font-bold text-[#4EF0A0]">{submissionResult.personal_best}</span>
-                    </p>
-                    <p className="text-sm text-[#F7F4FF]/80">
+                  <div className="flex w-full flex-col gap-1 rounded-xl bg-[#2d3152] px-4 py-3 text-center border border-[#3d4162]">
+                    <p className="text-sm text-[#9ca3af]">
                       Rank: <span className="font-bold text-[#4EF0A0]">#{submissionResult.rank}</span>
                     </p>
                   </div>
                 )}
 
-                <div className="flex w-full flex-col gap-2 sm:flex-row">
-                  <button
-                    type="button"
-                    onClick={() => handleRestart(0)}
-                    className="flex-1 rounded-full bg-[#FF916C] py-3 text-sm font-bold text-[#1D183E] transition active:scale-[0.97]"
-                  >
-                    Play Again
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleViewLeaderboard}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-full border border-[#F7F4FF]/20 py-3 text-sm font-semibold text-[#F7F4FF] transition hover:bg-white/5 active:scale-[0.97]"
-                  >
-                    <Trophy size={16} />
-                    Leaderboard
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRestart(0)}
+                  className="w-full rounded-xl bg-[#fbbf24] py-3 text-base font-black text-black transition active:scale-[0.97] uppercase tracking-wide"
+                  style={{ fontFamily: 'monospace' }}
+                >
+                  Play again
+                </button>
 
-                {/* Watch Ad to continue — only shown when an arcade ad is live and not yet used today */}
+                <button
+                  type="button"
+                  onClick={handleViewLeaderboard}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl border border-[#3d4162] bg-[#2d3152] py-3 text-sm font-semibold text-white transition hover:bg-[#3d4162] active:scale-[0.97]"
+                >
+                  <Trophy size={16} />
+                  Leaderboard
+                </button>
+
                 {adLoaded && gameOverAd && !adWatched && !adAlreadyUsed && (
                   <button
                     type="button"
                     onClick={handleWatchAd}
-                    className="mt-1 flex w-full items-center justify-center gap-2 rounded-full border border-[#A78BFA]/40 bg-[#A78BFA]/10 py-2.5 text-[12px] font-semibold text-[#A78BFA] transition hover:bg-[#A78BFA]/20 active:scale-[0.97]"
+                    className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl border border-[#A78BFA]/40 bg-[#A78BFA]/10 py-2.5 text-xs font-semibold text-[#A78BFA] transition hover:bg-[#A78BFA]/20 active:scale-[0.97]"
                   >
                     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
                     Watch ad to continue
@@ -329,6 +360,43 @@ function GameLayout({ gameSlug, children }) {
               </div>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Arrow Pad Controls */}
+      <div className="shrink-0 flex flex-col items-center gap-2 pb-safe pb-6">
+        {/* Up */}
+        <button
+          type="button"
+          className="w-14 h-14 rounded-xl bg-[#2d3152] border border-[#3d4162] flex items-center justify-center text-white/90 hover:bg-[#3d4162] hover:text-white transition active:scale-95 active:bg-[#4d5172]"
+          aria-label="Up"
+        >
+          <span className="text-2xl">▲</span>
+        </button>
+        
+        {/* Left, Down, Right */}
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className="w-14 h-14 rounded-xl bg-[#2d3152] border border-[#3d4162] flex items-center justify-center text-white/90 hover:bg-[#3d4162] hover:text-white transition active:scale-95 active:bg-[#4d5172]"
+            aria-label="Left"
+          >
+            <span className="text-2xl">◀</span>
+          </button>
+          <button
+            type="button"
+            className="w-14 h-14 rounded-xl bg-[#2d3152] border border-[#3d4162] flex items-center justify-center text-white/90 hover:bg-[#3d4162] hover:text-white transition active:scale-95 active:bg-[#4d5172]"
+            aria-label="Down"
+          >
+            <span className="text-2xl">▼</span>
+          </button>
+          <button
+            type="button"
+            className="w-14 h-14 rounded-xl bg-[#2d3152] border border-[#3d4162] flex items-center justify-center text-white/90 hover:bg-[#3d4162] hover:text-white transition active:scale-95 active:bg-[#4d5172]"
+            aria-label="Right"
+          >
+            <span className="text-2xl">▶</span>
+          </button>
         </div>
       </div>
 
