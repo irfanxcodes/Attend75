@@ -462,7 +462,7 @@ function GameVisual({ game, personalBest, fullscreen = false }) {
         {/* Ground */}
         <div className="absolute bottom-0 left-0 right-0 h-7 bg-[#8BC34A]" />
         {/* Bird - show on mobile too */}
-        <div className="relative z-10 animate-float">
+        <div className="relative z-10" style={{ animation: 'float 2.5s ease-in-out infinite' }}>
           <svg width={fullscreen ? "80" : "64"} height={fullscreen ? "80" : "64"} viewBox="0 0 64 64" fill="none">
             <rect x="12" y="14" width="42" height="42" rx="12" fill="rgba(0,0,0,0.15)" />
             <rect x="9" y="11" width="42" height="42" rx="12" fill="#FF916C" />
@@ -478,30 +478,65 @@ function GameVisual({ game, personalBest, fullscreen = false }) {
   
   if (game.slug === 'pacman') {
     return (
-      <div className={`relative flex flex-col items-center justify-center overflow-hidden bg-black ${heightClass}`}>
-        {/* Maze background */}
-        <div className="absolute inset-0 opacity-20">
+      <div className={`relative flex flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-[#0D0D33] to-[#1a1a4d] ${heightClass}`}>
+        {/* Maze background - more visible */}
+        <div className="absolute inset-0 opacity-40">
           {[...Array(8)].map((_, i) => (
-            <div key={i} className="absolute h-0.5 bg-[#2121DE]" style={{ top: `${12 + i * 12}%`, left: '8%', right: '8%' }} />
+            <div key={i} className="absolute h-1 bg-[#3333FF] rounded" style={{ top: `${12 + i * 12}%`, left: '8%', right: '8%' }} />
           ))}
           {[...Array(6)].map((_, i) => (
-            <div key={`v${i}`} className="absolute w-0.5 bg-[#2121DE]" style={{ left: `${15 + i * 14}%`, top: '8%', bottom: '8%' }} />
+            <div key={`v${i}`} className="absolute w-1 bg-[#3333FF] rounded" style={{ left: `${15 + i * 14}%`, top: '8%', bottom: '8%' }} />
           ))}
         </div>
-        {/* Pac-Man - show on mobile too */}
-        <div className="relative z-10 animate-float">
-          <svg width={fullscreen ? "90" : "70"} height={fullscreen ? "90" : "70"} viewBox="0 0 64 64" fill="none">
-            <path d="M32 4 C50 4 60 18 60 32 C60 46 50 60 32 60 C14 60 4 46 4 32 C4 18 14 4 32 4 Z" fill="#FFFF00" />
-            <path d="M32 32 L58 18 L58 46 Z" fill="#000" />
-            <circle cx="30" cy="18" r="4" fill="#000" />
+        
+        {/* Pellets scattered around */}
+        <div className="absolute inset-0">
+          {[20, 40, 60, 80].map((top, i) => (
+            <div key={`pellet-${i}`} className="absolute flex gap-8" style={{ top: `${top}%`, left: '15%', right: '15%' }}>
+              {[...Array(4)].map((_, j) => (
+                <div key={j} className="w-2 h-2 rounded-full bg-[#FFB8AE] opacity-60" />
+              ))}
+            </div>
+          ))}
+        </div>
+        
+        {/* Pac-Man - larger and animated */}
+        <div className="relative z-10" style={{ animation: 'float 2s ease-in-out infinite' }}>
+          <svg width={fullscreen ? "120" : "90"} height={fullscreen ? "120" : "90"} viewBox="0 0 100 100" fill="none">
+            {/* Shadow */}
+            <ellipse cx="50" cy="90" rx="35" ry="8" fill="rgba(0,0,0,0.3)" />
+            {/* Pac-Man body with gradient */}
+            <defs>
+              <radialGradient id="pacGradient">
+                <stop offset="0%" stopColor="#FFFF00" />
+                <stop offset="100%" stopColor="#FFD700" />
+              </radialGradient>
+            </defs>
+            <path d="M50 10 C73 10 92 29 92 52 C92 75 73 94 50 94 C27 94 8 75 8 52 C8 29 27 10 50 10 Z" fill="url(#pacGradient)" />
+            {/* Mouth opening */}
+            <path d="M50 52 L85 30 L85 74 Z" fill="#0D0D33" />
+            {/* Eye */}
+            <circle cx="45" cy="35" r="6" fill="#000" />
+            <circle cx="47" cy="33" r="2" fill="#fff" />
           </svg>
         </div>
-        {/* Ghosts */}
+        
+        {/* Ghosts below - colorful and animated */}
         {fullscreen && (
-          <div className="relative z-10 mt-4 flex gap-3">
-            <span className="text-3xl">👻</span>
-            <span className="text-3xl" style={{ filter: 'hue-rotate(180deg)' }}>👻</span>
-            <span className="text-3xl" style={{ filter: 'hue-rotate(90deg)' }}>👻</span>
+          <div className="relative z-10 mt-6 flex gap-4">
+            {['#FF0000', '#00FFFF', '#FFB8FF', '#FFB852'].map((color, i) => (
+              <div key={i} style={{ animation: `float ${2 + i * 0.2}s ease-in-out infinite` }}>
+                <svg width="40" height="45" viewBox="0 0 40 45" fill="none">
+                  {/* Ghost body */}
+                  <path d="M20 5 C10 5 5 10 5 20 L5 35 L8 40 L12 35 L16 40 L20 35 L24 40 L28 35 L32 40 L35 35 L35 20 C35 10 30 5 20 5 Z" fill={color} />
+                  {/* Eyes */}
+                  <ellipse cx="14" cy="18" rx="4" ry="5" fill="white" />
+                  <ellipse cx="26" cy="18" rx="4" ry="5" fill="white" />
+                  <circle cx="15" cy="19" r="2" fill="#000080" />
+                  <circle cx="27" cy="19" r="2" fill="#000080" />
+                </svg>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -521,7 +556,7 @@ function GameVisual({ game, personalBest, fullscreen = false }) {
           ))}
         </div>
         {/* Snake - show on mobile too */}
-        <div className="relative z-10 flex flex-col items-center gap-2 animate-float">
+        <div className="relative z-10 flex flex-col items-center gap-2" style={{ animation: 'float 2.5s ease-in-out infinite' }}>
           <div className="flex items-center gap-1">
             {/* Head */}
             <div className={`${fullscreen ? 'h-9 w-9' : 'h-7 w-7'} rounded-md bg-[#4EF0A0] ring-1 ring-[#1A9A58] flex items-center justify-center shadow-[0_0_10px_rgba(78,240,160,0.4)]`}>
@@ -561,7 +596,7 @@ function GameVisual({ game, personalBest, fullscreen = false }) {
           </div>
         ))}
         {/* Cube - show on mobile too */}
-        <div className={`absolute ${fullscreen ? 'bottom-[44px] h-10 w-10' : 'bottom-[38px] h-8 w-8'} left-[12%] rounded-sm bg-[#00ff87] border-2 border-black flex items-center justify-center shadow-[0_0_12px_rgba(0,255,135,0.5)] animate-bounce-slow`}>
+        <div className={`absolute ${fullscreen ? 'bottom-[44px] h-10 w-10' : 'bottom-[38px] h-8 w-8'} left-[12%] rounded-sm bg-[#00ff87] border-2 border-black flex items-center justify-center shadow-[0_0_12px_rgba(0,255,135,0.5)]`} style={{ animation: 'bounce-slow 1.5s ease-in-out infinite' }}>
           <div className={`${fullscreen ? 'h-4 w-4' : 'h-3.5 w-3.5'} bg-white rounded-sm opacity-60`} />
         </div>
       </div>

@@ -11,7 +11,7 @@ const gameRegistry = {
   },
   pacman: {
     slug: 'pacman',
-    title: 'Maze Munch',
+    title: 'Pac-Man',
     description: 'Eat all dots and avoid the ghosts!',
     thumbnail: '/assets/arcade/pacman-thumb.webp',
     maxScore: 999999,
