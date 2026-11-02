@@ -127,8 +127,8 @@ function die(){
   const p=Math.min(99,Math.floor(camX/LEN*100)),nb=p>save.best;
   save.best=Math.max(save.best,p);save.att=att;att++;persist();
   burst(camX+PX+U/2,h+U/2,26,[SUN,INK,PAPER],520);shake=14;snd(170,.4,'sawtooth',38,.1);
-  $('#tp').textContent=p+'%';$('#ts').textContent=nb?'New best':'Best '+save.best+'%';$('#toast').classList.add('on');
-  // Report score to parent (score = percentage reached)
+  // Don't show iframe toast — React overlay handles the game-over UI
+  // Report score to parent
   pm('GEODASH_SCORE',{score:p,coins:runCoins});
 }
 
@@ -229,7 +229,7 @@ function loop(ts){
   const dt=Math.min(.033,(ts-last)/1000||0);last=ts;
   if(state==='play'){const n=dt>.017?2:1;for(let i=0;i<n&&state==='play';i++)step(dt/n)}
   else if(state==='menu'||state==='win')camX+=90*dt;
-  else if(state==='dead'&&performance.now()-deadAt>900)start();
+  else if(state==='dead'){}  /* React overlay handles restart — no auto-restart */
   if(state!=='pause'){for(let i=parts.length-1;i>=0;i--){const q=parts[i];q.life+=dt;q.x+=q.vx*dt;q.y+=q.vy*dt;if(q.life>q.max)parts.splice(i,1)}shake=Math.max(0,shake-dt*50)}
   draw();
   if(state==='play'||state==='dead'){const p=Math.min(100,Math.floor(camX/LEN*100));$('#fill').style.width=p+'%';$('#mk').style.left=p+'%';$('#pct').textContent=p+'%';$('#cn').textContent=runCoins}
@@ -258,6 +258,12 @@ $('#card').addEventListener('click',e=>{const a=e.target.dataset.a;if(!a)return;
   else if(a==='mute'){save.mute=!save.mute;persist();state==='menu'?menu():pausePanel()}});
 
 $('#pauseB').addEventListener('click',pause);
+
+// Listen for commands from parent React app
+window.addEventListener('message',e=>{
+  if(!e.data||typeof e.data!=='object')return;
+  if(e.data.type==='GEODASH_RESTART'){hold=false;start()}
+});
 
 menu();requestAnimationFrame(loop);
 })();

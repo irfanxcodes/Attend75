@@ -1,42 +1,61 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Trophy } from 'lucide-react'
 
 /**
- * GeodashGame — Geometry Dash clone embedded via iframe.
- * The game runs at /arcade/geodash/index.html and communicates
- * score events back to the parent via postMessage.
- *
- * Message types received from iframe:
- *   GEODASH_PLAYING        — game started / restarted
- *   GEODASH_SCORE_UPDATE   — live score tick during play (score: number)
- *   GEODASH_SCORE          — final score on death (score: number)
+ * GeodashGame — Geometry Dash / Geo Runner via iframe.
+ * The iframe posts messages back to us; we handle game-over UI in React
+ * so it matches the app style and the game stays paused until Play Again.
  */
 function GeodashGame({ onGameEnd, onScoreUpdate, isActive }) {
-  const iframeRef = useRef(null)
-  const [status, setStatus] = useState('idle')
-  const [highScore, setHighScore] = useState(0)
-  const [highCoins, setHighCoins] = useState(0)
-  const onGameEndRef    = useRef(onGameEnd)
+  const navigate    = useRef(useNavigate()).current
+  const iframeRef   = useRef(null)
+  const endCalledRef = useRef(false)
+
+  const [gameStatus,   setGameStatus]   = useState('idle')   // idle | playing | dead
+  const [score,        setScore]        = useState(0)
+  const [runCoins,     setRunCoins]     = useState(0)
+  const [best,         setBest]         = useState(0)
+  const [submitting,   setSubmitting]   = useState(false)
+  const [subResult,    setSubResult]    = useState(null)
+
+  const onGameEndRef     = useRef(onGameEnd)
   const onScoreUpdateRef = useRef(onScoreUpdate)
-  useEffect(() => { onGameEndRef.current    = onGameEnd    }, [onGameEnd])
+  useEffect(() => { onGameEndRef.current     = onGameEnd     }, [onGameEnd])
   useEffect(() => { onScoreUpdateRef.current = onScoreUpdate }, [onScoreUpdate])
+
+  // Send a command to the iframe
+  const sendCmd = useCallback((cmd) => {
+    try { iframeRef.current?.contentWindow?.postMessage({ type: cmd }, '*') } catch {}
+  }, [])
 
   const handleMessage = useCallback((e) => {
     if (!e.data || typeof e.data !== 'object') return
+    const { type } = e.data
 
-    if (e.data.type === 'GEODASH_PLAYING') {
-      setStatus('playing')
+    if (type === 'GEODASH_PLAYING') {
+      setGameStatus('playing')
+      setScore(0); setRunCoins(0); setSubResult(null)
+      endCalledRef.current = false
     }
 
-    if (e.data.type === 'GEODASH_SCORE_UPDATE') {
-      onScoreUpdateRef.current(e.data.score, e.data.coins ?? 0)
+    if (type === 'GEODASH_SCORE_UPDATE') {
+      const s = e.data.score ?? 0
+      const c = e.data.coins ?? 0
+      setScore(s); setRunCoins(c)
+      onScoreUpdateRef.current(s, c)
     }
 
-    if (e.data.type === 'GEODASH_SCORE') {
-      const { score, coins = 0 } = e.data
-      setStatus('dead')
-      setHighScore(prev => Math.max(prev, score))
-      setHighCoins(prev => Math.max(prev, coins))
-      onGameEndRef.current(score, coins)
+    if (type === 'GEODASH_SCORE') {
+      const s = e.data.score ?? 0
+      const c = e.data.coins ?? 0
+      setScore(s); setRunCoins(c)
+      setBest(prev => Math.max(prev, s))
+      setGameStatus('dead')
+      if (!endCalledRef.current) {
+        endCalledRef.current = true
+        onGameEndRef.current(s, c)
+      }
     }
   }, [])
 
@@ -45,36 +64,134 @@ function GeodashGame({ onGameEnd, onScoreUpdate, isActive }) {
     return () => window.removeEventListener('message', handleMessage)
   }, [handleMessage])
 
+  // Restart when isActive flips back on (parent called handleRestart)
   const prevActiveRef = useRef(isActive)
   useEffect(() => {
     if (isActive && !prevActiveRef.current) {
-      setHighScore(0)
-      setHighCoins(0)
-      setStatus('idle')
+      setBest(0); setScore(0); setRunCoins(0)
+      setGameStatus('idle'); setSubResult(null)
+      endCalledRef.current = false
       onScoreUpdateRef.current(0, 0)
-      if (iframeRef.current) {
-        iframeRef.current.src = iframeRef.current.src
-      }
+      if (iframeRef.current) iframeRef.current.src = iframeRef.current.src
     }
     prevActiveRef.current = isActive
   }, [isActive])
 
+  // Tell iframe to restart (Play Again from our modal)
+  const handlePlayAgain = useCallback(() => {
+    setGameStatus('playing')
+    setScore(0); setRunCoins(0); setSubResult(null)
+    endCalledRef.current = false
+    sendCmd('GEODASH_RESTART')
+    onScoreUpdateRef.current(0, 0)
+  }, [sendCmd])
+
+  const handleLeaderboard = useCallback(() => {
+    navigate('/app/arcade/geodash?view=leaderboard')
+  }, [navigate])
+
   return (
-    <div className="absolute inset-0 bg-[#0a0e1a]">
-      {highScore > 0 && (
-        <div className="absolute top-3 right-3 z-10 rounded-full bg-[#00ff87]/20 px-3 py-1 text-xs font-bold text-[#00ff87] backdrop-blur-sm">
-          Best: {highScore}
-          {highCoins > 0 && <span className="ml-1.5 text-[#ffd700]">🪙{highCoins}</span>}
-        </div>
-      )}
+    <div className="absolute inset-0 bg-[#10122b]">
+      {/* iframe fills full area */}
       <iframe
         ref={iframeRef}
         src="/arcade/geodash/index.html"
-        title="Geometry Dash"
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none', display: 'block' }}
+        title="Geo Runner"
+        style={{
+          position: 'absolute', inset: 0,
+          width: '100%', height: '100%',
+          border: 'none', display: 'block',
+        }}
         allow="autoplay"
         sandbox="allow-scripts allow-same-origin"
       />
+
+      {/* ── Game Over overlay — rendered in React, covers iframe ── */}
+      {gameStatus === 'dead' && (
+        <div
+          className="absolute inset-0 flex items-center justify-center"
+          style={{ background: 'rgba(10,12,32,0.72)', backdropFilter: 'blur(6px)' }}
+        >
+          <div
+            className="w-[88%] max-w-sm rounded-2xl p-6 flex flex-col gap-4"
+            style={{
+              background: '#1b1d3a',
+              border: '1px solid rgba(255,255,255,0.1)',
+              boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+            }}
+          >
+            {/* Title */}
+            <h2 className="text-center text-xl font-bold text-white tracking-wide">
+              Game Over
+            </h2>
+
+            {/* Stats row */}
+            <div className="flex justify-between">
+              {/* Score */}
+              <div className="flex flex-col items-start">
+                <span className="text-[11px] font-bold tracking-widest text-white/40 uppercase mb-0.5">Score</span>
+                <span className="text-4xl font-black text-white leading-none">{score}</span>
+              </div>
+
+              {/* Best */}
+              <div className="flex flex-col items-center">
+                <span className="text-[11px] font-bold tracking-widest text-white/40 uppercase mb-0.5">Best</span>
+                <span className="text-4xl font-black leading-none" style={{ color: '#FF916C' }}>{best}</span>
+              </div>
+
+              {/* Coins */}
+              <div className="flex flex-col items-end">
+                <span className="text-[11px] font-bold tracking-widest text-white/40 uppercase mb-0.5">Coins</span>
+                <span className="text-4xl font-black leading-none" style={{ color: '#ffd23f' }}>{runCoins}</span>
+              </div>
+            </div>
+
+            {/* Submission result */}
+            {subResult && (
+              <div className="rounded-xl px-4 py-2.5 text-center"
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <span className="text-sm text-white/60">Rank </span>
+                <span className="text-sm font-black" style={{ color: '#4EF0A0' }}>#{subResult.rank}</span>
+                <span className="text-sm text-white/40 mx-2">·</span>
+                <span className="text-sm text-white/60">PB </span>
+                <span className="text-sm font-black text-white">{subResult.personal_best}</span>
+              </div>
+            )}
+
+            {submitting && (
+              <p className="text-center text-xs text-white/40">Saving score…</p>
+            )}
+
+            {/* Play Again */}
+            <button
+              onClick={handlePlayAgain}
+              className="w-full py-4 rounded-full font-black text-white transition-transform active:scale-[0.97]"
+              style={{
+                background: 'linear-gradient(135deg, #FF916C 0%, #e06040 100%)',
+                fontSize: 17,
+                boxShadow: '0 4px 16px rgba(255,100,60,0.35)',
+              }}
+            >
+              Play Again
+            </button>
+
+            {/* Leaderboard */}
+            <button
+              onClick={handleLeaderboard}
+              className="w-full py-3 rounded-full flex items-center justify-center gap-2 font-semibold transition-transform active:scale-[0.97]"
+              style={{
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                color: 'rgba(255,255,255,0.65)',
+                fontSize: 15,
+              }}
+            >
+              <Trophy size={15} />
+              Leaderboard
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
