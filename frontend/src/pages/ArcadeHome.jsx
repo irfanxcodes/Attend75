@@ -847,119 +847,93 @@ function GameVisual({ game, personalBest, fullscreen = false }) {
   }
   
   if (game.slug === 'stack') {
+    const bw = fullscreen
+      ? [130, 110, 90, 70, 52]
+      : [110,  92, 74, 56, 40]
+    const bh = fullscreen ? 22 : 18
+    const colors = [
+      { top: '#ff6b9d', bot: '#c2185b', glow: 'rgba(255,107,157,0.55)' },
+      { top: '#ffd93d', bot: '#f59e0b', glow: 'rgba(255,217,61,0.55)'  },
+      { top: '#6bcf7f', bot: '#2e7d32', glow: 'rgba(107,207,127,0.55)' },
+      { top: '#4d9fff', bot: '#1565c0', glow: 'rgba(77,159,255,0.55)'  },
+      { top: '#c77dff', bot: '#6a1b9a', glow: 'rgba(199,125,255,0.55)' },
+    ]
     return (
-      <div className={`relative flex flex-col items-center justify-center overflow-hidden ${heightClass}`} 
-        style={{ background: 'linear-gradient(180deg, #667eea 0%, #764ba2 50%, #f093fb 100%)' }}>
-        
-        {/* Animated background particles */}
-        <div className="absolute inset-0">
-          {[...Array(20)].map((_, i) => {
-            const size = 3 + Math.random() * 5;
-            const left = Math.random() * 100;
-            const top = Math.random() * 100;
-            const duration = 3 + Math.random() * 4;
-            const delay = Math.random() * 2;
-            
-            return (
-              <div
-                key={i}
-                className="absolute rounded-full bg-white/20"
-                style={{
-                  width: `${size}px`,
-                  height: `${size}px`,
-                  left: `${left}%`,
-                  top: `${top}%`,
-                  animation: `float ${duration}s ease-in-out infinite`,
-                  animationDelay: `${delay}s`
-                }}
-              />
-            );
-          })}
-        </div>
-        
-        {/* Modern 3D tower with neon glow */}
-        <div className={`relative z-10 flex flex-col items-center gap-0`} 
-          style={{ animation: 'float 3s ease-in-out infinite' }}>
-          {[
-            { w: fullscreen ? 56 : 48, color: '#ff6b9d', glow: 'rgba(255, 107, 157, 0.6)' },
-            { w: fullscreen ? 72 : 60, color: '#ffd93d', glow: 'rgba(255, 217, 61, 0.6)' },
-            { w: fullscreen ? 88 : 72, color: '#6bcf7f', glow: 'rgba(107, 207, 127, 0.6)' },
-            { w: fullscreen ? 104 : 84, color: '#4d9fff', glow: 'rgba(77, 159, 255, 0.6)' },
-            { w: fullscreen ? 120 : 96, color: '#c77dff', glow: 'rgba(199, 125, 255, 0.6)' },
-          ].map((block, i) => (
-            <div 
-              key={i} 
-              className="relative mb-0.5"
-              style={{
-                width: `${block.w}px`,
-                height: fullscreen ? '24px' : '20px',
-              }}
-            >
-              {/* Main block with 3D effect */}
-              <div 
-                className="absolute inset-0 rounded-xl"
-                style={{
-                  background: `linear-gradient(135deg, ${block.color} 0%, ${block.color}dd 100%)`,
-                  boxShadow: `
-                    0 0 20px ${block.glow},
-                    0 4px 0 rgba(0,0,0,0.3),
-                    inset 0 2px 8px rgba(255,255,255,0.4),
-                    inset 0 -2px 6px rgba(0,0,0,0.2)
-                  `,
-                  border: '2px solid rgba(255,255,255,0.3)',
-                }}
-              />
-              
-              {/* Top glossy highlight */}
-              <div 
-                className="absolute top-0 left-[15%] right-[15%] h-[40%] rounded-t-xl"
-                style={{
-                  background: 'linear-gradient(to bottom, rgba(255,255,255,0.6), transparent)',
-                }}
-              />
-              
-              {/* Corner highlights */}
-              <div className="absolute top-1 left-2 w-3 h-3 rounded-full bg-white/40" />
-              <div className="absolute top-1 right-2 w-2 h-2 rounded-full bg-white/30" />
-            </div>
-          ))}
-        </div>
-        
-        {/* Glowing platform base */}
-        <div className="absolute bottom-[15%] left-1/2 -translate-x-1/2 w-[70%] max-w-[140px] h-3 rounded-full"
-          style={{
-            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)',
-            boxShadow: '0 0 30px rgba(255,255,255,0.5)',
-            filter: 'blur(3px)'
-          }}
-        />
-        
-        {/* Swinging crane block (smaller, top-right) */}
-        <div className="absolute top-[12%] right-[15%]" style={{ animation: 'swing 2s ease-in-out infinite' }}>
-          {/* Rope */}
-          <div className="absolute top-[-40px] left-1/2 w-px h-10 bg-white/60 -translate-x-1/2" />
-          <div className="absolute top-[-42px] left-1/2 w-1.5 h-1.5 rounded-full bg-white -translate-x-1/2" />
-          
-          {/* Hanging block */}
-          <div 
-            className="relative rounded-lg"
+      <div
+        className={`relative flex flex-col items-center justify-center overflow-hidden ${heightClass}`}
+        style={{ background: 'linear-gradient(160deg, #0f0c29 0%, #302b63 55%, #24243e 100%)' }}
+      >
+        {/* Starfield */}
+        {[...Array(30)].map((_, i) => (
+          <div key={i} className="absolute rounded-full bg-white"
             style={{
-              width: fullscreen ? '48px' : '40px',
-              height: fullscreen ? '20px' : '16px',
-              background: 'linear-gradient(135deg, #ff6b9d 0%, #ff6b9ddd 100%)',
-              boxShadow: '0 0 20px rgba(255, 107, 157, 0.6), 0 4px 0 rgba(0,0,0,0.3), inset 0 2px 6px rgba(255,255,255,0.4)',
-              border: '2px solid rgba(255,255,255,0.3)',
+              width: i % 5 === 0 ? 2 : 1, height: i % 5 === 0 ? 2 : 1,
+              left: `${(i * 41 + 9) % 100}%`, top: `${(i * 57 + 13) % 100}%`,
+              opacity: 0.3 + (i % 4) * 0.15,
+              animation: `blink ${2 + (i % 3)}s ease-in-out ${(i * 0.25) % 2}s infinite`,
             }}
-          >
-            <div className="absolute top-0 left-[20%] right-[20%] h-[40%] rounded-t-lg bg-gradient-to-b from-white/50 to-transparent" />
+          />
+        ))}
+
+        {/* Crane — fixed top-right */}
+        <div className="absolute" style={{ top: fullscreen ? '6%' : '5%', right: '16%' }}>
+          {/* Vertical pole */}
+          <div className="absolute right-3 top-0 w-0.5 h-12 rounded-full bg-white/40" />
+          {/* Horizontal arm */}
+          <div className="absolute top-0 w-10 h-0.5 rounded-full bg-white/40" style={{ right: '100%', transform: 'translateX(12px)' }} />
+          {/* Rope */}
+          <div className="absolute w-px bg-white/50"
+            style={{ height: 24, top: 1, right: 'calc(100% - 10px)',
+              transformOrigin: 'top center', animation: 'swing 2.2s ease-in-out infinite' }} />
+          {/* Rectangular hanging block */}
+          <div className="absolute"
+            style={{
+              width: fullscreen ? 54 : 44, height: fullscreen ? 18 : 14,
+              top: 26, right: 'calc(100% - 10px)', transform: 'translateX(50%)',
+              borderRadius: 4,
+              background: 'linear-gradient(180deg, #ffd93d 0%, #f59e0b 100%)',
+              boxShadow: '0 0 16px rgba(255,217,61,0.6), 0 4px 0 rgba(0,0,0,0.4), inset 0 2px 5px rgba(255,255,255,0.5)',
+              border: '1.5px solid rgba(255,255,255,0.3)',
+              animation: 'swing 2.2s ease-in-out infinite', transformOrigin: 'top center',
+            }}>
+            <div className="absolute inset-x-[12%] top-0 h-[40%] rounded-t bg-gradient-to-b from-white/55 to-transparent" />
           </div>
         </div>
-      </div>
-    )
-  }
-        <div className={`absolute ${fullscreen ? 'bottom-[15%]' : 'bottom-[20%]'}`}>
-          <div className={`${fullscreen ? 'w-48 h-4' : 'w-40 h-3'} rounded-full bg-black/10 blur-[4px]`} />
+
+        {/* Stacked rectangular tower — widest at bottom */}
+        <div className="relative z-10 flex flex-col items-center"
+          style={{ gap: 4, animation: 'float 3s ease-in-out infinite' }}>
+          {bw.map((w, i) => (
+            <div key={i} className="relative" style={{ width: w, height: bh }}>
+              {/* Block face */}
+              <div className="absolute inset-0"
+                style={{
+                  borderRadius: 5,
+                  background: `linear-gradient(180deg, ${colors[i].top} 0%, ${colors[i].bot} 100%)`,
+                  boxShadow: `0 0 18px ${colors[i].glow}, 0 5px 0 rgba(0,0,0,0.45), inset 0 2px 6px rgba(255,255,255,0.5), inset 0 -2px 4px rgba(0,0,0,0.3)`,
+                  border: '1.5px solid rgba(255,255,255,0.25)',
+                }}
+              />
+              {/* Gloss strip */}
+              <div className="absolute rounded-t"
+                style={{ left: '10%', right: '10%', top: 0, height: '40%',
+                  background: 'linear-gradient(to bottom, rgba(255,255,255,0.6), transparent)' }} />
+              {/* Left shine dot */}
+              <div className="absolute top-[15%] left-[8%] w-2 h-2 rounded-full bg-white/35" />
+              {/* Score notch line */}
+              <div className="absolute top-1/2 left-[12%] right-[12%] -translate-y-1/2 h-px bg-white/10" />
+            </div>
+          ))}
+          {/* Tower shadow */}
+          <div className="rounded-full bg-black/30 blur-sm mt-1"
+            style={{ width: bw[0] + 8, height: 6 }} />
         </div>
+
+        {/* Floor glow */}
+        <div className="absolute bottom-[10%] left-1/2 -translate-x-1/2 rounded-full"
+          style={{ width: fullscreen ? 170 : 140, height: 20,
+            background: 'radial-gradient(ellipse at center, rgba(199,125,255,0.25) 0%, transparent 70%)',
+            filter: 'blur(8px)' }} />
       </div>
     )
   }
