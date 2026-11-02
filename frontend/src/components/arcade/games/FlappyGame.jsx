@@ -1,751 +1,697 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-// ─── Game Constants ──────────────────────────────────────────────────────────
-const GRAVITY            = 1400
-const JUMP_VELOCITY      = -420
-const PIPE_SPEED_MIN     = 130
-const PIPE_SPEED_MAX     = 280
-const PIPE_GAP_MAX       = 210
-const PIPE_GAP_MIN       = 120
-const PIPE_WIDTH         = 52
-const PIPE_SPACING_MAX   = 320
-const PIPE_SPACING_MIN   = 200
-const BIRD_SIZE          = 32
-const GAME_WIDTH         = 400
-const GAME_HEIGHT        = 700
-const GROUND_HEIGHT      = 48
+// ─── Constants (match reference exactly) ─────────────────────────────────────
+const H0 = 640          // logical height
+const GY = H0 - 64      // ground Y
+const PW = 62           // pipe width
+const SP = 215          // pipe spacing
 
-const STATE_READY     = 0
-const STATE_PLAYING   = 1
-const STATE_GAME_OVER = 2
-
-// ─── Difficulty ──────────────────────────────────────────────────────────────
-function getDifficulty(score) {
-  let t = score <= 60
-    ? (score / 60) * 0.3
-    : 0.3 + ((score - 60) / 40) * 0.7
-  t = Math.min(t, 1)
-  return {
-    pipeSpeed:   PIPE_SPEED_MIN + (PIPE_SPEED_MAX - PIPE_SPEED_MIN) * t,
-    pipeGap:     PIPE_GAP_MAX  - (PIPE_GAP_MAX   - PIPE_GAP_MIN)   * t,
-    pipeSpacing: PIPE_SPACING_MAX - (PIPE_SPACING_MAX - PIPE_SPACING_MIN) * t,
-  }
-}
-
-// ─── Static scene data ───────────────────────────────────────────────────────
-const STARS = Array.from({ length: 35 }, (_, i) => ({
-  x:       (i * 137.5) % 1,
-  y:       (i * 97.3)  % 0.60,
-  size:    1 + (i % 3) * 0.8,
-  opacity: 0.2 + (i % 5) * 0.08,
+// ─── Static scene data (seeded, no Math.random() at render time) ─────────────
+const SNOW = Array.from({ length: 60 }, (_, i) => ({
+  x: (i * 0.137 + 0.05) % 1,
+  y: (i * 97.3) % H0,
+  r: 0.8 + (i % 5) * 0.36,
+  v: 6 + (i % 7) * 2,
+  p: (i * 1.047) % 6.28,
 }))
 
-const BUILDINGS = (() => {
-  const arr = []; let x = 0
-  while (x < 1.25) {
-    const w = 0.055 + (arr.length * 0.013) % 0.065
-    const h = 0.10  + (arr.length * 0.031) % 0.20
-    arr.push({ x, w, h })
-    x += w + 0.008 + (arr.length * 0.007) % 0.018
+function mkLayer(hMin, hMax, wMin, wMax, seed) {
+  const objs = []; let x = 0, s = seed
+  while (x < 1500) {
+    s = (s * 1664525 + 1013904223) >>> 0
+    const bw = wMin + (s % 1000) / 1000 * (wMax - wMin)
+    s = (s * 1664525 + 1013904223) >>> 0
+    const bh = hMin + (s % 1000) / 1000 * (hMax - hMin)
+    s = (s * 1664525 + 1013904223) >>> 0
+    const l = s % 10
+    objs.push({ x, w: bw, h: bh, l })
+    s = (s * 1664525 + 1013904223) >>> 0
+    x += bw + 2 + (s % 1000) / 1000 * 8
   }
-  return arr
-})()
-
-// ─── Web Audio helper ────────────────────────────────────────────────────────
-function makeAudio() {
-  let ctx = null
-  function getCtx() {
-    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)()
-    return ctx
-  }
-  function playTone(freq, type, dur, gain = 0.18) {
-    try {
-      const ac  = getCtx()
-      const osc = ac.createOscillator()
-      const g   = ac.createGain()
-      osc.connect(g); g.connect(ac.destination)
-      osc.type = type; osc.frequency.value = freq
-      g.gain.setValueAtTime(gain, ac.currentTime)
-      g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur)
-      osc.start(); osc.stop(ac.currentTime + dur)
-    } catch {}
-  }
-  return {
-    flap:  () => playTone(520, 'sine',   0.08, 0.15),
-    score: () => { playTone(880, 'sine', 0.06, 0.12); setTimeout(() => playTone(1100, 'sine', 0.1, 0.12), 60) },
-    hit:   () => playTone(140, 'sawtooth', 0.22, 0.25),
-  }
+  return { objs, len: x }
 }
 
-// ─── Component ───────────────────────────────────────────────────────────────
+const FAR  = mkLayer(90, 200, 44, 72, 12345)
+const NEAR = mkLayer(60, 140, 50, 84, 67890)
+
+// ─── Audio ────────────────────────────────────────────────────────────────────
+let _ac = null
+function getAC() {
+  if (!_ac) _ac = new (window.AudioContext || window.webkitAudioContext)()
+  return _ac
+}
+function beep(freq, dur, type, vol, slide, muted) {
+  if (muted) return
+  try {
+    const ac = getAC()
+    const n = ac.currentTime
+    const osc = ac.createOscillator()
+    const gain = ac.createGain()
+    osc.type = type
+    osc.frequency.setValueAtTime(freq, n)
+    osc.frequency.exponentialRampToValueAtTime(freq * slide, n + dur)
+    gain.gain.setValueAtTime(vol, n)
+    gain.gain.exponentialRampToValueAtTime(1e-4, n + dur)
+    osc.connect(gain); gain.connect(ac.destination)
+    osc.start(); osc.stop(n + dur)
+  } catch {}
+}
+
+// ─── States ───────────────────────────────────────────────────────────────────
+const S_READY  = 'ready'
+const S_PLAY   = 'play'
+const S_DEAD   = 'dead'
+const S_PAUSED = 'paused'
+
+// ─── Component ────────────────────────────────────────────────────────────────
 function FlappyGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
-  const canvasRef       = useRef(null)
-  const stateRef        = useRef(null)
-  const rafRef          = useRef(null)
-  const inputRef        = useRef(false)
-  const lastTimeRef     = useRef(0)
-  const endCalledRef    = useRef(false)
-  const pausedRef       = useRef(false)
-  const bgCanvasRef     = useRef(null)
-  const canvasSizeRef   = useRef({ w: 0, h: 0 })
-  const audioRef        = useRef(null)
-  const mutedRef        = useRef(false)
-  const initialScoreRef = useRef(initialScore)
-  const loopRef         = useRef(null)
-  const lastTouchRef    = useRef(0)
+  const cvRef     = useRef(null)
+  const rafRef    = useRef(null)
+  const lastRef   = useRef(performance.now())
+  const inputRef  = useRef(false)
+  const endCalledRef = useRef(false)
 
-  const [gameStatus, setGameStatus] = useState(STATE_READY)
-  const [score,      setScore]      = useState(initialScore)
-  const [bestScore,  setBestScore]  = useState(() => {
-    try { return parseInt(localStorage.getItem('flappy_best') || '0', 10) } catch { return 0 }
-  })
-  const [isMuted,  setIsMuted]  = useState(false)
-  const [isPaused, setIsPaused] = useState(false)
+  // All mutable game state in one ref — never triggers re-renders
+  const G = useRef(null)
 
-  useEffect(() => { initialScoreRef.current = initialScore }, [initialScore])
+  // React state only for overlay rendering
+  const [uiState, setUiState] = useState(S_READY)
+  const [uiScore, setUiScore] = useState(0)
+  const [uiBest,  setUiBest]  = useState(0)
+  const [uiOt,    setUiOt]    = useState(0)   // dead timer for overlay fade-in
+  const [uiNb,    setUiNb]    = useState(false)
+  const [uiPop,   setUiPop]   = useState(0)
+  const [uiMute,  setUiMute]  = useState(false)
 
-  // ── Audio ────────────────────────────────────────────────────────────────
-  const getAudio = useCallback(() => {
-    if (!audioRef.current) audioRef.current = makeAudio()
-    return audioRef.current
+  // ── Initialise game object ────────────────────────────────────────────────
+  const initG = useCallback((initialScoreVal = 0) => {
+    let best = 0, mute = false
+    try { best = +localStorage.getItem('fb_best') || 0 } catch {}
+    try { mute = localStorage.getItem('fb_mute') === '1' } catch {}
+
+    G.current = {
+      st: S_READY, pst: S_READY,
+      t: 0, score: initialScoreVal, best, nb: false,
+      ot: 0, shake: 0, flash: 0, pop: 0,
+      mute,
+      spd: 150, off: 0, tr: 0,
+      bird: { y: 300, vy: 0, r: 0, sq: 0 },
+      pipes: [], parts: [],
+      snow: SNOW.map(s => ({ ...s })),
+      // canvas size
+      dpr: 1, w: 0, h: 0, s: 1, ww: 0,
+    }
+    setUiBest(best)
+    setUiMute(mute)
+    setUiState(S_READY)
+    setUiScore(initialScoreVal)
+    setUiOt(0)
+    setUiNb(false)
+    setUiPop(0)
+    endCalledRef.current = false
   }, [])
 
-  const playSound = useCallback((name) => {
-    if (mutedRef.current) return
-    getAudio()[name]?.()
-  }, [getAudio])
-
-  // ── State factory ────────────────────────────────────────────────────────
-  const createState = useCallback(() => ({
-    status:    STATE_READY,
-    birdX:     GAME_WIDTH * 0.25,
-    birdY:     GAME_HEIGHT * 0.42,
-    birdVel:   0,
-    pipes:     [],
-    score:     initialScoreRef.current,
-    pipeTimer: 0,
-    wobble:    0,   // idle bobbing phase
-  }), [])
-
-  const genPipe = useCallback((x, gap) => {
-    const g = gap || PIPE_GAP_MAX
-    const minC = g / 2 + 60
-    const maxC = GAME_HEIGHT - g / 2 - GROUND_HEIGHT - 30
-    const center = minC + Math.random() * (maxC - minC)
-    return { x, gapTop: center - g / 2, gapBottom: center + g / 2, scored: false }
+  // ── Fit canvas ───────────────────────────────────────────────────────────
+  const fit = useCallback(() => {
+    const cv = cvRef.current; if (!cv) return
+    const g = G.current; if (!g) return
+    g.dpr = Math.min(devicePixelRatio || 1, 2)
+    g.w = innerWidth; g.h = innerHeight
+    cv.width  = g.w * g.dpr
+    cv.height = g.h * g.dpr
+    g.s  = g.h / H0
+    g.ww = g.w / g.s
   }, [])
 
-  // ── Background ───────────────────────────────────────────────────────────
-  const renderBackground = useCallback((w, h) => {
-    let off = bgCanvasRef.current
-    if (!off || off.width !== w || off.height !== h) {
-      off = document.createElement('canvas')
-      off.width = w; off.height = h
-      bgCanvasRef.current = off
+  // ── Spawn pipe ────────────────────────────────────────────────────────────
+  const spawn = useCallback((x) => {
+    const g = G.current; if (!g) return
+    const prev = g.pipes[g.pipes.length - 1]
+    const gap = 178 - Math.min(g.score * 1.2, 34)
+    const lo = 62 + gap / 2, hi = GY - 62 - gap / 2
+    let c = lo + Math.random() * (hi - lo)
+    if (prev) c = Math.max(prev.gy - 170, Math.min(prev.gy + 170, c))
+    c = Math.max(lo, Math.min(hi, c))
+    g.pipes.push({ x, gy: c, gap, ps: false })
+  }, [])
+
+  // ── Burst particles ───────────────────────────────────────────────────────
+  const burst = useCallback((x, y, n, col, sp) => {
+    const g = G.current; if (!g) return
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * 6.28, v = sp * (0.3 + Math.random())
+      g.parts.push({ x, y, vx: Math.cos(a) * v - 40, vy: Math.sin(a) * v, l: 0.5, m: 0.5, r: 2 + Math.random() * 3, c: col })
     }
-    const ctx    = off.getContext('2d')
-    const gndY   = (GAME_HEIGHT - GROUND_HEIGHT) * (h / GAME_HEIGHT)
+  }, [])
 
-    // Sky gradient
-    const grad = ctx.createLinearGradient(0, 0, 0, h)
-    grad.addColorStop(0,   '#2e2b52')
-    grad.addColorStop(0.5, '#3d3a6e')
-    grad.addColorStop(1,   '#4a4680')
-    ctx.fillStyle = grad
-    ctx.fillRect(0, 0, w, h)
-
-    // Moon
-    const mx = w * 0.78, my = h * 0.22, mr = w * 0.095
-    ctx.beginPath()
-    ctx.arc(mx, my, mr * 1.35, 0, Math.PI * 2)
-    ctx.fillStyle = 'rgba(200,195,230,0.18)'
-    ctx.fill()
-    ctx.beginPath()
-    ctx.arc(mx, my, mr, 0, Math.PI * 2)
-    ctx.fillStyle = 'rgba(220,215,240,0.82)'
-    ctx.fill()
-
-    // Stars
-    for (const s of STARS) {
-      ctx.fillStyle = `rgba(255,255,255,${s.opacity})`
-      ctx.beginPath()
-      ctx.arc(s.x * w, s.y * h, s.size, 0, Math.PI * 2)
-      ctx.fill()
+  // ── Flap ─────────────────────────────────────────────────────────────────
+  const flap = useCallback(() => {
+    const g = G.current; if (!g) return
+    beep(1, 0, 'sine', 0, 1, g.mute)
+    if (g.st === S_READY) {
+      g.st = S_PLAY
+      setUiState(S_PLAY)
     }
-
-    // City skyline — two layers for depth
-    const scaleX = w / GAME_WIDTH
-    const scaleY = h / GAME_HEIGHT
-
-    // Back layer (darker, taller)
-    for (const b of BUILDINGS) {
-      const bx = b.x * w
-      const bw = b.w * w * 1.1
-      const bh = b.h * h * 1.1
-      ctx.fillStyle = 'rgba(32,28,62,0.75)'
-      ctx.fillRect(bx - bw * 0.05, gndY - bh, bw, bh)
+    if (g.st === S_PLAY) {
+      g.bird.vy = -430; g.bird.sq = 1
+      burst(g.ww * 0.3 - 10, g.bird.y + 10, 5, '#ffffffaa', 70)
+      beep(430, 0.12, 'square', 0.05, 1.7, g.mute)
+    } else if (g.st === S_DEAD && g.ot > 0.7) {
+      // retry
+      g.st = S_READY; g.score = 0; g.pipes = []; g.bird.vy = 0; g.bird.r = 0
+      g.nb = false; g.parts = []; g.t = 0; g.ot = 0
+      endCalledRef.current = false
+      setUiState(S_READY); setUiScore(0); setUiOt(0); setUiNb(false)
+    } else if (g.st === S_PAUSED) {
+      g.st = g.pst
+      setUiState(g.pst)
     }
-    // Front layer (mid-tone)
-    for (const b of BUILDINGS) {
-      const bx = (b.x + b.w * 0.3) * w
-      const bw = b.w * w * 0.85
-      const bh = b.h * h * 0.78
-      ctx.fillStyle = 'rgba(45,42,80,0.85)'
-      ctx.fillRect(bx, gndY - bh, bw, bh)
+  }, [burst])
 
-      // Windows
-      const cols = 2, ww = bw * 0.18, wh = bh * 0.09
-      const gx = (bw - cols * ww) / (cols + 1)
-      const rows = Math.floor(bh / (wh * 2.8))
-      const gy = wh * 1.8
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          const alpha = (((b.x * 31 + r * 7 + c * 13) % 10) > 5) ? 0.22 : 0.08
-          ctx.fillStyle = `rgba(167,139,250,${alpha})`
-          ctx.fillRect(bx + gx * (c + 1) + ww * c, gndY - bh + wh + gy * r, ww, wh)
+  // ── Die ───────────────────────────────────────────────────────────────────
+  const die = useCallback(() => {
+    const g = G.current; if (!g) return
+    g.st = S_DEAD; g.ot = 0; g.shake = 0.4; g.flash = 1
+    g.bird.vy = -220
+    burst(g.ww * 0.3, g.bird.y, 16, '#ff8c61', 200)
+    beep(170, 0.35, 'sawtooth', 0.12, 0.35, g.mute)
+    try { navigator.vibrate && navigator.vibrate(120) } catch {}
+    if (g.score > g.best) {
+      g.best = g.score; g.nb = true
+      try { localStorage.setItem('fb_best', g.best) } catch {}
+      setUiBest(g.best); setUiNb(true)
+    }
+    setUiState(S_DEAD)
+    if (!endCalledRef.current) {
+      endCalledRef.current = true
+      onGameEnd(g.score)
+    }
+  }, [burst, onGameEnd])
+
+  // ── Update ────────────────────────────────────────────────────────────────
+  const upd = useCallback((dt) => {
+    const g = G.current; if (!g) return
+    g.t += dt
+    g.shake = Math.max(0, g.shake - dt)
+    g.flash = Math.max(0, g.flash - dt * 3)
+    g.pop   = Math.max(0, g.pop   - dt * 4)
+
+    for (const f of g.snow) {
+      f.y += f.v * dt
+      f.x += Math.sin(g.t + f.p) * 0.0003
+      if (f.y > H0) f.y = -4
+    }
+    g.parts = g.parts.filter(p => { p.l -= dt; p.x += p.vx * dt; p.y += p.vy * dt; return p.l > 0 })
+
+    const bx = g.ww * 0.3
+
+    if (g.st === S_READY) {
+      g.bird.y = 300 + Math.sin(g.t * 3.2) * 10
+      g.bird.r = Math.sin(g.t * 3.2) * 0.08
+      g.off += 34 * dt
+    } else if (g.st === S_PLAY) {
+      g.spd = 150 + Math.min(g.score * 2.5, 70)
+      g.off += g.spd * dt
+      g.bird.vy += 1500 * dt
+      g.bird.y  += g.bird.vy * dt
+      g.bird.r  += (Math.max(-0.5, Math.min(1.1, g.bird.vy / 600)) - g.bird.r) * Math.min(1, dt * 12)
+      g.bird.sq *= Math.pow(0.0005, dt)
+      if (g.bird.y < 16) { g.bird.y = 16; g.bird.vy = 0 }
+
+      if (!g.pipes.length || g.pipes[g.pipes.length - 1].x < g.ww - SP) spawn(g.ww + PW + 20)
+
+      for (let i = g.pipes.length - 1; i >= 0; i--) {
+        g.pipes[i].x -= g.spd * dt
+        if (g.pipes[i].x < -90) g.pipes.splice(i, 1)
+      }
+
+      // Trail
+      g.tr -= dt
+      if (g.tr <= 0) {
+        g.tr = 0.035
+        g.parts.push({ x: bx - 12, y: g.bird.y, vx: -30, vy: 0, l: 0.3, m: 0.3, r: 5, c: '#ff8c6155' })
+      }
+
+      for (const p of g.pipes) {
+        if (!p.ps && p.x + PW < bx - 13) {
+          p.ps = true; g.score++; g.pop = 1
+          setUiScore(g.score)
+          onScoreUpdate(g.score)
+          beep(880, 0.1, 'sine', 0.1, 1.4, g.mute)
+        }
+        if (bx + 13 > p.x && bx - 13 < p.x + PW &&
+            (g.bird.y - 13 < p.gy - p.gap / 2 || g.bird.y + 13 > p.gy + p.gap / 2)) {
+          return die()
         }
       }
+      if (g.bird.y + 15 >= GY) { g.bird.y = GY - 15; die() }
+
+    } else if (g.st === S_DEAD) {
+      g.ot += dt
+      setUiOt(g.ot)
+      g.bird.vy += 1500 * dt
+      g.bird.y = Math.min(GY - 15, g.bird.y + g.bird.vy * dt)
+      g.bird.r = Math.min(1.5, g.bird.r + dt * 5)
+    }
+  }, [spawn, die, onScoreUpdate])
+
+  // ── Draw helpers ──────────────────────────────────────────────────────────
+  const drawLayer = useCallback((ctx, L, offset, col, win, base, ww) => {
+    ctx.fillStyle = col
+    for (let o = -(offset % L.len); o < ww; o += L.len) {
+      for (const b of L.objs) {
+        const x = o + b.x
+        if (x > ww || x + b.w < 0) continue
+        ctx.fillRect(x, base - b.h, b.w, b.h)
+        ctx.fillStyle = win
+        let i = 0
+        for (let wx = x + 8; wx < x + b.w - 10; wx += 14, i++) {
+          let j = 0
+          for (let wy = base - b.h + 12; wy < base - 14; wy += 18, j++) {
+            if ((i * 3 + j * 5 + b.l) % 4 === 0) ctx.fillRect(wx, wy, 6, 10)
+          }
+        }
+        ctx.fillStyle = col
+      }
+    }
+  }, [])
+
+  const drawPipe = useCallback((ctx, x, y0, y1) => {
+    const gr = ctx.createLinearGradient(x, 0, x + PW, 0)
+    gr.addColorStop(0,   '#5be6bd')
+    gr.addColorStop(0.5, '#3cc7a2')
+    gr.addColorStop(1,   '#26967f')
+    // Body
+    ctx.fillStyle = gr
+    ctx.fillRect(x + 5, y0, PW - 10, y1 - y0)
+    ctx.fillStyle = '#ffffff2a'
+    ctx.fillRect(x + 12, y0, 5, y1 - y0)
+    // Cap — top pipe cap is at y1 side, bottom at y0 side
+    const cy = y0   // will be set by caller
+    ctx.fillStyle = gr
+    ctx.beginPath(); ctx.roundRect(x, cy, PW, 26, 8); ctx.fill()
+    ctx.strokeStyle = '#1e7664'; ctx.lineWidth = 2; ctx.stroke()
+    ctx.fillStyle = '#ffffff2a'
+    ctx.beginPath(); ctx.roundRect(x + 8, cy + 4, 5, 18, 3); ctx.fill()
+  }, [])
+
+  // ── Main draw ─────────────────────────────────────────────────────────────
+  const draw = useCallback((ctx) => {
+    const g = G.current; if (!g) return
+    const { dpr, s, ww, t, shake, flash, pop, bird, pipes, parts, snow, off, st, score } = g
+
+    const sh = shake * 30
+    ctx.setTransform(
+      dpr * s, 0, 0, dpr * s,
+      (Math.random() - 0.5) * sh * dpr,
+      (Math.random() - 0.5) * sh * dpr
+    )
+
+    // Sky
+    const sk = ctx.createLinearGradient(0, 0, 0, H0)
+    sk.addColorStop(0, '#5d5981'); sk.addColorStop(1, '#48436a')
+    ctx.fillStyle = sk; ctx.fillRect(-20, -20, ww + 40, H0 + 40)
+
+    // Moon
+    ctx.fillStyle = '#ffffff10'; ctx.beginPath(); ctx.arc(ww * 0.8, 130, 46, 0, 7); ctx.fill()
+    ctx.fillStyle = '#f3efff';   ctx.beginPath(); ctx.arc(ww * 0.8, 130, 24, 0, 7); ctx.fill()
+
+    // Snow
+    for (const f of snow) {
+      ctx.fillStyle = `rgba(255,255,255,${0.25 + 0.25 * Math.sin(t * 2 + f.p)})`
+      ctx.beginPath(); ctx.arc(f.x * ww, f.y, f.r, 0, 7); ctx.fill()
+    }
+
+    // City layers
+    drawLayer(ctx, FAR,  off * 0.20, '#413b6a', '#5a4fa088', GY, ww)
+    drawLayer(ctx, NEAR, off * 0.45, '#322d57', '#7a63d066', GY, ww)
+
+    // Pipes
+    for (const p of pipes) {
+      // Top pipe
+      const topBody0 = -30, topBody1 = p.gy - p.gap / 2
+      const gr = ctx.createLinearGradient(p.x, 0, p.x + PW, 0)
+      gr.addColorStop(0, '#5be6bd'); gr.addColorStop(0.5, '#3cc7a2'); gr.addColorStop(1, '#26967f')
+      ctx.fillStyle = gr
+      ctx.fillRect(p.x + 5, topBody0, PW - 10, topBody1 - topBody0 - 26)
+      ctx.fillStyle = '#ffffff2a'; ctx.fillRect(p.x + 12, topBody0, 5, topBody1 - topBody0 - 26)
+      // top cap (at bottom of top pipe)
+      ctx.fillStyle = gr
+      ctx.beginPath(); ctx.roundRect(p.x, topBody1 - 26, PW, 26, 8); ctx.fill()
+      ctx.strokeStyle = '#1e7664'; ctx.lineWidth = 2; ctx.stroke()
+      ctx.fillStyle = '#ffffff2a'; ctx.beginPath(); ctx.roundRect(p.x + 8, topBody1 - 22, 5, 18, 3); ctx.fill()
+
+      // Bottom pipe
+      const botBody0 = p.gy + p.gap / 2, botBody1 = GY + 2
+      ctx.fillStyle = gr
+      ctx.fillRect(p.x + 5, botBody0 + 26, PW - 10, botBody1 - botBody0 - 26)
+      ctx.fillStyle = '#ffffff2a'; ctx.fillRect(p.x + 12, botBody0 + 26, 5, botBody1 - botBody0 - 26)
+      // bottom cap (at top of bottom pipe)
+      ctx.fillStyle = gr
+      ctx.beginPath(); ctx.roundRect(p.x, botBody0, PW, 26, 8); ctx.fill()
+      ctx.strokeStyle = '#1e7664'; ctx.lineWidth = 2; ctx.stroke()
+      ctx.fillStyle = '#ffffff2a'; ctx.beginPath(); ctx.roundRect(p.x + 8, botBody0 + 4, 5, 18, 3); ctx.fill()
     }
 
     // Ground
-    const groundGrad = ctx.createLinearGradient(0, gndY, 0, h)
-    groundGrad.addColorStop(0, '#322f5e')
-    groundGrad.addColorStop(1, '#26234a')
-    ctx.fillStyle = groundGrad
-    ctx.fillRect(0, gndY, w, h - gndY)
+    ctx.fillStyle = '#2a2549'; ctx.fillRect(-20, GY, ww + 40, H0 - GY + 20)
+    ctx.fillStyle = '#7660d6'; ctx.fillRect(-20, GY, ww + 40, 3)
+    ctx.fillStyle = '#373060'
+    for (let x = -(off % 28); x < ww; x += 28) ctx.fillRect(x, GY + 16, 14, 6)
 
-    // Ground line (purple-ish stripe)
-    ctx.fillStyle = '#7b76b0'
-    ctx.fillRect(0, gndY, w, 2)
-    ctx.fillStyle = 'rgba(123,118,176,0.3)'
-    ctx.fillRect(0, gndY + 2, w, 4)
-
-    return off
-  }, [])
-
-  // ── Per-frame render ─────────────────────────────────────────────────────
-  const render = useCallback((ctx, state, w, h) => {
-    const scaleX = w / GAME_WIDTH
-    const scaleY = h / GAME_HEIGHT
-
-    // Background
-    if (bgCanvasRef.current) ctx.drawImage(bgCanvasRef.current, 0, 0, w, h)
-
-    // Teal pipes
-    for (const pipe of state.pipes) {
-      const px  = pipe.x * scaleX
-      const pw  = PIPE_WIDTH * scaleX
-      const capH = 20 * scaleY
-      const capW  = pw + 10 * scaleX
-      const capX  = px - 5 * scaleX
-      const r    = 6 * scaleX   // cap corner radius
-
-      // ── Top pipe ──
-      const topH = pipe.gapTop * scaleY
-
-      // Body
-      const tg = ctx.createLinearGradient(px, 0, px + pw, 0)
-      tg.addColorStop(0,   '#3ecfad')
-      tg.addColorStop(0.4, '#4de8c5')
-      tg.addColorStop(1,   '#2aab8f')
-      ctx.fillStyle = tg
-      ctx.fillRect(px, 0, pw, topH - capH)
-
-      // Cap (rounded bottom)
-      ctx.fillStyle = '#4de8c5'
-      ctx.beginPath()
-      ctx.roundRect(capX, topH - capH, capW, capH, [0, 0, r, r])
-      ctx.fill()
-      // Cap shade
-      ctx.fillStyle = 'rgba(0,0,0,0.12)'
-      ctx.beginPath()
-      ctx.roundRect(capX + capW * 0.6, topH - capH, capW * 0.4, capH, [0, 0, r, 0])
-      ctx.fill()
-      // Highlight
-      ctx.fillStyle = 'rgba(255,255,255,0.18)'
-      ctx.fillRect(px + pw * 0.1, 0, pw * 0.2, topH - capH)
-
-      // ── Bottom pipe ──
-      const botY = pipe.gapBottom * scaleY
-      const botH = h - botY
-
-      const bg2 = ctx.createLinearGradient(px, 0, px + pw, 0)
-      bg2.addColorStop(0,   '#3ecfad')
-      bg2.addColorStop(0.4, '#4de8c5')
-      bg2.addColorStop(1,   '#2aab8f')
-      ctx.fillStyle = bg2
-      ctx.fillRect(px, botY + capH, pw, botH)
-
-      // Cap (rounded top)
-      ctx.fillStyle = '#4de8c5'
-      ctx.beginPath()
-      ctx.roundRect(capX, botY, capW, capH, [r, r, 0, 0])
-      ctx.fill()
-      ctx.fillStyle = 'rgba(0,0,0,0.12)'
-      ctx.beginPath()
-      ctx.roundRect(capX + capW * 0.6, botY, capW * 0.4, capH, [0, r, 0, 0])
-      ctx.fill()
-      ctx.fillStyle = 'rgba(255,255,255,0.18)'
-      ctx.fillRect(px + pw * 0.1, botY + capH, pw * 0.2, botH)
+    // Particles
+    for (const p of parts) {
+      ctx.globalAlpha = Math.max(0, p.l / p.m)
+      ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (p.l / p.m + 0.3), 0, 7); ctx.fill()
     }
+    ctx.globalAlpha = 1
 
-    // ── Bird ──
-    const bx     = state.birdX * scaleX
-    const by     = state.birdY * scaleY
-    const bSize  = BIRD_SIZE * scaleX
-    const half   = bSize / 2
-    const rot    = Math.max(-0.45, Math.min(0.65, state.birdVel / 800))
-
+    // Bird
     ctx.save()
-    ctx.translate(bx, by)
-    ctx.rotate(rot)
+    ctx.translate(ww * 0.3, bird.y)
+    ctx.rotate(bird.r)
+    ctx.scale(1 - bird.sq * 0.12, 1 + bird.sq * 0.2)
 
-    // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.18)'
-    ctx.beginPath()
-    ctx.ellipse(2, half * 0.9, half * 0.85, half * 0.25, 0, 0, Math.PI * 2)
-    ctx.fill()
+    ctx.shadowColor = '#ff8c6180'; ctx.shadowBlur = 16
+    ctx.fillStyle = '#ff8c61'
+    ctx.beginPath(); ctx.roundRect(-17, -17, 34, 34, 10); ctx.fill()
+    ctx.shadowBlur = 0
+    ctx.strokeStyle = '#ffa883'; ctx.lineWidth = 3; ctx.stroke()
 
-    // Body
-    const bGrad = ctx.createRadialGradient(-half * 0.2, -half * 0.2, 0, 0, 0, bSize * 0.72)
-    bGrad.addColorStop(0, '#ffaa80')
-    bGrad.addColorStop(0.6, '#FF916C')
-    bGrad.addColorStop(1,   '#d96840')
-    ctx.fillStyle = bGrad
-    ctx.beginPath()
-    ctx.roundRect(-half, -half, bSize, bSize, bSize * 0.30)
-    ctx.fill()
-
-    // Outline
-    ctx.strokeStyle = '#c85a30'
-    ctx.lineWidth = 1.5
-    ctx.stroke()
-
-    // Eye white
-    ctx.fillStyle = '#fff'
-    ctx.beginPath()
-    ctx.arc(half * 0.28, -half * 0.18, half * 0.38, 0, Math.PI * 2)
-    ctx.fill()
-    // Pupil
-    ctx.fillStyle = '#1D183E'
-    ctx.beginPath()
-    ctx.arc(half * 0.36, -half * 0.12, half * 0.20, 0, Math.PI * 2)
-    ctx.fill()
-    // Pupil shine
-    ctx.fillStyle = '#fff'
-    ctx.beginPath()
-    ctx.arc(half * 0.42, -half * 0.22, half * 0.07, 0, Math.PI * 2)
-    ctx.fill()
-
-    // Wing (small rounded flap)
-    ctx.fillStyle = 'rgba(255,130,80,0.7)'
-    ctx.beginPath()
-    ctx.ellipse(-half * 0.1, half * 0.15, half * 0.45, half * 0.22, -0.3, 0, Math.PI * 2)
-    ctx.fill()
-
-    // Beak
-    ctx.fillStyle = '#f5a623'
-    ctx.beginPath()
-    ctx.moveTo(half * 0.7,  -half * 0.05)
-    ctx.lineTo(half * 1.15, -half * 0.25)
-    ctx.lineTo(half * 1.15,  half * 0.1)
-    ctx.closePath()
-    ctx.fill()
-
+    // Wing
+    ctx.save(); ctx.translate(-7, 5)
+    ctx.rotate(st === S_PLAY ? Math.sin(t * 28) * 0.5 : Math.sin(t * 6) * 0.2)
+    ctx.fillStyle = '#f06f45'
+    ctx.beginPath(); ctx.roundRect(-8, -5, 16, 10, 5); ctx.fill()
     ctx.restore()
 
-    // ── Live score (during play) ──
-    if (state.status === STATE_PLAYING) {
-      const fs = Math.round(38 * scaleX)
-      ctx.font = `900 ${fs}px -apple-system,system-ui,sans-serif`
+    if (st === S_DEAD) {
+      // X eyes
+      ctx.strokeStyle = '#1b1640'; ctx.lineWidth = 2.5
+      ctx.beginPath(); ctx.moveTo(3, -9); ctx.lineTo(11, -1); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(11, -9); ctx.lineTo(3, -1); ctx.stroke()
+    } else {
+      // Eye
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(7, -5, 7, 0, 7); ctx.fill()
+      ctx.fillStyle = '#1b1640'; ctx.beginPath(); ctx.arc(9, -5, 3.4, 0, 7); ctx.fill()
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(10, -6.2, 1.1, 0, 7); ctx.fill()
+    }
+    ctx.restore()
+
+    // ── Canvas-drawn overlays ──────────────────────────────────────────────
+    const cx = ww / 2
+
+    // Ready screen (title drawn on canvas for exact match)
+    if (st === S_READY) {
+      // Title
+      ctx.font = '700 56px Fredoka,system-ui,sans-serif'
+      ctx.textAlign = 'center'; ctx.fillStyle = '#fff'
+      ctx.shadowColor = '#0007'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3
+      ctx.fillText('FLAPPY', cx, 170)
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0
+      ctx.font = '700 16px Fredoka,system-ui,sans-serif'
+      ctx.fillStyle = '#cfc9f2'; ctx.fillText('Fly through the gaps', cx, 206)
+
+      if (g.best > 0) {
+        ctx.fillStyle = '#ffffff1c'
+        ctx.beginPath(); ctx.roundRect(cx - 52, 228, 104, 30, 15); ctx.fill()
+        ctx.font = '700 15px Fredoka,system-ui,sans-serif'
+        ctx.fillStyle = '#ffb48f'; ctx.fillText('BEST ' + g.best, cx, 249)
+      }
+
+      // Pulse ring
+      const pl = (t * 1.2) % 1
+      ctx.strokeStyle = `rgba(255,255,255,${0.5 * (1 - pl)})`
+      ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, 455, 16 + pl * 26, 0, 7); ctx.stroke()
+      ctx.fillStyle = '#ffffff30'; ctx.beginPath(); ctx.arc(cx, 455, 13, 0, 7); ctx.fill()
+
+      ctx.font = '700 16px Fredoka,system-ui,sans-serif'
+      ctx.fillStyle = `rgba(255,255,255,${0.65 + 0.3 * Math.sin(t * 4)})`
+      ctx.fillText('Tap or press Space to start', cx, 520)
+    }
+
+    // Score during play
+    if (st === S_PLAY || st === S_PAUSED) {
+      const fs = Math.round(64 * (1 + pop * 0.22))
+      ctx.font = `700 ${fs}px Fredoka,system-ui,sans-serif`
       ctx.textAlign = 'center'
-      ctx.fillStyle = 'rgba(0,0,0,0.35)'
-      ctx.fillText(String(state.score), w / 2 + 2, 62 * scaleY + 2)
-      ctx.fillStyle = '#fff'
-      ctx.fillText(String(state.score), w / 2, 62 * scaleY)
-    }
-  }, [])
-
-  // ── Game loop ────────────────────────────────────────────────────────────
-  const loop = useCallback((ts) => {
-    const state = stateRef.current
-    if (!state || state.status === STATE_GAME_OVER || pausedRef.current) return
-
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d', { alpha: false })
-    if (!ctx) return
-
-    if (!lastTimeRef.current) lastTimeRef.current = ts
-    const dt = Math.min((ts - lastTimeRef.current) / 1000, 0.033)
-    lastTimeRef.current = ts
-
-    // Input
-    if (inputRef.current) {
-      inputRef.current = false
-      if (state.status === STATE_READY) {
-        state.status = STATE_PLAYING
-        setGameStatus(STATE_PLAYING)
-        state.birdVel = JUMP_VELOCITY
-        playSound('flap')
-      } else if (state.status === STATE_PLAYING) {
-        state.birdVel = JUMP_VELOCITY
-        playSound('flap')
-      }
+      ctx.fillStyle = 'rgba(0,0,0,0.4)'
+      ctx.shadowColor = '#0007'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3
+      ctx.fillText(String(score), cx + 2, 118 + 2)
+      ctx.fillStyle = '#fff'; ctx.fillText(String(score), cx, 118)
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0
     }
 
-    // Physics
-    if (state.status === STATE_PLAYING) {
-      const { pipeSpeed, pipeGap, pipeSpacing } = getDifficulty(state.score)
+    // Paused
+    if (st === S_PAUSED) {
+      ctx.fillStyle = '#14102c99'; ctx.fillRect(-20, -20, ww + 40, H0 + 40)
+      ctx.font = '700 44px Fredoka,system-ui,sans-serif'
+      ctx.textAlign = 'center'; ctx.fillStyle = '#fff'
+      ctx.shadowColor = '#0007'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3
+      ctx.fillText('PAUSED', cx, 300)
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0
+      ctx.font = '700 17px Fredoka,system-ui,sans-serif'
+      ctx.fillStyle = '#cfc9f2'; ctx.fillText('Tap to resume', cx, 340)
+    }
 
-      state.birdVel += GRAVITY * dt
-      state.birdY   += state.birdVel * dt
-
-      // Idle bob in READY is handled separately
-      state.pipeTimer += pipeSpeed * dt
-      if (state.pipeTimer >= pipeSpacing) {
-        state.pipeTimer -= pipeSpacing
-        const last = state.pipes[state.pipes.length - 1]
-        state.pipes.push(genPipe(last ? last.x + pipeSpacing : GAME_WIDTH + 50, pipeGap))
+    // Dead overlay — drawn entirely on canvas for pixel-perfect match
+    if (st === S_DEAD) {
+      if (flash > 0) {
+        ctx.fillStyle = `rgba(255,255,255,${flash * 0.6})`
+        ctx.fillRect(-20, -20, ww + 40, H0 + 40)
       }
+      if (g.ot > 0.45) {
+        const k  = Math.min(1, (g.ot - 0.45) / 0.35)
+        const e  = 1 - Math.pow(1 - k, 3)
+        const cy = 200 + (1 - e) * 50
+        ctx.globalAlpha = k
 
-      // Move & cull pipes
-      for (let i = state.pipes.length - 1; i >= 0; i--) {
-        state.pipes[i].x -= pipeSpeed * dt
-        if (state.pipes[i].x + PIPE_WIDTH < -20) state.pipes.splice(i, 1)
-      }
+        // Card
+        ctx.fillStyle = '#1b1838ee'
+        ctx.beginPath(); ctx.roundRect(cx - 132, cy, 264, 262, 26); ctx.fill()
+        ctx.strokeStyle = '#ffffff22'; ctx.lineWidth = 1.5; ctx.stroke()
 
-      // Score
-      for (const pipe of state.pipes) {
-        if (!pipe.scored && pipe.x + PIPE_WIDTH < state.birdX - BIRD_SIZE / 2) {
-          pipe.scored = true
-          state.score += 1
-          setScore(state.score)
-          onScoreUpdate(state.score)
-          playSound('score')
+        // GAME OVER
+        ctx.font = '700 28px Fredoka,system-ui,sans-serif'
+        ctx.textAlign = 'center'; ctx.fillStyle = '#fff'
+        ctx.shadowColor = '#0007'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3
+        ctx.fillText('GAME OVER', cx, cy + 50)
+        ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0
+
+        // Medal
+        const mc = score >= 30 ? '#ffd84a' : score >= 15 ? '#d6dbe8' : score >= 5 ? '#d9895a' : null
+        ctx.beginPath(); ctx.arc(cx - 68, cy + 120, 30, 0, 7)
+        if (mc) {
+          ctx.fillStyle = mc; ctx.fill()
+          ctx.beginPath(); ctx.arc(cx - 68, cy + 120, 22, 0, 7)
+          ctx.strokeStyle = '#00000030'; ctx.lineWidth = 3; ctx.stroke()
+          ctx.font = '700 26px Fredoka,system-ui,sans-serif'
+          ctx.fillStyle = '#00000040'; ctx.fillText('★', cx - 68, cy + 129)
+        } else {
+          ctx.strokeStyle = '#ffffff33'; ctx.lineWidth = 3
+          ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([])
+          ctx.font = '700 18px Fredoka,system-ui,sans-serif'
+          ctx.fillStyle = '#ffffff44'; ctx.fillText('5', cx - 68, cy + 127)
         }
-      }
 
-      // Collision
-      const bL = state.birdX - BIRD_SIZE / 2
-      const bR = state.birdX + BIRD_SIZE / 2
-      const bT = state.birdY - BIRD_SIZE / 2
-      const bB = state.birdY + BIRD_SIZE / 2
+        // Score / Best
+        ctx.font = '700 11px Fredoka,system-ui,sans-serif'
+        ctx.fillStyle = '#a79fd6'; ctx.fillText('SCORE', cx + 40, cy + 96)
+        ctx.font = '700 36px Fredoka,system-ui,sans-serif'
+        ctx.fillStyle = '#fff'
+        ctx.shadowColor = '#0007'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3
+        ctx.fillText(String(score), cx + 40, cy + 128)
+        ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0
+        ctx.font = '700 11px Fredoka,system-ui,sans-serif'
+        ctx.fillStyle = '#a79fd6'; ctx.fillText('BEST', cx + 40, cy + 154)
+        ctx.font = '700 22px Fredoka,system-ui,sans-serif'
+        ctx.fillStyle = '#ffb48f'
+        ctx.shadowColor = '#0007'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3
+        ctx.fillText(String(g.best), cx + 40, cy + 178)
+        ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0
 
-      let dead = bB >= GAME_HEIGHT - GROUND_HEIGHT || bT <= 0
-      if (!dead) {
-        for (const p of state.pipes) {
-          if (bR > p.x + 4 && bL < p.x + PIPE_WIDTH - 4) {
-            if (bT < p.gapTop + 4 || bB > p.gapBottom - 4) { dead = true; break }
-          }
+        // NEW BEST badge
+        if (g.nb) {
+          ctx.fillStyle = '#ffd84a'
+          ctx.beginPath(); ctx.roundRect(cx - 50, cy - 14, 100, 28, 14); ctx.fill()
+          ctx.font = '700 14px Fredoka,system-ui,sans-serif'
+          ctx.fillStyle = '#3a2a00'; ctx.fillText('NEW BEST!', cx, cy + 5)
         }
-      }
 
-      if (dead && !endCalledRef.current) {
-        endCalledRef.current = true
-        state.status = STATE_GAME_OVER
-        playSound('hit')
-        // clamp to ground
-        state.birdY = Math.min(state.birdY, GAME_HEIGHT - GROUND_HEIGHT - BIRD_SIZE / 2)
-        setGameStatus(STATE_GAME_OVER)
-        setBestScore(prev => {
-          const nb = Math.max(prev, state.score)
-          try { localStorage.setItem('flappy_best', String(nb)) } catch {}
-          return nb
-        })
-        onGameEnd(state.score)
-        // Render final frame then stop
-        const { w, h } = canvasSizeRef.current
-        render(ctx, state, w, h)
-        return
+        // Tap to retry (pulsing)
+        if (g.ot > 0.7) {
+          const pu = 1 + Math.sin(t * 6) * 0.03
+          ctx.save(); ctx.translate(cx, cy + 222); ctx.scale(pu, pu)
+          ctx.fillStyle = '#ff8c61'
+          ctx.beginPath(); ctx.roundRect(-92, -21, 184, 42, 21); ctx.fill()
+          ctx.font = '700 17px Fredoka,system-ui,sans-serif'
+          ctx.fillStyle = '#2a1408'; ctx.fillText('Tap to retry', 0, 6)
+          ctx.restore()
+        }
+
+        ctx.globalAlpha = 1
       }
-    } else if (state.status === STATE_READY) {
-      // Gentle idle bob
-      state.wobble = (state.wobble || 0) + dt * 2.2
-      state.birdY = GAME_HEIGHT * 0.42 + Math.sin(state.wobble) * 10
     }
+  }, [drawLayer])
 
-    const { w, h } = canvasSizeRef.current
-    render(ctx, state, w, h)
-    rafRef.current = requestAnimationFrame(loopRef.current)
-  }, [genPipe, render, onGameEnd, onScoreUpdate, playSound])
+  // ── Loop ─────────────────────────────────────────────────────────────────
+  const loopFn = useCallback((now) => {
+    const g = G.current; if (!g) return
+    const dt = Math.min((now - lastRef.current) / 1000, 0.033)
+    lastRef.current = now
 
-  useEffect(() => { loopRef.current = loop }, [loop])
+    if (g.st !== S_PAUSED) upd(dt); else g.t += dt
 
-  // ── Canvas setup ─────────────────────────────────────────────────────────
-  const setupCanvas = useCallback(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const container = canvas.parentElement
-    if (!container) return
-    const dpr = window.devicePixelRatio || 1
-    const cw  = Math.min(container.clientWidth, 420)
-    const maxH = window.innerHeight
-    let ch = cw * (GAME_HEIGHT / GAME_WIDTH)
-    if (ch > maxH) ch = maxH
+    const cv = cvRef.current; if (!cv) return
+    const ctx = cv.getContext('2d')
+    if (ctx) draw(ctx)
 
-    canvas.style.width  = `${cw}px`
-    canvas.style.height = `${ch}px`
-    canvas.width  = Math.round(cw * dpr)
-    canvas.height = Math.round(ch * dpr)
-    canvasSizeRef.current = { w: cw, h: ch }
+    rafRef.current = requestAnimationFrame(loopFn)
+  }, [upd, draw])
 
-    const ctx = canvas.getContext('2d', { alpha: false })
-    if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  // Keep stable ref
+  const loopRef = useRef(loopFn)
+  useEffect(() => { loopRef.current = loopFn }, [loopFn])
 
-    renderBackground(cw, ch)
-  }, [renderBackground])
-
-  // ── Start / restart ──────────────────────────────────────────────────────
-  const startGame = useCallback(() => {
-    endCalledRef.current = false
-    lastTimeRef.current  = 0
-    inputRef.current     = false
-    pausedRef.current    = false
-    setIsPaused(false)
-    setGameStatus(STATE_READY)
-    setScore(initialScoreRef.current)
-
-    const state = createState()
-    const ix = GAME_WIDTH + 100
-    state.pipes.push(genPipe(ix,                   PIPE_GAP_MAX))
-    state.pipes.push(genPipe(ix + PIPE_SPACING_MAX, PIPE_GAP_MAX))
-    state.pipes.push(genPipe(ix + PIPE_SPACING_MAX * 2, PIPE_GAP_MAX))
-    stateRef.current = state
-
-    if (rafRef.current) cancelAnimationFrame(rafRef.current)
-    rafRef.current = requestAnimationFrame(loopRef.current)
-  }, [createState, genPipe])
-
-  // ── Input handlers ───────────────────────────────────────────────────────
+  // ── Input ─────────────────────────────────────────────────────────────────
+  const lastTouchRef = useRef(0)
   const onTouchTap = useCallback((e) => {
-    e.preventDefault()
-    lastTouchRef.current = Date.now()
-    inputRef.current = true
-  }, [])
+    if (e.target.closest?.('.fb-btn')) return
+    e.preventDefault(); lastTouchRef.current = Date.now(); flap()
+  }, [flap])
   const onClickTap = useCallback((e) => {
+    if (e.target.closest?.('.fb-btn')) return
     if (Date.now() - lastTouchRef.current < 300) return
-    e.preventDefault()
-    inputRef.current = true
-  }, [])
+    e.preventDefault(); flap()
+  }, [flap])
   const onKey = useCallback((e) => {
-    if (e.code === 'Space' || e.key === ' ') { e.preventDefault(); inputRef.current = true }
-  }, [])
+    if (e.code === 'Space' || e.code === 'ArrowUp' || e.key === 'w') { e.preventDefault(); flap() }
+    else if (e.key === 'p' || e.key === 'Escape') {
+      const g = G.current; if (!g) return
+      if (g.st === S_PLAY) { g.pst = g.st; g.st = S_PAUSED; setUiState(S_PAUSED) }
+      else if (g.st === S_PAUSED) { g.st = g.pst; setUiState(g.pst) }
+    }
+  }, [flap])
 
   const togglePause = useCallback(() => {
-    const state = stateRef.current
-    if (!state || state.status !== STATE_PLAYING) return
-    if (pausedRef.current) {
-      pausedRef.current = false
-      setIsPaused(false)
-      lastTimeRef.current = 0
-      rafRef.current = requestAnimationFrame(loopRef.current)
-    } else {
-      pausedRef.current = true
-      setIsPaused(true)
-      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
-    }
+    const g = G.current; if (!g) return
+    if (g.st === S_PLAY) { g.pst = g.st; g.st = S_PAUSED; setUiState(S_PAUSED) }
+    else if (g.st === S_PAUSED) { g.st = g.pst; setUiState(g.pst) }
   }, [])
 
   const toggleMute = useCallback(() => {
-    mutedRef.current = !mutedRef.current
-    setIsMuted(mutedRef.current)
+    const g = G.current; if (!g) return
+    g.mute = !g.mute; setUiMute(g.mute)
+    try { localStorage.setItem('fb_mute', g.mute ? '1' : '0') } catch {}
   }, [])
 
-  // ── Visibility change ────────────────────────────────────────────────────
+  // ── Visibility change ─────────────────────────────────────────────────────
   const onVisChange = useCallback(() => {
-    const state = stateRef.current
-    if (!state) return
-    if (document.hidden && state.status === STATE_PLAYING && !pausedRef.current) {
-      pausedRef.current = true; setIsPaused(true)
-      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
-    } else if (!document.hidden && pausedRef.current) {
-      pausedRef.current = false; setIsPaused(false)
-      lastTimeRef.current = 0
-      rafRef.current = requestAnimationFrame(loopRef.current)
+    const g = G.current; if (!g) return
+    if (document.hidden && g.st === S_PLAY) {
+      g.pst = g.st; g.st = S_PAUSED; setUiState(S_PAUSED)
     }
   }, [])
 
-  // ── Effects ──────────────────────────────────────────────────────────────
+  // ── Mount / unmount ───────────────────────────────────────────────────────
   useEffect(() => {
-    setupCanvas()
-    startGame()
-    const onResize = () => { setupCanvas() }
+    initG(0)
+    setTimeout(() => {
+      fit()
+      lastRef.current = performance.now()
+      rafRef.current = requestAnimationFrame(loopRef.current)
+    }, 0)
+
+    const onResize = () => fit()
     window.addEventListener('resize', onResize)
     window.addEventListener('keydown', onKey)
     document.addEventListener('visibilitychange', onVisChange)
+
     return () => {
       window.removeEventListener('resize', onResize)
       window.removeEventListener('keydown', onKey)
       document.removeEventListener('visibilitychange', onVisChange)
       if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
-      stateRef.current = null
+      G.current = null
     }
-  }, [setupCanvas, startGame, onKey, onVisChange])
+  }, []) // intentionally empty — runs once
 
+  // ── isActive restart ──────────────────────────────────────────────────────
   const prevActiveRef = useRef(isActive)
   useEffect(() => {
     if (isActive && !prevActiveRef.current) {
       if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
-      onScoreUpdate(initialScoreRef.current)
-      startGame()
+      initG(initialScore)
+      onScoreUpdate(initialScore)
+      setTimeout(() => {
+        fit()
+        lastRef.current = performance.now()
+        rafRef.current = requestAnimationFrame(loopRef.current)
+      }, 0)
     }
     prevActiveRef.current = isActive
-  }, [isActive, startGame, onScoreUpdate])
+  }, [isActive, initialScore, initG, fit, onScoreUpdate])
 
-  // ── Retry (game-over → restart) ──────────────────────────────────────────
-  const handleRetry = useCallback(() => {
-    startGame()
-  }, [startGame])
-
-  // ── Render ───────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="relative w-full h-full overflow-hidden flex justify-center items-start bg-[#2e2b52]">
-      {/* Canvas */}
+    <div className="relative w-full h-full" style={{ background: '#2b2748', overflow: 'hidden', touchAction: 'none' }}>
+      {/* Load Fredoka font */}
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet" />
+
+      {/* Canvas — fills the full area */}
       <canvas
-        ref={canvasRef}
+        ref={cvRef}
         onClick={onClickTap}
         onTouchStart={onTouchTap}
-        className="block touch-none cursor-pointer"
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block', touchAction: 'none', userSelect: 'none' }}
         aria-label="Flappy Bird game — tap to play"
-        role="img"
       />
 
-      {/* ── Sound button (top-left) ── */}
+      {/* Sound button — top-left */}
       <button
+        className="fb-btn"
         onClick={toggleMute}
-        className="absolute top-3 left-3 z-20 w-11 h-11 rounded-xl flex items-center justify-center transition-transform active:scale-90"
-        style={{ background: 'rgba(30,27,60,0.72)', backdropFilter: 'blur(8px)', border: '1.5px solid rgba(255,255,255,0.12)' }}
-        aria-label={isMuted ? 'Unmute' : 'Mute'}
+        style={{
+          position: 'absolute',
+          top: 'calc(env(safe-area-inset-top, 0px) + 12px)',
+          left: 14,
+          width: 44, height: 44,
+          borderRadius: 14, border: 0,
+          background: 'rgba(255,255,255,0.13)',
+          color: '#fff', fontSize: 17,
+          backdropFilter: 'blur(6px)',
+          cursor: 'pointer', display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          zIndex: 20,
+        }}
+        aria-label={uiMute ? 'Unmute' : 'Mute'}
       >
-        {isMuted ? (
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a09ac8" strokeWidth="2" strokeLinecap="round">
-            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="#a09ac8" stroke="none"/>
-            <line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>
-          </svg>
-        ) : (
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a09ac8" strokeWidth="2" strokeLinecap="round">
-            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="#a09ac8" stroke="none"/>
-            <path d="M15.54 8.46a5 5 0 0 1 0 7.07" stroke="#a09ac8"/>
-            <path d="M19.07 4.93a10 10 0 0 1 0 14.14" stroke="#a09ac8"/>
-          </svg>
-        )}
+        {uiMute ? '🔇' : '🔊'}
       </button>
 
-      {/* ── Pause button (top-right) ── */}
-      {gameStatus === STATE_PLAYING && (
-        <button
-          onClick={togglePause}
-          className="absolute top-3 right-3 z-20 w-11 h-11 rounded-xl flex items-center justify-center transition-transform active:scale-90"
-          style={{ background: 'rgba(30,27,60,0.72)', backdropFilter: 'blur(8px)', border: '1.5px solid rgba(255,255,255,0.12)' }}
-          aria-label={isPaused ? 'Resume' : 'Pause'}
-        >
-          {isPaused ? (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="#a09ac8">
-              <polygon points="5,3 19,12 5,21"/>
-            </svg>
-          ) : (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="#a09ac8">
-              <rect x="6" y="4" width="4" height="16" rx="1"/>
-              <rect x="14" y="4" width="4" height="16" rx="1"/>
-            </svg>
-          )}
-        </button>
-      )}
-
-      {/* ── READY screen overlay ── */}
-      {gameStatus === STATE_READY && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-start pt-[14%] pointer-events-none select-none">
-          {/* Title */}
-          <div
-            className="font-black tracking-wider text-white mb-2 drop-shadow-lg"
-            style={{ fontSize: 'clamp(44px, 12vw, 64px)', fontFamily: "'Arial Black', Arial, sans-serif", letterSpacing: '0.04em',
-              textShadow: '0 4px 24px rgba(0,0,0,0.4), 0 2px 0 rgba(0,0,0,0.3)' }}
-          >
-            FLAPPY
-          </div>
-          <div className="text-white/70 font-semibold mb-4" style={{ fontSize: 'clamp(13px,3.5vw,18px)' }}>
-            Fly through the gaps
-          </div>
-          {/* Best score badge */}
-          <div
-            className="flex items-center gap-2 px-5 py-2 rounded-full mb-8"
-            style={{ background: 'rgba(30,27,60,0.6)', border: '1.5px solid rgba(255,255,255,0.12)' }}
-          >
-            <span className="font-black tracking-widest" style={{ color: '#FF916C', fontSize: 'clamp(12px,3vw,16px)' }}>
-              BEST {bestScore}
-            </span>
-          </div>
-
-          {/* Tap hint */}
-          <div
-            className="absolute font-medium text-white/55"
-            style={{ bottom: '14%', fontSize: 'clamp(12px,3vw,15px)' }}
-          >
-            Tap or press Space to start
-          </div>
-        </div>
-      )}
-
-      {/* ── PAUSED overlay ── */}
-      {isPaused && gameStatus === STATE_PLAYING && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center"
-          style={{ background: 'rgba(20,18,45,0.65)', backdropFilter: 'blur(4px)' }}>
-          <div className="flex flex-col items-center gap-4 px-10 py-8 rounded-3xl"
-            style={{ background: 'rgba(26,24,54,0.92)', border: '1.5px solid rgba(255,255,255,0.1)' }}>
-            <div className="text-white font-black text-2xl tracking-wider">PAUSED</div>
-            <button onClick={togglePause}
-              className="px-8 py-3 rounded-full font-bold text-white transition-transform active:scale-95"
-              style={{ background: 'linear-gradient(135deg, #FF916C, #e06040)', fontSize: 15 }}>
-              Resume
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── GAME OVER overlay ── */}
-      {gameStatus === STATE_GAME_OVER && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center"
-          style={{ background: 'rgba(20,18,45,0.55)' }}>
-          <div
-            className="flex flex-col items-center rounded-3xl px-8 py-7 mx-6 w-full max-w-[320px]"
-            style={{ background: 'rgba(26,24,60,0.96)', border: '1.5px solid rgba(255,255,255,0.1)',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.5)' }}
-          >
-            <div className="font-black text-white tracking-widest mb-5"
-              style={{ fontSize: 'clamp(22px,6vw,30px)', fontFamily: "'Arial Black', Arial, sans-serif",
-                textShadow: '0 2px 12px rgba(0,0,0,0.4)' }}>
-              GAME OVER
-            </div>
-
-            {/* Score row */}
-            <div className="flex gap-8 mb-6">
-              <div className="flex flex-col items-center">
-                <span className="text-white/50 font-bold tracking-widest text-xs mb-1">SCORE</span>
-                <span className="text-white font-black" style={{ fontSize: 'clamp(32px,9vw,48px)',
-                  lineHeight: 1, textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>{score}</span>
-              </div>
-              <div className="w-px bg-white/10" />
-              <div className="flex flex-col items-center">
-                <span className="text-white/50 font-bold tracking-widest text-xs mb-1">BEST</span>
-                <span className="font-black" style={{ fontSize: 'clamp(32px,9vw,48px)',
-                  lineHeight: 1, color: '#FF916C', textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>{bestScore}</span>
-              </div>
-            </div>
-
-            {/* Retry button */}
-            <button
-              onClick={handleRetry}
-              className="w-full py-4 rounded-full font-black text-white transition-transform active:scale-95"
-              style={{ background: 'linear-gradient(135deg, #FF916C 0%, #e06040 100%)',
-                fontSize: 'clamp(15px,4vw,18px)', letterSpacing: '0.02em',
-                boxShadow: '0 6px 24px rgba(255,100,60,0.4), inset 0 2px 0 rgba(255,255,255,0.2)' }}
-            >
-              Tap to retry
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Pause button — top-right */}
+      <button
+        className="fb-btn"
+        onClick={togglePause}
+        style={{
+          position: 'absolute',
+          top: 'calc(env(safe-area-inset-top, 0px) + 12px)',
+          right: 14,
+          width: 44, height: 44,
+          borderRadius: 14, border: 0,
+          background: 'rgba(255,255,255,0.13)',
+          color: '#fff', fontSize: 17,
+          backdropFilter: 'blur(6px)',
+          cursor: 'pointer', display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          zIndex: 20,
+        }}
+        aria-label={uiState === S_PAUSED ? 'Resume' : 'Pause'}
+      >
+        {uiState === S_PAUSED ? '▶' : '❚❚'}
+      </button>
     </div>
   )
 }
