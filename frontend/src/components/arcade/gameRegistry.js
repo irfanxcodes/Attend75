@@ -24,6 +24,7 @@ const gameRegistry = {
     description: 'Tap to stack blocks and build tall!',
     thumbnail: '/assets/arcade/stack-thumb.webp',
     maxScore: 200,
+    selfManaged: true,
     component: lazy(() => import('./games/StackGame')),
   },
   geodash: {

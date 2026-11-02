@@ -1,422 +1,855 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-// === STACK TOWER — Polished with juice, 3D blocks, dynamic bg, particles ===
-const GW = 320, GH = 560
-const BH = 30, START_W = 90
-const BASE_SPEED = 2.2, SPEED_INC = 0.06, MAX_SPEED = 5.5  // increased from 1.3 — felt too slow initially
-const DROP_GRAVITY = 0.6, PERFECT_THRESH = 4
+// ─── Constants (match reference) ─────────────────────────────────────────────
+const BH   = 26   // block height
+const DX   = 9    // 3D x-offset
+const DY   = -7   // 3D y-offset
+const WW   = 360  // logical world width
+const TIERS = [10, 25, 50, 100, 200, 400, 800]
 
-// Dynamic sky phases based on height
-const SKY_PHASES = [
-  { at: 0, top: '#87CEEB', bot: '#C8E6F0', label: 'Ground' },
-  { at: 15, top: '#5BA3D9', bot: '#87CEEB', label: 'City' },
-  { at: 35, top: '#2D5F8A', bot: '#7FB3D8', label: 'Clouds' },
-  { at: 55, top: '#1A1A4E', bot: '#4A5FA0', label: 'High Atmo' },
-  { at: 80, top: '#0A0A2A', bot: '#1A1A4E', label: 'Space' },
+// ─── Themes (sky gradient phases based on score) ──────────────────────────────
+const THEMES = [
+  // Sky
+  [[[135,206,235],[205,234,243]],[[90,160,230],[180,214,242]],[[43,63,158],[111,127,209]],[[7,10,36],[29,34,96]]],
+  // Sunset
+  [[[255,170,120],[255,220,170]],[[220,110,140],[250,180,170]],[[90,60,150],[200,120,160]],[[12,10,40],[50,30,90]]],
+  // Midnight
+  [[[40,50,110],[90,100,170]],[[26,32,84],[60,70,140]],[[14,16,52],[38,42,100]],[[5,6,22],[20,22,64]]],
 ]
 
-// Block colors with gradients (top/front/side)
-const BLOCK_THEMES = [
-  { top: '#FFE066', front: '#FFD700', side: '#CC9900', win: 'rgba(255,255,255,0.5)' },
-  { top: '#FF9A5C', front: '#FF7043', side: '#D84315', win: 'rgba(255,255,255,0.4)' },
-  { top: '#AED581', front: '#7CB342', side: '#558B2F', win: 'rgba(255,255,255,0.4)' },
-  { top: '#4FC3F7', front: '#039BE5', side: '#0277BD', win: 'rgba(255,255,255,0.3)' },
-  { top: '#CE93D8', front: '#AB47BC', side: '#7B1FA2', win: 'rgba(255,255,255,0.3)' },
-  { top: '#FF8A80', front: '#E53935', side: '#B71C1C', win: 'rgba(255,255,255,0.3)' },
-  { top: '#80DEEA', front: '#00ACC1', side: '#00838F', win: 'rgba(255,255,255,0.3)' },
-]
-
-function getTheme(i) { return BLOCK_THEMES[i % BLOCK_THEMES.length] }
-function getSky(score) {
-  let phase = SKY_PHASES[0]
-  for (const p of SKY_PHASES) { if (score >= p.at) phase = p }
-  return phase
-}
-function lerp(a, b, t) { return a + (b - a) * Math.min(Math.max(t, 0), 1) }
-
-function createState() {
-  return {
-    stack: [{ x: GW / 2 - START_W / 2, w: START_W, y: GH - BH - 80 }],  // lifted up from -20 to -80 so it's not hidden behind nav
-    swing: { x: 30, w: START_W, dir: 1 },
-    drop: null, // {x, y, w, vy, targetY}
-    score: 0, over: false, combo: 0,
-    speed: BASE_SPEED, camY: 0,
-    particles: [], shake: 0, shakeX: 0, shakeY: 0,
-    floatTexts: [], // {text, x, y, life, color}
-    towerFall: false, fallBlocks: [], // game over animation
-  }
+function skc(SK, skyVal) {
+  const f = skyVal * 3
+  const i = Math.min(2, f | 0)
+  const r = f - i
+  return [0, 1].map(j =>
+    'rgb(' + SK[i][j].map((v, m) => Math.round(v + (SK[Math.min(3,i+1)][j][m] - v) * r)) + ')'
+  )
 }
 
-function spawnParticles(st, x, y, w, count, color) {
-  for (let i = 0; i < count; i++) {
-    st.particles.push({
-      x: x + Math.random() * w, y,
-      vx: (Math.random() - 0.5) * 6,
-      vy: -Math.random() * 5 - 2,
-      size: 2 + Math.random() * 4,
-      life: 40 + Math.random() * 20,
-      color: color || '#FFD700',
-    })
+// ─── Static scene data ────────────────────────────────────────────────────────
+function mkBuildings() {
+  let x = -20; const o = []
+  while (x < WW + 160) {
+    const b = 44 + Math.random() * 34
+    o.push({ x, w: b, h: 50 + Math.random() * 130 })
+    x += b + 6
   }
+  return o
 }
 
-function addFloatText(st, text, x, y, color) {
-  st.floatTexts.push({ text, x, y, life: 60, color: color || '#FFD700' })
+const CITY   = mkBuildings()
+const CLOUDS = Array.from({ length: 9 }, (_, i) => ({
+  x: Math.random() * 400,
+  y: 260 + i * 190 + Math.random() * 80,
+  r: 22 + Math.random() * 22,
+  v: 3 + Math.random() * 6,
+}))
+const STARS = Array.from({ length: 80 }, () => ({
+  x: Math.random(), y: Math.random(),
+  p: Math.random() * 6,
+  r: 0.6 + Math.random() * 1.3,
+}))
+
+// ─── Audio ────────────────────────────────────────────────────────────────────
+let _ac = null
+function beep(f, d, ty, v, sl, muted) {
+  if (!muted) return
+  try {
+    if (!_ac) _ac = new (window.AudioContext || window.webkitAudioContext)()
+    if (_ac.state === 'suspended') _ac.resume()
+    const n = _ac.currentTime
+    const osc = _ac.createOscillator(), gain = _ac.createGain()
+    osc.type = ty
+    osc.frequency.setValueAtTime(f, n)
+    osc.frequency.exponentialRampToValueAtTime(f * sl, n + d)
+    gain.gain.setValueAtTime(v, n)
+    gain.gain.exponentialRampToValueAtTime(1e-4, n + d)
+    osc.connect(gain); gain.connect(_ac.destination)
+    osc.start(); osc.stop(n + d)
+  } catch {}
 }
 
-function dropBlock(st) {
-  if (st.over || st.drop) return
-  const top = st.stack[st.stack.length - 1]
-  // Drop from a fixed distance above the top block (in world space)
-  const dropY = top.y - BH - 80
-  st.drop = { x: st.swing.x, y: dropY, w: st.swing.w, vy: 0, targetY: top.y - BH }
+// Note: beep with muted=true means sound IS on (cfg.sound=1 maps to muted=true for beep calls)
+function playSound(name, cfg) {
+  if (!cfg.sound) return
+  if (name === 'drop')    beep(300, 0.1,  'sine',     0.05, 0.7,  true)
+  if (name === 'perfect') beep(440, 0.18, 'triangle', 0.12, 1.5,  true)
+  if (name === 'land')    beep(150, 0.14, 'sine',     0.16, 0.5,  true)
+  if (name === 'over')    beep(210, 0.55, 'sawtooth', 0.1,  0.3,  true)
+  if (name === 'tier')    beep(660, 0.4,  'triangle', 0.1,  2,    true)
 }
 
-function landBlock(st) {
-  const { drop, stack } = st
-  const top = stack[stack.length - 1]
-  const oL = Math.max(drop.x, top.x)
-  const oR = Math.min(drop.x + drop.w, top.x + top.w)
-  const oW = oR - oL
-
-  if (oW <= 0) {
-    // Missed — trigger tower fall
-    st.over = true; st.towerFall = true
-    st.fallBlocks = stack.map(b => ({ ...b, vx: (Math.random() - 0.5) * 3, vy: 0, rot: 0, vr: (Math.random() - 0.5) * 0.1 }))
-    spawnParticles(st, drop.x, drop.y, drop.w, 15, '#FF5555')
-    return
-  }
-
-  const isPerfect = Math.abs(drop.x - top.x) < PERFECT_THRESH && Math.abs(drop.w - top.w) < PERFECT_THRESH
-
-  if (isPerfect) {
-    st.combo++
-    stack.push({ x: top.x, y: top.y - BH, w: top.w })
-    spawnParticles(st, top.x, top.y - BH, top.w, 20, '#FFD700')
-    st.shake = 5
-    const comboText = st.combo >= 3 ? `COMBO x${st.combo}!` : 'PERFECT!'
-    addFloatText(st, comboText, GW / 2, top.y - BH - 30 + st.camY, st.combo >= 3 ? '#FF6B35' : '#FFD700')
-  } else {
-    st.combo = 0
-    // Add debris for overhang
-    if (drop.x < top.x) spawnParticles(st, drop.x, drop.y, top.x - drop.x, 8, '#AA6633')
-    if (drop.x + drop.w > top.x + top.w) spawnParticles(st, top.x + top.w, drop.y, drop.x + drop.w - top.x - top.w, 8, '#AA6633')
-    stack.push({ x: oL, y: top.y - BH, w: oW })
-    st.shake = 3
-  }
-
-  st.score++; st.drop = null
-  st.speed = Math.min(BASE_SPEED + st.score * SPEED_INC, MAX_SPEED)
-  const newW = isPerfect ? top.w : oW
-  st.swing = { x: st.score % 2 === 0 ? 10 : GW - newW - 10, w: newW, dir: st.score % 2 === 0 ? 1 : -1 }
-
-  // Camera scroll — aggressively track the top of the stack
-  // Keep the top block at ~65% from the top of the viewport
-  const newTop = stack[stack.length - 1]
-  const targetCamY = -(newTop.y - GH * 0.65)
-  if (targetCamY > st.camY) st.camY = targetCamY
-
-  if (newW < 6) { st.over = true; st.towerFall = true; st.fallBlocks = stack.map(b => ({ ...b, vx: (Math.random() - 0.5) * 2, vy: 0, rot: 0, vr: (Math.random() - 0.5) * 0.08 })) }
+function vib(pattern, cfg) {
+  if (!cfg.haptics) return
+  try { navigator.vibrate && navigator.vibrate(pattern) } catch {}
 }
 
-function update(st) {
-  if (st.towerFall) {
-    for (const b of st.fallBlocks) { b.vy += 0.3; b.y += b.vy; b.x += b.vx; b.rot += b.vr }
-    return
-  }
-  if (st.over) return
-
-  // Swing
-  if (!st.drop) {
-    st.swing.x += st.speed * st.swing.dir
-    if (st.swing.x + st.swing.w > GW - 5) st.swing.dir = -1
-    if (st.swing.x < 5) st.swing.dir = 1
-  }
-
-  // Drop
-  if (st.drop) {
-    st.drop.vy += DROP_GRAVITY
-    st.drop.y += st.drop.vy
-    if (st.drop.y >= st.drop.targetY) { st.drop.y = st.drop.targetY; landBlock(st) }
-  }
-
-  // Particles
-  for (let i = st.particles.length - 1; i >= 0; i--) {
-    const p = st.particles[i]
-    p.x += p.vx; p.y += p.vy; p.vy += 0.2; p.life--
-    if (p.life <= 0) st.particles.splice(i, 1)
-  }
-
-  // Float texts
-  for (let i = st.floatTexts.length - 1; i >= 0; i--) {
-    st.floatTexts[i].y -= 1.2; st.floatTexts[i].life--
-    if (st.floatTexts[i].life <= 0) st.floatTexts.splice(i, 1)
-  }
-
-  // Shake decay
-  if (st.shake > 0) {
-    st.shakeX = (Math.random() - 0.5) * st.shake * 2
-    st.shakeY = (Math.random() - 0.5) * st.shake * 1.5
-    st.shake *= 0.8
-    if (st.shake < 0.3) st.shake = 0
-  } else { st.shakeX = 0; st.shakeY = 0 }
-}
-
-function draw3DBlock(ctx, x, y, w, h, theme, s) {
-  const depth = 6 * s
-  // Top face (lighter)
-  ctx.fillStyle = theme.top
-  ctx.beginPath()
-  ctx.moveTo(x, y); ctx.lineTo(x + depth, y - depth)
-  ctx.lineTo(x + w + depth, y - depth); ctx.lineTo(x + w, y)
-  ctx.closePath(); ctx.fill()
-  // Front face
-  const grad = ctx.createLinearGradient(x, y, x, y + h)
-  grad.addColorStop(0, theme.front); grad.addColorStop(1, theme.side)
-  ctx.fillStyle = grad
-  ctx.fillRect(x, y, w, h)
-  // Right side face
-  ctx.fillStyle = theme.side
-  ctx.beginPath()
-  ctx.moveTo(x + w, y); ctx.lineTo(x + w + depth, y - depth)
-  ctx.lineTo(x + w + depth, y + h - depth); ctx.lineTo(x + w, y + h)
-  ctx.closePath(); ctx.fill()
-  // Windows
-  ctx.fillStyle = theme.win
-  const winCount = Math.max(1, Math.floor(w / (18 * s)))
-  const winW = w * 0.15, winH = h * 0.45, gap = (w - winCount * winW) / (winCount + 1)
-  for (let i = 0; i < winCount; i++) {
-    const wx = x + gap + i * (winW + gap)
-    ctx.fillRect(wx, y + h * 0.2, winW, winH)
-  }
-  // Block border
-  ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 1
-  ctx.strokeRect(x, y, w, h)
-}
-
-function render(ctx, st, scale) {
-  const s = scale, w = GW * s, h = GH * s
-  const cam = st.camY * s
-
-  // Apply shake
-  ctx.save()
-  ctx.translate(st.shakeX * s, st.shakeY * s)
-
-  // Dynamic sky
-  const sky = getSky(st.score)
-  const grad = ctx.createLinearGradient(0, 0, 0, h)
-  grad.addColorStop(0, sky.top); grad.addColorStop(1, sky.bot)
-  ctx.fillStyle = grad; ctx.fillRect(-10, -10, w + 20, h + 20)
-
-  // Parallax city silhouette (fades as you go higher)
-  const cityAlpha = Math.max(0, 1 - st.score / 40)
-  if (cityAlpha > 0) {
-    ctx.globalAlpha = cityAlpha * 0.3
-    const buildings = [60, 90, 45, 110, 70, 55, 95, 40, 80, 65]
-    for (let i = 0; i < buildings.length; i++) {
-      const bx = i * 34 * s, bw = 28 * s, bh = buildings[i] * s
-      ctx.fillStyle = '#1A3A5C'
-      ctx.fillRect(bx, h - bh + cam * 0.2, bw, bh)
-    }
-    ctx.globalAlpha = 1
-  }
-
-  // Clouds (mid-height)
-  if (st.score > 10 && st.score < 70) {
-    ctx.globalAlpha = 0.5
-    ctx.fillStyle = '#FFF'
-    const cloudY = h * 0.3 + cam * 0.4
-    ctx.beginPath(); ctx.arc(60 * s, cloudY, 20 * s, 0, 6.28); ctx.fill()
-    ctx.beginPath(); ctx.arc(80 * s, cloudY - 5 * s, 15 * s, 0, 6.28); ctx.fill()
-    ctx.beginPath(); ctx.arc(240 * s, cloudY + 20 * s, 18 * s, 0, 6.28); ctx.fill()
-    ctx.globalAlpha = 1
-  }
-
-  // Stars (space phase)
-  if (st.score > 55) {
-    ctx.fillStyle = '#FFF'
-    for (let i = 0; i < 30; i++) {
-      const sx = ((i * 73 + 17) % GW) * s
-      const sy = ((i * 41 + 7) % (GH * 0.5)) * s
-      ctx.globalAlpha = 0.3 + Math.sin(Date.now() * 0.003 + i) * 0.3
-      ctx.fillRect(sx, sy, 2, 2)
-    }
-    ctx.globalAlpha = 1
-  }
-
-  // Tower fall animation
-  if (st.towerFall) {
-    for (let i = 0; i < st.fallBlocks.length; i++) {
-      const b = st.fallBlocks[i]
-      ctx.save()
-      ctx.translate((b.x + b.w / 2) * s, (b.y + BH / 2) * s + cam)
-      ctx.rotate(b.rot)
-      const theme = getTheme(i)
-      draw3DBlock(ctx, -b.w / 2 * s, -BH / 2 * s, b.w * s, BH * s, theme, s)
-      ctx.restore()
-    }
-  } else {
-    // Draw stack
-    for (let i = 0; i < st.stack.length; i++) {
-      const blk = st.stack[i]
-      const theme = getTheme(i)
-      draw3DBlock(ctx, blk.x * s, blk.y * s + cam, blk.w * s, BH * s, theme, s)
-    }
-  }
-
-  // Dropping block
-  if (st.drop) {
-    const theme = getTheme(st.stack.length)
-    draw3DBlock(ctx, st.drop.x * s, st.drop.y * s + cam, st.drop.w * s, BH * s, theme, s)
-  }
-
-  // Swinging block (floating above the top of the stack)
-  if (!st.drop && !st.over) {
-    const top = st.stack[st.stack.length - 1]
-    // Position in world space: fixed distance above top block
-    const swingY = top.y - BH - 80
-    const bx = st.swing.x * s, by = swingY * s + cam
-    const bw = st.swing.w * s
-    const theme = getTheme(st.stack.length)
-
-    // Block (no cable — just floating)
-    draw3DBlock(ctx, bx, by, bw, BH * s, theme, s)
-  }
-
-  // Particles
-  for (const p of st.particles) {
-    ctx.globalAlpha = p.life / 40
-    ctx.fillStyle = p.color
-    ctx.beginPath(); ctx.arc(p.x * s, p.y * s + cam, p.size * s, 0, 6.28); ctx.fill()
-  }
-  ctx.globalAlpha = 1
-
-  // Float texts
-  for (const ft of st.floatTexts) {
-    ctx.globalAlpha = ft.life / 60
-    ctx.fillStyle = ft.color
-    ctx.font = `bold ${14 * s}px system-ui, sans-serif`
-    ctx.textAlign = 'center'
-    ctx.fillText(ft.text, ft.x * s, ft.y * s + cam)
-  }
-  ctx.globalAlpha = 1
-
-  // HUD
-  // Floor badge (top-left)
-  ctx.fillStyle = 'rgba(0,0,0,0.5)'
-  const badgeW = 90 * s, badgeH = 36 * s
-  ctx.beginPath()
-  ctx.roundRect(8 * s, 8 * s, badgeW, badgeH, 8 * s)
-  ctx.fill()
-  ctx.fillStyle = '#FFF'; ctx.font = `bold ${10 * s}px monospace`; ctx.textAlign = 'left'
-  ctx.fillText('FLOOR', 16 * s, 22 * s)
-  ctx.fillStyle = '#FFD700'; ctx.font = `bold ${14 * s}px monospace`
-  ctx.fillText(`${st.score}`, 16 * s, 38 * s)
-
-  // Progress bar (right side)
-  const barX = w - 14 * s, barW = 6 * s, barH = h * 0.6, barY = h * 0.15
-  ctx.fillStyle = 'rgba(0,0,0,0.3)'
-  ctx.beginPath(); ctx.roundRect(barX, barY, barW, barH, 3 * s); ctx.fill()
-  const progress = Math.min(st.score / 100, 1)
-  const fillH = barH * progress
-  ctx.fillStyle = '#FFD700'
-  ctx.beginPath(); ctx.roundRect(barX, barY + barH - fillH, barW, fillH, 3 * s); ctx.fill()
-  // Milestone marks
-  ctx.fillStyle = 'rgba(255,255,255,0.5)'
-  for (const m of [25, 50, 75]) {
-    const my = barY + barH * (1 - m / 100)
-    ctx.fillRect(barX - 2 * s, my, barW + 4 * s, 1)
-  }
-
-  // Game over overlay
-  if (st.over && st.fallBlocks.every(b => b.y > GH + 50)) {
-    ctx.fillStyle = 'rgba(0,0,0,0.7)'
-    ctx.fillRect(0, 0, w, h)
-    ctx.fillStyle = '#FFF'; ctx.font = `bold ${22 * s}px system-ui`; ctx.textAlign = 'center'
-    ctx.fillText('GAME OVER', w / 2, h * 0.4)
-    ctx.fillStyle = '#FFD700'; ctx.font = `bold ${16 * s}px system-ui`
-    ctx.fillText(`${st.score} Floors`, w / 2, h * 0.48)
-    ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = `${11 * s}px system-ui`
-    ctx.fillText('Tap to play again', w / 2, h * 0.56)
-  }
-
-  ctx.restore()
-}
-
-// === REACT COMPONENT ===
+// ─── Component ────────────────────────────────────────────────────────────────
 function StackGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
-  const cvRef = useRef(null)
-  const stRef = useRef(null)
-  const rafRef = useRef(null)
-  const endRef = useRef(false)
-  const prevScore = useRef(0)
-  const pausedRef = useRef(false)
-  const [paused, setPaused] = useState(false)
-  const scaleRef = useRef(1)
+  const cvRef      = useRef(null)
+  const rafRef     = useRef(null)
+  const lastRef    = useRef(performance.now())
+  const endRef     = useRef(false)
+  const inputRef   = useRef(false)  // tap pending
+
+  // All mutable game state in one ref
+  const G = useRef(null)
+
+  // Config (persisted)
+  const cfgRef = useRef({ sound: 1, haptics: 1, calm: 0, diff: 1, theme: 0, style: 0 })
+  try {
+    Object.assign(cfgRef.current, JSON.parse(localStorage.getItem('st2') || '{}'))
+  } catch {}
+
+  // React UI state
+  const [uiScore,   setUiScore]   = useState(0)
+  const [uiBest,    setUiBest]    = useState(0)
+  const [uiCombo,   setUiCombo]   = useState(0)
+  const [uiTier,    setUiTier]    = useState(0)
+  const [uiRail,    setUiRail]    = useState(0)       // 0-100 fill %
+  const [uiRailTgt, setUiRailTgt] = useState(TIERS[0])
+  const [uiSt,      setUiSt]      = useState('ready') // ready | play | paused | over
+  const [uiOvDone,  setUiOvDone]  = useState(false)
+  const [uiNb,      setUiNb]      = useState(false)
+  const [uiPerf,    setUiPerf]    = useState(0)
+  const [uiMute,    setUiMute]    = useState(!cfgRef.current.sound)
+
   const initialScoreRef = useRef(initialScore)
   useEffect(() => { initialScoreRef.current = initialScore }, [initialScore])
 
-  const setup = useCallback(() => {
-    const cv = cvRef.current; if (!cv) return
-    const ctr = cv.parentElement; if (!ctr) return
-    const maxW = Math.min(ctr.clientWidth, 420)
-    const scale = maxW / GW; scaleRef.current = scale
-    const dpr = window.devicePixelRatio || 1
-    const ch = GH * scale
-    cv.style.width = `${maxW}px`; cv.style.height = `${ch}px`
-    cv.width = Math.round(maxW * dpr); cv.height = Math.round(ch * dpr)
-    const ctx = cv.getContext('2d'); if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  // ── Init game object ────────────────────────────────────────────────────
+  const initG = useCallback(() => {
+    let best = 0
+    try { best = +localStorage.getItem('st_best') || 0 } catch {}
+
+    const cfg = cfgRef.current
+    const diff = cfg.diff  // 0=chill, 1=normal, 2=hard
+    const startW = [160, 160, 130][diff]
+
+    G.current = {
+      st: 'ready',        // ready | play | paused | over
+      pst: 'ready',
+      t: 0,
+      score: 0, best,
+      combo: 0, perf: 0,
+      tier: 0,
+      blocks: [{ x: 100, w: 160, h: 0, f: 0 }],  // h = hue
+      cur: null,          // current sliding block
+      n: 1,
+      nextW: startW,
+      cam: 0, sky: 0,
+      debris: [], fx: [],
+      shake: 0,
+      ot: 0, ovDone: false, nb: false,
+      // canvas size
+      dpr: 1, w: 0, h: 0, s: 1, Hv: 0, ww: 0, ox: 0, base: 0,
+      // clouds (mutable, animated)
+      clouds: CLOUDS.map(c => ({ ...c })),
+    }
+    endRef.current = false
+    setUiScore(0); setUiBest(best); setUiCombo(0); setUiTier(0)
+    setUiRail(0); setUiRailTgt(TIERS[0]); setUiSt('ready')
+    setUiOvDone(false); setUiNb(false); setUiPerf(0)
   }, [])
 
-  const start = useCallback(() => {
-    const st = createState()
-    st.score = initialScoreRef.current
-    stRef.current = st
-    prevScore.current = initialScoreRef.current; endRef.current = false
-    pausedRef.current = false; setPaused(false)
+  // ── Fit canvas ──────────────────────────────────────────────────────────
+  const fit = useCallback(() => {
+    const cv = cvRef.current; if (!cv) return
+    const g = G.current; if (!g) return
+    g.dpr = Math.min(devicePixelRatio || 1, 2)
+    g.w = innerWidth; g.h = innerHeight
+    cv.width  = g.w * g.dpr
+    cv.height = g.h * g.dpr
+    g.s  = Math.min(g.w / WW, g.h / 520)
+    g.Hv = g.h / g.s
+    g.ww = g.w / g.s
+    g.ox = (g.ww - WW) / 2
+    g.base = g.Hv - 84
   }, [])
 
-  const handleDrop = useCallback(() => {
-    const st = stRef.current; if (!st) return
-    if (st.over) { start(); onScoreUpdate(0); return } // restart on tap after game over
-    dropBlock(st)
-  }, [start, onScoreUpdate])
+  // ── Spawn ────────────────────────────────────────────────────────────────
+  const spawn = useCallback(() => {
+    const g = G.current; if (!g) return
+    const l = g.n % 2
+    g.cur = {
+      w: g.nextW,
+      x: l ? 0 : WW - g.nextW,
+      dir: l ? 1 : -1,
+      y: (g.n + 4.5) * BH,
+      vy: 0,
+      hue: (14 + g.n * 11) % 360,
+      drop: false,
+    }
+  }, [])
 
-  const loop = useCallback(() => {
-    rafRef.current = requestAnimationFrame(loop)
-    if (pausedRef.current) return
-    const st = stRef.current; if (!st) return
+  // ── Rail update ──────────────────────────────────────────────────────────
+  const updateRail = useCallback((score, tier) => {
+    const lo = tier ? TIERS[tier - 1] : 0
+    const hi = TIERS[Math.min(tier, TIERS.length - 1)]
+    const pct = Math.min(100, (score - lo) / (hi - lo) * 100)
+    setUiRail(pct); setUiRailTgt(hi)
+  }, [])
 
-    update(st)
-    if (st.score !== prevScore.current) { prevScore.current = st.score; onScoreUpdate(st.score) }
-    if (st.over && !endRef.current) { endRef.current = true; onGameEnd(st.score) }
+  // ── Land block ───────────────────────────────────────────────────────────
+  const land = useCallback(() => {
+    const g = G.current; if (!g) return
+    const cfg = cfgRef.current
+    const p = g.blocks[g.n - 1]
+    const dx = g.cur.x - p.x
+    const perfectThresh = [8, 5, 3][cfg.diff]
 
+    if (Math.abs(dx) <= perfectThresh) {
+      // Perfect
+      g.cur.x = p.x; g.combo++; g.perf++
+      if (g.combo >= 3) g.cur.w = Math.min(160, g.cur.w + 4)
+      g.fx.push(
+        { k: 'r', x: g.cur.x + g.cur.w / 2, y: g.n * BH, r: 10, l: 0.5, m: 0.5 },
+        { k: 't', x: g.cur.x + g.cur.w / 2, y: (g.n + 1) * BH + 24,
+          txt: g.combo > 1 ? 'PERFECT x' + g.combo : 'PERFECT', l: 1, m: 1, c: '#ffe066', z: 20 }
+      )
+      for (let i = 0; i < 14; i++) g.fx.push({
+        k: 'p', x: g.cur.x + Math.random() * g.cur.w, y: g.n * BH + BH / 2,
+        vx: (Math.random() - 0.5) * 180, vy: 60 + Math.random() * 180, l: 0.7, m: 0.7, c: '#ffe066'
+      })
+      playSound('perfect', cfg); vib(12, cfg)
+      g.blocks.push({ x: g.cur.x, w: g.cur.w, h: g.cur.hue, f: 0.35 })
+    } else {
+      // Overlap cut
+      const L = Math.max(g.cur.x, p.x)
+      const R = Math.min(g.cur.x + g.cur.w, p.x + p.w)
+      if (R - L <= 0) {
+        // Missed entirely
+        g.debris.push({ x: g.cur.x, w: g.cur.w, y: g.cur.y, hue: g.cur.hue,
+          vx: g.cur.dir * 40, vy: 0, rot: 0, vr: g.cur.dir * 1.5 })
+        g.cur.hide = true
+        over()
+        return
+      }
+      const cx = dx < 0 ? g.cur.x : p.x + p.w
+      const cw = dx < 0 ? p.x - g.cur.x : g.cur.x + g.cur.w - (p.x + p.w)
+      g.debris.push({ x: cx, w: cw, y: g.n * BH, hue: g.cur.hue,
+        vx: (dx < 0 ? -1 : 1) * 40, vy: 0, rot: 0, vr: (dx < 0 ? -1 : 1) * 1.8 })
+      g.combo = 0
+      g.blocks.push({ x: L, w: R - L, h: g.cur.hue, f: 0 })
+      g.cur.x = L; g.cur.w = R - L
+      playSound('land', cfg); vib(8, cfg)
+    }
+
+    g.shake = 0.18; g.nextW = g.cur.w; g.n++
+
+    // Score
+    const newScore = g.n - 1
+    g.score = newScore
+    setUiScore(newScore); setUiCombo(g.combo)
+    onScoreUpdate(newScore)
+
+    // Tier check
+    if (newScore >= TIERS[g.tier]) {
+      g.tier++
+      g.fx.push({ k: 't', x: WW / 2, y: (g.n + 3) * BH, txt: 'FLOOR ' + newScore + '!', l: 1.4, m: 1.4, c: '#fff', z: 26 })
+      playSound('tier', cfg); vib([20, 40, 20], cfg)
+      setUiTier(g.tier)
+    }
+    updateRail(newScore, g.tier)
+
+    spawn()
+
+    if (g.cur.w < 6) over()
+  }, [onScoreUpdate, spawn, updateRail])
+
+  // ── Over ─────────────────────────────────────────────────────────────────
+  const over = useCallback(() => {
+    const g = G.current; if (!g) return
+    g.st = 'over'; g.ot = 0; g.ovDone = false; g.shake = 0.45
+    playSound('over', cfgRef.current); vib([60, 40, 80], cfgRef.current)
+    let nb = false
+    if (g.score > g.best) { g.best = g.score; nb = true; try { localStorage.setItem('st_best', g.best) } catch {} }
+    g.nb = nb; setUiNb(nb); setUiBest(g.best); setUiSt('over')
+    if (!endRef.current) { endRef.current = true; onGameEnd(g.score) }
+  }, [onGameEnd])
+
+  // ── Drop ─────────────────────────────────────────────────────────────────
+  const drop = useCallback(() => {
+    const g = G.current; if (!g) return
+    if (g.st === 'play' && !g.cur?.drop) {
+      g.cur.drop = true; g.cur.vy = 0
+      playSound('drop', cfgRef.current)
+    }
+  }, [])
+
+  // ── Tap handler ───────────────────────────────────────────────────────────
+  const handleTap = useCallback(() => {
+    const g = G.current; if (!g) return
+    if (g.st === 'ready') { g.st = 'play'; setUiSt('play'); drop(); return }
+    if (g.st === 'play') { drop(); return }
+    if (g.st === 'paused') { g.st = g.pst; setUiSt(g.pst); return }
+    if (g.st === 'over' && g.ot > 0.9) {
+      initG()
+      setTimeout(() => { fit(); G.current.st = 'play'; setUiSt('play'); spawn() }, 0)
+    }
+  }, [drop, initG, fit, spawn])
+
+  // ── Update ────────────────────────────────────────────────────────────────
+  const upd = useCallback((dt) => {
+    const g = G.current; if (!g) return
+    g.t += dt; g.shake = Math.max(0, g.shake - dt)
+
+    // Sky scroll
+    const tgtSky = Math.min(1, g.score / 70)
+    g.sky += (tgtSky - g.sky) * Math.min(1, dt * 1.5)
+
+    // Camera
+    const tgtCam = Math.max(0, (g.n + 5.5) * BH + g.Hv * 0.36 - g.base)
+    g.cam += (tgtCam - g.cam) * Math.min(1, dt * 4)
+
+    // Clouds
+    for (const c of g.clouds) {
+      c.x += c.v * dt; if (c.x > WW + 120) c.x = -120
+    }
+
+    if (g.st === 'play' || g.st === 'ready') {
+      const cfg = cfgRef.current
+      const sp = (120 + Math.min(g.score * 5, 200)) * [0.8, 1, 1.25][cfg.diff]
+      if (!g.cur?.drop) {
+        g.cur.x += g.cur.dir * sp * dt
+        if (g.cur.x <= 0) { g.cur.x = 0; g.cur.dir = 1 }
+        if (g.cur.x + g.cur.w >= WW) { g.cur.x = WW - g.cur.w; g.cur.dir = -1 }
+      } else {
+        g.cur.vy += 2400 * dt
+        g.cur.y -= g.cur.vy * dt
+        if (g.cur.y <= g.n * BH) { g.cur.y = g.n * BH; land() }
+      }
+    }
+
+    // Block flash decay
+    for (const b of g.blocks) b.f = Math.max(0, b.f - dt)
+
+    // Debris
+    for (const d of g.debris) { d.vy += 1800 * dt; d.y -= d.vy * dt; d.x += d.vx * dt; d.rot += d.vr * dt }
+    g.debris = g.debris.filter(d => d.y > g.cam - 260)
+
+    // FX
+    for (const f of g.fx) {
+      f.l -= dt
+      if (f.k === 'p') { f.x += f.vx * dt; f.y += f.vy * dt; f.vy -= 500 * dt }
+      else if (f.k === 'r') f.r += dt * 150
+      else f.y += dt * 40
+    }
+    g.fx = g.fx.filter(f => f.l > 0)
+
+    if (g.st === 'over') {
+      g.ot += dt
+      if (g.ot > 0.8 && !g.ovDone) { g.ovDone = true; setUiOvDone(true); setUiPerf(g.perf) }
+    }
+  }, [land])
+
+  // ── Draw block (modern style) ────────────────────────────────────────────
+  const box = useCallback((ctx, x, y, wd, hue, fl, s) => {
+    ctx.save()
+    ctx.shadowColor = '#0004'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 6
+    const q = ctx.createLinearGradient(0, y, 0, y + BH * s)
+    q.addColorStop(0, `hsl(${hue},88%,64%)`)
+    q.addColorStop(1, `hsl(${hue},84%,52%)`)
+    ctx.fillStyle = q
+    ctx.beginPath(); ctx.roundRect(x, y, wd, BH * s, 9 * s); ctx.fill()
+    ctx.restore()
+    // Gloss
+    ctx.fillStyle = '#ffffff38'
+    ctx.beginPath(); ctx.roundRect(x + 4 * s, y + 3 * s, wd - 8 * s, 5 * s, 3 * s); ctx.fill()
+    if (fl > 0) {
+      ctx.fillStyle = `rgba(255,255,255,${fl * 1.6})`
+      ctx.beginPath(); ctx.roundRect(x, y, wd, BH * s, 9 * s); ctx.fill()
+    }
+  }, [])
+
+  // ── Draw ─────────────────────────────────────────────────────────────────
+  const draw = useCallback((ctx) => {
+    const g = G.current; if (!g) return
+    const { dpr, s, ww, Hv, ox, base, cam, sky, t, shake, blocks, debris, fx, clouds, n, cur, st, score } = g
+    const cfg = cfgRef.current
+    const SK = THEMES[cfg.theme]
+
+    const sh = cfg.calm ? 0 : shake * 26
+    ctx.setTransform(
+      dpr * s, 0, 0, dpr * s,
+      (Math.random() - 0.5) * sh * dpr,
+      (Math.random() - 0.5) * sh * dpr
+    )
+
+    // Sky gradient
+    const [c1, c2] = skc(SK, sky)
+    const sg = ctx.createLinearGradient(0, 0, 0, Hv)
+    sg.addColorStop(0, c1); sg.addColorStop(1, c2)
+    ctx.fillStyle = sg; ctx.fillRect(-30, -30, ww + 60, Hv + 60)
+
+    // Stars (midnight theme or high sky)
+    const sa = cfg.theme === 2
+      ? Math.max(0.7, (sky - 0.45) * 1.8)
+      : Math.max(0, (sky - 0.45) * 1.8)
+    if (sa > 0) {
+      for (const o of STARS) {
+        ctx.fillStyle = `rgba(255,255,255,${sa * (0.5 + 0.5 * Math.sin(t * 2 + o.p))})`
+        ctx.beginPath(); ctx.arc(o.x * ww, o.y * Hv, o.r, 0, 7); ctx.fill()
+      }
+    }
+
+    ctx.save(); ctx.translate(ox, 0)
+
+    // Clouds
+    const ca = Math.max(0, 0.85 - sky * 0.9) * (cfg.theme === 2 ? 0.25 : 1)
+    if (ca > 0) {
+      ctx.fillStyle = `rgba(255,255,255,${ca})`
+      for (const c of clouds) {
+        const cy = base - c.y + cam * 0.55
+        if (cy < -60 || cy > Hv + 60) continue
+        ctx.beginPath()
+        ctx.ellipse(c.x, cy, c.r * 1.7, c.r * 0.6, 0, 0, 7)
+        ctx.ellipse(c.x + c.r * 0.8, cy - c.r * 0.3, c.r, c.r * 0.6, 0, 0, 7)
+        ctx.fill()
+      }
+    }
+
+    // City silhouette
+    const cityY = base + cam * 0.3
+    const la = Math.max(0, 1 - cam / 520)
+    if (la > 0) {
+      ctx.globalAlpha = la * 0.55
+      ctx.fillStyle = ['#6f93ad', '#a8667f', '#252d62'][cfg.theme]
+      for (let o = -ox - 60; o < ww + 60; o += WW + 180)
+        for (const b of CITY) ctx.fillRect(o + b.x, cityY - b.h, b.w, b.h + 400)
+      ctx.globalAlpha = 1
+    }
+
+    // Ground
+    const gy = base - 0 + cam  // world y=0
+    if (gy < Hv + 20) {
+      ctx.fillStyle = '#34476b'; ctx.fillRect(-ox - 30, gy, ww + 60, Hv)
+      ctx.fillStyle = '#4e6794'; ctx.fillRect(-ox - 30, gy, ww + 60, 4)
+    }
+
+    // Stacked blocks
+    for (let i = 0; i < blocks.length; i++) {
+      const b = blocks[i]
+      const y = base - (i + 1) * BH + cam
+      if (y > Hv + 20 || y < -60) continue
+      box(ctx, b.x, y, b.w, i ? b.h : 48, b.f, 1)
+    }
+
+    // Debris
+    for (const d of debris) {
+      ctx.save()
+      ctx.translate(d.x + d.w / 2, base - d.y + cam + BH / 2)
+      ctx.rotate(d.rot)
+      ctx.globalAlpha = 0.9
+      box(ctx, -d.w / 2, -BH / 2, d.w, d.hue, 0, 1)
+      ctx.restore(); ctx.globalAlpha = 1
+    }
+
+    // Current swinging/dropping block
+    if (cur && !cur.hide) {
+      box(ctx, cur.x, base - cur.y + cam, cur.w, cur.hue, 0, 1)
+    }
+
+    // Drop guide line
+    if (st === 'play' && cur && !cur.drop) {
+      ctx.strokeStyle = '#ffffff55'; ctx.setLineDash([4, 6]); ctx.lineWidth = 2
+      ctx.beginPath()
+      const tp = blocks[n - 1]
+      ctx.moveTo(tp.x + tp.w / 2, base - cur.y + cam + 6)
+      ctx.lineTo(tp.x + tp.w / 2, base - n * BH + cam - 4)
+      ctx.stroke(); ctx.setLineDash([])
+    }
+
+    // FX
+    for (const f of fx) {
+      const a = Math.max(0, f.l / f.m)
+      ctx.globalAlpha = a
+      if (f.k === 'r') {
+        ctx.strokeStyle = '#fff3b0'; ctx.lineWidth = 3
+        ctx.beginPath(); ctx.ellipse(f.x, base - f.y + cam, f.r * 1.6, f.r * 0.5, 0, 0, 7)
+        ctx.stroke()
+      } else if (f.k === 'p') {
+        ctx.fillStyle = f.c; ctx.beginPath()
+        ctx.arc(f.x, base - f.y + cam, 2.5, 0, 7); ctx.fill()
+      } else {
+        ctx.font = `700 ${f.z || 20}px Fredoka,system-ui,sans-serif`
+        ctx.textAlign = 'center'; ctx.lineWidth = 4
+        ctx.strokeStyle = '#0008'; ctx.strokeText(f.txt, f.x, base - f.y + cam)
+        ctx.fillStyle = f.c; ctx.fillText(f.txt, f.x, base - f.y + cam)
+      }
+    }
+    ctx.globalAlpha = 1
+    ctx.restore()
+  }, [box])
+
+  // ── Loop ─────────────────────────────────────────────────────────────────
+  const loopFn = useCallback((now) => {
+    const g = G.current; if (!g) return
+    const dt = Math.min((now - lastRef.current) / 1000, 0.033)
+    lastRef.current = now
+    if (g.st !== 'paused') upd(dt); else g.t += dt
     const cv = cvRef.current; if (!cv) return
-    const ctx = cv.getContext('2d'); if (ctx) render(ctx, st, scaleRef.current)
-  }, [onGameEnd, onScoreUpdate])
+    const ctx = cv.getContext('2d')
+    if (ctx) draw(ctx)
+    rafRef.current = requestAnimationFrame(loopRef.current)
+  }, [upd, draw])
 
-  const handleDropRef = useRef(handleDrop)
-  useEffect(() => { handleDropRef.current = handleDrop }, [handleDrop])
+  const loopRef = useRef(loopFn)
+  useEffect(() => { loopRef.current = loopFn }, [loopFn])
 
+  // ── Input ─────────────────────────────────────────────────────────────────
+  const lastTouchRef = useRef(0)
+  const onTouchTap = useCallback((e) => {
+    if (e.target.closest?.('.st-btn')) return
+    e.preventDefault(); lastTouchRef.current = Date.now(); handleTap()
+  }, [handleTap])
+  const onClickTap = useCallback((e) => {
+    if (e.target.closest?.('.st-btn')) return
+    if (Date.now() - lastTouchRef.current < 300) return
+    e.preventDefault(); handleTap()
+  }, [handleTap])
+  const onKey = useCallback((e) => {
+    if (e.code === 'Space' || e.code === 'ArrowDown' || e.key === 'Enter') {
+      e.preventDefault()
+      const g = G.current; if (!g) return
+      g.st === 'play' ? drop() : handleTap()
+    } else if (e.key === 'p' || e.key === 'Escape') {
+      const g = G.current; if (!g) return
+      if (g.st === 'play') { g.pst = g.st; g.st = 'paused'; setUiSt('paused') }
+      else if (g.st === 'paused') { g.st = g.pst; setUiSt(g.pst) }
+    }
+  }, [drop, handleTap])
+
+  const togglePause = useCallback(() => {
+    const g = G.current; if (!g) return
+    if (g.st === 'play') { g.pst = g.st; g.st = 'paused'; setUiSt('paused') }
+    else if (g.st === 'paused') { g.st = g.pst; setUiSt(g.pst) }
+  }, [])
+
+  const toggleMute = useCallback(() => {
+    cfgRef.current.sound = cfgRef.current.sound ? 0 : 1
+    setUiMute(!cfgRef.current.sound)
+    try { localStorage.setItem('st2', JSON.stringify(cfgRef.current)) } catch {}
+  }, [])
+
+  // ── Visibility ────────────────────────────────────────────────────────────
+  const onVisChange = useCallback(() => {
+    const g = G.current; if (!g) return
+    if (document.hidden && g.st === 'play') { g.pst = g.st; g.st = 'paused'; setUiSt('paused') }
+  }, [])
+
+  // ── Mount ─────────────────────────────────────────────────────────────────
   useEffect(() => {
-    setup(); start()
-    rafRef.current = requestAnimationFrame(loop)
-    const onKey = (e) => { if (e.code === 'Space') { e.preventDefault(); handleDropRef.current() } }
+    initG()
+    setTimeout(() => {
+      fit()
+      const g = G.current; if (!g) return
+      spawn()
+      lastRef.current = performance.now()
+      rafRef.current = requestAnimationFrame(loopRef.current)
+    }, 0)
+
+    const onResize = () => fit()
+    window.addEventListener('resize', onResize)
     window.addEventListener('keydown', onKey)
-    const onVis = () => { if (document.hidden) { pausedRef.current = true; setPaused(true) } else { pausedRef.current = false; setPaused(false) } }
-    document.addEventListener('visibilitychange', onVis)
-    window.addEventListener('resize', setup)
-    return () => { cancelAnimationFrame(rafRef.current); window.removeEventListener('keydown', onKey); document.removeEventListener('visibilitychange', onVis); window.removeEventListener('resize', setup) }
-  }, [setup, start, loop]) // removed handleDrop — accessed via ref to prevent loop restart
+    document.addEventListener('visibilitychange', onVisChange)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      window.removeEventListener('keydown', onKey)
+      document.removeEventListener('visibilitychange', onVisChange)
+      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
+      G.current = null
+    }
+  }, []) // eslint-disable-line
 
-  const pRef = useRef(isActive)
-  useEffect(() => { if (isActive && !pRef.current) { start(); onScoreUpdate(initialScoreRef.current) }; pRef.current = isActive }, [isActive, start, onScoreUpdate])
+  const prevActiveRef = useRef(isActive)
+  useEffect(() => {
+    if (isActive && !prevActiveRef.current) {
+      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
+      initG()
+      onScoreUpdate(0)
+      setTimeout(() => {
+        fit()
+        const g = G.current; if (!g) return
+        spawn()
+        lastRef.current = performance.now()
+        rafRef.current = requestAnimationFrame(loopRef.current)
+      }, 0)
+    }
+    prevActiveRef.current = isActive
+  }, [isActive, initG, fit, spawn, onScoreUpdate])
 
+  // ── Play again ─────────────────────────────────────────────────────────
+  const playAgain = useCallback(() => {
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
+    initG()
+    onScoreUpdate(0)
+    setTimeout(() => {
+      fit()
+      const g = G.current; if (!g) return
+      g.st = 'play'; setUiSt('play')
+      spawn()
+      lastRef.current = performance.now()
+      rafRef.current = requestAnimationFrame(loopRef.current)
+    }, 0)
+  }, [initG, fit, spawn, onScoreUpdate])
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="relative w-full overflow-hidden rounded-xl">
-      <canvas ref={cvRef} onClick={handleDrop} onTouchStart={(e) => { e.preventDefault(); handleDrop() }}
-        className="mx-auto block cursor-pointer touch-none rounded-xl" aria-label="Stack Tower — tap to drop" />
-      {paused && <div className="absolute inset-0 flex items-center justify-center bg-black/70 rounded-xl"><span className="text-xl font-bold text-yellow-400">PAUSED</span></div>}
+    <div
+      className="relative w-full h-full"
+      style={{ background: '#0b1230', overflow: 'hidden', touchAction: 'none', userSelect: 'none' }}
+    >
+      {/* Fredoka font */}
+      <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet" />
+
+      {/* Canvas */}
+      <canvas
+        ref={cvRef}
+        onClick={onClickTap}
+        onTouchStart={onTouchTap}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block', touchAction: 'none' }}
+        aria-label="Stack Tower — tap to drop"
+      />
+
+      {/* ── BEST — top-left ── */}
+      <div
+        className="st-btn absolute pointer-events-none"
+        style={{
+          top: 'calc(env(safe-area-inset-top, 0px) + 14px)',
+          left: 14,
+          background: 'rgba(13,26,58,0.45)',
+          backdropFilter: 'blur(8px)',
+          border: '1px solid rgba(255,255,255,0.18)',
+          borderRadius: 12, padding: '5px 12px',
+          fontSize: 12, letterSpacing: '0.08em', color: '#fff',
+        }}
+      >
+        BEST <b style={{ color: '#ffd23f' }}>{uiBest}</b>
+      </div>
+
+      {/* ── Score — top-center ── */}
+      <div
+        className="st-btn absolute pointer-events-none"
+        style={{
+          top: 'calc(env(safe-area-inset-top, 0px) + 6px)',
+          left: '50%', transform: 'translateX(-50%)',
+          textAlign: 'center',
+        }}
+      >
+        <span
+          style={{
+            display: 'block', fontSize: 76, fontWeight: 700, color: '#fff', lineHeight: 1,
+            textShadow: '0 4px 20px #0005',
+            fontFamily: 'Fredoka, system-ui, sans-serif',
+          }}
+        >
+          {uiScore}
+        </span>
+        {uiCombo >= 2 && (
+          <span
+            style={{
+              display: 'inline-block', fontSize: 13, padding: '4px 12px', borderRadius: 14,
+              background: 'rgba(13,26,58,0.45)', backdropFilter: 'blur(8px)',
+              border: '1px solid rgba(255,255,255,0.18)', marginTop: 2,
+            }}
+          >
+            🔥 x{uiCombo}
+          </span>
+        )}
+      </div>
+
+      {/* ── Pause button — top-right ── */}
+      <button
+        className="st-btn"
+        onClick={togglePause}
+        style={{
+          position: 'absolute',
+          top: 'calc(env(safe-area-inset-top, 0px) + 12px)',
+          right: 14,
+          width: 44, height: 44, borderRadius: 14, border: 0,
+          background: 'rgba(255,255,255,0.13)',
+          backdropFilter: 'blur(6px)',
+          color: '#fff', fontSize: 17, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+        aria-label={uiSt === 'paused' ? 'Resume' : 'Pause'}
+      >
+        {uiSt === 'paused' ? '▶' : '❚❚'}
+      </button>
+
+      {/* ── Sound button — top-right (second) ── */}
+      <button
+        className="st-btn"
+        onClick={toggleMute}
+        style={{
+          position: 'absolute',
+          top: 'calc(env(safe-area-inset-top, 0px) + 12px)',
+          right: 66,
+          width: 44, height: 44, borderRadius: 14, border: 0,
+          background: 'rgba(255,255,255,0.13)',
+          backdropFilter: 'blur(6px)',
+          color: '#fff', fontSize: 17, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+        aria-label={uiMute ? 'Unmute' : 'Mute'}
+      >
+        {uiMute ? '🔇' : '🔊'}
+      </button>
+
+      {/* ── Rail — right side ── */}
+      <div
+        className="st-btn pointer-events-none"
+        style={{
+          position: 'absolute',
+          right: 16,
+          top: 'calc(env(safe-area-inset-top, 0px) + 96px)',
+          bottom: 120,
+          width: 12,
+          borderRadius: 8,
+          background: 'rgba(13,26,58,0.45)',
+          backdropFilter: 'blur(8px)',
+          border: '1px solid rgba(255,255,255,0.18)',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute', left: 0, right: 0, bottom: 0,
+            height: uiRail + '%',
+            borderRadius: 8,
+            background: 'linear-gradient(#ffd23f, #ff8a3d)',
+            transition: 'height 0.45s cubic-bezier(.2,.9,.3,1)',
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute', right: -4, top: -30,
+            fontSize: 12, padding: '3px 9px', borderRadius: 10,
+            background: 'rgba(13,26,58,0.45)',
+            backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255,255,255,0.18)',
+            color: '#fff', whiteSpace: 'nowrap',
+          }}
+        >
+          🏁 {uiRailTgt}
+        </div>
+      </div>
+
+      {/* ── PAUSED overlay ── */}
+      {uiSt === 'paused' && (
+        <div
+          className="absolute inset-0 flex items-center justify-center"
+          style={{ background: 'rgba(11,18,48,0.66)', backdropFilter: 'blur(3px)' }}
+        >
+          <div
+            className="text-center px-8 py-8 rounded-3xl"
+            style={{ background: 'rgba(16,26,56,0.93)', border: '1px solid rgba(255,255,255,0.12)',
+              animation: 'st-rise 0.35s cubic-bezier(.2,.9,.3,1)' }}
+          >
+            <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 8, fontFamily: 'Fredoka, system-ui' }}>PAUSED</div>
+            <div style={{ color: '#dfe8ff', fontSize: 15, marginBottom: 20 }}>Your tower is waiting.</div>
+            <button
+              className="st-btn"
+              onClick={togglePause}
+              style={{
+                fontSize: 17, fontWeight: 700, border: 0, borderRadius: 16,
+                padding: '14px 34px',
+                background: 'linear-gradient(#ffd23f, #ff9a3d)',
+                color: '#2b1700', cursor: 'pointer',
+                boxShadow: '0 6px 0 #c4701c',
+                fontFamily: 'Fredoka, system-ui',
+              }}
+            >
+              Resume
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── GAME OVER card ── */}
+      {uiSt === 'over' && uiOvDone && (
+        <div
+          className="absolute inset-0 flex items-center justify-center"
+          style={{ background: 'rgba(11,18,48,0.66)', backdropFilter: 'blur(3px)', padding: 24 }}
+        >
+          <div
+            className="relative text-center w-full"
+            style={{
+              maxWidth: 320, padding: '30px 24px 24px', borderRadius: 26,
+              background: 'rgba(16,26,56,0.96)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              animation: 'st-rise 0.45s cubic-bezier(.2,.9,.3,1)',
+            }}
+          >
+            {/* NEW BEST badge */}
+            {uiNb && (
+              <div
+                style={{
+                  position: 'absolute', top: -14, left: '50%', transform: 'translateX(-50%)',
+                  background: '#ffd23f', color: '#3a2a00', fontWeight: 700, fontSize: 13,
+                  padding: '5px 14px', borderRadius: 14,
+                  animation: 'st-wob 1s ease-in-out infinite',
+                  fontFamily: 'Fredoka, system-ui',
+                }}
+              >
+                NEW BEST!
+              </div>
+            )}
+
+            {/* Title */}
+            <h1 style={{
+              margin: '0 0 10px', fontSize: 30, lineHeight: 1.1,
+              background: 'linear-gradient(#ffd23f, #ff8a3d)',
+              WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent',
+              fontFamily: 'Fredoka, system-ui',
+            }}>
+              {uiNb ? 'NEW RECORD' : 'TOWER DOWN'}
+            </h1>
+            <p style={{ margin: '0 0 20px', fontSize: 15, lineHeight: 1.5, color: '#dfe8ff' }}>
+              {uiNb ? 'Your tallest tower yet.' : 'So close. Try again.'}
+            </p>
+
+            {/* Stats */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+              {[
+                { label: 'FLOORS', val: uiScore },
+                { label: 'BEST',   val: uiBest  },
+                { label: 'PERFECT',val: uiPerf  },
+              ].map(({ label, val }) => (
+                <div key={label} style={{ flex: 1, borderRadius: 14, padding: '8px 4px', background: 'rgba(255,255,255,0.08)', textAlign: 'center' }}>
+                  <small style={{ display: 'block', fontSize: 10, letterSpacing: '0.12em', opacity: 0.75, fontFamily: 'Fredoka, system-ui' }}>{label}</small>
+                  <b style={{ fontSize: 24, fontFamily: 'Fredoka, system-ui' }}>{val}</b>
+                </div>
+              ))}
+            </div>
+
+            {/* Play again button */}
+            <button
+              className="st-btn"
+              onClick={playAgain}
+              style={{
+                fontFamily: 'Fredoka, system-ui', fontWeight: 700, fontSize: 18,
+                border: 0, borderRadius: 16, padding: '14px 34px', width: '100%',
+                background: 'linear-gradient(#ffd23f, #ff9a3d)',
+                color: '#2b1700', cursor: 'pointer',
+                boxShadow: '0 6px 0 #c4701c',
+              }}
+            >
+              Play again
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Animations */}
+      <style>{`
+        @keyframes st-rise {
+          from { transform: translateY(40px) scale(0.94); opacity: 0; }
+        }
+        @keyframes st-wob {
+          50% { transform: translateX(-50%) rotate(-3deg) scale(1.06); }
+        }
+      `}</style>
     </div>
   )
 }
