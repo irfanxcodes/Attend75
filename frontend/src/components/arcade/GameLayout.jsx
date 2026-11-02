@@ -65,6 +65,7 @@ function GameLayout({ gameSlug, children }) {
 
   const game = gameRegistry[gameSlug]
   const gameTitle = game?.title ?? 'Game'
+  const selfManaged = game?.selfManaged ?? false  // game handles its own UI
 
   // --- State ---
   const [currentScore, setCurrentScore] = useState(0)
@@ -220,46 +221,52 @@ function GameLayout({ gameSlug, children }) {
       className="fixed inset-x-0 flex flex-col bg-[#0a0e1a]"
       style={{
         top: 0,
-        bottom: 'calc(72px + env(safe-area-inset-bottom, 0px))',
+        bottom: selfManaged ? 0 : 'calc(72px + env(safe-area-inset-bottom, 0px))',
         zIndex: 10,
       }}
     >
-      {/* Fixed Back Button - Top Left */}
-      <button
-        type="button"
-        onClick={() => navigate('/app/arcade')}
-        className="fixed top-4 left-4 z-50 px-4 py-2 rounded-full font-bold text-sm bg-gradient-to-b from-[#B8F77D] to-[#7BE056] text-black shadow-lg border-2 border-black/20 flex items-center gap-1.5 active:scale-95 transition-transform"
-        style={{
-          boxShadow: '0 3px 0 0 rgba(0,0,0,0.2), 0 6px 12px rgba(0,0,0,0.3), inset 0 -2px 0 rgba(0,0,0,0.2), inset 0 2px 0 rgba(255,255,255,0.4)'
-        }}
-        aria-label="Back to Arcade"
-      >
-        <span className="text-lg">←</span>
-        <span>BACK</span>
-      </button>
+      {/* Fixed Back Button - Top Left — hidden for self-managed games */}
+      {!selfManaged && (
+        <button
+          type="button"
+          onClick={() => navigate('/app/arcade')}
+          className="fixed top-4 left-4 z-50 px-4 py-2 rounded-full font-bold text-sm bg-gradient-to-b from-[#B8F77D] to-[#7BE056] text-black shadow-lg border-2 border-black/20 flex items-center gap-1.5 active:scale-95 transition-transform"
+          style={{
+            boxShadow: '0 3px 0 0 rgba(0,0,0,0.2), 0 6px 12px rgba(0,0,0,0.3), inset 0 -2px 0 rgba(0,0,0,0.2), inset 0 2px 0 rgba(255,255,255,0.4)'
+          }}
+          aria-label="Back to Arcade"
+        >
+          <span className="text-lg">←</span>
+          <span>BACK</span>
+        </button>
+      )}
 
-      {/* Score display - Top Right */}
-      <div className="fixed top-4 right-4 z-50">
-        {!isGameOver && currentScore > 0 && (
-          <div className="px-4 py-2 rounded-full bg-black/60 backdrop-blur-md border border-white/20">
-            <span className="text-sm font-bold text-[#4EF0A0]">
-              {currentScore}
-            </span>
-          </div>
-        )}
-      </div>
+      {/* Score display - Top Right — hidden for self-managed games */}
+      {!selfManaged && (
+        <div className="fixed top-4 right-4 z-50">
+          {!isGameOver && currentScore > 0 && (
+            <div className="px-4 py-2 rounded-full bg-black/60 backdrop-blur-md border border-white/20">
+              <span className="text-sm font-bold text-[#4EF0A0]">
+                {currentScore}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* Game title - Top Center */}
-      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-40">
-        <h1 className="text-lg font-bold text-white drop-shadow-lg">{gameTitle}</h1>
-      </div>
+      {/* Game title - Top Center — hidden for self-managed games */}
+      {!selfManaged && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-40">
+          <h1 className="text-lg font-bold text-white drop-shadow-lg">{gameTitle}</h1>
+        </div>
+      )}
 
-      {/* Game canvas area — 16:9 container, full width, centered vertically */}
+      {/* Game canvas area */}
       <div className="relative flex-1 min-h-0 flex items-center justify-center bg-[#0a0e1a]">
-        {/* 1:1 box matching the game's 480×480 logical world */}
+        {/* Self-managed games fill the whole area; others use a 1:1 box */}
         <div
           className="relative w-full"
-          style={{ aspectRatio: '1/1', maxHeight: '100%' }}
+          style={selfManaged ? { height: '100%' } : { aspectRatio: '1/1', maxHeight: '100%' }}
         >
           {typeof children === 'function'
             ? children({
@@ -271,8 +278,8 @@ function GameLayout({ gameSlug, children }) {
               })
             : children}
 
-          {/* Game-over overlay */}
-          {isGameOver && (
+          {/* Game-over overlay — hidden for self-managed games */}
+          {isGameOver && !selfManaged && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/70 backdrop-blur-sm">
               <div className="flex w-[88%] max-w-sm flex-col items-center gap-4 rounded-2xl bg-[#2D2845] p-6 shadow-xl ring-1 ring-white/10">
                 <h2 className="text-xl font-bold text-[#F7F4FF]">Game Over</h2>

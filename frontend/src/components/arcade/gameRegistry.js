@@ -7,6 +7,7 @@ const gameRegistry = {
     description: 'Tap to fly through pipes!',
     thumbnail: '/assets/arcade/flappy-thumb.webp',
     maxScore: 999,
+    selfManaged: true, // game handles its own UI (title, game-over, score, sound, pause)
     component: lazy(() => import('./games/FlappyGame')),
   },
   pacman: {
