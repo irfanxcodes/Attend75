@@ -427,9 +427,9 @@ function MobileGameSlide({ game, personalBest, leaderboard, navigate }) {
       </div>
       
       {/* Content */}
-      <div className="relative z-10 flex-1 flex flex-col justify-between p-6 pt-16 pb-32">
+      <div className="relative z-10 flex-1 flex flex-col justify-between p-6 pt-16 pb-8">
         {/* Top: Title & Stats */}
-        <div className="mb-8">
+        <div>
           <h1 className="text-5xl font-black text-white mb-3 tracking-tight drop-shadow-lg">
             {game.title}
           </h1>
@@ -441,8 +441,8 @@ function MobileGameSlide({ game, personalBest, leaderboard, navigate }) {
           )}
         </div>
         
-        {/* Bottom: Action & Leaderboard - pulled up more */}
-        <div className="space-y-3 mb-4">
+        {/* Bottom: Action & Leaderboard */}
+        <div className="space-y-3">
           {/* Play Button */}
           <button
             onClick={() => navigate(`/app/arcade/${game.slug}`)}
