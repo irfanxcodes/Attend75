@@ -217,39 +217,50 @@ function GameLayout({ gameSlug, children }) {
   // --- Render ---
   return (
     <div
-      className="fixed inset-0 flex flex-col bg-[#0a0a0f]"
-      style={{ zIndex: 10 }}
+      className="fixed inset-x-0 flex flex-col bg-[#0a0e1a]"
+      style={{
+        top: 0,
+        bottom: 'calc(72px + env(safe-area-inset-bottom, 0px))',
+        zIndex: 10,
+      }}
     >
-      {/* Minimal Top Bar with just stats */}
-      <div className="shrink-0 flex items-center justify-between px-6 py-3 bg-[#12121a]/80 backdrop-blur-sm">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400 uppercase tracking-wide">Score</span>
-            <span className="text-xl font-bold text-yellow-400">{currentScore}</span>
+      {/* Fixed Back Button - Top Left */}
+      <button
+        type="button"
+        onClick={() => navigate('/app/arcade')}
+        className="fixed top-4 left-4 z-50 px-4 py-2 rounded-full font-bold text-sm bg-gradient-to-b from-[#B8F77D] to-[#7BE056] text-black shadow-lg border-2 border-black/20 flex items-center gap-1.5 active:scale-95 transition-transform"
+        style={{
+          boxShadow: '0 3px 0 0 rgba(0,0,0,0.2), 0 6px 12px rgba(0,0,0,0.3), inset 0 -2px 0 rgba(0,0,0,0.2), inset 0 2px 0 rgba(255,255,255,0.4)'
+        }}
+        aria-label="Back to Arcade"
+      >
+        <span className="text-lg">←</span>
+        <span>BACK</span>
+      </button>
+
+      {/* Score display - Top Right */}
+      <div className="fixed top-4 right-4 z-50">
+        {!isGameOver && currentScore > 0 && (
+          <div className="px-4 py-2 rounded-full bg-black/60 backdrop-blur-md border border-white/20">
+            <span className="text-sm font-bold text-[#4EF0A0]">
+              {currentScore}
+            </span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400 uppercase tracking-wide">Best</span>
-            <span className="text-xl font-bold text-white">{submissionResult?.personal_best || 0}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400 uppercase tracking-wide">Level</span>
-            <span className="text-xl font-bold text-white">1</span>
-          </div>
-        </div>
-        
-        <button
-          type="button"
-          onClick={() => navigate('/app/arcade')}
-          className="p-2 rounded-lg hover:bg-white/5 text-white/60 hover:text-white transition"
-          aria-label="Back"
-        >
-          <ArrowLeft size={20} />
-        </button>
+        )}
       </div>
 
-      {/* Large Game Canvas - takes all available space */}
-      <div className="relative flex-1 min-h-0 flex items-center justify-center p-4">
-        <div className="relative w-full h-full max-w-[600px] max-h-[600px] aspect-square">
+      {/* Game title - Top Center */}
+      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-40">
+        <h1 className="text-lg font-bold text-white drop-shadow-lg">{gameTitle}</h1>
+      </div>
+
+      {/* Game canvas area — 16:9 container, full width, centered vertically */}
+      <div className="relative flex-1 min-h-0 flex items-center justify-center bg-[#0a0e1a]">
+        {/* 1:1 box matching the game's 480×480 logical world */}
+        <div
+          className="relative w-full"
+          style={{ aspectRatio: '1/1', maxHeight: '100%' }}
+        >
           {typeof children === 'function'
             ? children({
                 onGameEnd: handleGameEnd,
@@ -262,55 +273,61 @@ function GameLayout({ gameSlug, children }) {
 
           {/* Game-over overlay */}
           {isGameOver && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/90 backdrop-blur-sm">
-              <div className="flex w-[88%] max-w-sm flex-col items-center gap-4 rounded-xl bg-[#12121a] border border-gray-800 p-6">
-                <h2 className="text-3xl font-bold text-yellow-400 uppercase tracking-wide">Game Over</h2>
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+              <div className="flex w-[88%] max-w-sm flex-col items-center gap-4 rounded-2xl bg-[#2D2845] p-6 shadow-xl ring-1 ring-white/10">
+                <h2 className="text-xl font-bold text-[#F7F4FF]">Game Over</h2>
 
-                <p className="text-sm text-gray-400">Score: {currentScore} • Best: {submissionResult?.personal_best || 0}</p>
+                <p className="text-4xl font-extrabold text-[#F7F4FF]">{currentScore}</p>
+                <p className="text-xs text-[#F7F4FF]/50">Final Score</p>
 
                 {currentCoins > 0 && (
-                  <div className="flex items-center gap-2 rounded-full bg-yellow-400/10 px-4 py-1.5">
-                    <span className="text-base">🪙</span>
-                    <span className="text-sm font-bold text-yellow-400">
-                      {currentCoins} coin{currentCoins !== 1 ? 's' : ''}
+                  <div className="flex items-center gap-2 rounded-full bg-[#ffd700]/15 px-4 py-1.5">
+                    <span className="text-base leading-none">🪙</span>
+                    <span className="text-sm font-bold text-[#ffd700]">
+                      {currentCoins} coin{currentCoins !== 1 ? 's' : ''} collected
                     </span>
                   </div>
                 )}
 
                 {isSubmitting && (
-                  <p className="text-sm text-gray-400">Saving score…</p>
+                  <p className="text-sm text-[#F7F4FF]/70">Saving score…</p>
                 )}
 
                 {submissionResult && (
-                  <div className="flex w-full flex-col gap-1 rounded-lg bg-gray-800/50 px-4 py-3 text-center">
-                    <p className="text-sm text-gray-300">
-                      Rank: <span className="font-bold text-green-400">#{submissionResult.rank}</span>
+                  <div className="flex w-full flex-col gap-1 rounded-xl bg-white/5 px-4 py-3 text-center">
+                    <p className="text-sm text-[#F7F4FF]/80">
+                      Personal Best: <span className="font-bold text-[#4EF0A0]">{submissionResult.personal_best}</span>
+                    </p>
+                    <p className="text-sm text-[#F7F4FF]/80">
+                      Rank: <span className="font-bold text-[#4EF0A0]">#{submissionResult.rank}</span>
                     </p>
                   </div>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => handleRestart(0)}
-                  className="w-full rounded-lg bg-yellow-400 py-3 text-base font-bold text-black transition hover:bg-yellow-300 active:scale-[0.98]"
-                >
-                  PLAY AGAIN
-                </button>
+                <div className="flex w-full flex-col gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={() => handleRestart(0)}
+                    className="flex-1 rounded-full bg-[#FF916C] py-3 text-sm font-bold text-[#1D183E] transition active:scale-[0.97]"
+                  >
+                    Play Again
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleViewLeaderboard}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-full border border-[#F7F4FF]/20 py-3 text-sm font-semibold text-[#F7F4FF] transition hover:bg-white/5 active:scale-[0.97]"
+                  >
+                    <Trophy size={16} />
+                    Leaderboard
+                  </button>
+                </div>
 
-                <button
-                  type="button"
-                  onClick={handleViewLeaderboard}
-                  className="w-full flex items-center justify-center gap-2 rounded-lg border border-gray-700 bg-gray-800/50 py-3 text-sm font-semibold text-white transition hover:bg-gray-700 active:scale-[0.98]"
-                >
-                  <Trophy size={16} />
-                  Leaderboard
-                </button>
-
+                {/* Watch Ad to continue — only shown when an arcade ad is live and not yet used today */}
                 {adLoaded && gameOverAd && !adWatched && !adAlreadyUsed && (
                   <button
                     type="button"
                     onClick={handleWatchAd}
-                    className="mt-1 flex w-full items-center justify-center gap-2 rounded-lg border border-purple-500/40 bg-purple-500/10 py-2.5 text-xs font-semibold text-purple-400 transition hover:bg-purple-500/20 active:scale-[0.98]"
+                    className="mt-1 flex w-full items-center justify-center gap-2 rounded-full border border-[#A78BFA]/40 bg-[#A78BFA]/10 py-2.5 text-[12px] font-semibold text-[#A78BFA] transition hover:bg-[#A78BFA]/20 active:scale-[0.97]"
                   >
                     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
                     Watch ad to continue
@@ -319,43 +336,6 @@ function GameLayout({ gameSlug, children }) {
               </div>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Arrow Pad Controls - Simple and Clean */}
-      <div className="shrink-0 flex flex-col items-center gap-1 pb-safe pb-6">
-        {/* Up */}
-        <button
-          type="button"
-          className="w-16 h-16 rounded-lg bg-gray-800/80 backdrop-blur-sm flex items-center justify-center text-white hover:bg-gray-700 transition active:scale-95"
-          aria-label="Up"
-        >
-          <span className="text-3xl">▲</span>
-        </button>
-        
-        {/* Left, Down, Right */}
-        <div className="flex gap-1">
-          <button
-            type="button"
-            className="w-16 h-16 rounded-lg bg-gray-800/80 backdrop-blur-sm flex items-center justify-center text-white hover:bg-gray-700 transition active:scale-95"
-            aria-label="Left"
-          >
-            <span className="text-3xl">◀</span>
-          </button>
-          <button
-            type="button"
-            className="w-16 h-16 rounded-lg bg-gray-800/80 backdrop-blur-sm flex items-center justify-center text-white hover:bg-gray-700 transition active:scale-95"
-            aria-label="Down"
-          >
-            <span className="text-3xl">▼</span>
-          </button>
-          <button
-            type="button"
-            className="w-16 h-16 rounded-lg bg-gray-800/80 backdrop-blur-sm flex items-center justify-center text-white hover:bg-gray-700 transition active:scale-95"
-            aria-label="Right"
-          >
-            <span className="text-3xl">▶</span>
-          </button>
         </div>
       </div>
 

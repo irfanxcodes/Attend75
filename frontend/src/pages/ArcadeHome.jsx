@@ -420,15 +420,15 @@ function MobileGameSlide({ game, personalBest, leaderboard, navigate }) {
 
   return (
     <div className="h-full flex flex-col relative overflow-hidden">
-      {/* Back Button - Top Left */}
+      {/* Back Button - Fixed Top Left - Smaller */}
       <button
         onClick={() => navigate('/app')}
-        className="absolute top-4 left-4 z-20 px-6 py-3 rounded-full font-bold text-lg bg-gradient-to-b from-[#B8F77D] to-[#7BE056] text-black shadow-lg border-2 border-black/20 flex items-center gap-2 active:scale-95 transition-transform"
+        className="fixed top-4 left-4 z-50 px-4 py-2 rounded-full font-bold text-sm bg-gradient-to-b from-[#B8F77D] to-[#7BE056] text-black shadow-lg border-2 border-black/20 flex items-center gap-1.5 active:scale-95 transition-transform"
         style={{
-          boxShadow: '0 4px 0 0 rgba(0,0,0,0.2), 0 8px 16px rgba(0,0,0,0.3), inset 0 -2px 0 rgba(0,0,0,0.2), inset 0 2px 0 rgba(255,255,255,0.4)'
+          boxShadow: '0 3px 0 0 rgba(0,0,0,0.2), 0 6px 12px rgba(0,0,0,0.3), inset 0 -2px 0 rgba(0,0,0,0.2), inset 0 2px 0 rgba(255,255,255,0.4)'
         }}
       >
-        <span className="text-2xl">←</span>
+        <span className="text-lg">←</span>
         <span>BACK</span>
       </button>
 
