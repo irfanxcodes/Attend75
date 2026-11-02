@@ -557,7 +557,9 @@ function PacmanGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
     }
   }
 
-  // Game loop
+  // Game loop — only (re)start when isActive or isPaused changes, NOT on gameState
+  // gameState is managed internally by resetGame/update; re-running on it causes
+  // drawWalls+resetGame to fire on every transition (the source of the 30-60s delay).
   useEffect(() => {
     if (!isActive || isPaused) return
 
@@ -578,7 +580,8 @@ function PacmanGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
-  }, [isActive, isPaused, gameState])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, isPaused])
 
   // Keyboard controls
   useEffect(() => {
