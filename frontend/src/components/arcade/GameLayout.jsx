@@ -218,56 +218,55 @@ function GameLayout({ gameSlug, children }) {
   // --- Render ---
   return (
     <div
-      className="fixed inset-x-0 flex flex-col bg-[#0a0e1a]"
-      style={{
-        top: 0,
-        bottom: selfManaged ? 0 : 'calc(72px + env(safe-area-inset-bottom, 0px))',
-        zIndex: 10,
-      }}
+      className="fixed inset-0 flex flex-col"
+      style={{ zIndex: 10, background: '#0a0e1a' }}
     >
-      {/* Fixed Back Button - Top Left — hidden for self-managed games */}
+      {/* ── Top bar (hidden for self-managed games) ── */}
       {!selfManaged && (
-        <button
-          type="button"
-          onClick={() => navigate('/app/arcade')}
-          className="fixed top-4 left-4 z-50 px-4 py-2 rounded-full font-bold text-sm bg-gradient-to-b from-[#B8F77D] to-[#7BE056] text-black shadow-lg border-2 border-black/20 flex items-center gap-1.5 active:scale-95 transition-transform"
-          style={{
-            boxShadow: '0 3px 0 0 rgba(0,0,0,0.2), 0 6px 12px rgba(0,0,0,0.3), inset 0 -2px 0 rgba(0,0,0,0.2), inset 0 2px 0 rgba(255,255,255,0.4)'
-          }}
-          aria-label="Back to Arcade"
-        >
-          <span className="text-lg">←</span>
-          <span>BACK</span>
-        </button>
-      )}
-
-      {/* Score display - Top Right — hidden for self-managed games */}
-      {!selfManaged && (
-        <div className="fixed top-4 right-4 z-50">
-          {!isGameOver && currentScore > 0 && (
-            <div className="px-4 py-2 rounded-full bg-black/60 backdrop-blur-md border border-white/20">
-              <span className="text-sm font-bold text-[#4EF0A0]">
-                {currentScore}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Game title - Top Center — hidden for self-managed games */}
-      {!selfManaged && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-40">
-          <h1 className="text-lg font-bold text-white drop-shadow-lg">{gameTitle}</h1>
-        </div>
-      )}
-
-      {/* Game canvas area */}
-      <div className="relative flex-1 min-h-0 flex items-center justify-center bg-[#0a0e1a]">
-        {/* Self-managed games fill the whole area; others use a 1:1 box */}
         <div
-          className="relative w-full"
-          style={selfManaged ? { height: '100%' } : { aspectRatio: '1/1', maxHeight: '100%' }}
+          className="flex-shrink-0 flex items-center gap-3 px-3"
+          style={{
+            height: 52,
+            background: 'rgba(10,14,26,0.95)',
+            borderBottom: '1px solid rgba(255,255,255,0.07)',
+            paddingTop: 'env(safe-area-inset-top, 0px)',
+          }}
         >
+          {/* Back button */}
+          <button
+            type="button"
+            onClick={() => navigate('/app/arcade')}
+            className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full font-bold text-xs text-black active:scale-95 transition-transform"
+            style={{
+              background: 'linear-gradient(180deg, #B8F77D 0%, #7BE056 100%)',
+              boxShadow: '0 2px 0 rgba(0,0,0,0.25), 0 4px 10px rgba(0,0,0,0.25)',
+            }}
+            aria-label="Back to Arcade"
+          >
+            <span className="text-sm">←</span>
+            <span>BACK</span>
+          </button>
+
+          {/* Game title — centered */}
+          <h1 className="flex-1 text-center text-sm font-bold text-white truncate">
+            {gameTitle}
+          </h1>
+
+          {/* Score pill — right side, same width as back btn for balance */}
+          <div className="flex-shrink-0 min-w-[64px] flex justify-end">
+            {!isGameOver && currentScore > 0 && (
+              <div className="px-3 py-1.5 rounded-full text-xs font-bold text-[#4EF0A0]"
+                style={{ background: 'rgba(78,240,160,0.12)', border: '1px solid rgba(78,240,160,0.25)' }}>
+                {currentScore}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Game area — fills ALL remaining space ── */}
+      <div className="relative flex-1 min-h-0 w-full overflow-hidden">
+        <div className="absolute inset-0">
           {typeof children === 'function'
             ? children({
                 onGameEnd: handleGameEnd,
@@ -277,86 +276,100 @@ function GameLayout({ gameSlug, children }) {
                 initialScore: resumeScore,
               })
             : children}
+        </div>
 
-          {/* Game-over overlay — hidden for self-managed games */}
-          {isGameOver && !selfManaged && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-              <div className="flex w-[88%] max-w-sm flex-col items-center gap-4 rounded-2xl bg-[#2D2845] p-6 shadow-xl ring-1 ring-white/10">
-                <h2 className="text-xl font-bold text-[#F7F4FF]">Game Over</h2>
+        {/* Game-over overlay — hidden for self-managed games */}
+        {isGameOver && !selfManaged && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center"
+            style={{ background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)' }}>
+            <div className="flex w-[88%] max-w-sm flex-col items-center gap-4 rounded-2xl p-6 shadow-2xl"
+              style={{ background: '#1a1836', border: '1px solid rgba(255,255,255,0.1)' }}>
 
-                <p className="text-4xl font-extrabold text-[#F7F4FF]">{currentScore}</p>
-                <p className="text-xs text-[#F7F4FF]/50">Final Score</p>
+              <h2 className="text-xl font-bold text-white tracking-wide">Game Over</h2>
 
-                {currentCoins > 0 && (
-                  <div className="flex items-center gap-2 rounded-full bg-[#ffd700]/15 px-4 py-1.5">
-                    <span className="text-base leading-none">🪙</span>
-                    <span className="text-sm font-bold text-[#ffd700]">
-                      {currentCoins} coin{currentCoins !== 1 ? 's' : ''} collected
-                    </span>
-                  </div>
-                )}
-
-                {isSubmitting && (
-                  <p className="text-sm text-[#F7F4FF]/70">Saving score…</p>
-                )}
-
-                {submissionResult && (
-                  <div className="flex w-full flex-col gap-1 rounded-xl bg-white/5 px-4 py-3 text-center">
-                    <p className="text-sm text-[#F7F4FF]/80">
-                      Personal Best: <span className="font-bold text-[#4EF0A0]">{submissionResult.personal_best}</span>
-                    </p>
-                    <p className="text-sm text-[#F7F4FF]/80">
-                      Rank: <span className="font-bold text-[#4EF0A0]">#{submissionResult.rank}</span>
-                    </p>
-                  </div>
-                )}
-
-                <div className="flex w-full flex-col gap-2 sm:flex-row">
-                  <button
-                    type="button"
-                    onClick={() => handleRestart(0)}
-                    className="flex-1 rounded-full bg-[#FF916C] py-3 text-sm font-bold text-[#1D183E] transition active:scale-[0.97]"
-                  >
-                    Play Again
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleViewLeaderboard}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-full border border-[#F7F4FF]/20 py-3 text-sm font-semibold text-[#F7F4FF] transition hover:bg-white/5 active:scale-[0.97]"
-                  >
-                    <Trophy size={16} />
-                    Leaderboard
-                  </button>
+              {/* Score row */}
+              <div className="flex gap-8 w-full justify-center">
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] font-bold tracking-widest text-white/40 uppercase mb-1">Score</span>
+                  <span className="text-4xl font-black text-white">{currentScore}</span>
                 </div>
-
-                {/* Watch Ad to continue — only shown when an arcade ad is live and not yet used today */}
-                {adLoaded && gameOverAd && !adWatched && !adAlreadyUsed && (
-                  <button
-                    type="button"
-                    onClick={handleWatchAd}
-                    className="mt-1 flex w-full items-center justify-center gap-2 rounded-full border border-[#A78BFA]/40 bg-[#A78BFA]/10 py-2.5 text-[12px] font-semibold text-[#A78BFA] transition hover:bg-[#A78BFA]/20 active:scale-[0.97]"
-                  >
-                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
-                    Watch ad to continue
-                  </button>
+                {submissionResult && (
+                  <>
+                    <div className="w-px bg-white/10" />
+                    <div className="flex flex-col items-center">
+                      <span className="text-[10px] font-bold tracking-widest text-white/40 uppercase mb-1">Best</span>
+                      <span className="text-4xl font-black text-[#FF916C]">{submissionResult.personal_best}</span>
+                    </div>
+                    <div className="w-px bg-white/10" />
+                    <div className="flex flex-col items-center">
+                      <span className="text-[10px] font-bold tracking-widest text-white/40 uppercase mb-1">Rank</span>
+                      <span className="text-4xl font-black text-[#4EF0A0]">#{submissionResult.rank}</span>
+                    </div>
+                  </>
                 )}
               </div>
+
+              {currentCoins > 0 && (
+                <div className="flex items-center gap-2 rounded-full px-4 py-1.5"
+                  style={{ background: 'rgba(255,215,0,0.12)', border: '1px solid rgba(255,215,0,0.2)' }}>
+                  <span>🪙</span>
+                  <span className="text-sm font-bold text-[#ffd700]">
+                    {currentCoins} coin{currentCoins !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              )}
+
+              {isSubmitting && (
+                <p className="text-xs text-white/40">Saving score…</p>
+              )}
+
+              {/* Buttons */}
+              <div className="flex w-full flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleRestart(0)}
+                  className="w-full rounded-full py-3.5 text-sm font-black text-[#1a1836] transition active:scale-[0.97]"
+                  style={{ background: 'linear-gradient(135deg, #FF916C, #e0603a)',
+                    boxShadow: '0 4px 16px rgba(255,100,60,0.35)' }}
+                >
+                  Play Again
+                </button>
+                <button
+                  type="button"
+                  onClick={handleViewLeaderboard}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-full py-3 text-sm font-semibold text-white/70 transition active:scale-[0.97]"
+                  style={{ border: '1px solid rgba(255,255,255,0.12)' }}
+                >
+                  <Trophy size={15} />
+                  Leaderboard
+                </button>
+              </div>
+
+              {/* Watch ad */}
+              {adLoaded && gameOverAd && !adWatched && !adAlreadyUsed && (
+                <button
+                  type="button"
+                  onClick={handleWatchAd}
+                  className="flex w-full items-center justify-center gap-2 rounded-full py-2.5 text-xs font-semibold transition active:scale-[0.97]"
+                  style={{ border: '1px solid rgba(167,139,250,0.35)',
+                    background: 'rgba(167,139,250,0.08)', color: '#A78BFA' }}
+                >
+                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+                  Watch ad to continue
+                </button>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* Ad modal — full-screen overlay shown when student clicks "Watch ad" */}
+      {/* Ad modal */}
       {showAdModal && gameOverAd && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/95">
-          {/* Countdown + skip area */}
           <div className="absolute right-4 top-4 flex items-center gap-2">
             {adWatched ? (
-              <button
-                type="button"
-                onClick={handleAdClose}
-                className="rounded-full bg-[#4EF0A0] px-4 py-1.5 text-[11px] font-bold text-[#0f2018] transition active:scale-95"
-              >
+              <button type="button" onClick={handleAdClose}
+                className="rounded-full bg-[#4EF0A0] px-4 py-1.5 text-[11px] font-bold text-[#0f2018] active:scale-95">
                 ✓ Continue
               </button>
             ) : (
@@ -365,46 +378,25 @@ function GameLayout({ gameSlug, children }) {
               </span>
             )}
           </div>
-
-          {/* Ad media */}
           <div className="flex w-full max-w-md flex-col items-center px-4">
             {gameOverAd.media_type === 'video' ? (
-              <video
-                ref={videoRef}
+              <video ref={videoRef}
                 src={`${import.meta.env.DEV ? 'http://127.0.0.1:8000' : (String(import.meta.env.VITE_API_BASE_URL || '').trim() || 'https://api.attend75.xyz')}/uploads/ads/${gameOverAd.file_path}`}
-                className="w-full rounded-2xl object-contain"
-                style={{ maxHeight: '65dvh' }}
-                autoPlay
-                playsInline
-                controls={false}
-                muted={false}
-                onEnded={() => setAdWatched(true)}
-              />
+                className="w-full rounded-2xl object-contain" style={{ maxHeight: '65dvh' }}
+                autoPlay playsInline controls={false} muted={false} onEnded={() => setAdWatched(true)} />
             ) : (
-              <img
-                src={`${import.meta.env.DEV ? 'http://127.0.0.1:8000' : (String(import.meta.env.VITE_API_BASE_URL || '').trim() || 'https://api.attend75.xyz')}/uploads/ads/${gameOverAd.file_path}`}
-                alt="Advertisement"
-                className="w-full rounded-2xl object-contain"
-                style={{ maxHeight: '65dvh' }}
-              />
+              <img src={`${import.meta.env.DEV ? 'http://127.0.0.1:8000' : (String(import.meta.env.VITE_API_BASE_URL || '').trim() || 'https://api.attend75.xyz')}/uploads/ads/${gameOverAd.file_path}`}
+                alt="Advertisement" className="w-full rounded-2xl object-contain" style={{ maxHeight: '65dvh' }} />
             )}
-
-            {/* Advertiser info + link */}
             {gameOverAd.advertiser_name && (
               <p className="mt-3 text-[11px] font-semibold text-white/60">{gameOverAd.advertiser_name}</p>
             )}
             {gameOverAd.link_url && (
-              <a
-                href={gameOverAd.link_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-1.5 rounded-full bg-white/10 px-4 py-1.5 text-[11px] font-semibold text-white/80 transition hover:bg-white/20"
-              >
+              <a href={gameOverAd.link_url} target="_blank" rel="noopener noreferrer"
+                className="mt-1.5 rounded-full bg-white/10 px-4 py-1.5 text-[11px] font-semibold text-white/80 hover:bg-white/20">
                 Visit →
               </a>
             )}
-
-            {/* Bottom message */}
             <p className="mt-4 text-center text-[10px] text-white/30">
               {adWatched ? 'Ad complete — tap Continue to play again' : `Watch for ${adCountdown}s to unlock Continue`}
             </p>
