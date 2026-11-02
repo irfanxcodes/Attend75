@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 // ─── Constants (match reference) ─────────────────────────────────────────────
 const BH   = 26   // block height
@@ -86,6 +87,7 @@ function vib(pattern, cfg) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 function StackGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
+  const navigate   = useNavigate()
   const cvRef      = useRef(null)
   const rafRef     = useRef(null)
   const lastRef    = useRef(performance.now())
@@ -612,12 +614,33 @@ function StackGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
         aria-label="Stack Tower — tap to drop"
       />
 
-      {/* ── BEST — top-left ── */}
+      {/* ── BACK button — top-left ── */}
+      <button
+        className="st-btn"
+        onClick={() => navigate('/app/arcade')}
+        style={{
+          position: 'absolute',
+          top: 'calc(env(safe-area-inset-top, 0px) + 12px)',
+          left: 14,
+          height: 44, borderRadius: 14, border: 0,
+          background: 'linear-gradient(180deg, #B8F77D 0%, #7BE056 100%)',
+          color: '#111', fontWeight: 800, fontSize: 12,
+          paddingLeft: 10, paddingRight: 12,
+          boxShadow: '0 3px 0 rgba(0,0,0,0.25)',
+          cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 4,
+        }}
+        aria-label="Back to Arcade"
+      >
+        <span style={{ fontSize: 14 }}>←</span> BACK
+      </button>
+
+      {/* ── BEST — sits next to back button ── */}
       <div
         className="st-btn absolute pointer-events-none"
         style={{
           top: 'calc(env(safe-area-inset-top, 0px) + 14px)',
-          left: 14,
+          left: 100,
           background: 'rgba(13,26,58,0.45)',
           backdropFilter: 'blur(8px)',
           border: '1px solid rgba(255,255,255,0.18)',
@@ -766,14 +789,17 @@ function StackGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
         </div>
       )}
 
-      {/* ── GAME OVER card ── */}
+      {/* ── GAME OVER card — tap outside to go back ── */}
       {uiSt === 'over' && uiOvDone && (
         <div
           className="absolute inset-0 flex items-center justify-center"
           style={{ background: 'rgba(11,18,48,0.66)', backdropFilter: 'blur(3px)', padding: 24 }}
+          onClick={() => navigate('/app/arcade')}
         >
+          {/* Stop click propagation on the card itself so only backdrop click navigates */}
           <div
             className="relative text-center w-full"
+            onClick={e => e.stopPropagation()}
             style={{
               maxWidth: 320, padding: '30px 24px 24px', borderRadius: 26,
               background: 'rgba(16,26,56,0.96)',
@@ -837,6 +863,12 @@ function StackGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
             >
               Play again
             </button>
+
+            {/* Back hint */}
+            <p style={{ margin: '14px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.35)', cursor: 'pointer' }}
+              onClick={() => navigate('/app/arcade')}>
+              ← Back to Arcade
+            </p>
           </div>
         </div>
       )}
