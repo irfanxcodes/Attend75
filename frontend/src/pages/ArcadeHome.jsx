@@ -643,8 +643,8 @@ function GameVisual({ game, personalBest, fullscreen = false }) {
             </defs>
             {/* Main circle */}
             <circle cx="50" cy="52" r="42" fill="url(#pacGradient)" />
-            {/* Mouth wedge - cut out triangle */}
-            <path d="M 50 52 L 90 35 L 90 69 Z" fill="#0D0D33" />
+            {/* Mouth wedge - simple filled polygon */}
+            <polygon points="50,52 92,35 92,69" fill="#0D0D33" stroke="none" />
             {/* Eye */}
             <circle cx="45" cy="32" r="7" fill="#000" />
             <circle cx="47" cy="30" r="3" fill="#fff" />
