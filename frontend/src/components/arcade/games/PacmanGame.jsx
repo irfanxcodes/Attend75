@@ -487,12 +487,12 @@ function PacmanGame({ onGameEnd, onScoreUpdate, isActive, initialScore = 0 }) {
         ctx.shadowBlur = 0
         return
       }
-      ctx.moveTo(cx, cy)
       ctx.arc(cx, cy, r, -Math.PI / 2 + a, -Math.PI / 2 + 2 * Math.PI - a)
+      ctx.lineTo(cx, cy)
     } else {
       const m = (st.pac.dx || st.pac.dy) ? 0.06 + 0.3 * Math.abs(Math.sin(st.anim * 12)) : 0.25
-      ctx.moveTo(cx, cy)
       ctx.arc(cx, cy, r, st.pac.ang + m * Math.PI, st.pac.ang + (2 - m) * Math.PI)
+      ctx.lineTo(cx, cy)
     }
 
     ctx.closePath()
