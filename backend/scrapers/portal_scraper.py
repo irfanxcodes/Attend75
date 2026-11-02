@@ -821,21 +821,21 @@ class PortalScraper:
                 )
                 self._logger.debug(f"Pre-navigated to attendance page: {response.status_code}")
             except Exception as e:
-                _logger.warning(f"Pre-navigation to attendance page failed: {e}")
+                self._logger.warning(f"Pre-navigation to attendance page failed: {e}")
             
             history_by_date = self._scrape_all_subject_history(attendance_payload.get("attendance", []))
             self._history_cache[cache_key] = history_by_date
 
         if date:
             entries = history_by_date.get(date, [])
-            _logger.debug(f"History for {date}: {len(entries)} entries")
+            self._logger.debug(f"History for {date}: {len(entries)} entries")
             return {
                 "date": date,
                 "entries": entries,
                 "selected_semester": selected_semester,
             }
 
-        _logger.debug(f"History fetched: {len(history_by_date)} dates")
+        self._logger.debug(f"History fetched: {len(history_by_date)} dates")
         return {
             "history_by_date": history_by_date,
             "selected_semester": selected_semester,
@@ -2547,14 +2547,14 @@ class PortalScraper:
     def _scrape_all_subject_history(self, attendance_items: list[dict[str, str]]) -> dict[str, list[dict[str, str | bool]]]:
         history_by_date: dict[str, list[dict[str, str | bool]]] = {}
 
-        _logger.debug(f"Scraping history for {len(attendance_items)} subjects")
+        self._logger.debug(f"Scraping history for {len(attendance_items)} subjects")
         
         for idx, item in enumerate(attendance_items):
             history_link = str(item.get("history_link") or "").strip()
             code = str(item.get("code") or "").strip()
             
             if not history_link:
-                _logger.debug(f"Skipping {code} - no history link")
+                self._logger.debug(f"Skipping {code} - no history link")
                 continue
 
             # Add a small delay between requests to avoid overwhelming the portal
@@ -2575,11 +2575,11 @@ class PortalScraper:
                         continue
                     history_by_date.setdefault(entry_date, []).append(entry)
             except Exception as e:
-                _logger.error(f"Failed to scrape history for {code}: {e}")
+                self._logger.error(f"Failed to scrape history for {code}: {e}")
                 # Continue with next subject instead of failing entirely
                 continue
 
-        _logger.debug(f"History scraping complete: {len(history_by_date)} dates")
+        self._logger.debug(f"History scraping complete: {len(history_by_date)} dates")
         return history_by_date
 
     def _scrape_subject_history_page(
@@ -2604,7 +2604,7 @@ class PortalScraper:
                 "Cache-Control": "max-age=0",
             }
             
-            _logger.debug(f"Fetching history: {url}")
+            self._logger.debug(f"Fetching history: {url}")
             
             response = self.session.get(
                 url,
@@ -2616,16 +2616,16 @@ class PortalScraper:
             
             # Check if we got redirected to login page (session expired)
             if self._looks_like_login_page(response.text):
-                _logger.error(f"Session expired while fetching history for {code}")
+                self._logger.error(f"Session expired while fetching history for {code}")
                 return []
             
             # Check if response is too small (likely an error page)
             if len(response.text) < 100:
-                _logger.error(f"Invalid response for {code}: {len(response.text)} bytes")
+                self._logger.error(f"Invalid response for {code}: {len(response.text)} bytes")
                 return []
                 
         except requests.RequestException as exc:
-            _logger.error(f"Network error fetching history for {code}: {exc}")
+            self._logger.error(f"Network error fetching history for {code}: {exc}")
             raise self._portal_network_error(
                 exc,
                 stage="HISTORY_FETCH",
@@ -2635,12 +2635,12 @@ class PortalScraper:
         soup = BeautifulSoup(response.text, "html.parser")
         
         # Save first response for debugging if needed (only in debug mode)
-        if _logger.isEnabledFor(logging.DEBUG) and not hasattr(self, '_history_debug_saved'):
+        if self._logger.isEnabledFor(logging.DEBUG) and not hasattr(self, '_history_debug_saved'):
             try:
                 debug_file = f"/tmp/history_debug_{code}.html"
                 with open(debug_file, 'w', encoding='utf-8') as f:
                     f.write(response.text)
-                _logger.debug(f"Saved history page to {debug_file}")
+                self._logger.debug(f"Saved history page to {debug_file}")
                 self._history_debug_saved = True
             except Exception:
                 pass
@@ -2693,7 +2693,7 @@ class PortalScraper:
 
             if entries:
                 return entries
-            _logger.debug(f"Found dw-table but no entries for {code}")
+            self._logger.debug(f"Found dw-table but no entries for {code}")
 
         # --- Old portal: generic table parsing ---
         for table_idx, table in enumerate(soup.find_all("table")):
@@ -2732,7 +2732,7 @@ class PortalScraper:
                 break
 
         if not entries:
-            _logger.debug(f"No entries found for {code}")
+            self._logger.debug(f"No entries found for {code}")
 
         return entries
 
