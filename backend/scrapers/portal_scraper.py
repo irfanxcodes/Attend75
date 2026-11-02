@@ -790,7 +790,7 @@ class PortalScraper:
         selected_semester = attendance_payload.get("selected_semester") or semester_id or "default"
         cache_key = str(selected_semester)
 
-        _logger.debug(f"Fetch history: semester={selected_semester}, date={date}, subjects={len(attendance_payload.get('attendance', []))}")
+        self._logger.debug(f"Fetch history: semester={selected_semester}, date={date}, subjects={len(attendance_payload.get('attendance', []))}")
 
         # Check if we need to fetch fresh history
         need_fresh_history = cache_key not in self._history_cache
@@ -798,13 +798,13 @@ class PortalScraper:
         if cache_key in self._history_cache:
             history_by_date = self._history_cache[cache_key]
             if not self._history_cache_has_abbreviations(history_by_date):
-                _logger.debug(f"Cache needs refresh (no abbreviations)")
+                self._logger.debug(f"Cache needs refresh (no abbreviations)")
                 need_fresh_history = True
             else:
-                _logger.debug(f"Using cached history data: {len(history_by_date)} dates")
+                self._logger.debug(f"Using cached history data: {len(history_by_date)} dates")
         
         if need_fresh_history:
-            _logger.debug(f"Scraping fresh history for {len(attendance_payload.get('attendance', []))} subjects")
+            self._logger.debug(f"Scraping fresh history for {len(attendance_payload.get('attendance', []))} subjects")
             
             # Ensure we're on the attendance page before scraping history
             # This maintains proper session context and cookies
@@ -819,7 +819,7 @@ class PortalScraper:
                     },
                     allow_redirects=True,
                 )
-                _logger.debug(f"Pre-navigated to attendance page: {response.status_code}")
+                self._logger.debug(f"Pre-navigated to attendance page: {response.status_code}")
             except Exception as e:
                 _logger.warning(f"Pre-navigation to attendance page failed: {e}")
             
