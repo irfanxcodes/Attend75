@@ -1,29 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Trophy } from 'lucide-react'
+import { Trophy, Coins, Target, Award, TrendingUp } from 'lucide-react'
 
+/**
+ * GeodashGame — Geometry Dash / Geo Runner via iframe.
+ * The iframe posts messages back to us; we handle game-over UI in React
+ * so it matches the app style and the game stays paused until Play Again.
+ */
 function GeodashGame({ onGameEnd, onScoreUpdate, isActive }) {
-  const navigate     = useNavigate()
-  const iframeRef    = useRef(null)
+  const navigate    = useRef(useNavigate()).current
+  const iframeRef   = useRef(null)
   const endCalledRef = useRef(false)
 
-  const [gameStatus, setGameStatus] = useState('idle')
-  const [score,      setScore]      = useState(0)
-  const [runCoins,   setRunCoins]   = useState(0)
-  const [pct,        setPct]        = useState(0)
-  const [best,       setBest]       = useState(0)
-  const [curLevel,   setCurLevel]   = useState(1)    // 1-4
-  const [curLabel,   setCurLabel]   = useState('Easy')
-  const [subResult,  setSubResult]  = useState(null)
-  const [submitting, setSubmitting] = useState(false)
+  const [gameStatus,   setGameStatus]   = useState('idle')   // idle | playing | dead
+  const [score,        setScore]        = useState(0)
+  const [runCoins,     setRunCoins]     = useState(0)
+  const [best,         setBest]         = useState(0)
+  const [submitting,   setSubmitting]   = useState(false)
+  const [subResult,    setSubResult]    = useState(null)
 
   const onGameEndRef     = useRef(onGameEnd)
   const onScoreUpdateRef = useRef(onScoreUpdate)
   useEffect(() => { onGameEndRef.current     = onGameEnd     }, [onGameEnd])
   useEffect(() => { onScoreUpdateRef.current = onScoreUpdate }, [onScoreUpdate])
 
-  const sendCmd = useCallback((type, extra = {}) => {
-    try { iframeRef.current?.contentWindow?.postMessage({ type, ...extra }, '*') } catch {}
+  // Send a command to the iframe
+  const sendCmd = useCallback((cmd) => {
+    try { iframeRef.current?.contentWindow?.postMessage({ type: cmd }, '*') } catch {}
   }, [])
 
   const handleMessage = useCallback((e) => {
@@ -32,44 +35,40 @@ function GeodashGame({ onGameEnd, onScoreUpdate, isActive }) {
 
     if (type === 'GEODASH_PLAYING') {
       setGameStatus('playing')
-      setScore(0); setRunCoins(0); setPct(0); setSubResult(null)
+      setScore(0); setRunCoins(0); setSubResult(null)
       endCalledRef.current = false
-      if (e.data.level) setCurLevel(e.data.level)
-      if (e.data.label) setCurLabel(e.data.label)
     }
 
     if (type === 'GEODASH_SCORE_UPDATE') {
       const s = e.data.score ?? 0
-      setScore(s); setRunCoins(e.data.coins ?? 0); setPct(e.data.pct ?? 0)
-      onScoreUpdateRef.current(s, e.data.coins ?? 0)
+      const c = e.data.coins ?? 0
+      setScore(s); setRunCoins(c)
+      onScoreUpdateRef.current(s, c)
     }
 
     if (type === 'GEODASH_SCORE') {
-      const s     = e.data.score  ?? 0
-      const c     = e.data.coins  ?? 0
-      const p     = e.data.pct    ?? 0
-      const lvl   = e.data.level  ?? curLevel
-      const lbl   = e.data.label  ?? curLabel
-      setScore(s); setRunCoins(c); setPct(p)
-      setCurLevel(lvl); setCurLabel(lbl)
+      const s = e.data.score ?? 0
+      const c = e.data.coins ?? 0
+      setScore(s); setRunCoins(c)
       setBest(prev => Math.max(prev, s))
-      setGameStatus(e.data.win ? 'win' : 'dead')
+      setGameStatus('dead')
       if (!endCalledRef.current) {
         endCalledRef.current = true
         onGameEndRef.current(s, c)
       }
     }
-  }, [curLevel, curLabel])
+  }, [])
 
   useEffect(() => {
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
   }, [handleMessage])
 
+  // Restart when isActive flips back on (parent called handleRestart)
   const prevActiveRef = useRef(isActive)
   useEffect(() => {
     if (isActive && !prevActiveRef.current) {
-      setBest(0); setScore(0); setRunCoins(0); setPct(0)
+      setBest(0); setScore(0); setRunCoins(0)
       setGameStatus('idle'); setSubResult(null)
       endCalledRef.current = false
       onScoreUpdateRef.current(0, 0)
@@ -78,9 +77,10 @@ function GeodashGame({ onGameEnd, onScoreUpdate, isActive }) {
     prevActiveRef.current = isActive
   }, [isActive])
 
+  // Tell iframe to restart (Play Again from our modal)
   const handlePlayAgain = useCallback(() => {
     setGameStatus('playing')
-    setScore(0); setRunCoins(0); setPct(0); setSubResult(null)
+    setScore(0); setRunCoins(0); setSubResult(null)
     endCalledRef.current = false
     sendCmd('GEODASH_RESTART')
     onScoreUpdateRef.current(0, 0)
@@ -90,122 +90,281 @@ function GeodashGame({ onGameEnd, onScoreUpdate, isActive }) {
     navigate('/app/arcade/geodash?view=leaderboard')
   }, [navigate])
 
-  // Level badge colours
-  const levelColors = ['#2338d6','#8b1a1a','#0a2a4a','#1a0a2a']
-  const lvlColor = levelColors[(curLevel - 1) % 4]
-
   return (
-    <div className="absolute inset-0" style={{ background: '#10122b' }}>
+    <div className="absolute inset-0 bg-[#10122b]">
+      {/* iframe fills full area */}
       <iframe
         ref={iframeRef}
         src="/arcade/geodash/index.html"
         title="Geo Runner"
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none', display: 'block' }}
+        style={{
+          position: 'absolute', inset: 0,
+          width: '100%', height: '100%',
+          border: 'none', display: 'block',
+        }}
         allow="autoplay"
         sandbox="allow-scripts allow-same-origin"
       />
 
-      {/* ── Game Over / Win overlay ── */}
-      {(gameStatus === 'dead' || gameStatus === 'win') && (
+      {/* ── Game Over overlay — rendered in React, covers iframe ── */}
+      {gameStatus === 'dead' && (
         <div
-          className="absolute inset-0 flex items-center justify-center"
-          style={{ background: 'rgba(10,12,32,0.72)', backdropFilter: 'blur(6px)' }}
+          className="absolute inset-0 flex items-center justify-center p-4"
+          style={{ 
+            background: 'rgba(6,8,24,0.85)', 
+            backdropFilter: 'blur(12px)',
+            animation: 'fadeIn 0.3s ease-out'
+          }}
         >
+          <style>{`
+            @keyframes fadeIn {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+            @keyframes slideUp {
+              from { 
+                opacity: 0;
+                transform: translateY(20px);
+              }
+              to { 
+                opacity: 1;
+                transform: translateY(0);
+              }
+            }
+            @keyframes scaleIn {
+              from { 
+                opacity: 0;
+                transform: scale(0.9);
+              }
+              to { 
+                opacity: 1;
+                transform: scale(1);
+              }
+            }
+            @keyframes shimmer {
+              0% { background-position: -200% center; }
+              100% { background-position: 200% center; }
+            }
+          `}</style>
+          
           <div
-            className="w-[88%] max-w-sm rounded-2xl p-6 flex flex-col gap-4"
+            className="w-full max-w-md flex flex-col gap-5"
             style={{
-              background: '#1b1d3a',
-              border: '1px solid rgba(255,255,255,0.1)',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+              animation: 'slideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)'
             }}
           >
-            {/* Level badge */}
-            <div className="flex items-center gap-2">
-              <div
-                className="w-3 h-3 rounded-full flex-shrink-0"
-                style={{ background: lvlColor, boxShadow: `0 0 8px ${lvlColor}` }}
-              />
-              <span className="text-xs font-bold tracking-widest uppercase text-white/50">
-                Level {curLevel} · {curLabel}
-              </span>
+            {/* Header with gradient title */}
+            <div className="text-center">
+              <div 
+                className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-3"
+                style={{
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  boxShadow: '0 8px 32px rgba(102,126,234,0.3)',
+                  animation: 'scaleIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s backwards'
+                }}
+              >
+                <Trophy size={32} strokeWidth={2.5} className="text-white" />
+              </div>
+              <h2 
+                className="text-3xl font-black tracking-tight mb-1"
+                style={{
+                  background: 'linear-gradient(135deg, #ffffff 0%, #a0a0ff 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  animation: 'slideUp 0.4s ease-out 0.15s backwards'
+                }}
+              >
+                Game Over
+              </h2>
+              <p 
+                className="text-sm text-white/50"
+                style={{
+                  animation: 'slideUp 0.4s ease-out 0.2s backwards'
+                }}
+              >
+                Great run! Keep pushing your limits
+              </p>
             </div>
 
-            {/* Title */}
-            <h2 className="text-center text-xl font-bold text-white tracking-wide -mt-1">
-              {gameStatus === 'win' ? '🎉 Level Complete!' : 'Game Over'}
-            </h2>
-
-            {/* Stats */}
-            <div className="flex justify-between items-end">
-              <div className="flex flex-col items-start">
-                <span className="text-[11px] font-bold tracking-widest text-white/40 uppercase mb-0.5">Score</span>
-                <span className="text-4xl font-black text-white leading-none">{score}</span>
-              </div>
-              <div className="flex flex-col items-center">
-                <span className="text-[11px] font-bold tracking-widest text-white/40 uppercase mb-0.5">Best</span>
-                <span className="text-4xl font-black leading-none" style={{ color: '#FF916C' }}>{best}</span>
-              </div>
-              <div className="flex flex-col items-end">
-                <span className="text-[11px] font-bold tracking-widest text-white/40 uppercase mb-0.5">Progress</span>
-                <span className="text-4xl font-black leading-none" style={{ color: '#ffd23f' }}>{pct}%</span>
-              </div>
-            </div>
-
-            {/* Coins row */}
-            {runCoins > 0 && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-xl"
-                style={{ background: 'rgba(255,215,0,0.08)', border: '1px solid rgba(255,215,0,0.15)' }}>
-                <div className="w-4 h-4 rounded-full" style={{ background: '#ffd23f', border: '2px solid #10122b', outline: '2px solid #f3efe6' }} />
-                <span className="text-sm font-bold text-white">{runCoins} coins collected</span>
-                <span className="text-xs text-white/40 ml-auto">+{runCoins * 50} pts</span>
-              </div>
-            )}
-
-            {/* Score breakdown */}
-            <div className="text-xs text-white/30 -mt-1">
-              {pct}% × 100{runCoins > 0 ? ` + ${runCoins} coins × 50` : ''}{gameStatus === 'win' ? ' + completion bonus' : ''}
-            </div>
-
-            {/* Submission result */}
-            {subResult && (
-              <div className="rounded-xl px-4 py-2.5 text-center"
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <span className="text-sm text-white/60">Rank </span>
-                <span className="text-sm font-black" style={{ color: '#4EF0A0' }}>#{subResult.rank}</span>
-                <span className="text-sm text-white/40 mx-2">·</span>
-                <span className="text-sm text-white/60">PB </span>
-                <span className="text-sm font-black text-white">{subResult.personal_best}</span>
-              </div>
-            )}
-            {submitting && <p className="text-center text-xs text-white/40">Saving score…</p>}
-
-            {/* Play Again */}
-            <button
-              onClick={handlePlayAgain}
-              className="w-full py-4 rounded-full font-black text-white transition-transform active:scale-[0.97]"
+            {/* Main card */}
+            <div
+              className="rounded-3xl p-6 flex flex-col gap-5"
               style={{
-                background: 'linear-gradient(135deg, #FF916C 0%, #e06040 100%)',
-                fontSize: 17,
-                boxShadow: '0 4px 16px rgba(255,100,60,0.35)',
+                background: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                boxShadow: '0 24px 64px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)',
+                backdropFilter: 'blur(20px)',
+                animation: 'scaleIn 0.4s ease-out 0.25s backwards'
               }}
             >
-              Play Again
-            </button>
+              {/* Primary score - bigger and centered */}
+              <div className="text-center py-4">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <Target size={18} className="text-white/50" />
+                  <span className="text-xs font-bold tracking-widest text-white/50 uppercase">
+                    Your Score
+                  </span>
+                </div>
+                <div 
+                  className="text-7xl font-black leading-none mb-1"
+                  style={{
+                    background: 'linear-gradient(135deg, #4ade80 0%, #3b82f6 50%, #a855f7 100%)',
+                    backgroundSize: '200% auto',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
+                    animation: 'shimmer 3s linear infinite'
+                  }}
+                >
+                  {score}
+                </div>
+                {score > best && (
+                  <div 
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full"
+                    style={{
+                      background: 'rgba(74,222,128,0.15)',
+                      border: '1px solid rgba(74,222,128,0.3)'
+                    }}
+                  >
+                    <Award size={14} className="text-green-400" />
+                    <span className="text-xs font-bold text-green-400">NEW RECORD!</span>
+                  </div>
+                )}
+              </div>
 
-            {/* Leaderboard */}
-            <button
-              onClick={handleLeaderboard}
-              className="w-full py-3 rounded-full flex items-center justify-center gap-2 font-semibold transition-transform active:scale-[0.97]"
-              style={{
-                background: 'rgba(255,255,255,0.05)',
-                border: '1px solid rgba(255,255,255,0.12)',
-                color: 'rgba(255,255,255,0.65)',
-                fontSize: 15,
-              }}
-            >
-              <Trophy size={15} />
-              Leaderboard
-            </button>
+              {/* Divider */}
+              <div style={{ height: 1, background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.1) 50%, transparent 100%)' }} />
+
+              {/* Stats grid - 2 columns */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* Best Score */}
+                <div 
+                  className="rounded-2xl p-4 flex flex-col gap-2"
+                  style={{
+                    background: 'rgba(255,145,108,0.1)',
+                    border: '1px solid rgba(255,145,108,0.2)'
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-8 h-8 rounded-full flex items-center justify-center"
+                      style={{ background: 'rgba(255,145,108,0.2)' }}
+                    >
+                      <TrendingUp size={16} className="text-[#FF916C]" />
+                    </div>
+                    <span className="text-xs font-bold text-white/60 uppercase tracking-wide">
+                      Best
+                    </span>
+                  </div>
+                  <span className="text-3xl font-black text-[#FF916C] leading-none">
+                    {best}
+                  </span>
+                </div>
+
+                {/* Coins collected */}
+                <div 
+                  className="rounded-2xl p-4 flex flex-col gap-2"
+                  style={{
+                    background: 'rgba(255,210,63,0.1)',
+                    border: '1px solid rgba(255,210,63,0.2)'
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-8 h-8 rounded-full flex items-center justify-center"
+                      style={{ background: 'rgba(255,210,63,0.2)' }}
+                    >
+                      <Coins size={16} className="text-[#ffd23f]" />
+                    </div>
+                    <span className="text-xs font-bold text-white/60 uppercase tracking-wide">
+                      Coins
+                    </span>
+                  </div>
+                  <span className="text-3xl font-black text-[#ffd23f] leading-none">
+                    {runCoins}
+                  </span>
+                </div>
+              </div>
+
+              {/* Rank info */}
+              {subResult && (
+                <div 
+                  className="rounded-2xl p-4 flex items-center justify-between"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(78,240,160,0.15) 0%, rgba(59,130,246,0.15) 100%)',
+                    border: '1px solid rgba(78,240,160,0.25)'
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div 
+                      className="w-10 h-10 rounded-full flex items-center justify-center font-black text-lg"
+                      style={{
+                        background: 'linear-gradient(135deg, #4EF0A0 0%, #3b82f6 100%)',
+                        color: '#0a0c20'
+                      }}
+                    >
+                      {subResult.rank}
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-white/50 uppercase tracking-wide">
+                        Global Rank
+                      </div>
+                      <div className="text-sm font-semibold text-white">
+                        Personal Best: <span className="font-black">{subResult.personal_best}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {submitting && (
+                <div className="text-center">
+                  <div 
+                    className="inline-block w-5 h-5 border-3 border-white/20 border-t-white rounded-full"
+                    style={{ animation: 'spin 0.8s linear infinite' }}
+                  />
+                  <style>{`
+                    @keyframes spin {
+                      to { transform: rotate(360deg); }
+                    }
+                  `}</style>
+                  <p className="text-xs text-white/50 mt-2">Saving your score...</p>
+                </div>
+              )}
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex flex-col gap-3">
+              {/* Play Again - primary */}
+              <button
+                onClick={handlePlayAgain}
+                className="w-full py-4 rounded-2xl font-black text-white transition-all duration-200 active:scale-[0.97] hover:shadow-2xl"
+                style={{
+                  background: 'linear-gradient(135deg, #FF916C 0%, #F3722C 100%)',
+                  fontSize: 17,
+                  boxShadow: '0 8px 32px rgba(255,145,108,0.4)',
+                  letterSpacing: '0.02em'
+                }}
+              >
+                🎮 Play Again
+              </button>
+
+              {/* Leaderboard - secondary */}
+              <button
+                onClick={handleLeaderboard}
+                className="w-full py-4 rounded-2xl flex items-center justify-center gap-2 font-bold transition-all duration-200 active:scale-[0.97]"
+                style={{
+                  background: 'rgba(255,255,255,0.08)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  color: 'rgba(255,255,255,0.8)',
+                  fontSize: 16
+                }}
+              >
+                <Trophy size={18} strokeWidth={2.5} />
+                View Leaderboard
+              </button>
+            </div>
           </div>
         </div>
       )}
