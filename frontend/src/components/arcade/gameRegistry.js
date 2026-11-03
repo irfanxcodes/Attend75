@@ -41,6 +41,7 @@ const gameRegistry = {
     description: 'Eat food, grow longer, don\'t hit yourself!',
     thumbnail: '/assets/arcade/snake-thumb.webp',
     maxScore: 9999,
+    selfManaged: true,
     component: lazy(() => import('./games/SnakeGame')),
   },
 }
