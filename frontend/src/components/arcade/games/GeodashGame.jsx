@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Trophy, Coins, Target, Award, TrendingUp } from 'lucide-react'
+import { Trophy } from 'lucide-react'
 
 /**
  * GeodashGame — Geometry Dash / Geo Runner via iframe.
@@ -111,8 +111,8 @@ function GeodashGame({ onGameEnd, onScoreUpdate, isActive }) {
         <div
           className="absolute inset-0 flex items-center justify-center p-4"
           style={{ 
-            background: 'rgba(6,8,24,0.85)', 
-            backdropFilter: 'blur(12px)',
+            background: 'rgba(0,0,0,0.85)', 
+            backdropFilter: 'blur(8px)',
             animation: 'fadeIn 0.3s ease-out'
           }}
         >
@@ -131,239 +131,124 @@ function GeodashGame({ onGameEnd, onScoreUpdate, isActive }) {
                 transform: translateY(0);
               }
             }
-            @keyframes scaleIn {
-              from { 
-                opacity: 0;
-                transform: scale(0.9);
-              }
-              to { 
-                opacity: 1;
-                transform: scale(1);
-              }
-            }
-            @keyframes shimmer {
-              0% { background-position: -200% center; }
-              100% { background-position: 200% center; }
+            @keyframes float {
+              0%, 100% { transform: translateY(0px); }
+              50% { transform: translateY(-10px); }
             }
           `}</style>
           
           <div
-            className="w-full max-w-md flex flex-col gap-5"
+            className="w-full max-w-lg relative"
             style={{
               animation: 'slideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)'
             }}
           >
-            {/* Header with gradient title */}
-            <div className="text-center">
-              <div 
-                className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-3"
-                style={{
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  boxShadow: '0 8px 32px rgba(102,126,234,0.3)',
-                  animation: 'scaleIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s backwards'
-                }}
-              >
-                <Trophy size={32} strokeWidth={2.5} className="text-white" />
-              </div>
-              <h2 
-                className="text-3xl font-black tracking-tight mb-1"
-                style={{
-                  background: 'linear-gradient(135deg, #ffffff 0%, #a0a0ff 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                  animation: 'slideUp 0.4s ease-out 0.15s backwards'
-                }}
-              >
-                Game Over
-              </h2>
-              <p 
-                className="text-sm text-white/50"
-                style={{
-                  animation: 'slideUp 0.4s ease-out 0.2s backwards'
-                }}
-              >
-                Great run! Keep pushing your limits
-              </p>
-            </div>
-
-            {/* Main card */}
-            <div
-              className="rounded-3xl p-6 flex flex-col gap-5"
+            {/* Floating emoji */}
+            <div 
+              className="absolute -top-8 -right-8 text-6xl"
               style={{
-                background: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
-                border: '1px solid rgba(255,255,255,0.15)',
-                boxShadow: '0 24px 64px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)',
-                backdropFilter: 'blur(20px)',
-                animation: 'scaleIn 0.4s ease-out 0.25s backwards'
+                animation: 'float 3s ease-in-out infinite',
+                transform: 'rotate(12deg)'
               }}
             >
-              {/* Primary score - bigger and centered */}
-              <div className="text-center py-4">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <Target size={18} className="text-white/50" />
-                  <span className="text-xs font-bold tracking-widest text-white/50 uppercase">
-                    Your Score
-                  </span>
-                </div>
-                <div 
-                  className="text-7xl font-black leading-none mb-1"
-                  style={{
-                    background: 'linear-gradient(135deg, #4ade80 0%, #3b82f6 50%, #a855f7 100%)',
-                    backgroundSize: '200% auto',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text',
-                    animation: 'shimmer 3s linear infinite'
-                  }}
-                >
-                  {score}
-                </div>
-                {score > best && (
-                  <div 
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full"
-                    style={{
-                      background: 'rgba(74,222,128,0.15)',
-                      border: '1px solid rgba(74,222,128,0.3)'
-                    }}
-                  >
-                    <Award size={14} className="text-green-400" />
-                    <span className="text-xs font-bold text-green-400">NEW RECORD!</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Divider */}
-              <div style={{ height: 1, background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.1) 50%, transparent 100%)' }} />
-
-              {/* Stats grid - 2 columns */}
-              <div className="grid grid-cols-2 gap-3">
-                {/* Best Score */}
-                <div 
-                  className="rounded-2xl p-4 flex flex-col gap-2"
-                  style={{
-                    background: 'rgba(255,145,108,0.1)',
-                    border: '1px solid rgba(255,145,108,0.2)'
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    <div 
-                      className="w-8 h-8 rounded-full flex items-center justify-center"
-                      style={{ background: 'rgba(255,145,108,0.2)' }}
-                    >
-                      <TrendingUp size={16} className="text-[#FF916C]" />
-                    </div>
-                    <span className="text-xs font-bold text-white/60 uppercase tracking-wide">
-                      Best
-                    </span>
-                  </div>
-                  <span className="text-3xl font-black text-[#FF916C] leading-none">
-                    {best}
-                  </span>
-                </div>
-
-                {/* Coins collected */}
-                <div 
-                  className="rounded-2xl p-4 flex flex-col gap-2"
-                  style={{
-                    background: 'rgba(255,210,63,0.1)',
-                    border: '1px solid rgba(255,210,63,0.2)'
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    <div 
-                      className="w-8 h-8 rounded-full flex items-center justify-center"
-                      style={{ background: 'rgba(255,210,63,0.2)' }}
-                    >
-                      <Coins size={16} className="text-[#ffd23f]" />
-                    </div>
-                    <span className="text-xs font-bold text-white/60 uppercase tracking-wide">
-                      Coins
-                    </span>
-                  </div>
-                  <span className="text-3xl font-black text-[#ffd23f] leading-none">
-                    {runCoins}
-                  </span>
-                </div>
-              </div>
-
-              {/* Rank info */}
-              {subResult && (
-                <div 
-                  className="rounded-2xl p-4 flex items-center justify-between"
-                  style={{
-                    background: 'linear-gradient(135deg, rgba(78,240,160,0.15) 0%, rgba(59,130,246,0.15) 100%)',
-                    border: '1px solid rgba(78,240,160,0.25)'
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div 
-                      className="w-10 h-10 rounded-full flex items-center justify-center font-black text-lg"
-                      style={{
-                        background: 'linear-gradient(135deg, #4EF0A0 0%, #3b82f6 100%)',
-                        color: '#0a0c20'
-                      }}
-                    >
-                      {subResult.rank}
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-white/50 uppercase tracking-wide">
-                        Global Rank
-                      </div>
-                      <div className="text-sm font-semibold text-white">
-                        Personal Best: <span className="font-black">{subResult.personal_best}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {submitting && (
-                <div className="text-center">
-                  <div 
-                    className="inline-block w-5 h-5 border-3 border-white/20 border-t-white rounded-full"
-                    style={{ animation: 'spin 0.8s linear infinite' }}
-                  />
-                  <style>{`
-                    @keyframes spin {
-                      to { transform: rotate(360deg); }
-                    }
-                  `}</style>
-                  <p className="text-xs text-white/50 mt-2">Saving your score...</p>
-                </div>
-              )}
+              😵
             </div>
 
-            {/* Action buttons */}
-            <div className="flex flex-col gap-3">
-              {/* Play Again - primary */}
-              <button
-                onClick={handlePlayAgain}
-                className="w-full py-4 rounded-2xl font-black text-white transition-all duration-200 active:scale-[0.97] hover:shadow-2xl"
-                style={{
-                  background: 'linear-gradient(135deg, #FF916C 0%, #F3722C 100%)',
-                  fontSize: 17,
-                  boxShadow: '0 8px 32px rgba(255,145,108,0.4)',
-                  letterSpacing: '0.02em'
-                }}
-              >
-                🎮 Play Again
-              </button>
+            {/* Main card with white border */}
+            <div
+              className="relative p-8"
+              style={{
+                background: '#0a0c20',
+                border: '4px solid #ffffff',
+                boxShadow: '0 24px 64px rgba(0,0,0,0.6)'
+              }}
+            >
+              {/* Title */}
+              <h2 className="text-4xl font-black text-white mb-8" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+                Game over
+              </h2>
 
-              {/* Leaderboard - secondary */}
-              <button
-                onClick={handleLeaderboard}
-                className="w-full py-4 rounded-2xl flex items-center justify-center gap-2 font-bold transition-all duration-200 active:scale-[0.97]"
-                style={{
-                  background: 'rgba(255,255,255,0.08)',
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  color: 'rgba(255,255,255,0.8)',
-                  fontSize: 16
-                }}
-              >
-                <Trophy size={18} strokeWidth={2.5} />
-                View Leaderboard
-              </button>
+              {/* Stats row */}
+              <div className="grid grid-cols-3 gap-6 mb-6">
+                {/* Score */}
+                <div>
+                  <div className="text-xs font-bold text-white/50 uppercase tracking-wider mb-2">Score</div>
+                  <div className="text-5xl font-black text-white leading-none">{score}</div>
+                </div>
+
+                {/* Best */}
+                <div>
+                  <div className="text-xs font-bold text-white/50 uppercase tracking-wider mb-2">Best</div>
+                  <div className="text-5xl font-black text-white leading-none">{best}</div>
+                </div>
+
+                {/* Rank */}
+                <div>
+                  <div className="text-xs font-bold text-white/50 uppercase tracking-wider mb-2">Rank</div>
+                  <div className="text-5xl font-black leading-none" style={{ color: '#ffd23f' }}>
+                    {subResult ? `#${subResult.rank}` : '-'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Progress bar */}
+              <div className="mb-8">
+                <div className="relative h-2 bg-white/20 mb-2">
+                  <div 
+                    className="absolute top-0 left-0 h-full bg-white/40"
+                    style={{ width: `${Math.min((score / (best || 1)) * 100, 100)}%` }}
+                  />
+                  {/* Current position marker (cube) */}
+                  <div 
+                    className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-[#ffd23f] border-2 border-white"
+                    style={{ left: `${Math.min((score / (best || 1)) * 100, 100)}%`, transform: 'translate(-50%, -50%)' }}
+                  />
+                  {/* Best position marker (flag) */}
+                  <div 
+                    className="absolute top-1/2 -translate-y-1/2"
+                    style={{ right: '0%', transform: 'translate(50%, -50%)' }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                      <path d="M2 2L2 18M2 2L12 6L2 10" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                </div>
+                <div className="flex justify-between text-xs font-bold text-white/50 uppercase tracking-wider">
+                  <span>You</span>
+                  <span>Best</span>
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex flex-col gap-3">
+                {/* Play Again */}
+                <button
+                  onClick={handlePlayAgain}
+                  className="w-full py-4 font-black text-black transition-all duration-200 active:scale-[0.98]"
+                  style={{
+                    background: '#ffd23f',
+                    fontSize: 18,
+                    border: 'none'
+                  }}
+                >
+                  Play again
+                </button>
+
+                {/* Leaderboard */}
+                <button
+                  onClick={handleLeaderboard}
+                  className="w-full py-4 flex items-center justify-center gap-2 font-bold transition-all duration-200 active:scale-[0.98]"
+                  style={{
+                    background: 'transparent',
+                    border: '3px solid #ffffff',
+                    color: '#ffffff',
+                    fontSize: 16
+                  }}
+                >
+                  <Trophy size={18} strokeWidth={2.5} />
+                  Leaderboard
+                </button>
+              </div>
             </div>
           </div>
         </div>
