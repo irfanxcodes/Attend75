@@ -965,10 +965,6 @@ function GameVisual({ game, personalBest, fullscreen = false }) {
             0%, 100% { opacity: 0.12; }
             50% { opacity: 0.22; }
           }
-          @keyframes holVsFade {
-            0%, 100% { opacity: 0.5; transform: scale(1); }
-            50% { opacity: 1; transform: scale(1.1); }
-          }
         `}</style>
 
         {/* Background glow orbs */}
@@ -1075,20 +1071,7 @@ function GameVisual({ game, personalBest, fullscreen = false }) {
           </span>
         </div>
 
-        {/* VS pill at bottom — bouncing */}
-        {fullscreen && (
-          <div
-            className="relative z-10 mt-6 flex items-center justify-center rounded-full font-black text-white text-sm"
-            style={{
-              width: 48, height: 48,
-              background: 'linear-gradient(135deg, #6C47FF, #FF47C0)',
-              boxShadow: '0 0 24px rgba(108,71,255,0.6)',
-              animation: 'holVsFade 2s ease-in-out infinite',
-            }}
-          >
-            VS
-          </div>
-        )}
+
       </div>
     )
   }
