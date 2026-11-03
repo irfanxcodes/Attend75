@@ -45,6 +45,15 @@ const gameRegistry = {
     selfManaged: true,
     component: lazy(() => import('./games/SnakeGame')),
   },
+  higherorlower: {
+    slug: 'higherorlower',
+    title: 'Higher or Lower',
+    description: 'Guess which has more — countries, movies, Pokémon and more!',
+    thumbnail: '/assets/arcade/higherorlower-thumb.svg',
+    maxScore: 9999,
+    selfManaged: true, // owns its own top-bar, category picker, and game-over overlay
+    component: lazy(() => import('./games/HigherOrLowerGame')),
+  },
 }
 
 export default gameRegistry
