@@ -19,22 +19,27 @@ function shuffle(arr) {
 }
 
 /**
- * Flatten all categories into one pool, each item carrying its own display fields.
- * Items from the same category won't be adjacent since we shuffle the full pool.
+ * Each round picks two items from the SAME category.
+ * We store categories as-is and pick randomly per round.
+ * The flat pool is no longer needed — removed.
  */
-function buildPool(categories) {
-  const items = []
-  for (const cat of categories) {
-    for (const item of cat.items) {
-      items.push({
-        ...item,
-        stat: cat.stat,
-        unit: cat.unit,
-        formatSuffix: cat.formatSuffix,
-      })
-    }
-  }
-  return shuffle(items)
+function getCategoryPool(categories) {
+  // Return categories with their meta attached to each item for convenience
+  return categories.map(cat => ({
+    ...cat,
+    items: cat.items.map(item => ({
+      ...item,
+      stat: cat.stat,
+      unit: cat.unit,
+      formatSuffix: cat.formatSuffix,
+    })),
+  }))
+}
+
+/** Pick a random category, return a shuffled copy of its items. */
+function pickCategory(categories) {
+  const cat = categories[Math.floor(Math.random() * categories.length)]
+  return { cat, shuffled: shuffle(cat.items) }
 }
 
 function formatValue(value, unit, formatSuffix) {
@@ -334,8 +339,8 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
   const navigate = useNavigate()
 
   // ── Data ────────────────────────────────────────────────────────────────────
-  const [allItems, setAllItems]   = useState([])   // full flat pool (loaded once)
-  const [dataError, setDataError] = useState(null)
+  const [categories, setCategories] = useState([])  // enriched category list
+  const [dataError, setDataError]   = useState(null)
   const [dataLoading, setDataLoading] = useState(true)
 
   // ── Game state ──────────────────────────────────────────────────────────────
@@ -360,7 +365,7 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
   useEffect(() => {
     fetch(DATA_URL)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
-      .then(d => { setAllItems(buildPool(d.categories ?? [])); setDataLoading(false) })
+      .then(d => { setCategories(getCategoryPool(d.categories ?? [])); setDataLoading(false) })
       .catch(err => { setDataError(err.message); setDataLoading(false) })
   }, [])
 
@@ -369,13 +374,11 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
     if (deck.length > 0 && deck[0]?.image) {
       const img = new Image(); img.src = deck[0].image
     }
-  }, [deck])
-
-  // ── Start / restart ──────────────────────────────────────────────────────────
+  }, [deck])  // ── Start / restart ──────────────────────────────────────────────────────────
   const startGame = useCallback(() => {
-    if (allItems.length < 2) return
-    const pool = shuffle(allItems)
-    const [left, right, ...rest] = pool
+    if (categories.length === 0) return
+    const { shuffled } = pickCategory(categories)
+    const [left, right, ...rest] = shuffled
     setDeck(rest)
     setLeftItem(left)
     setRightItem(right)
@@ -386,7 +389,7 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
     endCalledRef.current = false
     setPhase('playing')
     onScoreUpdateRef.current(0)
-  }, [allItems])
+  }, [categories])
 
   // ── Guess ────────────────────────────────────────────────────────────────────
   const handleGuess = useCallback((guess) => {
@@ -410,11 +413,11 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
         setReveal(null)
         setLocked(false)
         if (deck.length === 0) {
-          // Pool exhausted — reshuffle everything except the current right card
-          const fresh = shuffle(allItems.filter(i => i.id !== rightItem.id))
-          setDeck(fresh.slice(1))
+          // Current category exhausted — pick a new random category
+          const { shuffled } = pickCategory(categories)
+          setDeck(shuffled.slice(1))
           setLeftItem(rightItem)
-          setRightItem(fresh[0])
+          setRightItem(shuffled[0])
         } else {
           const [next, ...rest] = deck
           setDeck(rest)
@@ -434,7 +437,7 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
         }
       }, REVEAL_DURATION)
     }
-  }, [locked, reveal, phase, rightItem, leftItem, score, streak, deck, allItems])
+  }, [locked, reveal, phase, rightItem, leftItem, score, streak, deck, categories])
 
   // ── Keyboard ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -450,9 +453,9 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
   // ── isActive restart from GameLayout ────────────────────────────────────────
   const prevActiveRef = useRef(isActive)
   useEffect(() => {
-    if (isActive && !prevActiveRef.current && allItems.length > 0) startGame()
+    if (isActive && !prevActiveRef.current && categories.length > 0) startGame()
     prevActiveRef.current = isActive
-  }, [isActive, allItems, startGame])
+  }, [isActive, categories, startGame])
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
   const handlePlayAgain  = useCallback(() => startGame(), [startGame])
