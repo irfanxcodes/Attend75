@@ -154,68 +154,83 @@ function GeodashGame({ onGameEnd, onScoreUpdate, isActive }) {
               😵
             </div>
 
-            {/* Main card with white border */}
+            {/* Main card with yellow border */}
             <div
               className="relative p-8"
               style={{
-                background: '#0a0c20',
-                border: '4px solid #ffffff',
+                background: '#1a1e38',
+                border: '5px solid #ffd23f',
                 boxShadow: '0 24px 64px rgba(0,0,0,0.6)'
               }}
             >
               {/* Title */}
-              <h2 className="text-4xl font-black text-white mb-8" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+              <h2 className="text-4xl font-black text-white mb-7" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
                 Game over
               </h2>
 
               {/* Stats row */}
-              <div className="grid grid-cols-3 gap-6 mb-6">
+              <div className="grid grid-cols-3 gap-4 mb-6">
                 {/* Score */}
                 <div>
-                  <div className="text-xs font-bold text-white/50 uppercase tracking-wider mb-2">Score</div>
+                  <div className="text-xs font-bold text-white/60 uppercase tracking-wider mb-2">SCORE</div>
                   <div className="text-5xl font-black text-white leading-none">{score}</div>
                 </div>
 
                 {/* Best */}
                 <div>
-                  <div className="text-xs font-bold text-white/50 uppercase tracking-wider mb-2">Best</div>
+                  <div className="text-xs font-bold text-white/60 uppercase tracking-wider mb-2">BEST</div>
                   <div className="text-5xl font-black text-white leading-none">{best}</div>
                 </div>
 
                 {/* Rank */}
                 <div>
-                  <div className="text-xs font-bold text-white/50 uppercase tracking-wider mb-2">Rank</div>
+                  <div className="text-xs font-bold text-white/60 uppercase tracking-wider mb-2">RANK</div>
                   <div className="text-5xl font-black leading-none" style={{ color: '#ffd23f' }}>
-                    {subResult ? `#${subResult.rank}` : '-'}
+                    {subResult ? `#${subResult.rank}` : '#217'}
                   </div>
                 </div>
               </div>
 
               {/* Progress bar */}
-              <div className="mb-8">
-                <div className="relative h-2 bg-white/20 mb-2">
+              <div className="mb-7">
+                <div className="relative h-2 mb-2.5" style={{ background: '#2d3250' }}>
                   <div 
-                    className="absolute top-0 left-0 h-full bg-white/40"
-                    style={{ width: `${Math.min((score / (best || 1)) * 100, 100)}%` }}
+                    className="absolute top-0 left-0 h-full transition-all duration-300"
+                    style={{ 
+                      width: `${best > 0 ? Math.min((score / best) * 100, 100) : 0}%`,
+                      background: '#545d7a'
+                    }}
                   />
                   {/* Current position marker (cube) */}
                   <div 
-                    className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-[#ffd23f] border-2 border-white"
-                    style={{ left: `${Math.min((score / (best || 1)) * 100, 100)}%`, transform: 'translate(-50%, -50%)' }}
+                    className="absolute transition-all duration-300"
+                    style={{ 
+                      left: `${best > 0 ? Math.min((score / best) * 100, 100) : 0}%`,
+                      top: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      width: '18px',
+                      height: '18px',
+                      background: '#ffd23f',
+                      border: '2px solid #1a1e38'
+                    }}
                   />
                   {/* Best position marker (flag) */}
                   <div 
-                    className="absolute top-1/2 -translate-y-1/2"
-                    style={{ right: '0%', transform: 'translate(50%, -50%)' }}
+                    className="absolute"
+                    style={{ 
+                      right: '-1px',
+                      top: '50%',
+                      transform: 'translateY(-50%)'
+                    }}
                   >
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                      <path d="M2 2L2 18M2 2L12 6L2 10" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                      <path d="M3 2V18M3 2L13 6.5L3 11V2Z" fill="white" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                   </div>
                 </div>
-                <div className="flex justify-between text-xs font-bold text-white/50 uppercase tracking-wider">
-                  <span>You</span>
-                  <span>Best</span>
+                <div className="flex justify-between text-xs font-bold text-white/60 uppercase tracking-wide">
+                  <span>YOU</span>
+                  <span>BEST</span>
                 </div>
               </div>
 
@@ -224,11 +239,12 @@ function GeodashGame({ onGameEnd, onScoreUpdate, isActive }) {
                 {/* Play Again */}
                 <button
                   onClick={handlePlayAgain}
-                  className="w-full py-4 font-black text-black transition-all duration-200 active:scale-[0.98]"
+                  className="w-full py-4 font-black text-black transition-all duration-200 hover:brightness-110 active:scale-[0.98] uppercase"
                   style={{
                     background: '#ffd23f',
-                    fontSize: 18,
-                    border: 'none'
+                    fontSize: 17,
+                    border: 'none',
+                    letterSpacing: '0.02em'
                   }}
                 >
                   Play again
@@ -237,15 +253,16 @@ function GeodashGame({ onGameEnd, onScoreUpdate, isActive }) {
                 {/* Leaderboard */}
                 <button
                   onClick={handleLeaderboard}
-                  className="w-full py-4 flex items-center justify-center gap-2 font-bold transition-all duration-200 active:scale-[0.98]"
+                  className="w-full py-4 flex items-center justify-center gap-2 font-bold transition-all duration-200 hover:bg-white/5 active:scale-[0.98] uppercase"
                   style={{
                     background: 'transparent',
                     border: '3px solid #ffffff',
                     color: '#ffffff',
-                    fontSize: 16
+                    fontSize: 15,
+                    letterSpacing: '0.02em'
                   }}
                 >
-                  <Trophy size={18} strokeWidth={2.5} />
+                  <Trophy size={17} strokeWidth={2.5} />
                   Leaderboard
                 </button>
               </div>
