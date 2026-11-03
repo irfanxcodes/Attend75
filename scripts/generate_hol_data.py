@@ -284,9 +284,6 @@ def main():
     except Exception as e:
         print(f"  ERROR building Pokémon: {e}. Skipping.")
 
-    # Mountains — hardcoded
-    categories.append(build_mountains())
-
     # YouTubers — hardcoded
     categories.append(build_youtubers())
 
