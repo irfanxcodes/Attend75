@@ -338,10 +338,10 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
   const [reveal, setReveal]             = useState(null)
   const [locked, setLocked]             = useState(false)    // prevent double-tap during reveal
 
-  // Submission state — not used locally; GameLayout handles server submission.
-  // We keep isSubmitting=false permanently since we don't await a result here.
-  const isSubmitting = false
-  const submissionResult = null
+  // Submission state — we fire onGameEnd for score persistence but don't await
+  // a result back, so these stay false/null. Kept as state so startGame can reset them.
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submissionResult, setSubmissionResult] = useState(null)
 
   // Keep stable refs for callbacks (avoids stale closures)
   const onGameEndRef     = useRef(onGameEnd)
