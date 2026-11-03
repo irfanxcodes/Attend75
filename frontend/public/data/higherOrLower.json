@@ -344,7 +344,7 @@
           "id": "jurassic-world",
           "name": "Jurassic World",
           "value": 1671,
-          "image": "https://image.tmdb.org/t/p/w500/jjBgi2r5cRt36xF6iNUHs3v0hjN.jpg",
+          "image": "https://upload.wikimedia.org/wikipedia/en/6/6e/Jurassic_World_poster.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
           "hint": "2015 dinosaur park sequel"
         },
         {
@@ -358,7 +358,7 @@
           "id": "furious-7",
           "name": "Furious 7",
           "value": 1516,
-          "image": "https://image.tmdb.org/t/p/w500/kkS8PKa8c134D3jIQL9yVd1nFQN.jpg",
+          "image": "https://upload.wikimedia.org/wikipedia/en/b/b8/Furious_7_poster.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
           "hint": "2015 Fast & Furious film"
         },
         {
@@ -372,14 +372,14 @@
           "id": "avengers-2012",
           "name": "The Avengers (2012)",
           "value": 1519,
-          "image": "https://image.tmdb.org/t/p/w500/RYMX2wcKCBAr24UyPD7KE3QybEG.jpg",
+          "image": "https://upload.wikimedia.org/wikipedia/en/8/8a/The_Avengers_%282012_film%29_poster.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
           "hint": "First MCU team-up film"
         },
         {
           "id": "incredibles-2",
           "name": "Incredibles 2",
           "value": 1243,
-          "image": "https://image.tmdb.org/t/p/w500/9slpqxSHsiBrOWnCkvqvIRTfkiB.jpg",
+          "image": "https://upload.wikimedia.org/wikipedia/en/1/1f/Incredibles_2_%282018_animated_film%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
           "hint": "2018 Pixar superhero sequel"
         },
         {
@@ -393,7 +393,7 @@
           "id": "minions",
           "name": "Minions",
           "value": 1159,
-          "image": "https://image.tmdb.org/t/p/w500/q0R4crx2SehcEELEHTFLiDpvoPR.jpg",
+          "image": "https://upload.wikimedia.org/wikipedia/en/1/19/Minions_%282015_film%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
           "hint": "2015 animated yellow creatures"
         },
         {
@@ -414,21 +414,21 @@
           "id": "transformers-aoe",
           "name": "Transformers: Age of Extinction",
           "value": 1104,
-          "image": "https://image.tmdb.org/t/p/w500/2SFnOR4FPuqm4SoD1AaCdZPpbHe.jpg",
+          "image": "https://upload.wikimedia.org/wikipedia/en/0/0f/Transformers_Age_of_Extinction_poster.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
           "hint": "2014 Bayformers sequel"
         },
         {
           "id": "skyfall",
           "name": "Skyfall",
           "value": 1109,
-          "image": "https://image.tmdb.org/t/p/w500/0HbVzGHFe0JLRZ5KTTF7RB0eTH.jpg",
+          "image": "https://thumb.wikimedia.org/wikipedia/en/thumb/a/a7/Skyfall_poster.jpg/330px-Skyfall_poster.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
           "hint": "2012 James Bond film"
         },
         {
           "id": "operation-red-sea",
           "name": "Operation Red Sea",
           "value": 579,
-          "image": "https://image.tmdb.org/t/p/w500/ibXfT8sCbJRj7hc2OiSDaEWK3bQ.jpg",
+          "image": "https://upload.wikimedia.org/wikipedia/en/6/61/Operation_Red_Sea_poster.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
           "hint": "2018 Chinese action war film"
         },
         {
@@ -477,7 +477,7 @@
           "id": "mission-impossible-gp",
           "name": "Mission: Impossible – Ghost Protocol",
           "value": 694,
-          "image": "https://image.tmdb.org/t/p/w500/t0fuQB6tBDvAWZ5RjnzQGRw1JXs.jpg",
+          "image": "https://upload.wikimedia.org/wikipedia/en/b/b5/Mission_impossible_ghost_protocol.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
           "hint": "2011 Tom Cruise spy film"
         }
       ]
@@ -749,140 +749,140 @@
           "id": "mrbeast",
           "name": "MrBeast",
           "value": 330,
-          "image": "https://yt3.googleusercontent.com/ytc/AIdro_nMCBSMIFbK-d6vVpBcRhq7V0TvG-lGiBjjxuGizxRIKSE=s240-c-k-c0x00ffffff-no-rj",
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/47/MrBeast_in_2026_%28cropped_4%29.png/330px-MrBeast_in_2026_%28cropped_4%29.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
           "hint": "Most subscribed individual creator"
         },
         {
           "id": "t-series",
           "name": "T-Series",
           "value": 270,
-          "image": "https://yt3.googleusercontent.com/ytc/AIdro_kL_SBdLlCKjZrJbJqZMoC2jlF4OQPQD5tD2JW2zRE=s240-c-k-c0x00ffffff-no-rj",
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ee/T-series-logo.jpg/330px-T-series-logo.jpg",
           "hint": "Indian music label and film studio"
         },
         {
           "id": "cocomelon",
           "name": "Cocomelon",
           "value": 180,
-          "image": "https://yt3.googleusercontent.com/ytc/AIdro_mLfYzlLRj_dOLU7j3-0_JElGbdmSSRiJT23hfAl0s=s240-c-k-c0x00ffffff-no-rj",
+          "image": "https://thumb.wikimedia.org/wikipedia/en/thumb/0/0f/Cocomelon-logo.jpg/330px-Cocomelon-logo.jpg",
           "hint": "Nursery rhymes channel for kids"
         },
         {
           "id": "set-india",
           "name": "SET India",
           "value": 175,
-          "image": "https://yt3.googleusercontent.com/ytc/AIdro_k3C9MNqmvnFuJR-qrNzOg4rZqQpjF7RNPJ7KRz=s240-c-k-c0x00ffffff-no-rj",
+          "image": "https://upload.wikimedia.org/wikipedia/en/d/de/Sony_TV_new.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
           "hint": "Sony Entertainment Television India"
         },
         {
           "id": "pewdiepie",
           "name": "PewDiePie",
           "value": 111,
-          "image": "https://yt3.googleusercontent.com/ytc/AIdro_mIMB9uXJ4_bYNiQiXkU8m7bL-pFmZKjkDSc0nU=s240-c-k-c0x00ffffff-no-rj",
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/53/Pewdiepie_head_shot.jpg/330px-Pewdiepie_head_shot.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
           "hint": "Swedish creator, long-time #1 individual"
         },
         {
           "id": "kids-diana-show",
           "name": "Like Nastya",
           "value": 118,
-          "image": "https://yt3.googleusercontent.com/ytc/AIdro_lJBMIX48GFT8FRz-jS7RDN-EtBKVnJa3sE0ZF1=s240-c-k-c0x00ffffff-no-rj",
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/de/Anastasia_Radzinskaya.png/330px-Anastasia_Radzinskaya.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
           "hint": "Russian child creator"
         },
         {
           "id": "vlad-niki",
           "name": "Vlad and Niki",
           "value": 116,
-          "image": "https://yt3.googleusercontent.com/ytc/AIdro_ln8SXK1LQnuB34T_mOwqbEFEYIGCL5X7yvFjNj=s240-c-k-c0x00ffffff-no-rj",
+          "image": "https://thumb.wikimedia.org/wikipedia/en/thumb/8/89/Vlad_and_Niki_logo.png/330px-Vlad_and_Niki_logo.png",
           "hint": "Kids toy and play channel"
         },
         {
           "id": "dude-perfect",
           "name": "Dude Perfect",
           "value": 60,
-          "image": "https://yt3.googleusercontent.com/ytc/AIdro_mO4SIAMq0y6gRfT0b0A-uXLFjXc_VF4RTJI9gy=s240-c-k-c0x00ffffff-no-rj",
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/58/Dude_Perfect_logo.svg/330px-Dude_Perfect_logo.svg.png",
           "hint": "Sports entertainment group"
         },
         {
           "id": "mark-rober",
           "name": "Mark Rober",
           "value": 48,
-          "image": "https://yt3.googleusercontent.com/ytc/AIdro_mNYV17bbbBpJxA1mFiHJEh-0I0psFt8cL5IHE=s240-c-k-c0x00ffffff-no-rj",
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0a/Mark_Rober_2021.jpg/330px-Mark_Rober_2021.jpg",
           "hint": "Former NASA engineer"
         },
         {
           "id": "vsauce",
           "name": "Vsauce",
           "value": 22,
-          "image": "https://yt3.googleusercontent.com/ytc/AIdro_kxqmV7TyXjZ0KQJN8jmScxz5YE1ZBwUvEF5mRI=s240-c-k-c0x00ffffff-no-rj",
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/9d/Michael_Stevens_at_VidCon_2012.jpg/330px-Michael_Stevens_at_VidCon_2012.jpg",
           "hint": "Educational science channel"
         },
         {
           "id": "kurzgesagt",
           "name": "Kurzgesagt",
           "value": 24,
-          "image": "https://yt3.googleusercontent.com/ytc/AIdro_nCzJd6CXKECuZAT04LXRDaUXnLdCTNH2-aBJ9HgA=s240-c-k-c0x00ffffff-no-rj",
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c2/Kurzgesagt_Logo_2020.png/330px-Kurzgesagt_Logo_2020.png",
           "hint": "In a Nutshell animated education"
         },
         {
           "id": "veritasium",
           "name": "Veritasium",
           "value": 16,
-          "image": "https://yt3.googleusercontent.com/ytc/AIdro_mMDe9bx_jRCHi6hT8JwRN5vQYxjq0CXb2FiGLt=s240-c-k-c0x00ffffff-no-rj",
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/98/Veritasium_square_logo.png/330px-Veritasium_square_logo.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
           "hint": "Science and engineering videos"
         },
         {
           "id": "linus-tech-tips",
           "name": "Linus Tech Tips",
           "value": 16,
-          "image": "https://yt3.googleusercontent.com/ytc/AIdro_n0F_rXRFVjZE4vS9fMl3iVo4S3SH62FvWZbCi7=s240-c-k-c0x00ffffff-no-rj",
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a0/Linus_Sebastian_by_Gage_Skidmore.jpg/330px-Linus_Sebastian_by_Gage_Skidmore.jpg",
           "hint": "Canadian tech review channel"
         },
         {
           "id": "coldplay",
           "name": "Coldplay",
           "value": 33,
-          "image": "https://yt3.googleusercontent.com/ytc/AIdro_lQl0jNXH84yGvXuuXGpQtibD6FXjqVHEJiVfm0=s240-c-k-c0x00ffffff-no-rj",
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cc/ColdplayWembley120925_%28cropped%29.jpg/330px-ColdplayWembley120925_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
           "hint": "British rock band"
         },
         {
           "id": "eminem",
           "name": "Eminem",
           "value": 52,
-          "image": "https://yt3.googleusercontent.com/ytc/AIdro_kj12P8bQ3WOqxDmqpHSqt8aM6QpCyNfnDRrE=s240-c-k-c0x00ffffff-no-rj",
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0f/Eminem_2021_Color_Corrected.jpg/330px-Eminem_2021_Color_Corrected.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
           "hint": "Slim Shady, Detroit rapper"
         },
         {
           "id": "ed-sheeran",
           "name": "Ed Sheeran",
           "value": 56,
-          "image": "https://yt3.googleusercontent.com/ytc/AIdro_ln5cRLf2Bv4CJjmKs4C1pFYi5Q4lYqsLz9aEaD=s240-c-k-c0x00ffffff-no-rj",
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/03/Ed_Sheeran_2022_%283x4_crop%29.jpg/330px-Ed_Sheeran_2022_%283x4_crop%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
           "hint": "British singer-songwriter"
         },
         {
           "id": "justin-bieber",
           "name": "Justin Bieber",
           "value": 73,
-          "image": "https://yt3.googleusercontent.com/ytc/AIdro_lPZ0B6Pl1TRSPr6i5tAlQoJCjYp4o-n9qRXOSq=s240-c-k-c0x00ffffff-no-rj",
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6c/P20260719DT-1213_President_Donald_J._Trump_and_First_Lady_Melania_Trump_attend_the_FIFA_World_Cup_Final_%28cropped_2%29.jpg/330px-P20260719DT-1213_President_Donald_J._Trump_and_First_Lady_Melania_Trump_attend_the_FIFA_World_Cup_Final_%28cropped_2%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
           "hint": "Canadian pop star"
         },
         {
           "id": "taylor-swift",
           "name": "Taylor Swift",
           "value": 59,
-          "image": "https://yt3.googleusercontent.com/ytc/AIdro_kIpgQGxXpVOxPJJ0pDvmkN-J9_qHF4gXKAlXX6=s240-c-k-c0x00ffffff-no-rj",
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b1/Taylor_Swift_at_the_2023_MTV_Video_Music_Awards_%283%29.png/330px-Taylor_Swift_at_the_2023_MTV_Video_Music_Awards_%283%29.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
           "hint": "Country-pop megastar"
         },
         {
           "id": "bad-bunny",
           "name": "Bad Bunny",
           "value": 45,
-          "image": "https://yt3.googleusercontent.com/ytc/AIdro_kcGJlYuSYSVmIJRq2pA8X5cKNxcRniJXxvTpso=s240-c-k-c0x00ffffff-no-rj",
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b1/Bad_Bunny_2019_by_Glenn_Francis_%28cropped%29.jpg/330px-Bad_Bunny_2019_by_Glenn_Francis_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
           "hint": "Puerto Rican reggaeton star"
         },
         {
           "id": "drake",
           "name": "Drake",
           "value": 35,
-          "image": "https://yt3.googleusercontent.com/ytc/AIdro_mp8JiUhH3-LHpZ0FE3VkFgTaZJWQwB2FSmZYz2=s240-c-k-c0x00ffffff-no-rj",
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/15/Drake_at_The_Carter_Effect_2017_%2836818935200%29_%28cropped%29.jpg/330px-Drake_at_The_Carter_Effect_2017_%2836818935200%29_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
           "hint": "Canadian hip-hop artist"
         }
       ]
@@ -920,7 +920,7 @@
           "id": "wii-sports",
           "name": "Wii Sports",
           "value": 83,
-          "image": "https://upload.wikimedia.org/wikipedia/en/thumb/e/ee/WiiSports_wiibox.jpg/220px-WiiSports_wiibox.jpg",
+          "image": "https://upload.wikimedia.org/wikipedia/en/thumb/e/ee/WiiSports_wiibox.jpg/330px-WiiSports_wiibox.jpg",
           "hint": "Bundled with Nintendo Wii"
         },
         {
@@ -934,7 +934,7 @@
           "id": "mario-kart-8",
           "name": "Mario Kart 8 Deluxe",
           "value": 67,
-          "image": "https://upload.wikimedia.org/wikipedia/en/thumb/7/76/Mario_Kart_8_Deluxe_box_art.jpg/220px-Mario_Kart_8_Deluxe_box_art.jpg",
+          "image": "https://upload.wikimedia.org/wikipedia/en/thumb/7/76/Mario_Kart_8_Deluxe_box_art.jpg/330px-Mario_Kart_8_Deluxe_box_art.jpg",
           "hint": "Nintendo Switch racing game"
         },
         {
@@ -948,7 +948,7 @@
           "id": "pokemon-rb",
           "name": "Pokémon Red/Blue",
           "value": 47,
-          "image": "https://upload.wikimedia.org/wikipedia/en/thumb/a/af/Pokemon_red_en_boxart.jpg/220px-Pokemon_red_en_boxart.jpg",
+          "image": "https://upload.wikimedia.org/wikipedia/en/thumb/a/af/Pokemon_red_en_boxart.jpg/330px-Pokemon_red_en_boxart.jpg",
           "hint": "The original Pokémon games"
         },
         {
@@ -1018,14 +1018,14 @@
           "id": "super-mario-odyssey",
           "name": "Super Mario Odyssey",
           "value": 27,
-          "image": "https://upload.wikimedia.org/wikipedia/en/thumb/8/8d/Super_Mario_Odyssey.jpg/220px-Super_Mario_Odyssey.jpg",
+          "image": "https://upload.wikimedia.org/wikipedia/en/thumb/8/8d/Super_Mario_Odyssey.jpg/330px-Super_Mario_Odyssey.jpg",
           "hint": "Nintendo Switch 3D platformer"
         },
         {
           "id": "zelda-botw",
           "name": "Zelda: Breath of the Wild",
           "value": 32,
-          "image": "https://upload.wikimedia.org/wikipedia/en/thumb/c/c6/The_Legend_of_Zelda_Breath_of_the_Wild.jpg/220px-The_Legend_of_Zelda_Breath_of_the_Wild.jpg",
+          "image": "https://upload.wikimedia.org/wikipedia/en/thumb/c/c6/The_Legend_of_Zelda_Breath_of_the_Wild.jpg/330px-The_Legend_of_Zelda_Breath_of_the_Wild.jpg",
           "hint": "Nintendo open-world masterpiece"
         },
         {
@@ -1053,14 +1053,14 @@
           "id": "league-of-legends",
           "name": "League of Legends",
           "value": 27,
-          "image": "https://cdn.akamai.steamstatic.com/steam/apps/2300290/header.jpg",
+          "image": "https://upload.wikimedia.org/wikipedia/en/thumb/1/13/League_of_Legends_-_Box_Art.jpg/330px-League_of_Legends_-_Box_Art.jpg",
           "hint": "Riot's iconic MOBA"
         },
         {
           "id": "super-smash",
           "name": "Super Smash Bros. Ultimate",
           "value": 35,
-          "image": "https://upload.wikimedia.org/wikipedia/en/thumb/3/3e/Super_Smash_Bros._Ultimate_box_art.jpg/220px-Super_Smash_Bros._Ultimate_box_art.jpg",
+          "image": "https://upload.wikimedia.org/wikipedia/en/thumb/3/3e/Super_Smash_Bros._Ultimate_box_art.jpg/330px-Super_Smash_Bros._Ultimate_box_art.jpg",
           "hint": "Nintendo's ultimate crossover fighter"
         },
         {
@@ -1524,7 +1524,7 @@
           "id": "youtube-x",
           "name": "YouTube",
           "value": 92,
-          "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/YouTube_full-color_icon_%282017%29.svg/320px-YouTube_full-color_icon_%282017%29.svg.png",
+          "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/YouTube_full-color_icon_%282017%29.svg/330px-YouTube_full-color_icon_%282017%29.svg.png",
           "hint": "Google's video platform"
         },
         {
@@ -1562,7 +1562,7 @@
           "id": "iron-man-m",
           "name": "Iron Man (2008)",
           "value": 7.9,
-          "image": "https://image.tmdb.org/t/p/w500/78lPtwv72eTNqFW9COBF8l6ByFc.jpg",
+          "image": "https://upload.wikimedia.org/wikipedia/en/0/02/Iron_Man_%282008_film%29_poster.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
           "hint": "The one that started the MCU"
         },
         {
@@ -1604,14 +1604,14 @@
           "id": "doctor-strange-m",
           "name": "Doctor Strange",
           "value": 7.5,
-          "image": "https://image.tmdb.org/t/p/w500/xj2nJLj9PuJ1Hn6jqR8gbxEKDRr.jpg",
+          "image": "https://thumb.wikimedia.org/wikipedia/en/thumb/2/2c/Doctor_Strange_poster.jpg/330px-Doctor_Strange_poster.jpg",
           "hint": "MCU Sorcerer Supreme"
         },
         {
           "id": "ant-man-m",
           "name": "Ant-Man",
           "value": 7.3,
-          "image": "https://image.tmdb.org/t/p/w500/MvYpKlpFukTivnlBhizgUs8C6Y.jpg",
+          "image": "https://upload.wikimedia.org/wikipedia/en/1/12/Ant-Man_%28film%29_poster.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
           "hint": "Paul Rudd shrinks down"
         },
         {
@@ -1625,21 +1625,21 @@
           "id": "thor-dark-world",
           "name": "Thor: The Dark World",
           "value": 6.8,
-          "image": "https://image.tmdb.org/t/p/w500/eTnA3FhMRZOePQnVjNlrh2MHhsY.jpg",
+          "image": "https://upload.wikimedia.org/wikipedia/en/7/7f/Thor_The_Dark_World_poster.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
           "hint": "Often called the worst MCU film"
         },
         {
           "id": "iron-man-2",
           "name": "Iron Man 2",
           "value": 7.0,
-          "image": "https://image.tmdb.org/t/p/w500/6WBeq4FCR8O8YnynCaKgNWXjDdT.jpg",
+          "image": "https://upload.wikimedia.org/wikipedia/en/e/ed/Iron_Man_2_poster.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
           "hint": "Whiplash and Black Widow debut"
         },
         {
           "id": "avengers-2012-m",
           "name": "The Avengers (2012)",
           "value": 8.0,
-          "image": "https://image.tmdb.org/t/p/w500/RYMX2wcKCBAr24UyPD7KE3QybEG.jpg",
+          "image": "https://upload.wikimedia.org/wikipedia/en/8/8a/The_Avengers_%282012_film%29_poster.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
           "hint": "First MCU team-up"
         },
         {
@@ -1653,7 +1653,7 @@
           "id": "wandavision",
           "name": "WandaVision",
           "value": 7.9,
-          "image": "https://image.tmdb.org/t/p/w500/glKDfE6btIRcmuj5KbXf38SkwO.jpg",
+          "image": "https://thumb.wikimedia.org/wikipedia/en/thumb/2/20/WandaVision_logo.png/330px-WandaVision_logo.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
           "hint": "MCU sitcom on Disney+"
         },
         {
@@ -1667,14 +1667,14 @@
           "id": "hawkeye-m",
           "name": "Hawkeye",
           "value": 7.5,
-          "image": "https://image.tmdb.org/t/p/w500/4HodWMHpAeKqkLMl1FEaDHRhsJY.jpg",
+          "image": "https://thumb.wikimedia.org/wikipedia/en/thumb/7/7a/Hawkeye_%28miniseries%29_logo.png/330px-Hawkeye_%28miniseries%29_logo.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
           "hint": "Christmas-set Disney+ show"
         },
         {
           "id": "eternals-m",
           "name": "Eternals",
           "value": 6.3,
-          "image": "https://image.tmdb.org/t/p/w500/6AdSCiFFdvjjvMJqX1OFDgvqVyV.jpg",
+          "image": "https://upload.wikimedia.org/wikipedia/en/9/9b/Eternals_%28film%29_poster.jpeg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
           "hint": "Chloé Zhao's cosmic MCU film"
         },
         {
@@ -1740,28 +1740,28 @@
           "id": "dahmer",
           "name": "DAHMER",
           "value": 196,
-          "image": "https://image.tmdb.org/t/p/w500/f2PVrphK0u81ES256IKBjQMCDsR.jpg",
+          "image": "https://upload.wikimedia.org/wikipedia/en/2/28/Dahmer_netflix_series.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
           "hint": "Ryan Murphy's true crime drama"
         },
         {
           "id": "the-crown-s5",
           "name": "The Crown S5",
           "value": 168,
-          "image": "https://image.tmdb.org/t/p/w500/jNsNf2Gg9iRiMUBJnExJGpfh3hG.jpg",
+          "image": "https://thumb.wikimedia.org/wikipedia/en/thumb/1/18/The_Crown_Title_Card.jpg/330px-The_Crown_Title_Card.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
           "hint": "British royal family drama"
         },
         {
           "id": "emily-in-paris-s3",
           "name": "Emily in Paris S3",
           "value": 117,
-          "image": "https://image.tmdb.org/t/p/w500/rNOHEMVAU7FwuHnLqABUZRRCOmO.jpg",
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a4/Emily_in_Paris_logo.svg/330px-Emily_in_Paris_logo.svg.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
           "hint": "Darren Star's Paris comedy"
         },
         {
           "id": "you-s4",
           "name": "You S4",
           "value": 146,
-          "image": "https://image.tmdb.org/t/p/w500/2pWqYIEHPDJj7iAqHbWjFoCJhU4.jpg",
+          "image": "https://thumb.wikimedia.org/wikipedia/en/thumb/7/7e/You_TV_Show_Logo.png/330px-You_TV_Show_Logo.png",
           "hint": "Penn Badgley's stalker thriller"
         },
         {
@@ -1775,7 +1775,7 @@
           "id": "ozark-s4",
           "name": "Ozark S4",
           "value": 100,
-          "image": "https://image.tmdb.org/t/p/w500/mMB4HBBuZL7qYNq2aMJRW6dqfAR.jpg",
+          "image": "https://thumb.wikimedia.org/wikipedia/en/thumb/9/94/Ozark_season_4_poster.jpg/330px-Ozark_season_4_poster.jpg",
           "hint": "Crime drama finale season"
         },
         {
@@ -1796,42 +1796,42 @@
           "id": "ginny-georgia-s2",
           "name": "Ginny & Georgia S2",
           "value": 127,
-          "image": "https://image.tmdb.org/t/p/w500/k5OwnxMOCETvtYSKtLrV8V8hfFM.jpg",
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c0/Ginny_%26_Georgia_title_card.png/330px-Ginny_%26_Georgia_title_card.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
           "hint": "Mother-daughter drama"
         },
         {
           "id": "one-piece",
           "name": "One Piece (Live Action)",
           "value": 140,
-          "image": "https://image.tmdb.org/t/p/w500/5VsGUaFQCPNPblnKfBiJRuYQpZH.jpg",
+          "image": "https://thumb.wikimedia.org/wikipedia/en/thumb/9/9a/One_Piece_%28TV_series%29_Netflix.jpg/330px-One_Piece_%28TV_series%29_Netflix.jpg",
           "hint": "Netflix's anime adaptation"
         },
         {
           "id": "avatar-tlok",
           "name": "Avatar: The Last Airbender",
           "value": 93,
-          "image": "https://image.tmdb.org/t/p/w500/cFHsf19OBJi7rOpYZBjUkx1m5PO.jpg",
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a9/Avatar_The_Last_Airbender_logo.svg/330px-Avatar_The_Last_Airbender_logo.svg.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
           "hint": "Netflix live-action remake"
         },
         {
           "id": "the-night-agent",
           "name": "The Night Agent",
           "value": 168,
-          "image": "https://image.tmdb.org/t/p/w500/MnFKTcCPBUGtczRbJCHgOcBNg9.jpg",
+          "image": "https://upload.wikimedia.org/wikipedia/en/f/f2/The_Night_Agent.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
           "hint": "2023 spy thriller, massive hit"
         },
         {
           "id": "outer-banks-s3",
           "name": "Outer Banks S3",
           "value": 110,
-          "image": "https://image.tmdb.org/t/p/w500/6zFDOiGlioEDCDRJNIYZBpBkYLH.jpg",
+          "image": "https://thumb.wikimedia.org/wikipedia/en/thumb/1/15/Outer_Banks_S3_poster.jpg/330px-Outer_Banks_S3_poster.jpg",
           "hint": "Teen treasure hunt drama"
         },
         {
           "id": "beef",
           "name": "BEEF",
           "value": 91,
-          "image": "https://image.tmdb.org/t/p/w500/qBzpTIpMtBiWAKSzNOVMZR0Vqet.jpg",
+          "image": "https://thumb.wikimedia.org/wikipedia/en/thumb/9/97/Beef_Netflix.jpg/330px-Beef_Netflix.jpg",
           "hint": "Steven Yeun road rage drama, Emmy winner"
         },
         {
@@ -1845,7 +1845,7 @@
           "id": "all-quiet",
           "name": "All Quiet on the Western Front",
           "value": 74,
-          "image": "https://image.tmdb.org/t/p/w500/hgmMCX1UDFQKOVoqFCJTXEDdXqW.jpg",
+          "image": "https://upload.wikimedia.org/wikipedia/en/c/c3/All_quiet_on_the_western_front_%282022_film%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
           "hint": "Oscar Best Picture nominee"
         }
       ]
