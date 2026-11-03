@@ -33,6 +33,7 @@ const gameRegistry = {
     description: 'Jump and fly through obstacles!',
     thumbnail: '/assets/arcade/geodash-thumb.webp',
     maxScore: 9999,
+    selfManaged: true, // game handles its own modal
     component: lazy(() => import('./games/GeodashGame')),
   },
   snake: {
