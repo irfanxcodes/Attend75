@@ -938,6 +938,161 @@ function GameVisual({ game, personalBest, fullscreen = false }) {
     )
   }
   
+  if (game.slug === 'higherorlower') {
+    return (
+      <div
+        className={`relative flex flex-col items-center justify-center overflow-hidden ${heightClass}`}
+        style={{ background: 'linear-gradient(160deg, #0d0b1e 0%, #1a1035 50%, #0a0e1a 100%)' }}
+      >
+        <style>{`
+          @keyframes holArrowUp {
+            0%, 100% { transform: translateY(0px); opacity: 1; }
+            50% { transform: translateY(-10px); opacity: 0.7; }
+          }
+          @keyframes holArrowDown {
+            0%, 100% { transform: translateY(0px); opacity: 1; }
+            50% { transform: translateY(10px); opacity: 0.7; }
+          }
+          @keyframes holPulseGreen {
+            0%, 100% { text-shadow: 0 0 20px rgba(78,240,100,0.6), 0 0 40px rgba(78,240,100,0.3); }
+            50% { text-shadow: 0 0 35px rgba(78,240,100,1), 0 0 70px rgba(78,240,100,0.5); }
+          }
+          @keyframes holPulseRed {
+            0%, 100% { text-shadow: 0 0 20px rgba(255,80,80,0.6), 0 0 40px rgba(255,80,80,0.3); }
+            50% { text-shadow: 0 0 35px rgba(255,80,80,1), 0 0 70px rgba(255,80,80,0.5); }
+          }
+          @keyframes holBgPulse {
+            0%, 100% { opacity: 0.12; }
+            50% { opacity: 0.22; }
+          }
+          @keyframes holVsFade {
+            0%, 100% { opacity: 0.5; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.1); }
+          }
+        `}</style>
+
+        {/* Background glow orbs */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div
+            className="absolute rounded-full"
+            style={{
+              width: fullscreen ? 260 : 200,
+              height: fullscreen ? 260 : 200,
+              top: '-10%', left: '-10%',
+              background: 'radial-gradient(circle, rgba(78,240,100,0.18) 0%, transparent 70%)',
+              animation: 'holBgPulse 2.5s ease-in-out infinite',
+              filter: 'blur(30px)',
+            }}
+          />
+          <div
+            className="absolute rounded-full"
+            style={{
+              width: fullscreen ? 260 : 200,
+              height: fullscreen ? 260 : 200,
+              bottom: '-10%', right: '-10%',
+              background: 'radial-gradient(circle, rgba(255,80,80,0.18) 0%, transparent 70%)',
+              animation: 'holBgPulse 2.5s ease-in-out infinite',
+              animationDelay: '1.25s',
+              filter: 'blur(30px)',
+            }}
+          />
+        </div>
+
+        {/* Main logo block */}
+        <div className="relative z-10 flex flex-col items-center select-none" style={{ gap: fullscreen ? 4 : 2 }}>
+
+          {/* "THE" label */}
+          <span
+            className="font-black tracking-[0.25em] text-white/60 uppercase"
+            style={{ fontSize: fullscreen ? 13 : 11, letterSpacing: '0.3em' }}
+          >
+            THE
+          </span>
+
+          {/* HIGHER row */}
+          <div className="flex items-center gap-2">
+            {/* Up arrow */}
+            <svg
+              width={fullscreen ? 32 : 24}
+              height={fullscreen ? 38 : 28}
+              viewBox="0 0 32 38"
+              fill="none"
+              style={{ animation: 'holArrowUp 1.6s ease-in-out infinite', flexShrink: 0 }}
+            >
+              <path d="M16 2 L30 22 H20 V36 H12 V22 H2 Z" fill="#4EF064" stroke="#2DC04A" strokeWidth="1.5" strokeLinejoin="round"/>
+            </svg>
+
+            <span
+              className="font-black uppercase leading-none"
+              style={{
+                fontSize: fullscreen ? 52 : 38,
+                color: '#4EF064',
+                animation: 'holPulseGreen 2s ease-in-out infinite',
+                fontFamily: 'system-ui, -apple-system, sans-serif',
+                letterSpacing: '-0.02em',
+                WebkitTextStroke: fullscreen ? '1.5px #2DC04A' : '1px #2DC04A',
+              }}
+            >
+              HIGHER
+            </span>
+          </div>
+
+          {/* LOWER row */}
+          <div className="flex items-center gap-2">
+            <span
+              className="font-black uppercase leading-none"
+              style={{
+                fontSize: fullscreen ? 52 : 38,
+                color: '#FF5050',
+                animation: 'holPulseRed 2s ease-in-out infinite',
+                animationDelay: '1s',
+                fontFamily: 'system-ui, -apple-system, sans-serif',
+                letterSpacing: '-0.02em',
+                WebkitTextStroke: fullscreen ? '1.5px #C83030' : '1px #C83030',
+              }}
+            >
+              LOWER
+            </span>
+
+            {/* Down arrow */}
+            <svg
+              width={fullscreen ? 32 : 24}
+              height={fullscreen ? 38 : 28}
+              viewBox="0 0 32 38"
+              fill="none"
+              style={{ animation: 'holArrowDown 1.6s ease-in-out infinite', flexShrink: 0 }}
+            >
+              <path d="M16 36 L30 16 H20 V2 H12 V16 H2 Z" fill="#FF5050" stroke="#C83030" strokeWidth="1.5" strokeLinejoin="round"/>
+            </svg>
+          </div>
+
+          {/* "GAME" label */}
+          <span
+            className="font-black tracking-[0.3em] text-white/70 uppercase"
+            style={{ fontSize: fullscreen ? 15 : 12, letterSpacing: '0.35em' }}
+          >
+            GAME
+          </span>
+        </div>
+
+        {/* VS pill at bottom — bouncing */}
+        {fullscreen && (
+          <div
+            className="relative z-10 mt-6 flex items-center justify-center rounded-full font-black text-white text-sm"
+            style={{
+              width: 48, height: 48,
+              background: 'linear-gradient(135deg, #6C47FF, #FF47C0)',
+              boxShadow: '0 0 24px rgba(108,71,255,0.6)',
+              animation: 'holVsFade 2s ease-in-out infinite',
+            }}
+          >
+            VS
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className={`relative flex flex-col items-center justify-center overflow-hidden bg-[#302A52] ${heightClass}`}>
       <span className={fullscreen ? "text-7xl" : "text-5xl"}>🎮</span>
