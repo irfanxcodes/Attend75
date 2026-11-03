@@ -8,46 +8,286 @@
       "unit": "",
       "formatSuffix": "",
       "items": [
-        { "id": "cn", "name": "China", "value": 1412000000, "image": "https://flagcdn.com/w320/cn.png", "hint": "Most populous country in Asia" },
-        { "id": "in", "name": "India", "value": 1428000000, "image": "https://flagcdn.com/w320/in.png", "hint": "World's largest democracy" },
-        { "id": "us", "name": "United States", "value": 335000000, "image": "https://flagcdn.com/w320/us.png", "hint": "Country in North America" },
-        { "id": "id", "name": "Indonesia", "value": 277000000, "image": "https://flagcdn.com/w320/id.png", "hint": "Largest archipelago nation" },
-        { "id": "pk", "name": "Pakistan", "value": 231000000, "image": "https://flagcdn.com/w320/pk.png", "hint": "Country in South Asia" },
-        { "id": "br", "name": "Brazil", "value": 215000000, "image": "https://flagcdn.com/w320/br.png", "hint": "Largest country in South America" },
-        { "id": "ng", "name": "Nigeria", "value": 218000000, "image": "https://flagcdn.com/w320/ng.png", "hint": "Most populous African country" },
-        { "id": "bd", "name": "Bangladesh", "value": 170000000, "image": "https://flagcdn.com/w320/bd.png", "hint": "Country in South Asia" },
-        { "id": "ru", "name": "Russia", "value": 144000000, "image": "https://flagcdn.com/w320/ru.png", "hint": "Largest country by area" },
-        { "id": "mx", "name": "Mexico", "value": 128000000, "image": "https://flagcdn.com/w320/mx.png", "hint": "Country in North America" },
-        { "id": "et", "name": "Ethiopia", "value": 123000000, "image": "https://flagcdn.com/w320/et.png", "hint": "Country in the Horn of Africa" },
-        { "id": "jp", "name": "Japan", "value": 125000000, "image": "https://flagcdn.com/w320/jp.png", "hint": "Island nation in East Asia" },
-        { "id": "ph", "name": "Philippines", "value": 114000000, "image": "https://flagcdn.com/w320/ph.png", "hint": "Archipelago in Southeast Asia" },
-        { "id": "cd", "name": "DR Congo", "value": 99000000, "image": "https://flagcdn.com/w320/cd.png", "hint": "Largest country in Central Africa" },
-        { "id": "eg", "name": "Egypt", "value": 104000000, "image": "https://flagcdn.com/w320/eg.png", "hint": "Country of the Nile" },
-        { "id": "de", "name": "Germany", "value": 84000000, "image": "https://flagcdn.com/w320/de.png", "hint": "Largest economy in Europe" },
-        { "id": "vn", "name": "Vietnam", "value": 97000000, "image": "https://flagcdn.com/w320/vn.png", "hint": "Country in Southeast Asia" },
-        { "id": "ir", "name": "Iran", "value": 87000000, "image": "https://flagcdn.com/w320/ir.png", "hint": "Country in the Middle East" },
-        { "id": "tr", "name": "Turkey", "value": 85000000, "image": "https://flagcdn.com/w320/tr.png", "hint": "Transcontinental country" },
-        { "id": "tz", "name": "Tanzania", "value": 63000000, "image": "https://flagcdn.com/w320/tz.png", "hint": "Country in East Africa" },
-        { "id": "gb", "name": "United Kingdom", "value": 67000000, "image": "https://flagcdn.com/w320/gb.png", "hint": "Island nation in Europe" },
-        { "id": "fr", "name": "France", "value": 68000000, "image": "https://flagcdn.com/w320/fr.png", "hint": "Most visited country in the world" },
-        { "id": "za", "name": "South Africa", "value": 60000000, "image": "https://flagcdn.com/w320/za.png", "hint": "Rainbow nation at Africa's tip" },
-        { "id": "mm", "name": "Myanmar", "value": 54000000, "image": "https://flagcdn.com/w320/mm.png", "hint": "Country in Southeast Asia" },
-        { "id": "ke", "name": "Kenya", "value": 54000000, "image": "https://flagcdn.com/w320/ke.png", "hint": "Country in East Africa" },
-        { "id": "co", "name": "Colombia", "value": 51000000, "image": "https://flagcdn.com/w320/co.png", "hint": "Country in South America" },
-        { "id": "es", "name": "Spain", "value": 47000000, "image": "https://flagcdn.com/w320/es.png", "hint": "Country in the Iberian Peninsula" },
-        { "id": "ar", "name": "Argentina", "value": 46000000, "image": "https://flagcdn.com/w320/ar.png", "hint": "Country in South America" },
-        { "id": "dz", "name": "Algeria", "value": 45000000, "image": "https://flagcdn.com/w320/dz.png", "hint": "Largest country in Africa" },
-        { "id": "sd", "name": "Sudan", "value": 45000000, "image": "https://flagcdn.com/w320/sd.png", "hint": "Country in Northeast Africa" },
-        { "id": "ug", "name": "Uganda", "value": 47000000, "image": "https://flagcdn.com/w320/ug.png", "hint": "Pearl of Africa" },
-        { "id": "iq", "name": "Iraq", "value": 42000000, "image": "https://flagcdn.com/w320/iq.png", "hint": "Land of Mesopotamia" },
-        { "id": "ua", "name": "Ukraine", "value": 43000000, "image": "https://flagcdn.com/w320/ua.png", "hint": "Largest country in Europe" },
-        { "id": "ca", "name": "Canada", "value": 38000000, "image": "https://flagcdn.com/w320/ca.png", "hint": "Second largest country by area" },
-        { "id": "pl", "name": "Poland", "value": 38000000, "image": "https://flagcdn.com/w320/pl.png", "hint": "Country in Central Europe" },
-        { "id": "au", "name": "Australia", "value": 26000000, "image": "https://flagcdn.com/w320/au.png", "hint": "The land down under" },
-        { "id": "nz", "name": "New Zealand", "value": 5000000, "image": "https://flagcdn.com/w320/nz.png", "hint": "Pacific island nation" },
-        { "id": "sg", "name": "Singapore", "value": 6000000, "image": "https://flagcdn.com/w320/sg.png", "hint": "City-state in Southeast Asia" },
-        { "id": "is", "name": "Iceland", "value": 370000, "image": "https://flagcdn.com/w320/is.png", "hint": "Land of fire and ice" },
-        { "id": "lu", "name": "Luxembourg", "value": 660000, "image": "https://flagcdn.com/w320/lu.png", "hint": "Small duchy in Western Europe" }
+        {
+          "id": "cn",
+          "name": "China",
+          "value": 1412000000,
+          "image": "https://flagcdn.com/w320/cn.png",
+          "hint": "Most populous country in Asia"
+        },
+        {
+          "id": "in",
+          "name": "India",
+          "value": 1428000000,
+          "image": "https://flagcdn.com/w320/in.png",
+          "hint": "World's largest democracy"
+        },
+        {
+          "id": "us",
+          "name": "United States",
+          "value": 335000000,
+          "image": "https://flagcdn.com/w320/us.png",
+          "hint": "Country in North America"
+        },
+        {
+          "id": "id",
+          "name": "Indonesia",
+          "value": 277000000,
+          "image": "https://flagcdn.com/w320/id.png",
+          "hint": "Largest archipelago nation"
+        },
+        {
+          "id": "pk",
+          "name": "Pakistan",
+          "value": 231000000,
+          "image": "https://flagcdn.com/w320/pk.png",
+          "hint": "Country in South Asia"
+        },
+        {
+          "id": "br",
+          "name": "Brazil",
+          "value": 215000000,
+          "image": "https://flagcdn.com/w320/br.png",
+          "hint": "Largest country in South America"
+        },
+        {
+          "id": "ng",
+          "name": "Nigeria",
+          "value": 218000000,
+          "image": "https://flagcdn.com/w320/ng.png",
+          "hint": "Most populous African country"
+        },
+        {
+          "id": "bd",
+          "name": "Bangladesh",
+          "value": 170000000,
+          "image": "https://flagcdn.com/w320/bd.png",
+          "hint": "Country in South Asia"
+        },
+        {
+          "id": "ru",
+          "name": "Russia",
+          "value": 144000000,
+          "image": "https://flagcdn.com/w320/ru.png",
+          "hint": "Largest country by area"
+        },
+        {
+          "id": "mx",
+          "name": "Mexico",
+          "value": 128000000,
+          "image": "https://flagcdn.com/w320/mx.png",
+          "hint": "Country in North America"
+        },
+        {
+          "id": "et",
+          "name": "Ethiopia",
+          "value": 123000000,
+          "image": "https://flagcdn.com/w320/et.png",
+          "hint": "Country in the Horn of Africa"
+        },
+        {
+          "id": "jp",
+          "name": "Japan",
+          "value": 125000000,
+          "image": "https://flagcdn.com/w320/jp.png",
+          "hint": "Island nation in East Asia"
+        },
+        {
+          "id": "ph",
+          "name": "Philippines",
+          "value": 114000000,
+          "image": "https://flagcdn.com/w320/ph.png",
+          "hint": "Archipelago in Southeast Asia"
+        },
+        {
+          "id": "cd",
+          "name": "DR Congo",
+          "value": 99000000,
+          "image": "https://flagcdn.com/w320/cd.png",
+          "hint": "Largest country in Central Africa"
+        },
+        {
+          "id": "eg",
+          "name": "Egypt",
+          "value": 104000000,
+          "image": "https://flagcdn.com/w320/eg.png",
+          "hint": "Country of the Nile"
+        },
+        {
+          "id": "de",
+          "name": "Germany",
+          "value": 84000000,
+          "image": "https://flagcdn.com/w320/de.png",
+          "hint": "Largest economy in Europe"
+        },
+        {
+          "id": "vn",
+          "name": "Vietnam",
+          "value": 97000000,
+          "image": "https://flagcdn.com/w320/vn.png",
+          "hint": "Country in Southeast Asia"
+        },
+        {
+          "id": "ir",
+          "name": "Iran",
+          "value": 87000000,
+          "image": "https://flagcdn.com/w320/ir.png",
+          "hint": "Country in the Middle East"
+        },
+        {
+          "id": "tr",
+          "name": "Turkey",
+          "value": 85000000,
+          "image": "https://flagcdn.com/w320/tr.png",
+          "hint": "Transcontinental country"
+        },
+        {
+          "id": "tz",
+          "name": "Tanzania",
+          "value": 63000000,
+          "image": "https://flagcdn.com/w320/tz.png",
+          "hint": "Country in East Africa"
+        },
+        {
+          "id": "gb",
+          "name": "United Kingdom",
+          "value": 67000000,
+          "image": "https://flagcdn.com/w320/gb.png",
+          "hint": "Island nation in Europe"
+        },
+        {
+          "id": "fr",
+          "name": "France",
+          "value": 68000000,
+          "image": "https://flagcdn.com/w320/fr.png",
+          "hint": "Most visited country in the world"
+        },
+        {
+          "id": "za",
+          "name": "South Africa",
+          "value": 60000000,
+          "image": "https://flagcdn.com/w320/za.png",
+          "hint": "Rainbow nation at Africa's tip"
+        },
+        {
+          "id": "mm",
+          "name": "Myanmar",
+          "value": 54000000,
+          "image": "https://flagcdn.com/w320/mm.png",
+          "hint": "Country in Southeast Asia"
+        },
+        {
+          "id": "ke",
+          "name": "Kenya",
+          "value": 54000000,
+          "image": "https://flagcdn.com/w320/ke.png",
+          "hint": "Country in East Africa"
+        },
+        {
+          "id": "co",
+          "name": "Colombia",
+          "value": 51000000,
+          "image": "https://flagcdn.com/w320/co.png",
+          "hint": "Country in South America"
+        },
+        {
+          "id": "es",
+          "name": "Spain",
+          "value": 47000000,
+          "image": "https://flagcdn.com/w320/es.png",
+          "hint": "Country in the Iberian Peninsula"
+        },
+        {
+          "id": "ar",
+          "name": "Argentina",
+          "value": 46000000,
+          "image": "https://flagcdn.com/w320/ar.png",
+          "hint": "Country in South America"
+        },
+        {
+          "id": "dz",
+          "name": "Algeria",
+          "value": 45000000,
+          "image": "https://flagcdn.com/w320/dz.png",
+          "hint": "Largest country in Africa"
+        },
+        {
+          "id": "sd",
+          "name": "Sudan",
+          "value": 45000000,
+          "image": "https://flagcdn.com/w320/sd.png",
+          "hint": "Country in Northeast Africa"
+        },
+        {
+          "id": "ug",
+          "name": "Uganda",
+          "value": 47000000,
+          "image": "https://flagcdn.com/w320/ug.png",
+          "hint": "Pearl of Africa"
+        },
+        {
+          "id": "iq",
+          "name": "Iraq",
+          "value": 42000000,
+          "image": "https://flagcdn.com/w320/iq.png",
+          "hint": "Land of Mesopotamia"
+        },
+        {
+          "id": "ua",
+          "name": "Ukraine",
+          "value": 43000000,
+          "image": "https://flagcdn.com/w320/ua.png",
+          "hint": "Largest country in Europe"
+        },
+        {
+          "id": "ca",
+          "name": "Canada",
+          "value": 38000000,
+          "image": "https://flagcdn.com/w320/ca.png",
+          "hint": "Second largest country by area"
+        },
+        {
+          "id": "pl",
+          "name": "Poland",
+          "value": 38000000,
+          "image": "https://flagcdn.com/w320/pl.png",
+          "hint": "Country in Central Europe"
+        },
+        {
+          "id": "au",
+          "name": "Australia",
+          "value": 26000000,
+          "image": "https://flagcdn.com/w320/au.png",
+          "hint": "The land down under"
+        },
+        {
+          "id": "nz",
+          "name": "New Zealand",
+          "value": 5000000,
+          "image": "https://flagcdn.com/w320/nz.png",
+          "hint": "Pacific island nation"
+        },
+        {
+          "id": "sg",
+          "name": "Singapore",
+          "value": 6000000,
+          "image": "https://flagcdn.com/w320/sg.png",
+          "hint": "City-state in Southeast Asia"
+        },
+        {
+          "id": "is",
+          "name": "Iceland",
+          "value": 370000,
+          "image": "https://flagcdn.com/w320/is.png",
+          "hint": "Land of fire and ice"
+        },
+        {
+          "id": "lu",
+          "name": "Luxembourg",
+          "value": 660000,
+          "image": "https://flagcdn.com/w320/lu.png",
+          "hint": "Small duchy in Western Europe"
+        }
       ]
     },
     {
@@ -58,32 +298,188 @@
       "unit": "$",
       "formatSuffix": "M",
       "items": [
-        { "id": "avatar", "name": "Avatar", "value": 2923, "image": "https://image.tmdb.org/t/p/w500/jRXYjXNq0Cs2TcJjLkki24MLp7u.jpg", "hint": "James Cameron's 2009 sci-fi epic" },
-        { "id": "avengers-endgame", "name": "Avengers: Endgame", "value": 2799, "image": "https://image.tmdb.org/t/p/w500/or06FN3Dka5tukK1e9sl16pB3iy.jpg", "hint": "Marvel's 2019 superhero epic" },
-        { "id": "titanic", "name": "Titanic", "value": 2257, "image": "https://image.tmdb.org/t/p/w500/9xjZS2rlVxm8SFx8kPC3aIGCOYQ.jpg", "hint": "James Cameron's 1997 romance disaster" },
-        { "id": "star-wars-tfa", "name": "Star Wars: The Force Awakens", "value": 2068, "image": "https://image.tmdb.org/t/p/w500/wqnLdwVXoBjKibFRR5U3y0aDUhs.jpg", "hint": "2015 Star Wars sequel" },
-        { "id": "avengers-iw", "name": "Avengers: Infinity War", "value": 2048, "image": "https://image.tmdb.org/t/p/w500/7WsyChQLEftFiDOVTGkv3hFpyyt.jpg", "hint": "2018 Marvel snap film" },
-        { "id": "spider-man-nwh", "name": "Spider-Man: No Way Home", "value": 1901, "image": "https://image.tmdb.org/t/p/w500/1g0dhYtq4irTY1GPXvft6k4YLjm.jpg", "hint": "2021 multiverse Spider-Man" },
-        { "id": "jurassic-world", "name": "Jurassic World", "value": 1671, "image": "https://image.tmdb.org/t/p/w500/jjBgi2r5cRt36xF6iNUHs3v0hjN.jpg", "hint": "2015 dinosaur park sequel" },
-        { "id": "lion-king-2019", "name": "The Lion King (2019)", "value": 1663, "image": "https://image.tmdb.org/t/p/w500/2bXbqYdUdNVa8VIWXVfclP2ICtT.jpg", "hint": "Disney's 2019 live-action remake" },
-        { "id": "furious-7", "name": "Furious 7", "value": 1516, "image": "https://image.tmdb.org/t/p/w500/kkS8PKa8c134D3jIQL9yVd1nFQN.jpg", "hint": "2015 Fast & Furious film" },
-        { "id": "frozen-2", "name": "Frozen II", "value": 1450, "image": "https://image.tmdb.org/t/p/w500/pjeMs3yqRmFL3giJy4PMXWZTTPa.jpg", "hint": "2019 Disney animated sequel" },
-        { "id": "avengers-2012", "name": "The Avengers (2012)", "value": 1519, "image": "https://image.tmdb.org/t/p/w500/RYMX2wcKCBAr24UyPD7KE3QybEG.jpg", "hint": "First MCU team-up film" },
-        { "id": "incredibles-2", "name": "Incredibles 2", "value": 1243, "image": "https://image.tmdb.org/t/p/w500/9slpqxSHsiBrOWnCkvqvIRTfkiB.jpg", "hint": "2018 Pixar superhero sequel" },
-        { "id": "iron-man-3", "name": "Iron Man 3", "value": 1215, "image": "https://image.tmdb.org/t/p/w500/qhPtAc1TKbMPqNvcdXSOn9Bn7hZ.jpg", "hint": "2013 Marvel standalone" },
-        { "id": "minions", "name": "Minions", "value": 1159, "image": "https://image.tmdb.org/t/p/w500/q0R4crx2SehcEELEHTFLiDpvoPR.jpg", "hint": "2015 animated yellow creatures" },
-        { "id": "captain-america-cw", "name": "Captain America: Civil War", "value": 1153, "image": "https://image.tmdb.org/t/p/w500/rAGiXaUfPzY7CDEyNKUofk3Kw2e.jpg", "hint": "2016 Marvel Avengers split" },
-        { "id": "aquaman", "name": "Aquaman", "value": 1148, "image": "https://image.tmdb.org/t/p/w500/5Kg76ldv7VxeX9YlcQXiowHgdX6.jpg", "hint": "2018 DC underwater epic" },
-        { "id": "transformers-aoe", "name": "Transformers: Age of Extinction", "value": 1104, "image": "https://image.tmdb.org/t/p/w500/2SFnOR4FPuqm4SoD1AaCdZPpbHe.jpg", "hint": "2014 Bayformers sequel" },
-        { "id": "skyfall", "name": "Skyfall", "value": 1109, "image": "https://image.tmdb.org/t/p/w500/0HbVzGHFe0JLRZ5KTTF7RB0eTH.jpg", "hint": "2012 James Bond film" },
-        { "id": "operation-red-sea", "name": "Operation Red Sea", "value": 579, "image": "https://image.tmdb.org/t/p/w500/ibXfT8sCbJRj7hc2OiSDaEWK3bQ.jpg", "hint": "2018 Chinese action war film" },
-        { "id": "toy-story-4", "name": "Toy Story 4", "value": 1073, "image": "https://image.tmdb.org/t/p/w500/w9kR8qbmQ01HwnvK4alvnQ2ca0L.jpg", "hint": "2019 Pixar sequel" },
-        { "id": "batman-v-superman", "name": "Batman v Superman", "value": 873, "image": "https://image.tmdb.org/t/p/w500/5UsK3grJvtQrtzEgqNlDljJW96w.jpg", "hint": "2016 DC crossover" },
-        { "id": "interstellar", "name": "Interstellar", "value": 773, "image": "https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg", "hint": "2014 Nolan space epic" },
-        { "id": "parasite", "name": "Parasite", "value": 262, "image": "https://image.tmdb.org/t/p/w500/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg", "hint": "2019 Oscar Best Picture winner" },
-        { "id": "oppenheimer", "name": "Oppenheimer", "value": 952, "image": "https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg", "hint": "2023 Nolan's atomic bomb film" },
-        { "id": "barbie", "name": "Barbie", "value": 1441, "image": "https://image.tmdb.org/t/p/w500/iuFNMS8U5cb6xfzi51Dbkovj7vM.jpg", "hint": "2023 Greta Gerwig pink blockbuster" },
-        { "id": "mission-impossible-gp", "name": "Mission: Impossible – Ghost Protocol", "value": 694, "image": "https://image.tmdb.org/t/p/w500/t0fuQB6tBDvAWZ5RjnzQGRw1JXs.jpg", "hint": "2011 Tom Cruise spy film" }
+        {
+          "id": "avatar",
+          "name": "Avatar",
+          "value": 2923,
+          "image": "https://image.tmdb.org/t/p/w500/jRXYjXNq0Cs2TcJjLkki24MLp7u.jpg",
+          "hint": "James Cameron's 2009 sci-fi epic"
+        },
+        {
+          "id": "avengers-endgame",
+          "name": "Avengers: Endgame",
+          "value": 2799,
+          "image": "https://image.tmdb.org/t/p/w500/or06FN3Dka5tukK1e9sl16pB3iy.jpg",
+          "hint": "Marvel's 2019 superhero epic"
+        },
+        {
+          "id": "titanic",
+          "name": "Titanic",
+          "value": 2257,
+          "image": "https://image.tmdb.org/t/p/w500/9xjZS2rlVxm8SFx8kPC3aIGCOYQ.jpg",
+          "hint": "James Cameron's 1997 romance disaster"
+        },
+        {
+          "id": "star-wars-tfa",
+          "name": "Star Wars: The Force Awakens",
+          "value": 2068,
+          "image": "https://image.tmdb.org/t/p/w500/wqnLdwVXoBjKibFRR5U3y0aDUhs.jpg",
+          "hint": "2015 Star Wars sequel"
+        },
+        {
+          "id": "avengers-iw",
+          "name": "Avengers: Infinity War",
+          "value": 2048,
+          "image": "https://image.tmdb.org/t/p/w500/7WsyChQLEftFiDOVTGkv3hFpyyt.jpg",
+          "hint": "2018 Marvel snap film"
+        },
+        {
+          "id": "spider-man-nwh",
+          "name": "Spider-Man: No Way Home",
+          "value": 1901,
+          "image": "https://image.tmdb.org/t/p/w500/1g0dhYtq4irTY1GPXvft6k4YLjm.jpg",
+          "hint": "2021 multiverse Spider-Man"
+        },
+        {
+          "id": "jurassic-world",
+          "name": "Jurassic World",
+          "value": 1671,
+          "image": "https://image.tmdb.org/t/p/w500/jjBgi2r5cRt36xF6iNUHs3v0hjN.jpg",
+          "hint": "2015 dinosaur park sequel"
+        },
+        {
+          "id": "lion-king-2019",
+          "name": "The Lion King (2019)",
+          "value": 1663,
+          "image": "https://image.tmdb.org/t/p/w500/2bXbqYdUdNVa8VIWXVfclP2ICtT.jpg",
+          "hint": "Disney's 2019 live-action remake"
+        },
+        {
+          "id": "furious-7",
+          "name": "Furious 7",
+          "value": 1516,
+          "image": "https://image.tmdb.org/t/p/w500/kkS8PKa8c134D3jIQL9yVd1nFQN.jpg",
+          "hint": "2015 Fast & Furious film"
+        },
+        {
+          "id": "frozen-2",
+          "name": "Frozen II",
+          "value": 1450,
+          "image": "https://image.tmdb.org/t/p/w500/pjeMs3yqRmFL3giJy4PMXWZTTPa.jpg",
+          "hint": "2019 Disney animated sequel"
+        },
+        {
+          "id": "avengers-2012",
+          "name": "The Avengers (2012)",
+          "value": 1519,
+          "image": "https://image.tmdb.org/t/p/w500/RYMX2wcKCBAr24UyPD7KE3QybEG.jpg",
+          "hint": "First MCU team-up film"
+        },
+        {
+          "id": "incredibles-2",
+          "name": "Incredibles 2",
+          "value": 1243,
+          "image": "https://image.tmdb.org/t/p/w500/9slpqxSHsiBrOWnCkvqvIRTfkiB.jpg",
+          "hint": "2018 Pixar superhero sequel"
+        },
+        {
+          "id": "iron-man-3",
+          "name": "Iron Man 3",
+          "value": 1215,
+          "image": "https://image.tmdb.org/t/p/w500/qhPtAc1TKbMPqNvcdXSOn9Bn7hZ.jpg",
+          "hint": "2013 Marvel standalone"
+        },
+        {
+          "id": "minions",
+          "name": "Minions",
+          "value": 1159,
+          "image": "https://image.tmdb.org/t/p/w500/q0R4crx2SehcEELEHTFLiDpvoPR.jpg",
+          "hint": "2015 animated yellow creatures"
+        },
+        {
+          "id": "captain-america-cw",
+          "name": "Captain America: Civil War",
+          "value": 1153,
+          "image": "https://image.tmdb.org/t/p/w500/rAGiXaUfPzY7CDEyNKUofk3Kw2e.jpg",
+          "hint": "2016 Marvel Avengers split"
+        },
+        {
+          "id": "aquaman",
+          "name": "Aquaman",
+          "value": 1148,
+          "image": "https://image.tmdb.org/t/p/w500/5Kg76ldv7VxeX9YlcQXiowHgdX6.jpg",
+          "hint": "2018 DC underwater epic"
+        },
+        {
+          "id": "transformers-aoe",
+          "name": "Transformers: Age of Extinction",
+          "value": 1104,
+          "image": "https://image.tmdb.org/t/p/w500/2SFnOR4FPuqm4SoD1AaCdZPpbHe.jpg",
+          "hint": "2014 Bayformers sequel"
+        },
+        {
+          "id": "skyfall",
+          "name": "Skyfall",
+          "value": 1109,
+          "image": "https://image.tmdb.org/t/p/w500/0HbVzGHFe0JLRZ5KTTF7RB0eTH.jpg",
+          "hint": "2012 James Bond film"
+        },
+        {
+          "id": "operation-red-sea",
+          "name": "Operation Red Sea",
+          "value": 579,
+          "image": "https://image.tmdb.org/t/p/w500/ibXfT8sCbJRj7hc2OiSDaEWK3bQ.jpg",
+          "hint": "2018 Chinese action war film"
+        },
+        {
+          "id": "toy-story-4",
+          "name": "Toy Story 4",
+          "value": 1073,
+          "image": "https://image.tmdb.org/t/p/w500/w9kR8qbmQ01HwnvK4alvnQ2ca0L.jpg",
+          "hint": "2019 Pixar sequel"
+        },
+        {
+          "id": "batman-v-superman",
+          "name": "Batman v Superman",
+          "value": 873,
+          "image": "https://image.tmdb.org/t/p/w500/5UsK3grJvtQrtzEgqNlDljJW96w.jpg",
+          "hint": "2016 DC crossover"
+        },
+        {
+          "id": "interstellar",
+          "name": "Interstellar",
+          "value": 773,
+          "image": "https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg",
+          "hint": "2014 Nolan space epic"
+        },
+        {
+          "id": "parasite",
+          "name": "Parasite",
+          "value": 262,
+          "image": "https://image.tmdb.org/t/p/w500/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg",
+          "hint": "2019 Oscar Best Picture winner"
+        },
+        {
+          "id": "oppenheimer",
+          "name": "Oppenheimer",
+          "value": 952,
+          "image": "https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg",
+          "hint": "2023 Nolan's atomic bomb film"
+        },
+        {
+          "id": "barbie",
+          "name": "Barbie",
+          "value": 1441,
+          "image": "https://image.tmdb.org/t/p/w500/iuFNMS8U5cb6xfzi51Dbkovj7vM.jpg",
+          "hint": "2023 Greta Gerwig pink blockbuster"
+        },
+        {
+          "id": "mission-impossible-gp",
+          "name": "Mission: Impossible – Ghost Protocol",
+          "value": 694,
+          "image": "https://image.tmdb.org/t/p/w500/t0fuQB6tBDvAWZ5RjnzQGRw1JXs.jpg",
+          "hint": "2011 Tom Cruise spy film"
+        }
       ]
     },
     {
@@ -94,41 +490,251 @@
       "unit": "",
       "formatSuffix": " pts",
       "items": [
-        { "id": "arceus", "name": "Arceus", "value": 720, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/493.png", "hint": "The God Pokémon" },
-        { "id": "mewtwo", "name": "Mewtwo", "value": 680, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/150.png", "hint": "Genetic Pokémon, Gen 1 legendary" },
-        { "id": "rayquaza", "name": "Rayquaza", "value": 680, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/384.png", "hint": "Sky High Pokémon" },
-        { "id": "lugia", "name": "Lugia", "value": 680, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/249.png", "hint": "Diving Pokémon, Ho-Oh's rival" },
-        { "id": "ho-oh", "name": "Ho-Oh", "value": 680, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/250.png", "hint": "Rainbow Pokémon" },
-        { "id": "kyogre", "name": "Kyogre", "value": 670, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/382.png", "hint": "Sea Basin Pokémon" },
-        { "id": "groudon", "name": "Groudon", "value": 670, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/383.png", "hint": "Continent Pokémon" },
-        { "id": "dialga", "name": "Dialga", "value": 680, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/483.png", "hint": "Temporal Pokémon" },
-        { "id": "palkia", "name": "Palkia", "value": 680, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/484.png", "hint": "Spatial Pokémon" },
-        { "id": "giratina", "name": "Giratina", "value": 680, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/487.png", "hint": "Renegade Pokémon" },
-        { "id": "reshiram", "name": "Reshiram", "value": 680, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/643.png", "hint": "Vast White Pokémon" },
-        { "id": "zekrom", "name": "Zekrom", "value": 680, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/644.png", "hint": "Deep Black Pokémon" },
-        { "id": "xerneas", "name": "Xerneas", "value": 680, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/716.png", "hint": "Life Pokémon, Kalos legendary" },
-        { "id": "yveltal", "name": "Yveltal", "value": 680, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/717.png", "hint": "Destruction Pokémon" },
-        { "id": "dragonite", "name": "Dragonite", "value": 600, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/149.png", "hint": "Dragon Pokémon, Gen 1 pseudo-legendary" },
-        { "id": "tyranitar", "name": "Tyranitar", "value": 600, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/248.png", "hint": "Armor Pokémon" },
-        { "id": "salamence", "name": "Salamence", "value": 600, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/373.png", "hint": "Dragon Pokémon, Gen 3 pseudo" },
-        { "id": "garchomp", "name": "Garchomp", "value": 600, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/445.png", "hint": "Mach Pokémon, Gen 4 pseudo" },
-        { "id": "dragonair", "name": "Dragonair", "value": 420, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/148.png", "hint": "Dragon Pokémon, Dragonite's pre-evo" },
-        { "id": "gyarados", "name": "Gyarados", "value": 540, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/130.png", "hint": "Atrocious Pokémon" },
-        { "id": "magikarp", "name": "Magikarp", "value": 200, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/129.png", "hint": "Fish Pokémon, infamous weakling" },
-        { "id": "snorlax", "name": "Snorlax", "value": 540, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/143.png", "hint": "Sleeping Pokémon" },
-        { "id": "charizard", "name": "Charizard", "value": 534, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/6.png", "hint": "Flame Pokémon, Gen 1 starter final" },
-        { "id": "blastoise", "name": "Blastoise", "value": 530, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/9.png", "hint": "Shellfish Pokémon, Gen 1 water starter" },
-        { "id": "venusaur", "name": "Venusaur", "value": 525, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/3.png", "hint": "Seed Pokémon, Gen 1 grass starter" },
-        { "id": "gengar", "name": "Gengar", "value": 500, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/94.png", "hint": "Shadow Pokémon" },
-        { "id": "pikachu", "name": "Pikachu", "value": 320, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png", "hint": "Mascot of Pokémon" },
-        { "id": "eevee", "name": "Eevee", "value": 325, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/133.png", "hint": "Evolution Pokémon, 8 evolutions" },
-        { "id": "lucario", "name": "Lucario", "value": 525, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/448.png", "hint": "Aura Pokémon" },
-        { "id": "umbreon", "name": "Umbreon", "value": 525, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/197.png", "hint": "Moonlight Pokémon, dark Eevee-lution" },
-        { "id": "mew", "name": "Mew", "value": 600, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/151.png", "hint": "New Species Pokémon, Gen 1 secret" },
-        { "id": "jigglypuff", "name": "Jigglypuff", "value": 270, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/39.png", "hint": "Balloon Pokémon, puts you to sleep" },
-        { "id": "bulbasaur", "name": "Bulbasaur", "value": 318, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/1.png", "hint": "#001 in the Pokédex" },
-        { "id": "wobbuffet", "name": "Wobbuffet", "value": 405, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/202.png", "hint": "Patient Pokémon, Team Rocket's" },
-        { "id": "slaking", "name": "Slaking", "value": 670, "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/289.png", "hint": "Lazy Pokémon, highest non-legendary total" }
+        {
+          "id": "arceus",
+          "name": "Arceus",
+          "value": 720,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/493.png",
+          "hint": "The God Pokémon"
+        },
+        {
+          "id": "mewtwo",
+          "name": "Mewtwo",
+          "value": 680,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/150.png",
+          "hint": "Genetic Pokémon, Gen 1 legendary"
+        },
+        {
+          "id": "rayquaza",
+          "name": "Rayquaza",
+          "value": 680,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/384.png",
+          "hint": "Sky High Pokémon"
+        },
+        {
+          "id": "lugia",
+          "name": "Lugia",
+          "value": 680,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/249.png",
+          "hint": "Diving Pokémon, Ho-Oh's rival"
+        },
+        {
+          "id": "ho-oh",
+          "name": "Ho-Oh",
+          "value": 680,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/250.png",
+          "hint": "Rainbow Pokémon"
+        },
+        {
+          "id": "kyogre",
+          "name": "Kyogre",
+          "value": 670,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/382.png",
+          "hint": "Sea Basin Pokémon"
+        },
+        {
+          "id": "groudon",
+          "name": "Groudon",
+          "value": 670,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/383.png",
+          "hint": "Continent Pokémon"
+        },
+        {
+          "id": "dialga",
+          "name": "Dialga",
+          "value": 680,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/483.png",
+          "hint": "Temporal Pokémon"
+        },
+        {
+          "id": "palkia",
+          "name": "Palkia",
+          "value": 680,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/484.png",
+          "hint": "Spatial Pokémon"
+        },
+        {
+          "id": "giratina",
+          "name": "Giratina",
+          "value": 680,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/487.png",
+          "hint": "Renegade Pokémon"
+        },
+        {
+          "id": "reshiram",
+          "name": "Reshiram",
+          "value": 680,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/643.png",
+          "hint": "Vast White Pokémon"
+        },
+        {
+          "id": "zekrom",
+          "name": "Zekrom",
+          "value": 680,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/644.png",
+          "hint": "Deep Black Pokémon"
+        },
+        {
+          "id": "xerneas",
+          "name": "Xerneas",
+          "value": 680,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/716.png",
+          "hint": "Life Pokémon, Kalos legendary"
+        },
+        {
+          "id": "yveltal",
+          "name": "Yveltal",
+          "value": 680,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/717.png",
+          "hint": "Destruction Pokémon"
+        },
+        {
+          "id": "dragonite",
+          "name": "Dragonite",
+          "value": 600,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/149.png",
+          "hint": "Dragon Pokémon, Gen 1 pseudo-legendary"
+        },
+        {
+          "id": "tyranitar",
+          "name": "Tyranitar",
+          "value": 600,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/248.png",
+          "hint": "Armor Pokémon"
+        },
+        {
+          "id": "salamence",
+          "name": "Salamence",
+          "value": 600,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/373.png",
+          "hint": "Dragon Pokémon, Gen 3 pseudo"
+        },
+        {
+          "id": "garchomp",
+          "name": "Garchomp",
+          "value": 600,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/445.png",
+          "hint": "Mach Pokémon, Gen 4 pseudo"
+        },
+        {
+          "id": "dragonair",
+          "name": "Dragonair",
+          "value": 420,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/148.png",
+          "hint": "Dragon Pokémon, Dragonite's pre-evo"
+        },
+        {
+          "id": "gyarados",
+          "name": "Gyarados",
+          "value": 540,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/130.png",
+          "hint": "Atrocious Pokémon"
+        },
+        {
+          "id": "magikarp",
+          "name": "Magikarp",
+          "value": 200,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/129.png",
+          "hint": "Fish Pokémon, infamous weakling"
+        },
+        {
+          "id": "snorlax",
+          "name": "Snorlax",
+          "value": 540,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/143.png",
+          "hint": "Sleeping Pokémon"
+        },
+        {
+          "id": "charizard",
+          "name": "Charizard",
+          "value": 534,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/6.png",
+          "hint": "Flame Pokémon, Gen 1 starter final"
+        },
+        {
+          "id": "blastoise",
+          "name": "Blastoise",
+          "value": 530,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/9.png",
+          "hint": "Shellfish Pokémon, Gen 1 water starter"
+        },
+        {
+          "id": "venusaur",
+          "name": "Venusaur",
+          "value": 525,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/3.png",
+          "hint": "Seed Pokémon, Gen 1 grass starter"
+        },
+        {
+          "id": "gengar",
+          "name": "Gengar",
+          "value": 500,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/94.png",
+          "hint": "Shadow Pokémon"
+        },
+        {
+          "id": "pikachu",
+          "name": "Pikachu",
+          "value": 320,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png",
+          "hint": "Mascot of Pokémon"
+        },
+        {
+          "id": "eevee",
+          "name": "Eevee",
+          "value": 325,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/133.png",
+          "hint": "Evolution Pokémon, 8 evolutions"
+        },
+        {
+          "id": "lucario",
+          "name": "Lucario",
+          "value": 525,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/448.png",
+          "hint": "Aura Pokémon"
+        },
+        {
+          "id": "umbreon",
+          "name": "Umbreon",
+          "value": 525,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/197.png",
+          "hint": "Moonlight Pokémon, dark Eevee-lution"
+        },
+        {
+          "id": "mew",
+          "name": "Mew",
+          "value": 600,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/151.png",
+          "hint": "New Species Pokémon, Gen 1 secret"
+        },
+        {
+          "id": "jigglypuff",
+          "name": "Jigglypuff",
+          "value": 270,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/39.png",
+          "hint": "Balloon Pokémon, puts you to sleep"
+        },
+        {
+          "id": "bulbasaur",
+          "name": "Bulbasaur",
+          "value": 318,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/1.png",
+          "hint": "#001 in the Pokédex"
+        },
+        {
+          "id": "wobbuffet",
+          "name": "Wobbuffet",
+          "value": 405,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/202.png",
+          "hint": "Patient Pokémon, Team Rocket's"
+        },
+        {
+          "id": "slaking",
+          "name": "Slaking",
+          "value": 670,
+          "image": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/289.png",
+          "hint": "Lazy Pokémon, highest non-legendary total"
+        }
       ]
     },
     {
@@ -139,26 +745,146 @@
       "unit": "",
       "formatSuffix": "M",
       "items": [
-        { "id": "mrbeast", "name": "MrBeast", "value": 330, "image": "https://yt3.googleusercontent.com/ytc/AIdro_nMCBSMIFbK-d6vVpBcRhq7V0TvG-lGiBjjxuGizxRIKSE=s240-c-k-c0x00ffffff-no-rj", "hint": "Most subscribed individual creator" },
-        { "id": "t-series", "name": "T-Series", "value": 270, "image": "https://yt3.googleusercontent.com/ytc/AIdro_kL_SBdLlCKjZrJbJqZMoC2jlF4OQPQD5tD2JW2zRE=s240-c-k-c0x00ffffff-no-rj", "hint": "Indian music label and film studio" },
-        { "id": "cocomelon", "name": "Cocomelon", "value": 180, "image": "https://yt3.googleusercontent.com/ytc/AIdro_mLfYzlLRj_dOLU7j3-0_JElGbdmSSRiJT23hfAl0s=s240-c-k-c0x00ffffff-no-rj", "hint": "Nursery rhymes channel for kids" },
-        { "id": "set-india", "name": "SET India", "value": 175, "image": "https://yt3.googleusercontent.com/ytc/AIdro_k3C9MNqmvnFuJR-qrNzOg4rZqQpjF7RNPJ7KRz=s240-c-k-c0x00ffffff-no-rj", "hint": "Sony Entertainment Television India" },
-        { "id": "pewdiepie", "name": "PewDiePie", "value": 111, "image": "https://yt3.googleusercontent.com/ytc/AIdro_mIMB9uXJ4_bYNiQiXkU8m7bL-pFmZKjkDSc0nU=s240-c-k-c0x00ffffff-no-rj", "hint": "Swedish creator, long-time #1 individual" },
-        { "id": "kids-diana-show", "name": "Like Nastya", "value": 118, "image": "https://yt3.googleusercontent.com/ytc/AIdro_lJBMIX48GFT8FRz-jS7RDN-EtBKVnJa3sE0ZF1=s240-c-k-c0x00ffffff-no-rj", "hint": "Russian child creator" },
-        { "id": "vlad-niki", "name": "Vlad and Niki", "value": 116, "image": "https://yt3.googleusercontent.com/ytc/AIdro_ln8SXK1LQnuB34T_mOwqbEFEYIGCL5X7yvFjNj=s240-c-k-c0x00ffffff-no-rj", "hint": "Kids toy and play channel" },
-        { "id": "dude-perfect", "name": "Dude Perfect", "value": 60, "image": "https://yt3.googleusercontent.com/ytc/AIdro_mO4SIAMq0y6gRfT0b0A-uXLFjXc_VF4RTJI9gy=s240-c-k-c0x00ffffff-no-rj", "hint": "Sports entertainment group" },
-        { "id": "mark-rober", "name": "Mark Rober", "value": 48, "image": "https://yt3.googleusercontent.com/ytc/AIdro_mNYV17bbbBpJxA1mFiHJEh-0I0psFt8cL5IHE=s240-c-k-c0x00ffffff-no-rj", "hint": "Former NASA engineer" },
-        { "id": "vsauce", "name": "Vsauce", "value": 22, "image": "https://yt3.googleusercontent.com/ytc/AIdro_kxqmV7TyXjZ0KQJN8jmScxz5YE1ZBwUvEF5mRI=s240-c-k-c0x00ffffff-no-rj", "hint": "Educational science channel" },
-        { "id": "kurzgesagt", "name": "Kurzgesagt", "value": 24, "image": "https://yt3.googleusercontent.com/ytc/AIdro_nCzJd6CXKECuZAT04LXRDaUXnLdCTNH2-aBJ9HgA=s240-c-k-c0x00ffffff-no-rj", "hint": "In a Nutshell animated education" },
-        { "id": "veritasium", "name": "Veritasium", "value": 16, "image": "https://yt3.googleusercontent.com/ytc/AIdro_mMDe9bx_jRCHi6hT8JwRN5vQYxjq0CXb2FiGLt=s240-c-k-c0x00ffffff-no-rj", "hint": "Science and engineering videos" },
-        { "id": "linus-tech-tips", "name": "Linus Tech Tips", "value": 16, "image": "https://yt3.googleusercontent.com/ytc/AIdro_n0F_rXRFVjZE4vS9fMl3iVo4S3SH62FvWZbCi7=s240-c-k-c0x00ffffff-no-rj", "hint": "Canadian tech review channel" },
-        { "id": "coldplay", "name": "Coldplay", "value": 33, "image": "https://yt3.googleusercontent.com/ytc/AIdro_lQl0jNXH84yGvXuuXGpQtibD6FXjqVHEJiVfm0=s240-c-k-c0x00ffffff-no-rj", "hint": "British rock band" },
-        { "id": "eminem", "name": "Eminem", "value": 52, "image": "https://yt3.googleusercontent.com/ytc/AIdro_kj12P8bQ3WOqxDmqpHSqt8aM6QpCyNfnDRrE=s240-c-k-c0x00ffffff-no-rj", "hint": "Slim Shady, Detroit rapper" },
-        { "id": "ed-sheeran", "name": "Ed Sheeran", "value": 56, "image": "https://yt3.googleusercontent.com/ytc/AIdro_ln5cRLf2Bv4CJjmKs4C1pFYi5Q4lYqsLz9aEaD=s240-c-k-c0x00ffffff-no-rj", "hint": "British singer-songwriter" },
-        { "id": "justin-bieber", "name": "Justin Bieber", "value": 73, "image": "https://yt3.googleusercontent.com/ytc/AIdro_lPZ0B6Pl1TRSPr6i5tAlQoJCjYp4o-n9qRXOSq=s240-c-k-c0x00ffffff-no-rj", "hint": "Canadian pop star" },
-        { "id": "taylor-swift", "name": "Taylor Swift", "value": 59, "image": "https://yt3.googleusercontent.com/ytc/AIdro_kIpgQGxXpVOxPJJ0pDvmkN-J9_qHF4gXKAlXX6=s240-c-k-c0x00ffffff-no-rj", "hint": "Country-pop megastar" },
-        { "id": "bad-bunny", "name": "Bad Bunny", "value": 45, "image": "https://yt3.googleusercontent.com/ytc/AIdro_kcGJlYuSYSVmIJRq2pA8X5cKNxcRniJXxvTpso=s240-c-k-c0x00ffffff-no-rj", "hint": "Puerto Rican reggaeton star" },
-        { "id": "drake", "name": "Drake", "value": 35, "image": "https://yt3.googleusercontent.com/ytc/AIdro_mp8JiUhH3-LHpZ0FE3VkFgTaZJWQwB2FSmZYz2=s240-c-k-c0x00ffffff-no-rj", "hint": "Canadian hip-hop artist" }
+        {
+          "id": "mrbeast",
+          "name": "MrBeast",
+          "value": 330,
+          "image": "https://yt3.googleusercontent.com/ytc/AIdro_nMCBSMIFbK-d6vVpBcRhq7V0TvG-lGiBjjxuGizxRIKSE=s240-c-k-c0x00ffffff-no-rj",
+          "hint": "Most subscribed individual creator"
+        },
+        {
+          "id": "t-series",
+          "name": "T-Series",
+          "value": 270,
+          "image": "https://yt3.googleusercontent.com/ytc/AIdro_kL_SBdLlCKjZrJbJqZMoC2jlF4OQPQD5tD2JW2zRE=s240-c-k-c0x00ffffff-no-rj",
+          "hint": "Indian music label and film studio"
+        },
+        {
+          "id": "cocomelon",
+          "name": "Cocomelon",
+          "value": 180,
+          "image": "https://yt3.googleusercontent.com/ytc/AIdro_mLfYzlLRj_dOLU7j3-0_JElGbdmSSRiJT23hfAl0s=s240-c-k-c0x00ffffff-no-rj",
+          "hint": "Nursery rhymes channel for kids"
+        },
+        {
+          "id": "set-india",
+          "name": "SET India",
+          "value": 175,
+          "image": "https://yt3.googleusercontent.com/ytc/AIdro_k3C9MNqmvnFuJR-qrNzOg4rZqQpjF7RNPJ7KRz=s240-c-k-c0x00ffffff-no-rj",
+          "hint": "Sony Entertainment Television India"
+        },
+        {
+          "id": "pewdiepie",
+          "name": "PewDiePie",
+          "value": 111,
+          "image": "https://yt3.googleusercontent.com/ytc/AIdro_mIMB9uXJ4_bYNiQiXkU8m7bL-pFmZKjkDSc0nU=s240-c-k-c0x00ffffff-no-rj",
+          "hint": "Swedish creator, long-time #1 individual"
+        },
+        {
+          "id": "kids-diana-show",
+          "name": "Like Nastya",
+          "value": 118,
+          "image": "https://yt3.googleusercontent.com/ytc/AIdro_lJBMIX48GFT8FRz-jS7RDN-EtBKVnJa3sE0ZF1=s240-c-k-c0x00ffffff-no-rj",
+          "hint": "Russian child creator"
+        },
+        {
+          "id": "vlad-niki",
+          "name": "Vlad and Niki",
+          "value": 116,
+          "image": "https://yt3.googleusercontent.com/ytc/AIdro_ln8SXK1LQnuB34T_mOwqbEFEYIGCL5X7yvFjNj=s240-c-k-c0x00ffffff-no-rj",
+          "hint": "Kids toy and play channel"
+        },
+        {
+          "id": "dude-perfect",
+          "name": "Dude Perfect",
+          "value": 60,
+          "image": "https://yt3.googleusercontent.com/ytc/AIdro_mO4SIAMq0y6gRfT0b0A-uXLFjXc_VF4RTJI9gy=s240-c-k-c0x00ffffff-no-rj",
+          "hint": "Sports entertainment group"
+        },
+        {
+          "id": "mark-rober",
+          "name": "Mark Rober",
+          "value": 48,
+          "image": "https://yt3.googleusercontent.com/ytc/AIdro_mNYV17bbbBpJxA1mFiHJEh-0I0psFt8cL5IHE=s240-c-k-c0x00ffffff-no-rj",
+          "hint": "Former NASA engineer"
+        },
+        {
+          "id": "vsauce",
+          "name": "Vsauce",
+          "value": 22,
+          "image": "https://yt3.googleusercontent.com/ytc/AIdro_kxqmV7TyXjZ0KQJN8jmScxz5YE1ZBwUvEF5mRI=s240-c-k-c0x00ffffff-no-rj",
+          "hint": "Educational science channel"
+        },
+        {
+          "id": "kurzgesagt",
+          "name": "Kurzgesagt",
+          "value": 24,
+          "image": "https://yt3.googleusercontent.com/ytc/AIdro_nCzJd6CXKECuZAT04LXRDaUXnLdCTNH2-aBJ9HgA=s240-c-k-c0x00ffffff-no-rj",
+          "hint": "In a Nutshell animated education"
+        },
+        {
+          "id": "veritasium",
+          "name": "Veritasium",
+          "value": 16,
+          "image": "https://yt3.googleusercontent.com/ytc/AIdro_mMDe9bx_jRCHi6hT8JwRN5vQYxjq0CXb2FiGLt=s240-c-k-c0x00ffffff-no-rj",
+          "hint": "Science and engineering videos"
+        },
+        {
+          "id": "linus-tech-tips",
+          "name": "Linus Tech Tips",
+          "value": 16,
+          "image": "https://yt3.googleusercontent.com/ytc/AIdro_n0F_rXRFVjZE4vS9fMl3iVo4S3SH62FvWZbCi7=s240-c-k-c0x00ffffff-no-rj",
+          "hint": "Canadian tech review channel"
+        },
+        {
+          "id": "coldplay",
+          "name": "Coldplay",
+          "value": 33,
+          "image": "https://yt3.googleusercontent.com/ytc/AIdro_lQl0jNXH84yGvXuuXGpQtibD6FXjqVHEJiVfm0=s240-c-k-c0x00ffffff-no-rj",
+          "hint": "British rock band"
+        },
+        {
+          "id": "eminem",
+          "name": "Eminem",
+          "value": 52,
+          "image": "https://yt3.googleusercontent.com/ytc/AIdro_kj12P8bQ3WOqxDmqpHSqt8aM6QpCyNfnDRrE=s240-c-k-c0x00ffffff-no-rj",
+          "hint": "Slim Shady, Detroit rapper"
+        },
+        {
+          "id": "ed-sheeran",
+          "name": "Ed Sheeran",
+          "value": 56,
+          "image": "https://yt3.googleusercontent.com/ytc/AIdro_ln5cRLf2Bv4CJjmKs4C1pFYi5Q4lYqsLz9aEaD=s240-c-k-c0x00ffffff-no-rj",
+          "hint": "British singer-songwriter"
+        },
+        {
+          "id": "justin-bieber",
+          "name": "Justin Bieber",
+          "value": 73,
+          "image": "https://yt3.googleusercontent.com/ytc/AIdro_lPZ0B6Pl1TRSPr6i5tAlQoJCjYp4o-n9qRXOSq=s240-c-k-c0x00ffffff-no-rj",
+          "hint": "Canadian pop star"
+        },
+        {
+          "id": "taylor-swift",
+          "name": "Taylor Swift",
+          "value": 59,
+          "image": "https://yt3.googleusercontent.com/ytc/AIdro_kIpgQGxXpVOxPJJ0pDvmkN-J9_qHF4gXKAlXX6=s240-c-k-c0x00ffffff-no-rj",
+          "hint": "Country-pop megastar"
+        },
+        {
+          "id": "bad-bunny",
+          "name": "Bad Bunny",
+          "value": 45,
+          "image": "https://yt3.googleusercontent.com/ytc/AIdro_kcGJlYuSYSVmIJRq2pA8X5cKNxcRniJXxvTpso=s240-c-k-c0x00ffffff-no-rj",
+          "hint": "Puerto Rican reggaeton star"
+        },
+        {
+          "id": "drake",
+          "name": "Drake",
+          "value": 35,
+          "image": "https://yt3.googleusercontent.com/ytc/AIdro_mp8JiUhH3-LHpZ0FE3VkFgTaZJWQwB2FSmZYz2=s240-c-k-c0x00ffffff-no-rj",
+          "hint": "Canadian hip-hop artist"
+        }
       ]
     },
     {
@@ -169,31 +895,181 @@
       "unit": "",
       "formatSuffix": "M",
       "items": [
-        { "id": "minecraft", "name": "Minecraft", "value": 300, "image": "https://upload.wikimedia.org/wikipedia/en/5/51/Minecraft_cover.png", "hint": "Sandbox game by Mojang" },
-        { "id": "gta5", "name": "GTA V", "value": 200, "image": "https://upload.wikimedia.org/wikipedia/en/a/a5/Grand_Theft_Auto_V.png", "hint": "Rockstar's open world crime epic" },
-        { "id": "tetris", "name": "Tetris", "value": 520, "image": "https://upload.wikimedia.org/wikipedia/en/7/7c/Tetris_logo.png", "hint": "The original block puzzle game" },
-        { "id": "wii-sports", "name": "Wii Sports", "value": 83, "image": "https://upload.wikimedia.org/wikipedia/en/e/ee/WiiSports_wiibox.jpg", "hint": "Bundled with Nintendo Wii" },
-        { "id": "pubg", "name": "PUBG: Battlegrounds", "value": 75, "image": "https://upload.wikimedia.org/wikipedia/en/3/33/PUBG_and_PUBG_Mobile_poster.png", "hint": "Battle royale that started it all" },
-        { "id": "mario-kart-8", "name": "Mario Kart 8 Deluxe", "value": 67, "image": "https://upload.wikimedia.org/wikipedia/en/7/76/Mario_Kart_8_Deluxe_box_art.jpg", "hint": "Nintendo Switch racing game" },
-        { "id": "red-dead-2", "name": "Red Dead Redemption 2", "value": 61, "image": "https://upload.wikimedia.org/wikipedia/en/4/44/Red_Dead_Redemption_II.jpg", "hint": "Rockstar's western masterpiece" },
-        { "id": "pokemon-rb", "name": "Pokémon Red/Blue", "value": 47, "image": "https://upload.wikimedia.org/wikipedia/en/a/af/Pokemon_red_en_boxart.jpg", "hint": "The original Pokémon games" },
-        { "id": "diablo3", "name": "Diablo III", "value": 30, "image": "https://upload.wikimedia.org/wikipedia/en/3/3b/Diablo_III_cover.jpg", "hint": "Blizzard's action RPG" },
-        { "id": "fifa23", "name": "FIFA 23", "value": 10, "image": "https://upload.wikimedia.org/wikipedia/en/f/fb/FIFA_23_cover.jpg", "hint": "EA Sports football game" },
-        { "id": "cod-mw2", "name": "Call of Duty: MW2", "value": 30, "image": "https://upload.wikimedia.org/wikipedia/en/a/a1/Call_of_Duty_Modern_Warfare_2_box_art.jpg", "hint": "2009 iconic FPS game" },
-        { "id": "among-us", "name": "Among Us", "value": 500, "image": "https://upload.wikimedia.org/wikipedia/en/9/9a/Among_Us_cover_art.jpg", "hint": "Pandemic-era social deduction game" },
-        { "id": "cyberpunk", "name": "Cyberpunk 2077", "value": 25, "image": "https://upload.wikimedia.org/wikipedia/en/9/9f/Cyberpunk_2077_box_art.jpg", "hint": "CD Projekt Red's sci-fi RPG" },
-        { "id": "elden-ring", "name": "Elden Ring", "value": 25, "image": "https://upload.wikimedia.org/wikipedia/en/b/b9/Elden_Ring_Box_art.jpg", "hint": "FromSoftware x George R.R. Martin" },
-        { "id": "overwatch", "name": "Overwatch", "value": 50, "image": "https://upload.wikimedia.org/wikipedia/en/5/55/Overwatch_cover_art.jpg", "hint": "Blizzard's team-based hero shooter" },
-        { "id": "fortnite", "name": "Fortnite", "value": 350, "image": "https://upload.wikimedia.org/wikipedia/en/0/0e/Fortnite_gameplay_trailer_thumbnail.jpg", "hint": "Epic Games battle royale" },
-        { "id": "the-sims4", "name": "The Sims 4", "value": 70, "image": "https://upload.wikimedia.org/wikipedia/en/a/a8/The_Sims_4_cover_art.png", "hint": "EA's life simulation game" },
-        { "id": "super-mario-odyssey", "name": "Super Mario Odyssey", "value": 27, "image": "https://upload.wikimedia.org/wikipedia/en/8/8d/Super_Mario_Odyssey.jpg", "hint": "Nintendo Switch 3D platformer" },
-        { "id": "zelda-botw", "name": "Zelda: Breath of the Wild", "value": 32, "image": "https://upload.wikimedia.org/wikipedia/en/c/c6/The_Legend_of_Zelda_Breath_of_the_Wild.jpg", "hint": "Nintendo open-world masterpiece" },
-        { "id": "hollow-knight", "name": "Hollow Knight", "value": 15, "image": "https://upload.wikimedia.org/wikipedia/en/1/11/Hollow_Knight_first_cover.jpg", "hint": "Indie metroidvania gem" },
-        { "id": "stardew-valley", "name": "Stardew Valley", "value": 30, "image": "https://upload.wikimedia.org/wikipedia/en/f/fd/Logo_of_Stardew_Valley.png", "hint": "Solo-dev farming RPG phenomenon" },
-        { "id": "valorant", "name": "Valorant", "value": 23, "image": "https://upload.wikimedia.org/wikipedia/en/d/d5/Valorant_in-game_screenshot.png", "hint": "Riot Games tactical FPS" },
-        { "id": "league-of-legends", "name": "League of Legends", "value": 27, "image": "https://upload.wikimedia.org/wikipedia/en/1/13/League_of_Legends_-_Box_Art.jpg", "hint": "Riot's iconic MOBA" },
-        { "id": "super-smash", "name": "Super Smash Bros. Ultimate", "value": 35, "image": "https://upload.wikimedia.org/wikipedia/en/3/3e/Super_Smash_Bros._Ultimate_box_art.jpg", "hint": "Nintendo's ultimate crossover fighter" },
-        { "id": "god-of-war", "name": "God of War (2018)", "value": 23, "image": "https://upload.wikimedia.org/wikipedia/en/a/a7/God_of_War_4_cover.jpg", "hint": "Sony's Norse mythology epic" }
+        {
+          "id": "minecraft",
+          "name": "Minecraft",
+          "value": 300,
+          "image": "https://cdn.akamai.steamstatic.com/steam/apps/1672970/header.jpg",
+          "hint": "Sandbox game by Mojang"
+        },
+        {
+          "id": "gta5",
+          "name": "GTA V",
+          "value": 200,
+          "image": "https://cdn.akamai.steamstatic.com/steam/apps/271590/header.jpg",
+          "hint": "Rockstar's open world crime epic"
+        },
+        {
+          "id": "tetris",
+          "name": "Tetris",
+          "value": 520,
+          "image": "https://cdn.akamai.steamstatic.com/steam/apps/1265680/header.jpg",
+          "hint": "The original block puzzle game"
+        },
+        {
+          "id": "wii-sports",
+          "name": "Wii Sports",
+          "value": 83,
+          "image": "https://upload.wikimedia.org/wikipedia/en/thumb/e/ee/WiiSports_wiibox.jpg/220px-WiiSports_wiibox.jpg",
+          "hint": "Bundled with Nintendo Wii"
+        },
+        {
+          "id": "pubg",
+          "name": "PUBG: Battlegrounds",
+          "value": 75,
+          "image": "https://cdn.akamai.steamstatic.com/steam/apps/578080/header.jpg",
+          "hint": "Battle royale that started it all"
+        },
+        {
+          "id": "mario-kart-8",
+          "name": "Mario Kart 8 Deluxe",
+          "value": 67,
+          "image": "https://upload.wikimedia.org/wikipedia/en/thumb/7/76/Mario_Kart_8_Deluxe_box_art.jpg/220px-Mario_Kart_8_Deluxe_box_art.jpg",
+          "hint": "Nintendo Switch racing game"
+        },
+        {
+          "id": "red-dead-2",
+          "name": "Red Dead Redemption 2",
+          "value": 61,
+          "image": "https://cdn.akamai.steamstatic.com/steam/apps/1174180/header.jpg",
+          "hint": "Rockstar's western masterpiece"
+        },
+        {
+          "id": "pokemon-rb",
+          "name": "Pokémon Red/Blue",
+          "value": 47,
+          "image": "https://upload.wikimedia.org/wikipedia/en/thumb/a/af/Pokemon_red_en_boxart.jpg/220px-Pokemon_red_en_boxart.jpg",
+          "hint": "The original Pokémon games"
+        },
+        {
+          "id": "diablo3",
+          "name": "Diablo III",
+          "value": 30,
+          "image": "https://cdn.akamai.steamstatic.com/steam/apps/292730/header.jpg",
+          "hint": "Blizzard's action RPG"
+        },
+        {
+          "id": "fifa23",
+          "name": "FIFA 23",
+          "value": 10,
+          "image": "https://cdn.akamai.steamstatic.com/steam/apps/1811260/header.jpg",
+          "hint": "EA Sports football game"
+        },
+        {
+          "id": "cod-mw2",
+          "name": "Call of Duty: MW2",
+          "value": 30,
+          "image": "https://cdn.akamai.steamstatic.com/steam/apps/10180/header.jpg",
+          "hint": "2009 iconic FPS game"
+        },
+        {
+          "id": "among-us",
+          "name": "Among Us",
+          "value": 500,
+          "image": "https://cdn.akamai.steamstatic.com/steam/apps/945360/header.jpg",
+          "hint": "Pandemic-era social deduction game"
+        },
+        {
+          "id": "cyberpunk",
+          "name": "Cyberpunk 2077",
+          "value": 25,
+          "image": "https://cdn.akamai.steamstatic.com/steam/apps/1091500/header.jpg",
+          "hint": "CD Projekt Red's sci-fi RPG"
+        },
+        {
+          "id": "elden-ring",
+          "name": "Elden Ring",
+          "value": 25,
+          "image": "https://cdn.akamai.steamstatic.com/steam/apps/1245620/header.jpg",
+          "hint": "FromSoftware x George R.R. Martin"
+        },
+        {
+          "id": "overwatch",
+          "name": "Overwatch",
+          "value": 50,
+          "image": "https://cdn.akamai.steamstatic.com/steam/apps/2357570/header.jpg",
+          "hint": "Blizzard's team-based hero shooter"
+        },
+        {
+          "id": "fortnite",
+          "name": "Fortnite",
+          "value": 350,
+          "image": "https://cdn.akamai.steamstatic.com/steam/apps/1665460/header.jpg",
+          "hint": "Epic Games battle royale"
+        },
+        {
+          "id": "the-sims4",
+          "name": "The Sims 4",
+          "value": 70,
+          "image": "https://cdn.akamai.steamstatic.com/steam/apps/1222670/header.jpg",
+          "hint": "EA's life simulation game"
+        },
+        {
+          "id": "super-mario-odyssey",
+          "name": "Super Mario Odyssey",
+          "value": 27,
+          "image": "https://upload.wikimedia.org/wikipedia/en/thumb/8/8d/Super_Mario_Odyssey.jpg/220px-Super_Mario_Odyssey.jpg",
+          "hint": "Nintendo Switch 3D platformer"
+        },
+        {
+          "id": "zelda-botw",
+          "name": "Zelda: Breath of the Wild",
+          "value": 32,
+          "image": "https://upload.wikimedia.org/wikipedia/en/thumb/c/c6/The_Legend_of_Zelda_Breath_of_the_Wild.jpg/220px-The_Legend_of_Zelda_Breath_of_the_Wild.jpg",
+          "hint": "Nintendo open-world masterpiece"
+        },
+        {
+          "id": "hollow-knight",
+          "name": "Hollow Knight",
+          "value": 15,
+          "image": "https://cdn.akamai.steamstatic.com/steam/apps/367520/header.jpg",
+          "hint": "Indie metroidvania gem"
+        },
+        {
+          "id": "stardew-valley",
+          "name": "Stardew Valley",
+          "value": 30,
+          "image": "https://cdn.akamai.steamstatic.com/steam/apps/413150/header.jpg",
+          "hint": "Solo-dev farming RPG phenomenon"
+        },
+        {
+          "id": "valorant",
+          "name": "Valorant",
+          "value": 23,
+          "image": "https://cdn.akamai.steamstatic.com/steam/apps/2694490/header.jpg",
+          "hint": "Riot Games tactical FPS"
+        },
+        {
+          "id": "league-of-legends",
+          "name": "League of Legends",
+          "value": 27,
+          "image": "https://cdn.akamai.steamstatic.com/steam/apps/2300290/header.jpg",
+          "hint": "Riot's iconic MOBA"
+        },
+        {
+          "id": "super-smash",
+          "name": "Super Smash Bros. Ultimate",
+          "value": 35,
+          "image": "https://upload.wikimedia.org/wikipedia/en/thumb/3/3e/Super_Smash_Bros._Ultimate_box_art.jpg/220px-Super_Smash_Bros._Ultimate_box_art.jpg",
+          "hint": "Nintendo's ultimate crossover fighter"
+        },
+        {
+          "id": "god-of-war",
+          "name": "God of War (2018)",
+          "value": 23,
+          "image": "https://cdn.akamai.steamstatic.com/steam/apps/1593500/header.jpg",
+          "hint": "Sony's Norse mythology epic"
+        }
       ]
     },
     {
@@ -204,28 +1080,160 @@
       "unit": "",
       "formatSuffix": "M",
       "items": [
-        { "id": "the-weeknd", "name": "The Weeknd", "value": 120, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1f/The_Weeknd_-_Openair_Frauenfeld_2023_%28cropped%29.jpg/320px-The_Weeknd_-_Openair_Frauenfeld_2023_%28cropped%29.jpg", "hint": "Canadian R&B artist, Blinding Lights" },
-        { "id": "bad-bunny-sp", "name": "Bad Bunny", "value": 90, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Bad_Bunny_2019_cropped.jpg/320px-Bad_Bunny_2019_cropped.jpg", "hint": "Puerto Rican reggaeton superstar" },
-        { "id": "taylor-swift-sp", "name": "Taylor Swift", "value": 100, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/191125_Taylor_Swift_at_the_2019_American_Music_Awards_%28cropped%29.png/320px-191125_Taylor_Swift_at_the_2019_American_Music_Awards_%28cropped%29.png", "hint": "Pop megastar, Eras Tour" },
-        { "id": "drake-sp", "name": "Drake", "value": 82, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Drake_July_2016.jpg/320px-Drake_July_2016.jpg", "hint": "Canadian hip-hop, God's Plan" },
-        { "id": "ed-sheeran-sp", "name": "Ed Sheeran", "value": 85, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Ed_Sheeran_-_Multiply_tour%2C_15_October_2014_%28Ynse%29_%28cropped%29.jpg/320px-Ed_Sheeran_-_Multiply_tour%2C_15_October_2014_%28Ynse%29_%28cropped%29.jpg", "hint": "British singer-songwriter, Shape of You" },
-        { "id": "billie-eilish", "name": "Billie Eilish", "value": 76, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/Billie_Eilish_at_the_2019_Teen_Choice_Awards_%28cropped_2%29.jpg/320px-Billie_Eilish_at_the_2019_Teen_Choice_Awards_%28cropped_2%29.jpg", "hint": "Gen Z pop icon, Bad Guy" },
-        { "id": "ariana-grande", "name": "Ariana Grande", "value": 73, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Ariana_Grande_-_Dangerous_Woman_Tour_in_Japan_2%28Cropped%29.jpg/320px-Ariana_Grande_-_Dangerous_Woman_Tour_in_Japan_2%28Cropped%29.jpg", "hint": "Pop diva, Thank U Next" },
-        { "id": "eminem-sp", "name": "Eminem", "value": 68, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Eminem-2013.jpg/320px-Eminem-2013.jpg", "hint": "Detroit rap legend, Lose Yourself" },
-        { "id": "post-malone", "name": "Post Malone", "value": 72, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/Post_Malone_2019_by_Glenn_Francis.jpg/320px-Post_Malone_2019_by_Glenn_Francis.jpg", "hint": "Rockstar rapper-singer" },
-        { "id": "dua-lipa", "name": "Dua Lipa", "value": 70, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Dua_Lipa_2018_%28cropped%29.jpg/320px-Dua_Lipa_2018_%28cropped%29.jpg", "hint": "British-Albanian pop star, Levitating" },
-        { "id": "rihanna", "name": "Rihanna", "value": 60, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Rihanna_Fenty_2018.png/320px-Rihanna_Fenty_2018.png", "hint": "Barbadian pop icon, Umbrella" },
-        { "id": "kanye-west", "name": "Kanye West", "value": 56, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/11/Kanye_West_at_the_2009_Tribeca_Film_Festival_%28cropped%29.jpg/320px-Kanye_West_at_the_2009_Tribeca_Film_Festival_%28cropped%29.jpg", "hint": "Chicago rapper turned designer, Ye" },
-        { "id": "sabrina-carpenter", "name": "Sabrina Carpenter", "value": 65, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Sabrina_Carpenter_2024_cropped.jpg/320px-Sabrina_Carpenter_2024_cropped.jpg", "hint": "Espresso singer, Short n' Sweet" },
-        { "id": "olivia-rodrigo", "name": "Olivia Rodrigo", "value": 62, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/Olivia_Rodrigo_at_the_2021_Met_Gala_%28cropped%29.jpg/320px-Olivia_Rodrigo_at_the_2021_Met_Gala_%28cropped%29.jpg", "hint": "drivers license, GUTS album" },
-        { "id": "kendrick-lamar", "name": "Kendrick Lamar", "value": 58, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Kendrick_Lamar_-_2019_by_Glenn_Francis.jpg/320px-Kendrick_Lamar_-_2019_by_Glenn_Francis.jpg", "hint": "Compton rapper, Not Like Us" },
-        { "id": "sza", "name": "SZA", "value": 67, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/SZA_%28singer%29.jpg/320px-SZA_%28singer%29.jpg", "hint": "R&B artist, Kill Bill" },
-        { "id": "coldplay-sp", "name": "Coldplay", "value": 68, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Coldplay_band_2019_%28cropped%29.jpg/320px-Coldplay_band_2019_%28cropped%29.jpg", "hint": "British rock band, Yellow" },
-        { "id": "weeknd-abel", "name": "Justin Bieber", "value": 70, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Justin_Bieber_in_2015.jpg/320px-Justin_Bieber_in_2015.jpg", "hint": "Canadian pop star, Baby" },
-        { "id": "harry-styles", "name": "Harry Styles", "value": 61, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Harry_Styles_in_2022.jpg/320px-Harry_Styles_in_2022.jpg", "hint": "One Direction alum, As It Was" },
-        { "id": "tyler-the-creator", "name": "Tyler, the Creator", "value": 42, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Tyler%2C_the_Creator_2022_%28cropped%29.jpg/320px-Tyler%2C_the_Creator_2022_%28cropped%29.jpg", "hint": "Golf Wang founder, Igor" },
-        { "id": "peso-pluma", "name": "Peso Pluma", "value": 55, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Peso_Pluma_2023_%28cropped%29.jpg/320px-Peso_Pluma_2023_%28cropped%29.jpg", "hint": "Mexican regional music star" },
-        { "id": "travis-scott", "name": "Travis Scott", "value": 58, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Travis_Scott_-_Concert_2018_%28cropped%29.jpg/320px-Travis_Scott_-_Concert_2018_%28cropped%29.jpg", "hint": "Houston rapper, SICKO MODE" }
+        {
+          "id": "the-weeknd",
+          "name": "The Weeknd",
+          "value": 120,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a0/The_Weeknd_Portrait_by_Brian_Ziff.jpg/330px-The_Weeknd_Portrait_by_Brian_Ziff.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Canadian R&B artist, Blinding Lights"
+        },
+        {
+          "id": "bad-bunny-sp",
+          "name": "Bad Bunny",
+          "value": 90,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b1/Bad_Bunny_2019_by_Glenn_Francis_%28cropped%29.jpg/330px-Bad_Bunny_2019_by_Glenn_Francis_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Puerto Rican reggaeton superstar"
+        },
+        {
+          "id": "taylor-swift-sp",
+          "name": "Taylor Swift",
+          "value": 100,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b1/Taylor_Swift_at_the_2023_MTV_Video_Music_Awards_%283%29.png/330px-Taylor_Swift_at_the_2023_MTV_Video_Music_Awards_%283%29.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Pop megastar, Eras Tour"
+        },
+        {
+          "id": "drake-sp",
+          "name": "Drake",
+          "value": 82,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/15/Drake_at_The_Carter_Effect_2017_%2836818935200%29_%28cropped%29.jpg/330px-Drake_at_The_Carter_Effect_2017_%2836818935200%29_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Canadian hip-hop, God's Plan"
+        },
+        {
+          "id": "ed-sheeran-sp",
+          "name": "Ed Sheeran",
+          "value": 85,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/03/Ed_Sheeran_2022_%283x4_crop%29.jpg/330px-Ed_Sheeran_2022_%283x4_crop%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "British singer-songwriter, Shape of You"
+        },
+        {
+          "id": "billie-eilish",
+          "name": "Billie Eilish",
+          "value": 76,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c7/BillieEilishO2140725-39_-_54665577407_%28cropped%29.jpg/330px-BillieEilishO2140725-39_-_54665577407_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Gen Z pop icon, Bad Guy"
+        },
+        {
+          "id": "ariana-grande",
+          "name": "Ariana Grande",
+          "value": 73,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7c/Ariana_Grande_promoting_Wicked_%282024%29.jpg/330px-Ariana_Grande_promoting_Wicked_%282024%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Pop diva, Thank U Next"
+        },
+        {
+          "id": "eminem-sp",
+          "name": "Eminem",
+          "value": 68,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0f/Eminem_2021_Color_Corrected.jpg/330px-Eminem_2021_Color_Corrected.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Detroit rap legend, Lose Yourself"
+        },
+        {
+          "id": "post-malone",
+          "name": "Post Malone",
+          "value": 72,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a9/Post_Malone_July_2021_%28cropped%29.jpg/330px-Post_Malone_July_2021_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Rockstar rapper-singer"
+        },
+        {
+          "id": "dua-lipa",
+          "name": "Dua Lipa",
+          "value": 70,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/66/Dua_Lipa-69798_%28cropped%29.jpg/330px-Dua_Lipa-69798_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "British-Albanian pop star, Levitating"
+        },
+        {
+          "id": "rihanna",
+          "name": "Rihanna",
+          "value": 60,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c2/Rihanna_Fenty_2018.png/330px-Rihanna_Fenty_2018.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Barbadian pop icon, Umbrella"
+        },
+        {
+          "id": "kanye-west",
+          "name": "Kanye West",
+          "value": 56,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5c/Kanye_West_at_the_2009_Tribeca_Film_Festival_%28crop_2%29.jpg/330px-Kanye_West_at_the_2009_Tribeca_Film_Festival_%28crop_2%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Chicago rapper turned designer, Ye"
+        },
+        {
+          "id": "sabrina-carpenter",
+          "name": "Sabrina Carpenter",
+          "value": 65,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/61/Sabrina_Carpenter_-_O2_Arena_2025_-_086_%28cropped_2%29.jpg/330px-Sabrina_Carpenter_-_O2_Arena_2025_-_086_%28cropped_2%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Espresso singer, Short n' Sweet"
+        },
+        {
+          "id": "olivia-rodrigo",
+          "name": "Olivia Rodrigo",
+          "value": 62,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/68/Glasto2025-546_%28cropped%29_2.jpg/330px-Glasto2025-546_%28cropped%29_2.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "drivers license, GUTS album"
+        },
+        {
+          "id": "kendrick-lamar",
+          "name": "Kendrick Lamar",
+          "value": 58,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/18/KendrickSZASPurs230725-144_%28cropped%29_desaturated.jpg/330px-KendrickSZASPurs230725-144_%28cropped%29_desaturated.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Compton rapper, Not Like Us"
+        },
+        {
+          "id": "sza",
+          "name": "SZA",
+          "value": 67,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f4/KendrickSZASPurs230725-19_-_54683179509_%28cropped%29_%28cropped%29.jpg/330px-KendrickSZASPurs230725-19_-_54683179509_%28cropped%29_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "R&B artist, Kill Bill"
+        },
+        {
+          "id": "coldplay-sp",
+          "name": "Coldplay",
+          "value": 68,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cc/ColdplayWembley120925_%28cropped%29.jpg/330px-ColdplayWembley120925_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "British rock band, Yellow"
+        },
+        {
+          "id": "weeknd-abel",
+          "name": "Justin Bieber",
+          "value": 70,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6c/P20260719DT-1213_President_Donald_J._Trump_and_First_Lady_Melania_Trump_attend_the_FIFA_World_Cup_Final_%28cropped_2%29.jpg/330px-P20260719DT-1213_President_Donald_J._Trump_and_First_Lady_Melania_Trump_attend_the_FIFA_World_Cup_Final_%28cropped_2%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Canadian pop star, Baby"
+        },
+        {
+          "id": "harry-styles",
+          "name": "Harry Styles",
+          "value": 61,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b2/HarryStylesWembley170623_%2865_of_93%29_%2852982678051%29_%28cropped_2%29.jpg/330px-HarryStylesWembley170623_%2865_of_93%29_%2852982678051%29_%28cropped_2%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "One Direction alum, As It Was"
+        },
+        {
+          "id": "tyler-the-creator",
+          "name": "Tyler, the Creator",
+          "value": 42,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fe/Tyler_The_Creator_Toronto_2025_%28cropped%29.jpg/330px-Tyler_The_Creator_Toronto_2025_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Golf Wang founder, Igor"
+        },
+        {
+          "id": "peso-pluma",
+          "name": "Peso Pluma",
+          "value": 55,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ee/Peso_Pluma%2C_performing_in_Monterrey_%282024-09-24%29_%281%29.png/330px-Peso_Pluma%2C_performing_in_Monterrey_%282024-09-24%29_%281%29.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Mexican regional music star"
+        },
+        {
+          "id": "travis-scott",
+          "name": "Travis Scott",
+          "value": 58,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/77/Travis_Scott_sig.svg/330px-Travis_Scott_sig.svg.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Houston rapper, SICKO MODE"
+        }
       ]
     },
     {
@@ -236,26 +1244,146 @@
       "unit": "$",
       "formatSuffix": "B",
       "items": [
-        { "id": "elon-musk", "name": "Elon Musk", "value": 380, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/34/Elon_Musk_Royal_Society_%28crop2%29.jpg/320px-Elon_Musk_Royal_Society_%28crop2%29.jpg", "hint": "Tesla, SpaceX, X (Twitter)" },
-        { "id": "jeff-bezos", "name": "Jeff Bezos", "value": 230, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6c/Jeff_Bezos_at_Amazon_Spheres_Grand_Opening_in_Seattle_-_2018_%2839074799225%29_%28cropped%29.jpg/320px-Jeff_Bezos_at_Amazon_Spheres_Grand_Opening_in_Seattle_-_2018_%2839074799225%29_%28cropped%29.jpg", "hint": "Amazon founder" },
-        { "id": "mark-zuckerberg", "name": "Mark Zuckerberg", "value": 200, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Mark_Zuckerberg_F8_2019_Keynote_%2832830578717%29_%28cropped%29.jpg/320px-Mark_Zuckerberg_F8_2019_Keynote_%2832830578717%29_%28cropped%29.jpg", "hint": "Meta — Facebook, Instagram, WhatsApp" },
-        { "id": "bill-gates", "name": "Bill Gates", "value": 130, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/Bill_Gates_2017_%28cropped%29.jpg/320px-Bill_Gates_2017_%28cropped%29.jpg", "hint": "Microsoft co-founder" },
-        { "id": "larry-ellison", "name": "Larry Ellison", "value": 180, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/Larry_Ellison_2013_%28cropped%29.jpg/320px-Larry_Ellison_2013_%28cropped%29.jpg", "hint": "Oracle founder" },
-        { "id": "warren-buffett", "name": "Warren Buffett", "value": 140, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/51/Warren_Buffett_KU_Visit.jpg/320px-Warren_Buffett_KU_Visit.jpg", "hint": "Berkshire Hathaway, Oracle of Omaha" },
-        { "id": "larry-page", "name": "Larry Page", "value": 130, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Larry_Page_in_the_European_Parliament%2C_17.06.2009_%28cropped%29.jpg/320px-Larry_Page_in_the_European_Parliament%2C_17.06.2009_%28cropped%29.jpg", "hint": "Google co-founder" },
-        { "id": "sergey-brin", "name": "Sergey Brin", "value": 120, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Sergey_Brin_Ted_2010.jpg/320px-Sergey_Brin_Ted_2010.jpg", "hint": "Google co-founder" },
-        { "id": "steve-ballmer", "name": "Steve Ballmer", "value": 120, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/Steve_Ballmer_2019.jpg/320px-Steve_Ballmer_2019.jpg", "hint": "Former Microsoft CEO, LA Clippers owner" },
-        { "id": "mukesh-ambani", "name": "Mukesh Ambani", "value": 115, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f4/Mukesh_Ambani.jpg/320px-Mukesh_Ambani.jpg", "hint": "Reliance Industries, richest in Asia" },
-        { "id": "jensen-huang", "name": "Jensen Huang", "value": 110, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/34/Jensen_Huang_2022_%28cropped%29.jpg/320px-Jensen_Huang_2022_%28cropped%29.jpg", "hint": "NVIDIA founder and CEO" },
-        { "id": "bernard-arnault", "name": "Bernard Arnault", "value": 160, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Bernard_Arnault_%283%29_cropped.jpg/320px-Bernard_Arnault_%283%29_cropped.jpg", "hint": "LVMH — Louis Vuitton, Dior" },
-        { "id": "tim-cook", "name": "Tim Cook", "value": 2, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Tim_Cook_2023_%28cropped%29.jpg/320px-Tim_Cook_2023_%28cropped%29.jpg", "hint": "Apple CEO" },
-        { "id": "satya-nadella", "name": "Satya Nadella", "value": 1, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/MS-Exec-Nadella-Satya-2017-08-31-22_%28cropped%29.jpg/320px-MS-Exec-Nadella-Satya-2017-08-31-22_%28cropped%29.jpg", "hint": "Microsoft CEO" },
-        { "id": "sam-altman", "name": "Sam Altman", "value": 10, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Sam_Altman_CogX_2023_%28cropped%29.jpg/320px-Sam_Altman_CogX_2023_%28cropped%29.jpg", "hint": "OpenAI CEO, ChatGPT" },
-        { "id": "rihanna-b", "name": "Rihanna", "value": 1.4, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Rihanna_Fenty_2018.png/320px-Rihanna_Fenty_2018.png", "hint": "Fenty Beauty made her a billionaire" },
-        { "id": "kylie-jenner", "name": "Kylie Jenner", "value": 0.7, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Kylie_Jenner_2019_crop.jpg/320px-Kylie_Jenner_2019_crop.jpg", "hint": "Kylie Cosmetics founder" },
-        { "id": "michael-jordan", "name": "Michael Jordan", "value": 3, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Michael_Jordan_in_2014.jpg/320px-Michael_Jordan_in_2014.jpg", "hint": "NBA legend turned businessman" },
-        { "id": "jack-ma", "name": "Jack Ma", "value": 25, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Jack_Ma_2014.jpg/320px-Jack_Ma_2014.jpg", "hint": "Alibaba co-founder" },
-        { "id": "reid-hoffman", "name": "Peter Thiel", "value": 9, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Peter_Thiel_2014_cropped.jpg/320px-Peter_Thiel_2014_cropped.jpg", "hint": "PayPal co-founder, Palantir" }
+        {
+          "id": "elon-musk",
+          "name": "Elon Musk",
+          "value": 380,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/69/Elon_Musk_-_54820081119_%283x4_cropped%2C_Rule_of_thirds%29.jpg/330px-Elon_Musk_-_54820081119_%283x4_cropped%2C_Rule_of_thirds%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Tesla, SpaceX, X (Twitter)"
+        },
+        {
+          "id": "jeff-bezos",
+          "name": "Jeff Bezos",
+          "value": 230,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fc/260202-D-PM193-2205_SECWAR_Arsenal_of_Freedom_Tour_-_Florida_%283x4_cropped_on_Bezos_and_rotated%29.jpg/330px-260202-D-PM193-2205_SECWAR_Arsenal_of_Freedom_Tour_-_Florida_%283x4_cropped_on_Bezos_and_rotated%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Amazon founder"
+        },
+        {
+          "id": "mark-zuckerberg",
+          "name": "Mark Zuckerberg",
+          "value": 200,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/12/P20260929DT-1655_%2855561811540%29_%28cropped_2%29.jpg/330px-P20260929DT-1655_%2855561811540%29_%28cropped_2%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Meta — Facebook, Instagram, WhatsApp"
+        },
+        {
+          "id": "bill-gates",
+          "name": "Bill Gates",
+          "value": 130,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d9/Bill_Gates_at_the_European_Commission_-_P067383-987995_%28cropped%29_5.jpg/330px-Bill_Gates_at_the_European_Commission_-_P067383-987995_%28cropped%29_5.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Microsoft co-founder"
+        },
+        {
+          "id": "larry-ellison",
+          "name": "Larry Ellison",
+          "value": 180,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/47/Larry_Ellison_2016.png/330px-Larry_Ellison_2016.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Oracle founder"
+        },
+        {
+          "id": "warren-buffett",
+          "name": "Warren Buffett",
+          "value": 140,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d4/Warren_Buffett_at_the_2015_SelectUSA_Investment_Summit_%28cropped%29.jpg/330px-Warren_Buffett_at_the_2015_SelectUSA_Investment_Summit_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Berkshire Hathaway, Oracle of Omaha"
+        },
+        {
+          "id": "larry-page",
+          "name": "Larry Page",
+          "value": 130,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2a/Larry_Page_in_the_European_Parliament%2C_17.06.2009_%28cropped_2%29.jpg/330px-Larry_Page_in_the_European_Parliament%2C_17.06.2009_%28cropped_2%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Google co-founder"
+        },
+        {
+          "id": "sergey-brin",
+          "name": "Sergey Brin",
+          "value": 120,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/12/Sergey_Brin_DC_Summit_2026_%28cropped%29.jpg/330px-Sergey_Brin_DC_Summit_2026_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Google co-founder"
+        },
+        {
+          "id": "steve-ballmer",
+          "name": "Steve Ballmer",
+          "value": 120,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/54/Steve_ballmer_2007_outdoors2-2.jpg/330px-Steve_ballmer_2007_outdoors2-2.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Former Microsoft CEO, LA Clippers owner"
+        },
+        {
+          "id": "mukesh-ambani",
+          "name": "Mukesh Ambani",
+          "value": 115,
+          "image": "https://upload.wikimedia.org/wikipedia/commons/6/69/Mukesh_Ambani.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+          "hint": "Reliance Industries, richest in Asia"
+        },
+        {
+          "id": "jensen-huang",
+          "name": "Jensen Huang",
+          "value": 110,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e6/Jen-Hsun_Huang_2025.jpg/330px-Jen-Hsun_Huang_2025.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "NVIDIA founder and CEO"
+        },
+        {
+          "id": "bernard-arnault",
+          "name": "Bernard Arnault",
+          "value": 160,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/de/Bernard_Arnault_%283%29_-_2017_%28cropped%29.jpg/330px-Bernard_Arnault_%283%29_-_2017_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "LVMH — Louis Vuitton, Dior"
+        },
+        {
+          "id": "tim-cook",
+          "name": "Tim Cook",
+          "value": 2,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/10/Tim_Cook_in_New_York_City_-_2026_%28cropped%29.jpg/330px-Tim_Cook_in_New_York_City_-_2026_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Apple CEO"
+        },
+        {
+          "id": "satya-nadella",
+          "name": "Satya Nadella",
+          "value": 1,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/78/MS-Exec-Nadella-Satya-2017-08-31-22_%28cropped%29.jpg/330px-MS-Exec-Nadella-Satya-2017-08-31-22_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Microsoft CEO"
+        },
+        {
+          "id": "sam-altman",
+          "name": "Sam Altman",
+          "value": 10,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5a/Meeting_with_Masayoshi_Son_and_Sam_Altman_%28February_3%2C_2025%29_%283x4_cropped_on_Altman%29.jpg/330px-Meeting_with_Masayoshi_Son_and_Sam_Altman_%28February_3%2C_2025%29_%283x4_cropped_on_Altman%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "OpenAI CEO, ChatGPT"
+        },
+        {
+          "id": "rihanna-b",
+          "name": "Rihanna",
+          "value": 1.4,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c2/Rihanna_Fenty_2018.png/330px-Rihanna_Fenty_2018.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Fenty Beauty made her a billionaire"
+        },
+        {
+          "id": "kylie-jenner",
+          "name": "Kylie Jenner",
+          "value": 0.7,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/43/Kylie_Jenner2_%28cropped%29.png/330px-Kylie_Jenner2_%28cropped%29.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Kylie Cosmetics founder"
+        },
+        {
+          "id": "michael-jordan",
+          "name": "Michael Jordan",
+          "value": 3,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/46/Michael_jordan_admad_rashad_%2851276390562%29_%28cropped%29.jpg/330px-Michael_jordan_admad_rashad_%2851276390562%29_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "NBA legend turned businessman"
+        },
+        {
+          "id": "jack-ma",
+          "name": "Jack Ma",
+          "value": 25,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6d/20th_Anniversary_Schwab_Foundation_Gala_Dinner_%2844887783681%29_%28cropped%29.jpg/330px-20th_Anniversary_Schwab_Foundation_Gala_Dinner_%2844887783681%29_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Alibaba co-founder"
+        },
+        {
+          "id": "reid-hoffman",
+          "name": "Peter Thiel",
+          "value": 9,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3e/Peter_Thiel_by_Gage_Skidmore.jpg/330px-Peter_Thiel_by_Gage_Skidmore.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "PayPal co-founder, Palantir"
+        }
       ]
     },
     {
@@ -266,26 +1394,146 @@
       "unit": "",
       "formatSuffix": "M",
       "items": [
-        { "id": "elon-x", "name": "Elon Musk", "value": 220, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/34/Elon_Musk_Royal_Society_%28crop2%29.jpg/320px-Elon_Musk_Royal_Society_%28crop2%29.jpg", "hint": "Owns X (formerly Twitter)" },
-        { "id": "barack-obama", "name": "Barack Obama", "value": 131, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/President_Barack_Obama.jpg/320px-President_Barack_Obama.jpg", "hint": "44th US President" },
-        { "id": "justin-bieber-x", "name": "Justin Bieber", "value": 111, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Justin_Bieber_in_2015.jpg/320px-Justin_Bieber_in_2015.jpg", "hint": "Canadian pop star" },
-        { "id": "katy-perry", "name": "Katy Perry", "value": 108, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/ce/Katy_Perry_-_Witness_The_Tour_Belfast.jpg/320px-Katy_Perry_-_Witness_The_Tour_Belfast.jpg", "hint": "Roar singer, American Idol judge" },
-        { "id": "rihanna-x", "name": "Rihanna", "value": 107, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Rihanna_Fenty_2018.png/320px-Rihanna_Fenty_2018.png", "hint": "Fenty Beauty mogul" },
-        { "id": "taylor-swift-x", "name": "Taylor Swift", "value": 94, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/191125_Taylor_Swift_at_the_2019_American_Music_Awards_%28cropped%29.png/320px-191125_Taylor_Swift_at_the_2019_American_Music_Awards_%28cropped%29.png", "hint": "Eras Tour megastar" },
-        { "id": "cristiano-x", "name": "Cristiano Ronaldo", "value": 113, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Cristiano_Ronaldo_2018.jpg/320px-Cristiano_Ronaldo_2018.jpg", "hint": "CR7, football GOAT contender" },
-        { "id": "lebron-x", "name": "LeBron James", "value": 53, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cf/LeBron_James_crop2.jpg/320px-LeBron_James_crop2.jpg", "hint": "NBA king, King James" },
-        { "id": "donald-trump", "name": "Donald Trump", "value": 100, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/Donald_Trump_official_portrait.jpg/320px-Donald_Trump_official_portrait.jpg", "hint": "45th & 47th US President" },
-        { "id": "bill-gates-x", "name": "Bill Gates", "value": 64, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/Bill_Gates_2017_%28cropped%29.jpg/320px-Bill_Gates_2017_%28cropped%29.jpg", "hint": "Microsoft co-founder, philanthropist" },
-        { "id": "narendra-modi", "name": "Narendra Modi", "value": 103, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/Narendra_Modi_2024.jpg/320px-Narendra_Modi_2024.jpg", "hint": "Prime Minister of India" },
-        { "id": "ariana-grande-x", "name": "Ariana Grande", "value": 81, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Ariana_Grande_-_Dangerous_Woman_Tour_in_Japan_2%28Cropped%29.jpg/320px-Ariana_Grande_-_Dangerous_Woman_Tour_in_Japan_2%28Cropped%29.jpg", "hint": "Thank U, Next pop star" },
-        { "id": "kim-kardashian", "name": "Kim Kardashian", "value": 75, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Kim_Kardashian_2019_cropped.jpg/320px-Kim_Kardashian_2019_cropped.jpg", "hint": "Reality TV icon, SKIMS founder" },
-        { "id": "demi-lovato", "name": "Demi Lovato", "value": 57, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Demi_Lovato_2019_cropped.jpg/320px-Demi_Lovato_2019_cropped.jpg", "hint": "Pop singer, Sorry Not Sorry" },
-        { "id": "neymar-x", "name": "Neymar Jr", "value": 58, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/Neymar_2022.jpg/320px-Neymar_2022.jpg", "hint": "Brazilian football star" },
-        { "id": "messi-x", "name": "Lionel Messi", "value": 11, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/Messi_Argentina_2022_FIFA_World_Cup_%28cropped%29.jpg/320px-Messi_Argentina_2022_FIFA_World_Cup_%28cropped%29.jpg", "hint": "World Cup winner, GOAT debate" },
-        { "id": "shakira-x", "name": "Shakira", "value": 82, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Shakira_2023_%28cropped%29.jpg/320px-Shakira_2023_%28cropped%29.jpg", "hint": "Colombian pop singer, Waka Waka" },
-        { "id": "cnn-x", "name": "CNN", "value": 63, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/CNN.svg/320px-CNN.svg.png", "hint": "Global news network" },
-        { "id": "youtube-x", "name": "YouTube", "value": 92, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/YouTube_full-color_icon_%282017%29.svg/320px-YouTube_full-color_icon_%282017%29.svg.png", "hint": "Google's video platform" },
-        { "id": "nasa-x", "name": "NASA", "value": 50, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/NASA_logo.svg/320px-NASA_logo.svg.png", "hint": "US space agency" }
+        {
+          "id": "elon-x",
+          "name": "Elon Musk",
+          "value": 220,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/69/Elon_Musk_-_54820081119_%283x4_cropped%2C_Rule_of_thirds%29.jpg/330px-Elon_Musk_-_54820081119_%283x4_cropped%2C_Rule_of_thirds%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Owns X (formerly Twitter)"
+        },
+        {
+          "id": "barack-obama",
+          "name": "Barack Obama",
+          "value": 131,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8d/President_Barack_Obama.jpg/330px-President_Barack_Obama.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "44th US President"
+        },
+        {
+          "id": "justin-bieber-x",
+          "name": "Justin Bieber",
+          "value": 111,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6c/P20260719DT-1213_President_Donald_J._Trump_and_First_Lady_Melania_Trump_attend_the_FIFA_World_Cup_Final_%28cropped_2%29.jpg/330px-P20260719DT-1213_President_Donald_J._Trump_and_First_Lady_Melania_Trump_attend_the_FIFA_World_Cup_Final_%28cropped_2%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Canadian pop star"
+        },
+        {
+          "id": "katy-perry",
+          "name": "Katy Perry",
+          "value": 108,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a1/Katy_Perry_2026_Tribeca_Film_Festival_%28cropped_1%29.jpg/330px-Katy_Perry_2026_Tribeca_Film_Festival_%28cropped_1%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Roar singer, American Idol judge"
+        },
+        {
+          "id": "rihanna-x",
+          "name": "Rihanna",
+          "value": 107,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c2/Rihanna_Fenty_2018.png/330px-Rihanna_Fenty_2018.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Fenty Beauty mogul"
+        },
+        {
+          "id": "taylor-swift-x",
+          "name": "Taylor Swift",
+          "value": 94,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b1/Taylor_Swift_at_the_2023_MTV_Video_Music_Awards_%283%29.png/330px-Taylor_Swift_at_the_2023_MTV_Video_Music_Awards_%283%29.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Eras Tour megastar"
+        },
+        {
+          "id": "cristiano-x",
+          "name": "Cristiano Ronaldo",
+          "value": 113,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/26/Cristiano_Ronaldo_Croatia_v_Portugal_2_July_2026-075_%28cropped%29.jpg/330px-Cristiano_Ronaldo_Croatia_v_Portugal_2_July_2026-075_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "CR7, football GOAT contender"
+        },
+        {
+          "id": "lebron-x",
+          "name": "LeBron James",
+          "value": 53,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7a/LeBron_James_%2851959977144%29_%28cropped2%29.jpg/330px-LeBron_James_%2851959977144%29_%28cropped2%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "NBA king, King James"
+        },
+        {
+          "id": "donald-trump",
+          "name": "Donald Trump",
+          "value": 100,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/16/Official_Presidential_Portrait_of_President_Donald_J._Trump_%282025%29.jpg/330px-Official_Presidential_Portrait_of_President_Donald_J._Trump_%282025%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "45th & 47th US President"
+        },
+        {
+          "id": "bill-gates-x",
+          "name": "Bill Gates",
+          "value": 64,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d9/Bill_Gates_at_the_European_Commission_-_P067383-987995_%28cropped%29_5.jpg/330px-Bill_Gates_at_the_European_Commission_-_P067383-987995_%28cropped%29_5.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Microsoft co-founder, philanthropist"
+        },
+        {
+          "id": "narendra-modi",
+          "name": "Narendra Modi",
+          "value": 103,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/ba/Narendra_Modi_Portrait_2026.jpg/330px-Narendra_Modi_Portrait_2026.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Prime Minister of India"
+        },
+        {
+          "id": "ariana-grande-x",
+          "name": "Ariana Grande",
+          "value": 81,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7c/Ariana_Grande_promoting_Wicked_%282024%29.jpg/330px-Ariana_Grande_promoting_Wicked_%282024%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Thank U, Next pop star"
+        },
+        {
+          "id": "kim-kardashian",
+          "name": "Kim Kardashian",
+          "value": 75,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/df/Kim_Kardashian_West_2014.jpg/330px-Kim_Kardashian_West_2014.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Reality TV icon, SKIMS founder"
+        },
+        {
+          "id": "demi-lovato",
+          "name": "Demi Lovato",
+          "value": 57,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1c/Demi_Lovato_Interview_Feb_2020.png/330px-Demi_Lovato_Interview_Feb_2020.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Pop singer, Sorry Not Sorry"
+        },
+        {
+          "id": "neymar-x",
+          "name": "Neymar Jr",
+          "value": 58,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c0/Neymar_Junior_Brazil_V_Morocco_13_June_2026-40.jpg/330px-Neymar_Junior_Brazil_V_Morocco_13_June_2026-40.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Brazilian football star"
+        },
+        {
+          "id": "messi-x",
+          "name": "Lionel Messi",
+          "value": 11,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c8/Leo_Messi_Argentina_v_Egypt_7_July_2026-1.jpg/330px-Leo_Messi_Argentina_v_Egypt_7_July_2026-1.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "World Cup winner, GOAT debate"
+        },
+        {
+          "id": "shakira-x",
+          "name": "Shakira",
+          "value": 82,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b8/2023-11-16_Gala_de_los_Latin_Grammy%2C_03_%28cropped%2902.jpg/330px-2023-11-16_Gala_de_los_Latin_Grammy%2C_03_%28cropped%2902.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Colombian pop singer, Waka Waka"
+        },
+        {
+          "id": "cnn-x",
+          "name": "CNN",
+          "value": 63,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/9d/CNN_Logo_%282014%29.svg/330px-CNN_Logo_%282014%29.svg.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Global news network"
+        },
+        {
+          "id": "youtube-x",
+          "name": "YouTube",
+          "value": 92,
+          "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/YouTube_full-color_icon_%282017%29.svg/320px-YouTube_full-color_icon_%282017%29.svg.png",
+          "hint": "Google's video platform"
+        },
+        {
+          "id": "nasa-x",
+          "name": "NASA",
+          "value": 50,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ae/NASA_seal.svg/330px-NASA_seal.svg.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "US space agency"
+        }
       ]
     },
     {
@@ -296,28 +1544,160 @@
       "unit": "",
       "formatSuffix": "/10",
       "items": [
-        { "id": "avengers-endgame-m", "name": "Avengers: Endgame", "value": 8.4, "image": "https://image.tmdb.org/t/p/w500/or06FN3Dka5tukK1e9sl16pB3iy.jpg", "hint": "2019 MCU finale" },
-        { "id": "avengers-iw-m", "name": "Avengers: Infinity War", "value": 8.4, "image": "https://image.tmdb.org/t/p/w500/7WsyChQLEftFiDOVTGkv3hFpyyt.jpg", "hint": "Thanos snaps his fingers" },
-        { "id": "iron-man-m", "name": "Iron Man (2008)", "value": 7.9, "image": "https://image.tmdb.org/t/p/w500/78lPtwv72eTNqFW9COBF8l6ByFc.jpg", "hint": "The one that started the MCU" },
-        { "id": "guardians-m", "name": "Guardians of the Galaxy", "value": 8.0, "image": "https://image.tmdb.org/t/p/w500/r7vmZjiyZw9rpJMQJdXpjgiCOk9.jpg", "hint": "2014 space comedy-adventure" },
-        { "id": "captain-america-m", "name": "Captain America: Civil War", "value": 7.8, "image": "https://image.tmdb.org/t/p/w500/rAGiXaUfPzY7CDEyNKUofk3Kw2e.jpg", "hint": "Team Cap vs Team Iron Man" },
-        { "id": "spider-man-nwh-m", "name": "Spider-Man: No Way Home", "value": 8.2, "image": "https://image.tmdb.org/t/p/w500/1g0dhYtq4irTY1GPXvft6k4YLjm.jpg", "hint": "Three Spider-Men united" },
-        { "id": "thor-ragnarok", "name": "Thor: Ragnarok", "value": 7.9, "image": "https://image.tmdb.org/t/p/w500/rzRwTcFvttcN1ZpX2xv4j3tSdJu.jpg", "hint": "Taika Waititi's comedy Thor" },
-        { "id": "black-panther-m", "name": "Black Panther", "value": 7.3, "image": "https://image.tmdb.org/t/p/w500/uxzzxijgPIY7slzFvMotPv8wjKA.jpg", "hint": "Wakanda Forever" },
-        { "id": "doctor-strange-m", "name": "Doctor Strange", "value": 7.5, "image": "https://image.tmdb.org/t/p/w500/xj2nJLj9PuJ1Hn6jqR8gbxEKDRr.jpg", "hint": "MCU Sorcerer Supreme" },
-        { "id": "ant-man-m", "name": "Ant-Man", "value": 7.3, "image": "https://image.tmdb.org/t/p/w500/MvYpKlpFukTivnlBhizgUs8C6Y.jpg", "hint": "Paul Rudd shrinks down" },
-        { "id": "captain-marvel-m", "name": "Captain Marvel", "value": 6.8, "image": "https://image.tmdb.org/t/p/w500/AtsgWhDnHTq68L0lLsUrCnM7TjG.jpg", "hint": "Brie Larson as Carol Danvers" },
-        { "id": "thor-dark-world", "name": "Thor: The Dark World", "value": 6.8, "image": "https://image.tmdb.org/t/p/w500/eTnA3FhMRZOePQnVjNlrh2MHhsY.jpg", "hint": "Often called the worst MCU film" },
-        { "id": "iron-man-2", "name": "Iron Man 2", "value": 7.0, "image": "https://image.tmdb.org/t/p/w500/6WBeq4FCR8O8YnynCaKgNWXjDdT.jpg", "hint": "Whiplash and Black Widow debut" },
-        { "id": "avengers-2012-m", "name": "The Avengers (2012)", "value": 8.0, "image": "https://image.tmdb.org/t/p/w500/RYMX2wcKCBAr24UyPD7KE3QybEG.jpg", "hint": "First MCU team-up" },
-        { "id": "guardians-2", "name": "Guardians of the Galaxy Vol. 2", "value": 7.6, "image": "https://image.tmdb.org/t/p/w500/y4MBh0EjBlMuOzv9axM4qJlmhzz.jpg", "hint": "Star Lord meets his father" },
-        { "id": "wandavision", "name": "WandaVision", "value": 7.9, "image": "https://image.tmdb.org/t/p/w500/glKDfE6btIRcmuj5KbXf38SkwO.jpg", "hint": "MCU sitcom on Disney+" },
-        { "id": "loki-m", "name": "Loki", "value": 8.2, "image": "https://image.tmdb.org/t/p/w500/kEl2t3OhXc3Zb9FBh1AuYzRTgZp.jpg", "hint": "Tom Hiddleston's Disney+ show" },
-        { "id": "hawkeye-m", "name": "Hawkeye", "value": 7.5, "image": "https://image.tmdb.org/t/p/w500/4HodWMHpAeKqkLMl1FEaDHRhsJY.jpg", "hint": "Christmas-set Disney+ show" },
-        { "id": "eternals-m", "name": "Eternals", "value": 6.3, "image": "https://image.tmdb.org/t/p/w500/6AdSCiFFdvjjvMJqX1OFDgvqVyV.jpg", "hint": "Chloé Zhao's cosmic MCU film" },
-        { "id": "shang-chi", "name": "Shang-Chi", "value": 7.4, "image": "https://image.tmdb.org/t/p/w500/1BIoJGKbXjdFDAqUEiA2VHqkK1Z.jpg", "hint": "First Asian-led MCU film" },
-        { "id": "morbius", "name": "Morbius", "value": 5.2, "image": "https://image.tmdb.org/t/p/w500/6JjfSchsU6daXk2AKX8EEBjO3Fm.jpg", "hint": "It's Morbin time" },
-        { "id": "dr-strange-mom", "name": "Doctor Strange in the Multiverse of Madness", "value": 6.9, "image": "https://image.tmdb.org/t/p/w500/9Gtg2DzBhmYamXBS1hKAhiwbBKS.jpg", "hint": "Sam Raimi's horror-MCU" }
+        {
+          "id": "avengers-endgame-m",
+          "name": "Avengers: Endgame",
+          "value": 8.4,
+          "image": "https://image.tmdb.org/t/p/w500/or06FN3Dka5tukK1e9sl16pB3iy.jpg",
+          "hint": "2019 MCU finale"
+        },
+        {
+          "id": "avengers-iw-m",
+          "name": "Avengers: Infinity War",
+          "value": 8.4,
+          "image": "https://image.tmdb.org/t/p/w500/7WsyChQLEftFiDOVTGkv3hFpyyt.jpg",
+          "hint": "Thanos snaps his fingers"
+        },
+        {
+          "id": "iron-man-m",
+          "name": "Iron Man (2008)",
+          "value": 7.9,
+          "image": "https://image.tmdb.org/t/p/w500/78lPtwv72eTNqFW9COBF8l6ByFc.jpg",
+          "hint": "The one that started the MCU"
+        },
+        {
+          "id": "guardians-m",
+          "name": "Guardians of the Galaxy",
+          "value": 8.0,
+          "image": "https://image.tmdb.org/t/p/w500/r7vmZjiyZw9rpJMQJdXpjgiCOk9.jpg",
+          "hint": "2014 space comedy-adventure"
+        },
+        {
+          "id": "captain-america-m",
+          "name": "Captain America: Civil War",
+          "value": 7.8,
+          "image": "https://image.tmdb.org/t/p/w500/rAGiXaUfPzY7CDEyNKUofk3Kw2e.jpg",
+          "hint": "Team Cap vs Team Iron Man"
+        },
+        {
+          "id": "spider-man-nwh-m",
+          "name": "Spider-Man: No Way Home",
+          "value": 8.2,
+          "image": "https://image.tmdb.org/t/p/w500/1g0dhYtq4irTY1GPXvft6k4YLjm.jpg",
+          "hint": "Three Spider-Men united"
+        },
+        {
+          "id": "thor-ragnarok",
+          "name": "Thor: Ragnarok",
+          "value": 7.9,
+          "image": "https://image.tmdb.org/t/p/w500/rzRwTcFvttcN1ZpX2xv4j3tSdJu.jpg",
+          "hint": "Taika Waititi's comedy Thor"
+        },
+        {
+          "id": "black-panther-m",
+          "name": "Black Panther",
+          "value": 7.3,
+          "image": "https://image.tmdb.org/t/p/w500/uxzzxijgPIY7slzFvMotPv8wjKA.jpg",
+          "hint": "Wakanda Forever"
+        },
+        {
+          "id": "doctor-strange-m",
+          "name": "Doctor Strange",
+          "value": 7.5,
+          "image": "https://image.tmdb.org/t/p/w500/xj2nJLj9PuJ1Hn6jqR8gbxEKDRr.jpg",
+          "hint": "MCU Sorcerer Supreme"
+        },
+        {
+          "id": "ant-man-m",
+          "name": "Ant-Man",
+          "value": 7.3,
+          "image": "https://image.tmdb.org/t/p/w500/MvYpKlpFukTivnlBhizgUs8C6Y.jpg",
+          "hint": "Paul Rudd shrinks down"
+        },
+        {
+          "id": "captain-marvel-m",
+          "name": "Captain Marvel",
+          "value": 6.8,
+          "image": "https://image.tmdb.org/t/p/w500/AtsgWhDnHTq68L0lLsUrCnM7TjG.jpg",
+          "hint": "Brie Larson as Carol Danvers"
+        },
+        {
+          "id": "thor-dark-world",
+          "name": "Thor: The Dark World",
+          "value": 6.8,
+          "image": "https://image.tmdb.org/t/p/w500/eTnA3FhMRZOePQnVjNlrh2MHhsY.jpg",
+          "hint": "Often called the worst MCU film"
+        },
+        {
+          "id": "iron-man-2",
+          "name": "Iron Man 2",
+          "value": 7.0,
+          "image": "https://image.tmdb.org/t/p/w500/6WBeq4FCR8O8YnynCaKgNWXjDdT.jpg",
+          "hint": "Whiplash and Black Widow debut"
+        },
+        {
+          "id": "avengers-2012-m",
+          "name": "The Avengers (2012)",
+          "value": 8.0,
+          "image": "https://image.tmdb.org/t/p/w500/RYMX2wcKCBAr24UyPD7KE3QybEG.jpg",
+          "hint": "First MCU team-up"
+        },
+        {
+          "id": "guardians-2",
+          "name": "Guardians of the Galaxy Vol. 2",
+          "value": 7.6,
+          "image": "https://image.tmdb.org/t/p/w500/y4MBh0EjBlMuOzv9axM4qJlmhzz.jpg",
+          "hint": "Star Lord meets his father"
+        },
+        {
+          "id": "wandavision",
+          "name": "WandaVision",
+          "value": 7.9,
+          "image": "https://image.tmdb.org/t/p/w500/glKDfE6btIRcmuj5KbXf38SkwO.jpg",
+          "hint": "MCU sitcom on Disney+"
+        },
+        {
+          "id": "loki-m",
+          "name": "Loki",
+          "value": 8.2,
+          "image": "https://image.tmdb.org/t/p/w500/kEl2t3OhXc3Zb9FBh1AuYzRTgZp.jpg",
+          "hint": "Tom Hiddleston's Disney+ show"
+        },
+        {
+          "id": "hawkeye-m",
+          "name": "Hawkeye",
+          "value": 7.5,
+          "image": "https://image.tmdb.org/t/p/w500/4HodWMHpAeKqkLMl1FEaDHRhsJY.jpg",
+          "hint": "Christmas-set Disney+ show"
+        },
+        {
+          "id": "eternals-m",
+          "name": "Eternals",
+          "value": 6.3,
+          "image": "https://image.tmdb.org/t/p/w500/6AdSCiFFdvjjvMJqX1OFDgvqVyV.jpg",
+          "hint": "Chloé Zhao's cosmic MCU film"
+        },
+        {
+          "id": "shang-chi",
+          "name": "Shang-Chi",
+          "value": 7.4,
+          "image": "https://image.tmdb.org/t/p/w500/1BIoJGKbXjdFDAqUEiA2VHqkK1Z.jpg",
+          "hint": "First Asian-led MCU film"
+        },
+        {
+          "id": "morbius",
+          "name": "Morbius",
+          "value": 5.2,
+          "image": "https://image.tmdb.org/t/p/w500/6JjfSchsU6daXk2AKX8EEBjO3Fm.jpg",
+          "hint": "It's Morbin time"
+        },
+        {
+          "id": "dr-strange-mom",
+          "name": "Doctor Strange in the Multiverse of Madness",
+          "value": 6.9,
+          "image": "https://image.tmdb.org/t/p/w500/9Gtg2DzBhmYamXBS1hKAhiwbBKS.jpg",
+          "hint": "Sam Raimi's horror-MCU"
+        }
       ]
     },
     {
@@ -328,26 +1708,146 @@
       "unit": "",
       "formatSuffix": "M",
       "items": [
-        { "id": "squid-game-s1", "name": "Squid Game S1", "value": 265, "image": "https://image.tmdb.org/t/p/w500/dDlEmu3EZ0Pgg93K2SVNLCjCSvE.jpg", "hint": "Korean survival drama, 2021" },
-        { "id": "wednesday", "name": "Wednesday", "value": 252, "image": "https://image.tmdb.org/t/p/w500/9PFonBhy4cQy7Jz20NpMygczOkv.jpg", "hint": "Addams Family spin-off, Netflix record" },
-        { "id": "squid-game-s2", "name": "Squid Game S2", "value": 302, "image": "https://image.tmdb.org/t/p/w500/dDlEmu3EZ0Pgg93K2SVNLCjCSvE.jpg", "hint": "Most watched season ever on Netflix" },
-        { "id": "stranger-things-s4", "name": "Stranger Things S4", "value": 335, "image": "https://image.tmdb.org/t/p/w500/49WJfeN0moxb9IPfGn8AIqMGskD.jpg", "hint": "Running Up That Hill, Vecna" },
-        { "id": "dahmer", "name": "DAHMER", "value": 196, "image": "https://image.tmdb.org/t/p/w500/f2PVrphK0u81ES256IKBjQMCDsR.jpg", "hint": "Ryan Murphy's true crime drama" },
-        { "id": "the-crown-s5", "name": "The Crown S5", "value": 168, "image": "https://image.tmdb.org/t/p/w500/jNsNf2Gg9iRiMUBJnExJGpfh3hG.jpg", "hint": "British royal family drama" },
-        { "id": "emily-in-paris-s3", "name": "Emily in Paris S3", "value": 117, "image": "https://image.tmdb.org/t/p/w500/rNOHEMVAU7FwuHnLqABUZRRCOmO.jpg", "hint": "Darren Star's Paris comedy" },
-        { "id": "you-s4", "name": "You S4", "value": 146, "image": "https://image.tmdb.org/t/p/w500/2pWqYIEHPDJj7iAqHbWjFoCJhU4.jpg", "hint": "Penn Badgley's stalker thriller" },
-        { "id": "bridgerton-s2", "name": "Bridgerton S2", "value": 251, "image": "https://image.tmdb.org/t/p/w500/luoKpgVwi1E5nQsi7W0UuKHu2Rq.jpg", "hint": "Regency romance drama" },
-        { "id": "ozark-s4", "name": "Ozark S4", "value": 100, "image": "https://image.tmdb.org/t/p/w500/mMB4HBBuZL7qYNq2aMJRW6dqfAR.jpg", "hint": "Crime drama finale season" },
-        { "id": "money-heist-s5", "name": "Money Heist S5", "value": 98, "image": "https://image.tmdb.org/t/p/w500/reEMJA1uzscCbkpeRJeTT2bjqUp.jpg", "hint": "Spanish heist drama finale" },
-        { "id": "the-witcher-s1", "name": "The Witcher S1", "value": 76, "image": "https://image.tmdb.org/t/p/w500/7vjaCdMw15FEbXyLQTVa04URsPm.jpg", "hint": "Henry Cavill as Geralt" },
-        { "id": "ginny-georgia-s2", "name": "Ginny & Georgia S2", "value": 127, "image": "https://image.tmdb.org/t/p/w500/k5OwnxMOCETvtYSKtLrV8V8hfFM.jpg", "hint": "Mother-daughter drama" },
-        { "id": "one-piece", "name": "One Piece (Live Action)", "value": 140, "image": "https://image.tmdb.org/t/p/w500/5VsGUaFQCPNPblnKfBiJRuYQpZH.jpg", "hint": "Netflix's anime adaptation" },
-        { "id": "avatar-tlok", "name": "Avatar: The Last Airbender", "value": 93, "image": "https://image.tmdb.org/t/p/w500/cFHsf19OBJi7rOpYZBjUkx1m5PO.jpg", "hint": "Netflix live-action remake" },
-        { "id": "the-night-agent", "name": "The Night Agent", "value": 168, "image": "https://image.tmdb.org/t/p/w500/MnFKTcCPBUGtczRbJCHgOcBNg9.jpg", "hint": "2023 spy thriller, massive hit" },
-        { "id": "outer-banks-s3", "name": "Outer Banks S3", "value": 110, "image": "https://image.tmdb.org/t/p/w500/6zFDOiGlioEDCDRJNIYZBpBkYLH.jpg", "hint": "Teen treasure hunt drama" },
-        { "id": "beef", "name": "BEEF", "value": 91, "image": "https://image.tmdb.org/t/p/w500/qBzpTIpMtBiWAKSzNOVMZR0Vqet.jpg", "hint": "Steven Yeun road rage drama, Emmy winner" },
-        { "id": "glass-onion", "name": "Glass Onion: Knives Out", "value": 82, "image": "https://image.tmdb.org/t/p/w500/vDGr1YdrlfbU9wxTOdpf3zChmv9.jpg", "hint": "Rian Johnson's whodunit sequel" },
-        { "id": "all-quiet", "name": "All Quiet on the Western Front", "value": 74, "image": "https://image.tmdb.org/t/p/w500/hgmMCX1UDFQKOVoqFCJTXEDdXqW.jpg", "hint": "Oscar Best Picture nominee" }
+        {
+          "id": "squid-game-s1",
+          "name": "Squid Game S1",
+          "value": 265,
+          "image": "https://image.tmdb.org/t/p/w500/dDlEmu3EZ0Pgg93K2SVNLCjCSvE.jpg",
+          "hint": "Korean survival drama, 2021"
+        },
+        {
+          "id": "wednesday",
+          "name": "Wednesday",
+          "value": 252,
+          "image": "https://image.tmdb.org/t/p/w500/9PFonBhy4cQy7Jz20NpMygczOkv.jpg",
+          "hint": "Addams Family spin-off, Netflix record"
+        },
+        {
+          "id": "squid-game-s2",
+          "name": "Squid Game S2",
+          "value": 302,
+          "image": "https://image.tmdb.org/t/p/w500/dDlEmu3EZ0Pgg93K2SVNLCjCSvE.jpg",
+          "hint": "Most watched season ever on Netflix"
+        },
+        {
+          "id": "stranger-things-s4",
+          "name": "Stranger Things S4",
+          "value": 335,
+          "image": "https://image.tmdb.org/t/p/w500/49WJfeN0moxb9IPfGn8AIqMGskD.jpg",
+          "hint": "Running Up That Hill, Vecna"
+        },
+        {
+          "id": "dahmer",
+          "name": "DAHMER",
+          "value": 196,
+          "image": "https://image.tmdb.org/t/p/w500/f2PVrphK0u81ES256IKBjQMCDsR.jpg",
+          "hint": "Ryan Murphy's true crime drama"
+        },
+        {
+          "id": "the-crown-s5",
+          "name": "The Crown S5",
+          "value": 168,
+          "image": "https://image.tmdb.org/t/p/w500/jNsNf2Gg9iRiMUBJnExJGpfh3hG.jpg",
+          "hint": "British royal family drama"
+        },
+        {
+          "id": "emily-in-paris-s3",
+          "name": "Emily in Paris S3",
+          "value": 117,
+          "image": "https://image.tmdb.org/t/p/w500/rNOHEMVAU7FwuHnLqABUZRRCOmO.jpg",
+          "hint": "Darren Star's Paris comedy"
+        },
+        {
+          "id": "you-s4",
+          "name": "You S4",
+          "value": 146,
+          "image": "https://image.tmdb.org/t/p/w500/2pWqYIEHPDJj7iAqHbWjFoCJhU4.jpg",
+          "hint": "Penn Badgley's stalker thriller"
+        },
+        {
+          "id": "bridgerton-s2",
+          "name": "Bridgerton S2",
+          "value": 251,
+          "image": "https://image.tmdb.org/t/p/w500/luoKpgVwi1E5nQsi7W0UuKHu2Rq.jpg",
+          "hint": "Regency romance drama"
+        },
+        {
+          "id": "ozark-s4",
+          "name": "Ozark S4",
+          "value": 100,
+          "image": "https://image.tmdb.org/t/p/w500/mMB4HBBuZL7qYNq2aMJRW6dqfAR.jpg",
+          "hint": "Crime drama finale season"
+        },
+        {
+          "id": "money-heist-s5",
+          "name": "Money Heist S5",
+          "value": 98,
+          "image": "https://image.tmdb.org/t/p/w500/reEMJA1uzscCbkpeRJeTT2bjqUp.jpg",
+          "hint": "Spanish heist drama finale"
+        },
+        {
+          "id": "the-witcher-s1",
+          "name": "The Witcher S1",
+          "value": 76,
+          "image": "https://image.tmdb.org/t/p/w500/7vjaCdMw15FEbXyLQTVa04URsPm.jpg",
+          "hint": "Henry Cavill as Geralt"
+        },
+        {
+          "id": "ginny-georgia-s2",
+          "name": "Ginny & Georgia S2",
+          "value": 127,
+          "image": "https://image.tmdb.org/t/p/w500/k5OwnxMOCETvtYSKtLrV8V8hfFM.jpg",
+          "hint": "Mother-daughter drama"
+        },
+        {
+          "id": "one-piece",
+          "name": "One Piece (Live Action)",
+          "value": 140,
+          "image": "https://image.tmdb.org/t/p/w500/5VsGUaFQCPNPblnKfBiJRuYQpZH.jpg",
+          "hint": "Netflix's anime adaptation"
+        },
+        {
+          "id": "avatar-tlok",
+          "name": "Avatar: The Last Airbender",
+          "value": 93,
+          "image": "https://image.tmdb.org/t/p/w500/cFHsf19OBJi7rOpYZBjUkx1m5PO.jpg",
+          "hint": "Netflix live-action remake"
+        },
+        {
+          "id": "the-night-agent",
+          "name": "The Night Agent",
+          "value": 168,
+          "image": "https://image.tmdb.org/t/p/w500/MnFKTcCPBUGtczRbJCHgOcBNg9.jpg",
+          "hint": "2023 spy thriller, massive hit"
+        },
+        {
+          "id": "outer-banks-s3",
+          "name": "Outer Banks S3",
+          "value": 110,
+          "image": "https://image.tmdb.org/t/p/w500/6zFDOiGlioEDCDRJNIYZBpBkYLH.jpg",
+          "hint": "Teen treasure hunt drama"
+        },
+        {
+          "id": "beef",
+          "name": "BEEF",
+          "value": 91,
+          "image": "https://image.tmdb.org/t/p/w500/qBzpTIpMtBiWAKSzNOVMZR0Vqet.jpg",
+          "hint": "Steven Yeun road rage drama, Emmy winner"
+        },
+        {
+          "id": "glass-onion",
+          "name": "Glass Onion: Knives Out",
+          "value": 82,
+          "image": "https://image.tmdb.org/t/p/w500/vDGr1YdrlfbU9wxTOdpf3zChmv9.jpg",
+          "hint": "Rian Johnson's whodunit sequel"
+        },
+        {
+          "id": "all-quiet",
+          "name": "All Quiet on the Western Front",
+          "value": 74,
+          "image": "https://image.tmdb.org/t/p/w500/hgmMCX1UDFQKOVoqFCJTXEDdXqW.jpg",
+          "hint": "Oscar Best Picture nominee"
+        }
       ]
     },
     {
@@ -358,28 +1858,160 @@
       "unit": "€",
       "formatSuffix": "M",
       "items": [
-        { "id": "lamine-yamal", "name": "Lamine Yamal", "value": 220, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Lamine_Yamal_2024_%28cropped%29.jpg/320px-Lamine_Yamal_2024_%28cropped%29.jpg", "hint": "Barcelona winger, Spain, 17 years old" },
-        { "id": "erling-haaland", "name": "Erling Haaland", "value": 220, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/01/Erling_Haaland_2023_%28cropped%29.jpg/320px-Erling_Haaland_2023_%28cropped%29.jpg", "hint": "Manchester City striker, Norway" },
-        { "id": "kylian-mbappe", "name": "Kylian Mbappé", "value": 180, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/17/Kylian_Mbapp%C3%A9_2024_%28cropped%29.jpg/320px-Kylian_Mbapp%C3%A9_2024_%28cropped%29.jpg", "hint": "Real Madrid striker, France" },
-        { "id": "vinicius-jr", "name": "Vinícius Jr", "value": 180, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/75/Vinicius_Junior_2022_%28cropped%29.jpg/320px-Vinicius_Junior_2022_%28cropped%29.jpg", "hint": "Real Madrid winger, Brazil" },
-        { "id": "jude-bellingham", "name": "Jude Bellingham", "value": 180, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Jude_Bellingham_2024_%28cropped%29.jpg/320px-Jude_Bellingham_2024_%28cropped%29.jpg", "hint": "Real Madrid midfielder, England" },
-        { "id": "pedri", "name": "Pedri", "value": 150, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Pedri_2022_%28cropped%29.jpg/320px-Pedri_2022_%28cropped%29.jpg", "hint": "Barcelona midfielder, Spain" },
-        { "id": "florian-wirtz", "name": "Florian Wirtz", "value": 150, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Florian_Wirtz_2023_%28cropped%29.jpg/320px-Florian_Wirtz_2023_%28cropped%29.jpg", "hint": "Bayer Leverkusen, Germany" },
-        { "id": "bukayo-saka", "name": "Bukayo Saka", "value": 150, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Bukayo_Saka_2022_%28cropped%29.jpg/320px-Bukayo_Saka_2022_%28cropped%29.jpg", "hint": "Arsenal winger, England" },
-        { "id": "phil-foden", "name": "Phil Foden", "value": 150, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Phil_Foden_2023_%28cropped%29.jpg/320px-Phil_Foden_2023_%28cropped%29.jpg", "hint": "Manchester City midfielder, England" },
-        { "id": "rodri", "name": "Rodri", "value": 130, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/Rodri_2023_%28cropped%29.jpg/320px-Rodri_2023_%28cropped%29.jpg", "hint": "Man City, Ballon d'Or 2024, Spain" },
-        { "id": "rafael-leao", "name": "Rafael Leão", "value": 100, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Rafael_Le%C3%A3o_2023_%28cropped%29.jpg/320px-Rafael_Le%C3%A3o_2023_%28cropped%29.jpg", "hint": "AC Milan winger, Portugal" },
-        { "id": "declan-rice", "name": "Declan Rice", "value": 110, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/37/Declan_Rice_2023_%28cropped%29.jpg/320px-Declan_Rice_2023_%28cropped%29.jpg", "hint": "Arsenal midfielder, England" },
-        { "id": "harry-kane", "name": "Harry Kane", "value": 90, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Harry_Kane_2019_%28cropped%29.jpg/320px-Harry_Kane_2019_%28cropped%29.jpg", "hint": "Bayern Munich striker, England" },
-        { "id": "cristiano-r", "name": "Cristiano Ronaldo", "value": 15, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Cristiano_Ronaldo_2018.jpg/320px-Cristiano_Ronaldo_2018.jpg", "hint": "Al-Nassr, all-time top scorer" },
-        { "id": "lionel-messi-f", "name": "Lionel Messi", "value": 25, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/Messi_Argentina_2022_FIFA_World_Cup_%28cropped%29.jpg/320px-Messi_Argentina_2022_FIFA_World_Cup_%28cropped%29.jpg", "hint": "Inter Miami, World Cup winner" },
-        { "id": "neymar-f", "name": "Neymar Jr", "value": 30, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/Neymar_2022.jpg/320px-Neymar_2022.jpg", "hint": "Al-Hilal, injury-hit season" },
-        { "id": "kevin-de-bruyne", "name": "Kevin De Bruyne", "value": 50, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Kevin_De_Bruyne_2022_%28cropped%29.jpg/320px-Kevin_De_Bruyne_2022_%28cropped%29.jpg", "hint": "Man City playmaker, Belgium" },
-        { "id": "marcus-rashford", "name": "Marcus Rashford", "value": 60, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Marcus_Rashford_2022_%28cropped%29.jpg/320px-Marcus_Rashford_2022_%28cropped%29.jpg", "hint": "Manchester United forward, England" },
-        { "id": "alisson-becker", "name": "Alisson Becker", "value": 60, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/Alisson_Becker_2019_%28cropped%29.jpg/320px-Alisson_Becker_2019_%28cropped%29.jpg", "hint": "Liverpool goalkeeper, Brazil" },
-        { "id": "salah", "name": "Mohamed Salah", "value": 40, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/92/Mohamed_Salah_2022_%28cropped%29.jpg/320px-Mohamed_Salah_2022_%28cropped%29.jpg", "hint": "Liverpool forward, Egypt" },
-        { "id": "trent", "name": "Trent Alexander-Arnold", "value": 80, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Trent_Alexander-Arnold_2022_%28cropped%29.jpg/320px-Trent_Alexander-Arnold_2022_%28cropped%29.jpg", "hint": "Real Madrid right-back, England" },
-        { "id": "robert-lewandowski", "name": "Robert Lewandowski", "value": 25, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/31/Robert_Lewandowski_2022_%28cropped%29.jpg/320px-Robert_Lewandowski_2022_%28cropped%29.jpg", "hint": "Barcelona striker, Poland" }
+        {
+          "id": "lamine-yamal",
+          "name": "Lamine Yamal",
+          "value": 220,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/13/Lamine_Yamal_France_v_Spain_7.24.26-142.jpg/330px-Lamine_Yamal_France_v_Spain_7.24.26-142.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Barcelona winger, Spain, 17 years old"
+        },
+        {
+          "id": "erling-haaland",
+          "name": "Erling Haaland",
+          "value": 220,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/43/Erling_Haaland_Morocco_v_Norway_7_June_2026-51.jpg/330px-Erling_Haaland_Morocco_v_Norway_7_June_2026-51.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Manchester City striker, Norway"
+        },
+        {
+          "id": "kylian-mbappe",
+          "name": "Kylian Mbappé",
+          "value": 180,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/95/Kylian_Mbappe_France_v_Senegal_16_June_2026-391_%28cropped%29.jpg/330px-Kylian_Mbappe_France_v_Senegal_16_June_2026-391_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Real Madrid striker, France"
+        },
+        {
+          "id": "vinicius-jr",
+          "name": "Vinícius Jr",
+          "value": 180,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/10/Vin%C3%ADcius_J%C3%BAnior_Brazil_V_Morocco_13_June_2026-207_%28cropped%29.jpg/330px-Vin%C3%ADcius_J%C3%BAnior_Brazil_V_Morocco_13_June_2026-207_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Real Madrid winger, Brazil"
+        },
+        {
+          "id": "jude-bellingham",
+          "name": "Jude Bellingham",
+          "value": 180,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/23/Jude_Bellingham_England_v_Ghana_23_June_2026-061_%28cropped%29.jpg/330px-Jude_Bellingham_England_v_Ghana_23_June_2026-061_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Real Madrid midfielder, England"
+        },
+        {
+          "id": "pedri",
+          "name": "Pedri",
+          "value": 150,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1c/Pedri_France_v_Spain_7.24.26-245.jpg/330px-Pedri_France_v_Spain_7.24.26-245.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Barcelona midfielder, Spain"
+        },
+        {
+          "id": "florian-wirtz",
+          "name": "Florian Wirtz",
+          "value": 150,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/70/Florian_Wirtz_Ecuador_v_Germany_25_June_2026-181_%28cropped%29.jpg/330px-Florian_Wirtz_Ecuador_v_Germany_25_June_2026-181_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Bayer Leverkusen, Germany"
+        },
+        {
+          "id": "bukayo-saka",
+          "name": "Bukayo Saka",
+          "value": 150,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2f/Bukayo_Saka_England_v_Ghana_23_June_2026-057_%28cropped%29.jpg/330px-Bukayo_Saka_England_v_Ghana_23_June_2026-057_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Arsenal winger, England"
+        },
+        {
+          "id": "phil-foden",
+          "name": "Phil Foden",
+          "value": 150,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/53/2023-10-04_Fu%C3%9Fball%2C_M%C3%A4nner%2C_UEFA_Champions_League%2C_RB_Leipzig_-_Manchester_City_FC_1DX_2613%2C_Phil_Foden.jpg/330px-2023-10-04_Fu%C3%9Fball%2C_M%C3%A4nner%2C_UEFA_Champions_League%2C_RB_Leipzig_-_Manchester_City_FC_1DX_2613%2C_Phil_Foden.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Manchester City midfielder, England"
+        },
+        {
+          "id": "rodri",
+          "name": "Rodri",
+          "value": 130,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7a/Rodri_Argentina_v_Spain_19_July_2026-187_%28cropped%29.jpg/330px-Rodri_Argentina_v_Spain_19_July_2026-187_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Man City, Ballon d'Or 2024, Spain"
+        },
+        {
+          "id": "rafael-leao",
+          "name": "Rafael Leão",
+          "value": 100,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ef/Rafael_Leao_Croatia_v_Portugal_2_July_2026-187_%28cropped%29.jpg/330px-Rafael_Leao_Croatia_v_Portugal_2_July_2026-187_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "AC Milan winger, Portugal"
+        },
+        {
+          "id": "declan-rice",
+          "name": "Declan Rice",
+          "value": 110,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5d/Declan_Rice_England_v_Ghana_23_June_2026-150.jpg/330px-Declan_Rice_England_v_Ghana_23_June_2026-150.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Arsenal midfielder, England"
+        },
+        {
+          "id": "harry-kane",
+          "name": "Harry Kane",
+          "value": 90,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2f/Harry_Kane_England_v_Ghana_23_June_2026-024_%28cropped%29.jpg/330px-Harry_Kane_England_v_Ghana_23_June_2026-024_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Bayern Munich striker, England"
+        },
+        {
+          "id": "cristiano-r",
+          "name": "Cristiano Ronaldo",
+          "value": 15,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/26/Cristiano_Ronaldo_Croatia_v_Portugal_2_July_2026-075_%28cropped%29.jpg/330px-Cristiano_Ronaldo_Croatia_v_Portugal_2_July_2026-075_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Al-Nassr, all-time top scorer"
+        },
+        {
+          "id": "lionel-messi-f",
+          "name": "Lionel Messi",
+          "value": 25,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c8/Leo_Messi_Argentina_v_Egypt_7_July_2026-1.jpg/330px-Leo_Messi_Argentina_v_Egypt_7_July_2026-1.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Inter Miami, World Cup winner"
+        },
+        {
+          "id": "neymar-f",
+          "name": "Neymar Jr",
+          "value": 30,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c0/Neymar_Junior_Brazil_V_Morocco_13_June_2026-40.jpg/330px-Neymar_Junior_Brazil_V_Morocco_13_June_2026-40.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Al-Hilal, injury-hit season"
+        },
+        {
+          "id": "kevin-de-bruyne",
+          "name": "Kevin De Bruyne",
+          "value": 50,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/40/Kevin_De_Bruyne_USMNT_v_Belgium_Mar_28_2026-64_%28cropped%29.jpg/330px-Kevin_De_Bruyne_USMNT_v_Belgium_Mar_28_2026-64_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Man City playmaker, Belgium"
+        },
+        {
+          "id": "marcus-rashford",
+          "name": "Marcus Rashford",
+          "value": 60,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/54/Marcus_Rashford_England_v_Ghana_23_June_2026-073.jpg/330px-Marcus_Rashford_England_v_Ghana_23_June_2026-073.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Manchester United forward, England"
+        },
+        {
+          "id": "alisson-becker",
+          "name": "Alisson Becker",
+          "value": 60,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4f/Alisson_Becker_Brazil_V_Morocco_13_June_2026-117_%28cropped%29.jpg/330px-Alisson_Becker_Brazil_V_Morocco_13_June_2026-117_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Liverpool goalkeeper, Brazil"
+        },
+        {
+          "id": "salah",
+          "name": "Mohamed Salah",
+          "value": 40,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a6/Mohamed_Salah_Argentina_v_Egypt_7_July_2026-163_%28cropped%29.jpg/330px-Mohamed_Salah_Argentina_v_Egypt_7_July_2026-163_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Liverpool forward, Egypt"
+        },
+        {
+          "id": "trent",
+          "name": "Trent Alexander-Arnold",
+          "value": 80,
+          "image": "https://upload.wikimedia.org/wikipedia/commons/5/5d/Trent_Alexander-Arnold_2018_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+          "hint": "Real Madrid right-back, England"
+        },
+        {
+          "id": "robert-lewandowski",
+          "name": "Robert Lewandowski",
+          "value": 25,
+          "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/95/Robert_Lewandowski_NYCFC_v_Chicago_25_July_2026-383.jpg/330px-Robert_Lewandowski_NYCFC_v_Chicago_25_July_2026-383.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+          "hint": "Barcelona striker, Poland"
+        }
       ]
     }
   ]
