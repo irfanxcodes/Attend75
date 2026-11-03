@@ -267,6 +267,7 @@ function die(){
   shake=14;snd(170,.4,'sawtooth',38,.1);
 
   // report to React — include level so React can route to right leaderboard
+  // DO NOT show iframe modal — React handles it
   pm('GEODASH_SCORE',{score:finalScore,coins:runCoins,pct,level:lv.id,label:lv.label});
 }
 
@@ -286,20 +287,10 @@ function win(){
   snd(520,.12,'triangle',880,.07);setTimeout(()=>snd(780,.3,'triangle',1170,.07),130);
   $('#hud').classList.add('off');
 
+  // report to React — React handles the modal
   pm('GEODASH_SCORE',{score:finalScore,coins:runCoins,pct:100,level:lv.id,label:lv.label,win:true});
 
-  show(`
-    <h1>You<br>did it!</h1>
-    <div style="font-size:18px;font-weight:700;margin:12px 0 4px">${lv.label} complete</div>
-    <div class="meta">
-      <div><b>${finalScore}</b>Score</div>
-      <div><b>${runCoins}</b>Coins</div>
-      <div><b>${att-1}</b>Attempts</div>
-    </div>
-    ${curLvlIdx+1<LEVELS.length?`<div style="font-size:14px;color:var(--sun);margin-bottom:16px;font-weight:700">🔓 Level ${curLvlIdx+2} unlocked!</div>`:'<div style="font-size:14px;color:var(--sun);margin-bottom:16px;font-weight:700">🏆 All levels complete!</div>'}
-    <button class="btn" data-a="playnext">${curLvlIdx+1<LEVELS.length?'Next Level':'Play again'}</button>
-    <div class="stack"><button class="btn ghost" data-a="levelsel">Level select</button></div>
-  `,'poster');
+  // DO NOT show iframe modal — React handles it
 }
 
 /* ── physics ─────────────────────────────────────────────────────── */
