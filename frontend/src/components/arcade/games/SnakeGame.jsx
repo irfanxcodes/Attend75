@@ -241,7 +241,7 @@ function render(ctx, st, w, h, alpha, skin, parts, floats, deadT) {
   }
 
   // Head
-  const h = points[0]
+  const head = points[0]
   const hr = wAt(0) / 2
   const d = st.dir
   const px = -DY[d]
@@ -249,7 +249,7 @@ function render(ctx, st, w, h, alpha, skin, parts, floats, deadT) {
 
   ctx.fillStyle = dead ? mix(skin.head, DEAD, dead) : `rgb(${skin.head})`
   ctx.beginPath()
-  ctx.arc(h.x, h.y, hr, 0, Math.PI * 2)
+  ctx.arc(head.x, head.y, hr, 0, Math.PI * 2)
   ctx.fill()
 
   // Tongue flicker
@@ -258,8 +258,8 @@ function render(ctx, st, w, h, alpha, skin, parts, floats, deadT) {
     ctx.lineWidth = 2.5
     const f = (t % 2.6) / 0.4
     const l = cell * 0.35 * Math.sin(f * Math.PI)
-    const sx = h.x + DX[d] * hr
-    const sy = h.y + DY[d] * hr
+    const sx = head.x + DX[d] * hr
+    const sy = head.y + DY[d] * hr
     const ex = sx + DX[d] * l
     const ey = sy + DY[d] * l
     ctx.beginPath()
@@ -274,8 +274,8 @@ function render(ctx, st, w, h, alpha, skin, parts, floats, deadT) {
 
   // Eyes
   for (const sd of [-1, 1]) {
-    const ex = h.x + DX[d] * cell * 0.1 + px * sd * cell * 0.2
-    const ey = h.y + DY[d] * cell * 0.1 + py * sd * cell * 0.2
+    const ex = head.x + DX[d] * cell * 0.1 + px * sd * cell * 0.2
+    const ey = head.y + DY[d] * cell * 0.1 + py * sd * cell * 0.2
     const er = cell * 0.14
 
     if (dead > 0.2) {
