@@ -106,101 +106,6 @@ function HolLogo({ size = 'lg' }) {
 
 // ── Landing screen ─────────────────────────────────────────────────────────────
 
-function LandingScreen({ onPlay, onLeaderboard, best, onBack }) {
-  return (
-    <div className="absolute inset-0 flex flex-col"
-      style={{ background:'linear-gradient(160deg,#0d0b1e 0%,#1a1035 50%,#0a0e1a 100%)', paddingTop:'env(safe-area-inset-top,0px)' }}>
-
-      {/* Minimal back button — top left, no full bar */}
-      <div className="flex-shrink-0 px-4 pt-3">
-        <button type="button" onClick={onBack}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-full font-bold text-xs text-black active:scale-95 transition-transform"
-          style={{ background:'linear-gradient(180deg,#B8F77D 0%,#7BE056 100%)', boxShadow:'0 2px 0 rgba(0,0,0,0.25)' }}
-          aria-label="Back to Arcade">
-          <span className="text-sm">←</span><span>BACK</span>
-        </button>
-      </div>
-
-      {/* Ambient glow orbs */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 relative">
-      {/* Ambient glow orbs */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute rounded-full" style={{
-          width:300, height:300, top:'-5%', left:'-10%',
-          background:'radial-gradient(circle,rgba(78,240,100,.12) 0%,transparent 70%)',
-          filter:'blur(40px)', animation:'holBgPulse 2.5s ease-in-out infinite',
-        }}/>
-        <div className="absolute rounded-full" style={{
-          width:300, height:300, bottom:'-5%', right:'-10%',
-          background:'radial-gradient(circle,rgba(255,80,80,.12) 0%,transparent 70%)',
-          filter:'blur(40px)', animation:'holBgPulse 2.5s ease-in-out infinite', animationDelay:'1.25s',
-        }}/>
-      </div>
-
-      <style>{`
-        @keyframes holBgPulse { 0%,100%{opacity:.8} 50%{opacity:1.4} }
-        @keyframes holFadeIn  { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
-      `}</style>
-
-      {/* Logo */}
-      <div style={{ animation:'holFadeIn .5s ease-out' }}>
-        <HolLogo size="lg" />
-      </div>
-
-      {/* Tagline */}
-      <div className="text-center mt-6 mb-8" style={{ animation:'holFadeIn .5s ease-out .1s both' }}>
-        <p className="text-white font-bold text-base">Which one is higher?</p>
-        <p className="text-white/40 text-sm mt-1">272 items across 11 categories. Mixed randomly.</p>
-        {best > 0 && (
-          <div className="inline-flex items-center gap-2 mt-3 px-4 py-1.5 rounded-full"
-            style={{ background:'rgba(255,215,0,.1)', border:'1px solid rgba(255,215,0,.25)' }}>
-            <span style={{ color:'#FFD700', fontSize:13, fontWeight:700 }}>🏆 Your best: {best}</span>
-          </div>
-        )}
-      </div>
-
-      {/* CTA buttons */}
-      <div className="flex flex-col gap-3 w-full max-w-xs" style={{ animation:'holFadeIn .5s ease-out .2s both' }}>
-        <button
-          type="button"
-          onClick={onPlay}
-          className="w-full py-4 rounded-2xl font-black text-base text-black active:scale-95 transition-transform flex items-center justify-center gap-2"
-          style={{
-            background:'linear-gradient(135deg,#4EF0A0 0%,#2BC87A 100%)',
-            boxShadow:'0 4px 0 rgba(0,0,0,.3),0 8px 24px rgba(78,240,160,.4)',
-          }}
-        >
-          <ArrowUp size={20} strokeWidth={3}/>
-          Play
-          <ArrowDown size={20} strokeWidth={3}/>
-        </button>
-
-        <button
-          type="button"
-          onClick={onLeaderboard}
-          className="w-full py-3.5 rounded-2xl font-bold text-sm active:scale-95 transition-transform flex items-center justify-center gap-2"
-          style={{
-            background:'rgba(255,215,0,.08)',
-            border:'1px solid rgba(255,215,0,.25)',
-            color:'#FFD700',
-          }}
-        >
-          <Trophy size={16}/>
-          Leaderboard
-        </button>
-      </div>
-
-      </div>{/* end flex-1 centered content */}
-
-      {/* Credits */}
-      <p className="flex-shrink-0 text-center pb-3"
-        style={{ fontSize:10, color:'rgba(255,255,255,.18)', paddingBottom:'max(env(safe-area-inset-bottom,0px),12px)' }}>
-        Images: Wikimedia CC · flagcdn.com · PokeAPI · TMDB · Steam
-      </p>
-    </div>
-  )
-}
-
 // ── Card ───────────────────────────────────────────────────────────────────────
 
 function Card({ item, revealed, side, correct }) {
@@ -450,8 +355,12 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
     return () => window.removeEventListener('keydown', onKey)
   }, [phase, handleGuess])
 
-  // ── isActive restart from GameLayout ────────────────────────────────────────
-  const prevActiveRef = useRef(isActive)
+  // ── Start game immediately on mount (no landing screen needed — ArcadeHome is the landing) ──
+  useEffect(() => {
+    if (categories.length > 0 && phase === 'home') {
+      startGame()
+    }
+  }, [categories, phase, startGame])
   useEffect(() => {
     if (isActive && !prevActiveRef.current && categories.length > 0) startGame()
     prevActiveRef.current = isActive
@@ -460,7 +369,8 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
   // ── Handlers ─────────────────────────────────────────────────────────────────
   const handlePlayAgain  = useCallback(() => startGame(), [startGame])
   const handleLeaderboard = useCallback(() => navigate('/app/arcade/higherorlower?view=leaderboard'), [navigate])
-  const handleGoHome     = useCallback(() => { setPhase('home'); endCalledRef.current = false }, [])
+  // Back button goes to arcade home, not internal landing screen
+  const handleGoHome = useCallback(() => navigate('/app/arcade'), [navigate])
 
   // ── Loading / Error ───────────────────────────────────────────────────────────
   if (dataLoading) {
@@ -491,12 +401,8 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
     )
   }
 
-  // ── Home screen ───────────────────────────────────────────────────────────────
-  if (phase === 'home') {
-    return <LandingScreen onPlay={startGame} onLeaderboard={handleLeaderboard} best={best} onBack={() => navigate('/app/arcade')}/>
-  }
-
   // ── Playing + Game Over ───────────────────────────────────────────────────────
+  // (home phase auto-starts via useEffect — LandingScreen no longer shown)
   return (
     <div className="absolute inset-0 flex flex-col overflow-hidden"
       style={{ background:'linear-gradient(160deg,#0d0b1e 0%,#0a0e1a 100%)' }}>
