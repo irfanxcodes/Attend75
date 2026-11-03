@@ -101,11 +101,23 @@ function HolLogo({ size = 'lg' }) {
 
 // ── Landing screen ─────────────────────────────────────────────────────────────
 
-function LandingScreen({ onPlay, onLeaderboard, best }) {
+function LandingScreen({ onPlay, onLeaderboard, best, onBack }) {
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center px-6"
-      style={{ background:'linear-gradient(160deg,#0d0b1e 0%,#1a1035 50%,#0a0e1a 100%)' }}>
+    <div className="absolute inset-0 flex flex-col"
+      style={{ background:'linear-gradient(160deg,#0d0b1e 0%,#1a1035 50%,#0a0e1a 100%)', paddingTop:'env(safe-area-inset-top,0px)' }}>
 
+      {/* Minimal back button — top left, no full bar */}
+      <div className="flex-shrink-0 px-4 pt-3">
+        <button type="button" onClick={onBack}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-full font-bold text-xs text-black active:scale-95 transition-transform"
+          style={{ background:'linear-gradient(180deg,#B8F77D 0%,#7BE056 100%)', boxShadow:'0 2px 0 rgba(0,0,0,0.25)' }}
+          aria-label="Back to Arcade">
+          <span className="text-sm">←</span><span>BACK</span>
+        </button>
+      </div>
+
+      {/* Ambient glow orbs */}
+      <div className="flex-1 flex flex-col items-center justify-center px-6 relative">
       {/* Ambient glow orbs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute rounded-full" style={{
@@ -173,9 +185,11 @@ function LandingScreen({ onPlay, onLeaderboard, best }) {
         </button>
       </div>
 
+      </div>{/* end flex-1 centered content */}
+
       {/* Credits */}
-      <p className="absolute bottom-3 text-center"
-        style={{ fontSize:10, color:'rgba(255,255,255,.18)' }}>
+      <p className="flex-shrink-0 text-center pb-3"
+        style={{ fontSize:10, color:'rgba(255,255,255,.18)', paddingBottom:'max(env(safe-area-inset-bottom,0px),12px)' }}>
         Images: Wikimedia CC · flagcdn.com · PokeAPI · TMDB · Steam
       </p>
     </div>
@@ -476,23 +490,7 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
 
   // ── Home screen ───────────────────────────────────────────────────────────────
   if (phase === 'home') {
-    return (
-      <div className="absolute inset-0 flex flex-col" style={{ background:'#0a0e1a' }}>
-        {/* Top bar */}
-        <div className="flex-shrink-0 flex items-center px-3 gap-3"
-          style={{ height:52, background:'rgba(10,14,26,0.95)', borderBottom:'1px solid rgba(255,255,255,0.07)', paddingTop:'env(safe-area-inset-top,0px)' }}>
-          <button type="button" onClick={() => navigate('/app/arcade')}
-            className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full font-bold text-xs text-black active:scale-95 transition-transform"
-            style={{ background:'linear-gradient(180deg,#B8F77D 0%,#7BE056 100%)', boxShadow:'0 2px 0 rgba(0,0,0,0.25)' }}
-            aria-label="Back to Arcade">
-            <span className="text-sm">←</span><span>BACK</span>
-          </button>
-          <h1 className="flex-1 text-center text-sm font-bold text-white truncate">Higher or Lower</h1>
-          <div className="min-w-[64px]"/>
-        </div>
-        <LandingScreen onPlay={startGame} onLeaderboard={handleLeaderboard} best={best}/>
-      </div>
-    )
+    return <LandingScreen onPlay={startGame} onLeaderboard={handleLeaderboard} best={best} onBack={() => navigate('/app/arcade')}/>
   }
 
   // ── Playing + Game Over ───────────────────────────────────────────────────────
