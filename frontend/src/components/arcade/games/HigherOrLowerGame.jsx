@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Trophy, ArrowUp, ArrowDown } from 'lucide-react'
+import { Trophy } from 'lucide-react'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 // Fixed: removed prevActiveRef reference
@@ -53,54 +53,14 @@ function formatValue(value, unit, formatSuffix) {
   return `${unit}${value}`
 }
 
-// ── Animated logo ──────────────────────────────────────────────────────────────
+// ── Simple logo for top bar ───────────────────────────────────────────────────
 
-function HolLogo({ size = 'lg' }) {
-  const big  = size === 'lg' ? 52 : 36
-  const sm   = size === 'lg' ? 13 : 10
-  const arr  = size === 'lg' ? 32 : 22
-  const arrH = size === 'lg' ? 38 : 26
-
+function HolLogo() {
   return (
-    <div className="flex flex-col items-center select-none" style={{ gap: size === 'lg' ? 2 : 1 }}>
-      <style>{`
-        @keyframes holArrowUp   { 0%,100%{transform:translateY(0);opacity:1} 50%{transform:translateY(-8px);opacity:.7} }
-        @keyframes holArrowDown { 0%,100%{transform:translateY(0);opacity:1} 50%{transform:translateY(8px);opacity:.7} }
-        @keyframes holGreen     { 0%,100%{text-shadow:0 0 20px rgba(78,240,100,.5)} 50%{text-shadow:0 0 40px rgba(78,240,100,1),0 0 80px rgba(78,240,100,.4)} }
-        @keyframes holRed       { 0%,100%{text-shadow:0 0 20px rgba(255,80,80,.5)} 50%{text-shadow:0 0 40px rgba(255,80,80,1),0 0 80px rgba(255,80,80,.4)} }
-      `}</style>
-
-      <span style={{ fontSize: sm, letterSpacing:'0.3em', color:'rgba(255,255,255,0.55)', fontWeight:900, textTransform:'uppercase' }}>THE</span>
-
-      {/* HIGHER row */}
-      <div className="flex items-center gap-1.5">
-        <svg width={arr} height={arrH} viewBox="0 0 32 38" fill="none"
-          style={{ animation:'holArrowUp 1.6s ease-in-out infinite', flexShrink:0 }}>
-          <path d="M16 2 L30 22 H20 V36 H12 V22 H2 Z" fill="#4EF064" stroke="#2DC04A" strokeWidth="1.5" strokeLinejoin="round"/>
-        </svg>
-        <span style={{
-          fontSize: big, color:'#4EF064', fontWeight:900, lineHeight:1,
-          fontFamily:'system-ui,-apple-system,sans-serif', letterSpacing:'-0.02em',
-          WebkitTextStroke:`${size==='lg'?'1.5':'1'}px #2DC04A`,
-          animation:'holGreen 2s ease-in-out infinite',
-        }}>HIGHER</span>
-      </div>
-
-      {/* LOWER row */}
-      <div className="flex items-center gap-1.5">
-        <span style={{
-          fontSize: big, color:'#FF5050', fontWeight:900, lineHeight:1,
-          fontFamily:'system-ui,-apple-system,sans-serif', letterSpacing:'-0.02em',
-          WebkitTextStroke:`${size==='lg'?'1.5':'1'}px #C83030`,
-          animation:'holRed 2s ease-in-out infinite', animationDelay:'1s',
-        }}>LOWER</span>
-        <svg width={arr} height={arrH} viewBox="0 0 32 38" fill="none"
-          style={{ animation:'holArrowDown 1.6s ease-in-out infinite', flexShrink:0 }}>
-          <path d="M16 36 L30 16 H20 V2 H12 V16 H2 Z" fill="#FF5050" stroke="#C83030" strokeWidth="1.5" strokeLinejoin="round"/>
-        </svg>
-      </div>
-
-      <span style={{ fontSize: sm+2, letterSpacing:'0.35em', color:'rgba(255,255,255,0.65)', fontWeight:900, textTransform:'uppercase' }}>GAME</span>
+    <div className="flex items-center gap-1 select-none">
+      <span className="text-lg font-black tracking-tight" style={{ color:'#4EF064' }}>HIGHER</span>
+      <span className="text-lg font-black tracking-tight" style={{ color:'#FF5050' }}>LOWER↓</span>
+      <span className="text-xs font-bold tracking-widest text-white/40 ml-1">GAME</span>
     </div>
   )
 }
@@ -115,52 +75,68 @@ function Card({ item, revealed, side, correct }) {
   if (!item) return null
 
   const displayValue = formatValue(item.value, item.unit, item.formatSuffix)
-
-  let ringStyle = {}
-  if (revealed && side === 'right') {
-    ringStyle = { boxShadow: correct ? '0 0 0 3px #4EF0A0' : '0 0 0 3px #FF6B6B' }
-  }
+  const showValue = side === 'left' || revealed
 
   return (
-    <div className="relative flex flex-col rounded-2xl overflow-hidden"
+    <div className="relative flex flex-col rounded-3xl overflow-hidden"
       style={{
-        background:'linear-gradient(160deg,#1e1b3a 0%,#141229 100%)',
-        border:'1px solid rgba(255,255,255,0.08)',
-        flex:1, minHeight:240,
-        transition:'box-shadow 0.3s',
-        ...ringStyle,
+        background:'rgba(15,15,30,0.95)',
+        border: revealed && side === 'right' 
+          ? `2px solid ${correct ? '#4EF064' : '#FF5050'}`
+          : '1px solid rgba(255,255,255,0.1)',
+        minHeight: 280,
+        transition:'all 0.3s',
       }}>
 
-      {/* Image */}
-      <div className="relative w-full" style={{ aspectRatio:'4/3', overflow:'hidden' }}>
+      {/* Background Image with Overlay */}
+      <div className="absolute inset-0">
         {!imgFailed ? (
           <img src={item.image} alt={item.name} loading="lazy"
             onError={() => setImgFailed(true)}
-            className="w-full h-full object-cover" style={{ display:'block' }}/>
+            className="w-full h-full object-cover opacity-40"
+            style={{ filter:'blur(8px)' }}/>
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-4xl"
-            style={{ background:'#1e1b3a' }}>🎯</div>
+          <div className="w-full h-full flex items-center justify-center text-6xl opacity-30">🎯</div>
         )}
-        <div className="absolute inset-x-0 bottom-0"
-          style={{ height:'65%', background:'linear-gradient(to top,#141229,transparent)' }}/>
+        <div className="absolute inset-0" style={{ 
+          background:'linear-gradient(to bottom, rgba(15,15,30,0.3), rgba(15,15,30,0.95))' 
+        }}/>
       </div>
 
-      {/* Name + hint */}
-      <div className="relative z-10 flex flex-col items-center gap-0.5 px-2 pb-1 -mt-8 text-center">
-        <p className="text-white font-bold text-sm leading-tight">{item.name}</p>
-        {item.hint && <p className="text-white/45 text-xs leading-snug">{item.hint}</p>}
-      </div>
+      {/* Content */}
+      <div className="relative z-10 flex flex-col flex-1 p-6 justify-between">
+        {/* Top: Image thumbnail */}
+        <div className="flex justify-center mb-4">
+          <div className="w-24 h-24 rounded-2xl overflow-hidden border border-white/20">
+            {!imgFailed ? (
+              <img src={item.image} alt={item.name} loading="lazy"
+                onError={() => setImgFailed(true)}
+                className="w-full h-full object-cover"/>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-4xl bg-white/5">🎯</div>
+            )}
+          </div>
+        </div>
 
-      {/* Stat */}
-      <div className="w-full px-2 pb-3 pt-1.5 flex flex-col items-center gap-0.5">
-        <span className="text-white/45 text-xs uppercase tracking-widest leading-none">{item.stat}</span>
-        {side === 'left' || revealed ? (
-          <span className="text-xl font-black leading-tight" style={{
-            color: revealed && side === 'right' ? (correct ? '#4EF0A0' : '#FF6B6B') : '#FFD700',
-          }}>{displayValue}</span>
-        ) : (
-          <span className="text-2xl font-black text-white/25">?</span>
-        )}
+        {/* Middle: Name */}
+        <div className="text-center mb-4">
+          <h3 className="text-2xl font-bold text-white leading-tight mb-1">{item.name}</h3>
+          {item.hint && <p className="text-white/50 text-sm">{item.hint}</p>}
+        </div>
+
+        {/* Bottom: Stat */}
+        <div className="text-center">
+          <p className="text-white/40 text-xs uppercase tracking-widest mb-2">{item.stat}</p>
+          {showValue ? (
+            <p className="text-4xl font-black" style={{
+              color: revealed && side === 'right' 
+                ? (correct ? '#4EF064' : '#FF5050') 
+                : '#FFD700',
+            }}>{displayValue}</p>
+          ) : (
+            <p className="text-5xl font-black text-white/20">?</p>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -170,12 +146,12 @@ function Card({ item, revealed, side, correct }) {
 
 function VsDivider() {
   return (
-    <div className="flex-shrink-0 flex items-center justify-center" style={{ width:36 }}>
-      <div className="flex items-center justify-center rounded-full text-xs font-black text-white"
+    <div className="flex-shrink-0 flex items-center justify-center my-4">
+      <div className="flex items-center justify-center rounded-full text-sm font-black text-white"
         style={{
-          width:32, height:32,
-          background:'linear-gradient(135deg,#6C47FF,#FF47C0)',
-          boxShadow:'0 4px 12px rgba(108,71,255,0.5)',
+          width:48, height:48,
+          background:'linear-gradient(135deg,#FF1CF7,#B249F8)',
+          boxShadow:'0 6px 20px rgba(178,73,248,0.5)',
         }}>VS</div>
     </div>
   )
@@ -405,28 +381,31 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
   // (home phase auto-starts via useEffect — LandingScreen no longer shown)
   return (
     <div className="absolute inset-0 flex flex-col overflow-hidden"
-      style={{ background:'linear-gradient(160deg,#0d0b1e 0%,#0a0e1a 100%)' }}>
+      style={{ background:'#0F0F1E' }}>
 
       {/* Top bar */}
-      <div className="flex-shrink-0 flex items-center gap-3 px-3"
-        style={{ height:52, background:'rgba(10,14,26,0.95)', borderBottom:'1px solid rgba(255,255,255,0.07)', paddingTop:'env(safe-area-inset-top,0px)' }}>
+      <div className="flex-shrink-0 flex items-center justify-between px-4"
+        style={{ 
+          height:56, 
+          background:'rgba(15,15,30,0.98)', 
+          borderBottom:'1px solid rgba(255,255,255,0.05)',
+          paddingTop:'env(safe-area-inset-top,0px)' 
+        }}>
+        
         <button type="button" onClick={handleGoHome}
-          className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full font-bold text-xs text-black active:scale-95 transition-transform"
-          style={{ background:'linear-gradient(180deg,#B8F77D 0%,#7BE056 100%)', boxShadow:'0 2px 0 rgba(0,0,0,0.25)' }}
+          className="flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm active:scale-95 transition-transform"
+          style={{ background:'#B8F77D', color:'#000' }}
           aria-label="Back to Home">
-          <span className="text-sm">←</span><span>BACK</span>
+          <span>←</span><span>BACK</span>
         </button>
 
-        {/* Mini logo in top bar */}
-        <div className="flex-1 flex justify-center">
-          <HolLogo size="sm"/>
-        </div>
+        <HolLogo />
 
-        {/* Score pill */}
-        <div className="flex-shrink-0 min-w-[64px] flex justify-end">
-          {phase === 'playing' && score > 0 && (
-            <div className="px-3 py-1.5 rounded-full text-xs font-bold"
-              style={{ background:'rgba(78,240,160,0.12)', border:'1px solid rgba(78,240,160,0.25)', color:'#4EF0A0' }}>
+        {/* Score */}
+        <div className="min-w-[60px] flex justify-end">
+          {phase === 'playing' && (
+            <div className="px-4 py-2 rounded-full text-base font-black text-white"
+              style={{ background:'rgba(255,255,255,0.1)' }}>
               {score}
             </div>
           )}
@@ -435,36 +414,20 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto">
-        <div className="relative flex flex-col" style={{ minHeight:'100%' }}>
-
-          {/* Streak + score row */}
-          <div className="flex items-center justify-end px-4 pt-2 pb-1 gap-2">
-            {streak >= 3 && phase === 'playing' && (
-              <div className="px-2.5 py-1 rounded-full text-xs font-bold"
-                style={{ background:'rgba(255,140,0,.15)', color:'#FF8C00', border:'1px solid rgba(255,140,0,.3)' }}>
-                🔥 {streak}
-              </div>
-            )}
-            <div className="px-3 py-1.5 rounded-full text-sm font-black text-white"
-              style={{ background:'rgba(255,255,255,0.07)' }}>
-              {score}
-            </div>
-          </div>
+        <div className="relative flex flex-col px-4 py-6 max-w-md mx-auto">
 
           {/* Cards */}
-          <div className="flex items-stretch px-3 pb-2" style={{ minHeight:260 }}>
-            <Card item={leftItem}  revealed={true}    side="left"  correct={false}/>
-            <VsDivider/>
-            <Card item={rightItem} revealed={!!reveal} side="right" correct={reveal === 'correct'}/>
-          </div>
+          <Card item={leftItem}  revealed={true}    side="left"  correct={false}/>
+          <VsDivider/>
+          <Card item={rightItem} revealed={!!reveal} side="right" correct={reveal === 'correct'}/>
 
           {/* Feedback banner */}
           {reveal && (
-            <div className="mx-4 mb-3 py-2.5 rounded-2xl text-center font-black text-sm"
+            <div className="mt-4 py-3 rounded-2xl text-center font-black text-base"
               style={{
-                background: reveal === 'correct' ? 'rgba(78,240,160,0.15)' : 'rgba(255,107,107,0.15)',
-                border:`1px solid ${reveal === 'correct' ? 'rgba(78,240,160,0.3)' : 'rgba(255,107,107,0.3)'}`,
-                color: reveal === 'correct' ? '#4EF0A0' : '#FF6B6B',
+                background: reveal === 'correct' ? 'rgba(78,240,100,0.15)' : 'rgba(255,80,80,0.15)',
+                border:`2px solid ${reveal === 'correct' ? 'rgba(78,240,100,0.4)' : 'rgba(255,80,80,0.4)'}`,
+                color: reveal === 'correct' ? '#4EF064' : '#FF5050',
                 animation:'holFadeIn 0.2s ease-out',
               }}>
               {reveal === 'correct' ? '✓ Correct!' : '✗ Wrong!'}
@@ -473,22 +436,29 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
 
           {/* Guess buttons */}
           {phase === 'playing' && !reveal && (
-            <div className="flex gap-3 px-4 pb-4">
-              <button type="button" onClick={() => handleGuess('higher')} disabled={locked}
-                className="flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-sm active:scale-95 transition-transform disabled:opacity-50"
-                style={{ background:'linear-gradient(135deg,#4EF0A0 0%,#2BC87A 100%)', color:'#000', boxShadow:'0 4px 0 rgba(0,0,0,0.3),0 8px 20px rgba(78,240,160,0.3)' }}>
-                <ArrowUp size={18} strokeWidth={3}/> Higher
-              </button>
-              <button type="button" onClick={() => handleGuess('lower')} disabled={locked}
-                className="flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-sm active:scale-95 transition-transform disabled:opacity-50"
-                style={{ background:'linear-gradient(135deg,#FF6B6B 0%,#E04444 100%)', color:'#fff', boxShadow:'0 4px 0 rgba(0,0,0,0.3),0 8px 20px rgba(255,107,107,0.3)' }}>
-                <ArrowDown size={18} strokeWidth={3}/> Lower
-              </button>
-            </div>
-          )}
-
-          {phase === 'playing' && !reveal && (
-            <p className="text-center text-white/20 text-xs pb-3">↑ / ↓ keys also work</p>
+            <>
+              <div className="flex flex-col gap-3 mt-6">
+                <button type="button" onClick={() => handleGuess('higher')} disabled={locked}
+                  className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-black text-lg active:scale-95 transition-transform disabled:opacity-50"
+                  style={{ 
+                    background:'#4EF064', 
+                    color:'#000', 
+                    boxShadow:'0 6px 0 rgba(0,0,0,0.2),0 8px 24px rgba(78,240,100,0.4)' 
+                  }}>
+                  <span>↑</span> Higher
+                </button>
+                <button type="button" onClick={() => handleGuess('lower')} disabled={locked}
+                  className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-black text-lg active:scale-95 transition-transform disabled:opacity-50"
+                  style={{ 
+                    background:'#FF5050', 
+                    color:'#fff', 
+                    boxShadow:'0 6px 0 rgba(0,0,0,0.2),0 8px 24px rgba(255,80,80,0.4)' 
+                  }}>
+                  <span>↓</span> Lower
+                </button>
+              </div>
+              <p className="text-center text-white/20 text-xs mt-4">↑ / ↓ keys also work</p>
+            </>
           )}
 
           {/* Game over overlay */}
