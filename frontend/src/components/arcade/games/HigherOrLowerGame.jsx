@@ -106,33 +106,49 @@ function Card({ item, revealed, side, correct, leftItem }) {
 
       {/* Content Overlay */}
       <div className="relative z-10 flex flex-col items-center justify-center text-center px-8 py-8">
-        {/* Name - Much larger */}
-        <h2 className="text-5xl font-black text-white mb-4 leading-tight drop-shadow-lg">
-          "{item.name}"
-        </h2>
+        {/* Dark backdrop for text readability */}
+        <div className="absolute inset-0" style={{
+          background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.75) 0%, transparent 70%)',
+        }}/>
         
-        <p className="text-white text-lg mb-3">has</p>
+        <div className="relative z-10">
+          {/* Name - Slightly smaller for better fit */}
+          <h2 className="text-4xl font-black text-white mb-3 leading-tight" 
+            style={{ 
+              textShadow: '0 2px 8px rgba(0,0,0,0.8), 0 4px 16px rgba(0,0,0,0.6)'
+            }}>
+            "{item.name}"
+          </h2>
+          
+          <p className="text-white text-base mb-2" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>has</p>
 
-        {/* Value */}
-        {showValue ? (
-          <p className="text-7xl font-black mb-3 leading-none drop-shadow-lg" style={{
-            color: revealed && side === 'right' 
-              ? (correct ? '#4EF064' : '#FF5050') 
-              : '#FFD700',
-          }}>{displayValue}</p>
-        ) : (
-          <p className="text-7xl font-black text-white/30 mb-3">?</p>
-        )}
+          {/* Value */}
+          {showValue ? (
+            <p className="text-6xl font-black mb-2 leading-none" style={{
+              color: revealed && side === 'right' 
+                ? (correct ? '#4EF064' : '#FF5050') 
+                : '#FFD700',
+              textShadow: '0 2px 12px rgba(0,0,0,0.9), 0 4px 24px rgba(0,0,0,0.7)',
+            }}>{displayValue}</p>
+          ) : (
+            <p className="text-6xl font-black text-white/30 mb-2" 
+              style={{ textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>?</p>
+          )}
 
-        {/* Stat label */}
-        <p className="text-white/90 text-base leading-relaxed max-w-xs">
-          {side === 'left' ? item.stat : (revealed ? item.stat : `searches than ${leftItem?.name || 'previous'}`)}
-        </p>
+          {/* Stat label */}
+          <p className="text-white/95 text-sm leading-relaxed max-w-xs" 
+            style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+            {side === 'left' ? item.stat : (revealed ? item.stat : `searches than ${leftItem?.name || 'previous'}`)}
+          </p>
 
-        {/* Hint text for left card */}
-        {side === 'left' && item.hint && (
-          <p className="text-white/60 text-sm mt-3 max-w-xs">{item.hint}</p>
-        )}
+          {/* Hint text for left card */}
+          {side === 'left' && item.hint && (
+            <p className="text-white/70 text-xs mt-2 max-w-xs" 
+              style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+              {item.hint}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   )
