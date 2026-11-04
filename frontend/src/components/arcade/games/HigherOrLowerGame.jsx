@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Trophy, ArrowUp, ArrowDown } from 'lucide-react'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
+// Fixed: removed prevActiveRef reference
 
 const DATA_URL = '/data/higherOrLower.json'
 const REVEAL_DURATION = 1600
@@ -355,16 +356,15 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
     return () => window.removeEventListener('keydown', onKey)
   }, [phase, handleGuess])
 
-  // ── Start game immediately on mount (no landing screen needed — ArcadeHome is the landing) ──
+  // ── Start game when data loads OR when becoming active ──
+  const hasStartedRef = useRef(false)
   useEffect(() => {
-    if (categories.length > 0 && phase === 'home') {
+    // Start once when data loads (auto-start on first mount)
+    if (categories.length > 0 && phase === 'home' && !hasStartedRef.current) {
+      hasStartedRef.current = true
       startGame()
     }
   }, [categories, phase, startGame])
-  useEffect(() => {
-    if (isActive && !prevActiveRef.current && categories.length > 0) startGame()
-    prevActiveRef.current = isActive
-  }, [isActive, categories, startGame])
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
   const handlePlayAgain  = useCallback(() => startGame(), [startGame])

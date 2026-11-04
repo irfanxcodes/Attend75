@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import gameRegistry from '../components/arcade/gameRegistry'
 import useAppStore from '../hooks/useAppStore'
@@ -6,12 +6,43 @@ import { getLeaderboard, getPersonalBest } from '../services/arcadeApi'
 
 const games = Object.values(gameRegistry)
 
+// Remember the last-viewed game card so returning from a game keeps you on the
+// same card instead of always scrolling back to the first one (Flappy Bird).
+const LAST_GAME_KEY = 'attend75.arcade.lastGame'
+
+function getLastGameIndex() {
+  try {
+    const slug = sessionStorage.getItem(LAST_GAME_KEY)
+    if (slug) {
+      const idx = games.findIndex(g => g.slug === slug)
+      if (idx >= 0) return idx
+    }
+  } catch { /* sessionStorage unavailable */ }
+  return 0
+}
+
+// Deterministically remember the game being launched so returning to the
+// arcade home restores to that exact card (works for every exit path,
+// including the browser back button used by iframe games like Geo Dash).
+function rememberGame(slug) {
+  try { sessionStorage.setItem(LAST_GAME_KEY, slug) } catch { /* ignore */ }
+}
+
 function ArcadeHome() {
   const { state: { session } } = useAppStore()
   const navigate = useNavigate()
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
 
-  const [activeIndex, setActiveIndex] = useState(0)
+  // Restore the previously-viewed game card (desktop carousel position)
+  const [activeIndex, setActiveIndex] = useState(getLastGameIndex)
+
+  // Persist the currently-viewed card so the next visit restores to it
+  useEffect(() => {
+    const g = games[activeIndex]
+    if (g) {
+      try { sessionStorage.setItem(LAST_GAME_KEY, g.slug) } catch { /* ignore */ }
+    }
+  }, [activeIndex])
   const [personalBests, setPersonalBests] = useState({})
   const [leaderboards, setLeaderboards] = useState({})
   const [lbLoading, setLbLoading] = useState({})
@@ -77,6 +108,7 @@ function ArcadeHome() {
   return isMobile ? (
     <MobileVerticalFeed
       games={games}
+      initialIndex={activeIndex}
       personalBests={personalBests}
       leaderboards={leaderboards}
       lbLoading={lbLoading}
@@ -186,7 +218,7 @@ function DesktopHorizontalSwipe({ games, activeIndex, setActiveIndex, personalBe
         
         {/* Play Button */}
         <button
-          onClick={() => navigate(`/app/arcade/${activeGame.slug}`)}
+          onClick={() => { rememberGame(activeGame.slug); navigate(`/app/arcade/${activeGame.slug}`) }}
           className="px-12 py-3.5 rounded-full font-bold text-lg text-black transition-all hover:scale-105 shadow-xl flex items-center gap-2"
           style={{ background: 'linear-gradient(135deg, #B8F77D 0%, #7BE056 100%)' }}
         >
@@ -283,15 +315,35 @@ function DesktopGameCard({ game, personalBest, userRank, topScore, navigate, isA
 
 
 // ==================== MOBILE: Vertical Feed ====================
-function MobileVerticalFeed({ games, personalBests, leaderboards, lbLoading, navigate }) {
+function MobileVerticalFeed({ games, initialIndex = 0, personalBests, leaderboards, lbLoading, navigate }) {
   const feedRef = useRef(null)
-  const [activeSlide, setActiveSlide] = useState(0)
+  const [activeSlide, setActiveSlide] = useState(initialIndex)
+
+  // Restore scroll to the last-viewed game card before paint, so returning
+  // from a game doesn't flash the first card (Flappy Bird) before jumping.
+  // Restore scroll to the last-viewed game card before paint, so returning
+  // from a game doesn't flash the first card (Flappy Bird) before jumping.
+  useLayoutEffect(() => {
+    const feed = feedRef.current
+    if (!feed) return
+    const idx = initialIndex > 0 && initialIndex < games.length ? initialIndex : 0
+    if (idx > 0) {
+      // Use the actual rendered slide height (100vh) — not window.innerHeight —
+      // so restore stays correct on mobile where 100vh can differ from the
+      // visual viewport height.
+      const slideHeight = feed.children[0]?.offsetHeight || feed.clientHeight
+      feed.scrollTop = idx * slideHeight
+      setActiveSlide(idx)
+    }
+    // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     const handleScroll = () => {
       if (!feedRef.current) return
       const scrollPosition = feedRef.current.scrollTop
-      const slideHeight = window.innerHeight
+      const slideHeight = feedRef.current.children[0]?.offsetHeight || window.innerHeight
       const currentIndex = Math.round(scrollPosition / slideHeight)
       setActiveSlide(currentIndex)
     }
@@ -302,6 +354,14 @@ function MobileVerticalFeed({ games, personalBests, leaderboards, lbLoading, nav
       return () => feed.removeEventListener('scroll', handleScroll)
     }
   }, [])
+
+  // Persist the active card so returning from a game restores to it
+  useEffect(() => {
+    const g = games[activeSlide]
+    if (g) {
+      try { sessionStorage.setItem(LAST_GAME_KEY, g.slug) } catch { /* ignore */ }
+    }
+  }, [activeSlide, games])
 
   return (
     <div className="fixed inset-0 bg-[#1C2030]">
@@ -457,7 +517,7 @@ function MobileGameSlide({ game, personalBest, leaderboard, navigate }) {
         <div className="space-y-3">
           {/* Play Button */}
           <button
-            onClick={() => navigate(`/app/arcade/${game.slug}`)}
+            onClick={() => { rememberGame(game.slug); navigate(`/app/arcade/${game.slug}`) }}
             className="w-full py-4 rounded-2xl font-bold text-lg text-[#1C2030] shadow-xl transition-transform active:scale-95"
             style={{ background: 'linear-gradient(135deg, #B8F77D 0%, #7BE056 100%)' }}
           >
