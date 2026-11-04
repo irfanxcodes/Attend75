@@ -80,7 +80,7 @@ function Card({ item, revealed, side, correct, leftItem }) {
   return (
     <div className="relative flex flex-col justify-center items-center"
       style={{
-        minHeight: '100vh',
+        height: 'calc(50vh - 40px)', // Half screen minus VS badge space
         background: '#000',
       }}>
 
@@ -105,7 +105,7 @@ function Card({ item, revealed, side, correct, leftItem }) {
       </div>
 
       {/* Content Overlay */}
-      <div className="relative z-10 flex flex-col items-center justify-center text-center px-8 py-12">
+      <div className="relative z-10 flex flex-col items-center justify-center text-center px-8 py-8">
         {/* Name - Much larger */}
         <h2 className="text-5xl font-black text-white mb-4 leading-tight drop-shadow-lg">
           "{item.name}"
@@ -142,7 +142,7 @@ function Card({ item, revealed, side, correct, leftItem }) {
 
 function VsDivider() {
   return (
-    <div className="absolute left-1/2 -translate-x-1/2 z-30" style={{ top: '50vh', marginTop: -28 }}>
+    <div className="relative flex items-center justify-center" style={{ height: 80, background: '#000' }}>
       <div className="flex items-center justify-center rounded-full text-base font-black text-black"
         style={{
           width:56, height:56,
@@ -408,9 +408,9 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
         </div>
       </div>
 
-      {/* Body - Full screen scrollable */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="relative flex flex-col">
+      {/* Body - No scroll needed, everything fits on one screen */}
+      <div className="flex-1 flex flex-col" style={{ height: 'calc(100vh - 56px)' }}>
+        <div className="relative flex flex-col h-full">
 
           {/* Top Card (left/revealed) */}
           <Card item={leftItem} revealed={true} side="left" correct={false} leftItem={leftItem}/>
@@ -419,7 +419,7 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
           <VsDivider/>
           
           {/* Bottom Card (right/mystery) - with buttons overlay */}
-          <div className="relative">
+          <div className="relative flex-1">
             <Card item={rightItem} revealed={!!reveal} side="right" correct={reveal === 'correct'} leftItem={leftItem}/>
             
             {/* Buttons overlaid on bottom card */}
