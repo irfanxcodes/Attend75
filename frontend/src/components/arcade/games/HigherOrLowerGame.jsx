@@ -435,9 +435,9 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
                   <button type="button" onClick={() => handleGuess('higher')} disabled={locked}
                     className="w-full flex items-center justify-center gap-2 py-3 rounded-full font-bold text-base active:scale-95 transition-all disabled:opacity-50"
                     style={{ 
-                      background:'rgba(255,255,255,0.2)',
-                      border:'2px solid rgba(255,255,255,0.6)',
-                      backdropFilter:'blur(8px)',
+                      background:'rgba(255,255,255,0.08)',
+                      border:'2px solid rgba(255,255,255,0.4)',
+                      backdropFilter:'blur(4px)',
                       color:'#fff'
                     }}>
                     <span className="text-lg">▲</span>
@@ -447,9 +447,9 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
                   <button type="button" onClick={() => handleGuess('lower')} disabled={locked}
                     className="w-full flex items-center justify-center gap-2 py-3 rounded-full font-bold text-base active:scale-95 transition-all disabled:opacity-50"
                     style={{ 
-                      background:'rgba(255,255,255,0.2)',
-                      border:'2px solid rgba(255,255,255,0.6)',
-                      backdropFilter:'blur(8px)',
+                      background:'rgba(255,255,255,0.08)',
+                      border:'2px solid rgba(255,255,255,0.4)',
+                      backdropFilter:'blur(4px)',
                       color:'#fff'
                     }}>
                     <span className="text-lg">▼</span>
