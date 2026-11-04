@@ -69,7 +69,7 @@ function HolLogo() {
 
 // ── Card ───────────────────────────────────────────────────────────────────────
 
-function Card({ item, revealed, side, correct }) {
+function Card({ item, revealed, side, correct, leftItem }) {
   const [imgFailed, setImgFailed] = useState(false)
   useEffect(() => { setImgFailed(false) }, [item?.id])
   if (!item) return null
@@ -80,7 +80,7 @@ function Card({ item, revealed, side, correct }) {
   return (
     <div className="relative flex flex-col justify-center items-center"
       style={{
-        minHeight: '50vh',
+        minHeight: '100vh',
         background: '#000',
       }}>
 
@@ -91,11 +91,11 @@ function Card({ item, revealed, side, correct }) {
             <img src={item.image} alt={item.name} loading="lazy"
               onError={() => setImgFailed(true)}
               className="w-full h-full object-cover"/>
-            {/* Dark overlay for readability */}
+            {/* Darker overlay for better readability */}
             <div className="absolute inset-0" style={{ 
               background: side === 'right' && !revealed
-                ? 'linear-gradient(to bottom, rgba(0,0,0,0.4), rgba(0,0,0,0.85))'
-                : 'linear-gradient(to bottom, rgba(0,0,0,0.3), rgba(0,0,0,0.7))'
+                ? 'linear-gradient(to bottom, rgba(0,0,0,0.5), rgba(0,0,0,0.85))'
+                : 'linear-gradient(to bottom, rgba(0,0,0,0.4), rgba(0,0,0,0.75))'
             }}/>
           </>
         ) : (
@@ -105,42 +105,35 @@ function Card({ item, revealed, side, correct }) {
       </div>
 
       {/* Content Overlay */}
-      <div className="relative z-10 flex flex-col items-center justify-center text-center px-6 py-8">
-        {/* Name */}
-        <h2 className="text-4xl font-black text-white mb-3 leading-tight drop-shadow-lg">
+      <div className="relative z-10 flex flex-col items-center justify-center text-center px-8 py-12">
+        {/* Name - Much larger */}
+        <h2 className="text-5xl font-black text-white mb-4 leading-tight drop-shadow-lg">
           "{item.name}"
         </h2>
         
-        <p className="text-white/80 text-base mb-2">has</p>
+        <p className="text-white text-lg mb-3">has</p>
 
         {/* Value */}
         {showValue ? (
-          <p className="text-6xl font-black mb-2 leading-none drop-shadow-lg" style={{
+          <p className="text-7xl font-black mb-3 leading-none drop-shadow-lg" style={{
             color: revealed && side === 'right' 
               ? (correct ? '#4EF064' : '#FF5050') 
               : '#FFD700',
           }}>{displayValue}</p>
         ) : (
-          <p className="text-6xl font-black text-white/30 mb-2">?</p>
+          <p className="text-7xl font-black text-white/30 mb-3">?</p>
         )}
 
         {/* Stat label */}
-        <p className="text-white/70 text-sm leading-relaxed max-w-xs">
-          {side === 'right' && !revealed ? `searches than ${item.name}` : item.stat}
+        <p className="text-white/90 text-base leading-relaxed max-w-xs">
+          {side === 'left' ? item.stat : (revealed ? item.stat : `searches than ${leftItem?.name || 'previous'}`)}
         </p>
 
         {/* Hint text for left card */}
         {side === 'left' && item.hint && (
-          <p className="text-white/50 text-xs mt-2 max-w-xs">{item.hint}</p>
+          <p className="text-white/60 text-sm mt-3 max-w-xs">{item.hint}</p>
         )}
       </div>
-
-      {/* Image credit (bottom right) */}
-      {item.image && (
-        <div className="absolute bottom-2 right-2 text-white/30 text-xs z-20">
-          Image: {item.name.substring(0, 20)}
-        </div>
-      )}
     </div>
   )
 }
@@ -149,12 +142,8 @@ function Card({ item, revealed, side, correct }) {
 
 function VsDivider() {
   return (
-    <div className="relative flex items-center justify-center" style={{ height: 80 }}>
-      {/* Background gradient separator */}
-      <div className="absolute inset-0" style={{
-        background: 'linear-gradient(to bottom, rgba(0,0,0,0.8), rgba(0,0,0,0.95), rgba(0,0,0,0.8))'
-      }}/>
-      <div className="relative flex items-center justify-center rounded-full text-base font-black text-black"
+    <div className="absolute left-1/2 -translate-x-1/2 z-30" style={{ top: '50vh', marginTop: -28 }}>
+      <div className="flex items-center justify-center rounded-full text-base font-black text-black"
         style={{
           width:56, height:56,
           background:'#fff',
@@ -424,49 +413,43 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
         <div className="relative flex flex-col">
 
           {/* Top Card (left/revealed) */}
-          <Card item={leftItem} revealed={true} side="left" correct={false}/>
+          <Card item={leftItem} revealed={true} side="left" correct={false} leftItem={leftItem}/>
           
           {/* VS Divider */}
           <VsDivider/>
           
           {/* Bottom Card (right/mystery) - with buttons overlay */}
           <div className="relative">
-            <Card item={rightItem} revealed={!!reveal} side="right" correct={reveal === 'correct'}/>
+            <Card item={rightItem} revealed={!!reveal} side="right" correct={reveal === 'correct'} leftItem={leftItem}/>
             
             {/* Buttons overlaid on bottom card */}
             {phase === 'playing' && !reveal && (
-              <div className="absolute inset-x-0 bottom-0 z-20 px-6 pb-8">
-                <div className="flex flex-col gap-3 max-w-sm mx-auto">
+              <div className="absolute inset-x-0 bottom-0 z-20 px-6 pb-12">
+                <div className="flex flex-col gap-4 max-w-md mx-auto">
                   <button type="button" onClick={() => handleGuess('higher')} disabled={locked}
-                    className="w-full flex items-center justify-center gap-3 py-4 rounded-full font-bold text-lg active:scale-95 transition-all disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-2 py-5 rounded-full font-bold text-xl active:scale-95 transition-all disabled:opacity-50"
                     style={{ 
                       background:'rgba(255,255,255,0.95)',
-                      color:'#000',
-                      border:'2px solid rgba(255,255,255,0.3)',
+                      border:'3px solid rgba(255,255,255,0.5)',
                       backdropFilter:'blur(10px)',
-                      boxShadow:'0 4px 20px rgba(255,255,255,0.3)'
+                      boxShadow:'0 6px 24px rgba(255,255,255,0.3)'
                     }}>
-                    <span className="text-xl">▲</span>
-                    <span style={{ color:'#FFD700' }}>Higher</span>
+                    <span className="text-2xl">▲</span>
+                    <span style={{ color:'#FFD700', fontWeight:900 }}>Higher</span>
                   </button>
                   
                   <button type="button" onClick={() => handleGuess('lower')} disabled={locked}
-                    className="w-full flex items-center justify-center gap-3 py-4 rounded-full font-bold text-lg active:scale-95 transition-all disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-2 py-5 rounded-full font-bold text-xl active:scale-95 transition-all disabled:opacity-50"
                     style={{ 
                       background:'rgba(255,255,255,0.95)',
-                      color:'#000',
-                      border:'2px solid rgba(255,255,255,0.3)',
+                      border:'3px solid rgba(255,255,255,0.5)',
                       backdropFilter:'blur(10px)',
-                      boxShadow:'0 4px 20px rgba(255,255,255,0.3)'
+                      boxShadow:'0 6px 24px rgba(255,255,255,0.3)'
                     }}>
-                    <span className="text-xl">▼</span>
-                    <span style={{ color:'#FFD700' }}>Lower</span>
+                    <span className="text-2xl">▼</span>
+                    <span style={{ color:'#FFD700', fontWeight:900 }}>Lower</span>
                   </button>
                 </div>
-                
-                <p className="text-center text-white/50 text-xs mt-3 drop-shadow">
-                  ↑ / ↓ keys also work
-                </p>
               </div>
             )}
 
