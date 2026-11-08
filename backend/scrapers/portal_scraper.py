@@ -453,6 +453,7 @@ class PortalScraper:
                     captcha_url = urljoin(login_url, img_src)
 
             MAX_CAPTCHA_ATTEMPTS = 3
+            MAX_POST_RETRIES = 2  # Retry POST if portal returns chunked encoding errors
             response = None
 
             for captcha_attempt in range(MAX_CAPTCHA_ATTEMPTS):
@@ -471,16 +472,41 @@ class PortalScraper:
                             captcha_attempt + 1, MAX_CAPTCHA_ATTEMPTS, exc.code, exc,
                         )
 
-                response = self.session.post(
-                    login_url,
-                    data=payload,
-                    timeout=self.request_timeout,
-                    allow_redirects=False,
-                    headers={
-                        "Referer": login_url,
-                        "Origin": self.base_url.rsplit("/", 1)[0],
-                    },
-                )
+                # Retry POST if portal has chunked encoding issues (portal server instability)
+                post_succeeded = False
+                for post_retry in range(MAX_POST_RETRIES):
+                    try:
+                        response = self.session.post(
+                            login_url,
+                            data=payload,
+                            timeout=self.request_timeout,
+                            allow_redirects=False,
+                            headers={
+                                "Referer": login_url,
+                                "Origin": self.base_url.rsplit("/", 1)[0],
+                            },
+                        )
+                        post_succeeded = True
+                        break  # POST succeeded
+                    except (requests.exceptions.ChunkedEncodingError, requests.exceptions.ConnectionError) as post_exc:
+                        self._logger.warning(
+                            "Login POST failed (portal instability) attempt %d/%d: %s",
+                            post_retry + 1, MAX_POST_RETRIES, type(post_exc).__name__,
+                        )
+                        if post_retry < MAX_POST_RETRIES - 1:
+                            import time
+                            time.sleep(0.5)  # Brief delay before retry
+                            continue
+                        # Final retry failed, raise as network error
+                        raise self._portal_network_error(
+                            post_exc,
+                            stage="LOGIN_POST",
+                            message_prefix="Portal server unstable during login POST",
+                        ) from post_exc
+
+                if not post_succeeded:
+                    # This shouldn't happen (exception would be raised), but defensive check
+                    continue
 
                 # Success: redirect means login accepted
                 if response.status_code in (301, 302, 303, 307, 308):

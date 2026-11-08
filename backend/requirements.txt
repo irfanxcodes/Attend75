@@ -29,6 +29,9 @@ pytesseract==0.3.13
 # Pillow already pulled in transitively; pin for safety
 Pillow==12.3.0
 
+# Captcha OCR for portal login (ddddocr — deep learning captcha solver, ~99% accurate)
+ddddocr==1.4.11
+
 # Spreadsheet parsing for timetable XLSX uploads
 openpyxl==3.1.5
 
