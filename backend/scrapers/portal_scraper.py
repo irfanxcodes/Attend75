@@ -40,6 +40,18 @@ class PortalScraper:
     def __init__(self, session: requests.Session | None = None, base_url: str | None = None, db_session = None):
         self._logger = logging.getLogger(__name__)
         self.session = session or requests.Session()
+        
+        # Set realistic browser headers to avoid portal blocking automated requests
+        # Portal returns "Unauthorized user" error without proper User-Agent
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+        })
+        
         self.base_url = base_url or os.getenv("PORTAL_BASE_URL", "http://111.93.16.209/sz")
         self.login_path = os.getenv("PORTAL_LOGIN_PATH", "login.aspx")
         
