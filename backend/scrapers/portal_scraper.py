@@ -1599,6 +1599,8 @@ class PortalScraper:
             "invalid user",
             "user not found",
             "invalid enrol",
+            "unauthorized user",
+            "unathorized user",  # Portal has typo "Unathorized"
         ]
         password_keywords = [
             "incorrect password",
@@ -1607,10 +1609,14 @@ class PortalScraper:
             "password incorrect",
             "password mismatch",
         ]
-        generic_keywords = [
-            "invalid credentials",
+        captcha_keywords = [
             "invalid captcha",
             "invalid security code",
+            "incorrect security code",
+            "security code",
+        ]
+        generic_keywords = [
+            "invalid credentials",
             "login failed",
             "please enter valid",
         ]
@@ -1618,6 +1624,8 @@ class PortalScraper:
             return "INVALID_USERNAME"
         if any(keyword in text for keyword in password_keywords):
             return "INCORRECT_PASSWORD"
+        if any(keyword in text for keyword in captcha_keywords):
+            return "CAPTCHA_WRONG"  # Distinct from generic failure
         if any(keyword in text for keyword in generic_keywords):
             return "LOGIN_FAILED"
         return None
