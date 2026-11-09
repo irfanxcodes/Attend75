@@ -442,22 +442,41 @@ class PortalScraper:
             # Portal has Student/Parent radio options; enforce Student selection.
             payload.update(self._get_student_radio_payload(self._decode_response_if_needed(login_page.text)))
 
-            # Solve the image captcha — retry up to 3 times with a fresh captcha
-            # image each attempt (captcha rotates on every fetch, VIEWSTATE stays
-            # valid so we don't need to re-GET the login page on retries).
-            captcha_img = BeautifulSoup(login_page.text, "html.parser").find("img", {"id": "captchaImage"})
-            captcha_url = None
-            if captcha_img:
-                img_src = (captcha_img.get("src") or "").strip()
-                if img_src:
-                    captcha_url = urljoin(login_url, img_src)
-
-            MAX_CAPTCHA_ATTEMPTS = 5  # Increased from 3 to 5 for better success rate
+            # Solve the image captcha — retry up to 5 times with a fresh captcha
+            # The portal regenerates captcha on every login page load, so we must
+            # re-fetch the login page on each retry to get a new captcha URL.
+            MAX_CAPTCHA_ATTEMPTS = 5
             MAX_POST_RETRIES = 2  # Retry POST if portal returns chunked encoding errors
             response = None
 
             for captcha_attempt in range(MAX_CAPTCHA_ATTEMPTS):
-                # Fetch a fresh captcha image each attempt
+                # Re-fetch login page to get fresh captcha URL (except first attempt)
+                if captcha_attempt > 0:
+                    try:
+                        login_page = self.session.get(login_url, timeout=self.request_timeout)
+                        login_page.raise_for_status()
+                        # Re-extract hidden fields (VIEWSTATE may have changed)
+                        payload = self._extract_hidden_form_fields(self._decode_response_if_needed(login_page.text))
+                        payload.update({
+                            "txtLogin": normalized_roll,
+                            "txtPassword": self._normalize_password(password),
+                            "bl": "Student",
+                            "btnSubmit": "Submit",
+                        })
+                        payload.update(self._get_student_radio_payload(self._decode_response_if_needed(login_page.text)))
+                    except Exception as refetch_exc:
+                        self._logger.warning("Failed to re-fetch login page for retry %d: %s", captcha_attempt + 1, refetch_exc)
+                        continue
+                
+                # Extract captcha URL from current page
+                captcha_img = BeautifulSoup(login_page.text, "html.parser").find("img", {"id": "captchaImage"})
+                captcha_url = None
+                if captcha_img:
+                    img_src = (captcha_img.get("src") or "").strip()
+                    if img_src:
+                        captcha_url = urljoin(login_url, img_src)
+                
+                # Solve captcha
                 if captcha_url:
                     try:
                         captcha_text = fetch_and_solve(captcha_url, self.session)
