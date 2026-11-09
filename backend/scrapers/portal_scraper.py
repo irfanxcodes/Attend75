@@ -128,18 +128,11 @@ class PortalScraper:
         self._faculty_cache: dict[str, tuple[float, dict]] = {}
         self._history_cache: dict[str, dict[str, list[dict[str, str | bool]]]] = {}
         self._last_courses_name_map: dict[str, str] = {}
-        self.session.headers.update(
-            {
-                "User-Agent": (
-                    "Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Mobile Safari/537.36"
-                ),
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.9",
-                # Add session ID header for worker-side cookie management
-                "X-Session-ID": self._worker_session_id,
-            }
-        )
+        # Note: User-Agent is already set in __init__ - don't override it here
+        # Keep X-Session-ID for worker-side cookie management
+        self.session.headers.update({
+            "X-Session-ID": self._worker_session_id,
+        })
 
     def _save_cookies_to_db(self, roll_number: str) -> None:
         """Save current session cookies to database for Lambda/Worker reuse."""
