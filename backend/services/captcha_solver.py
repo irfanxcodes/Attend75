@@ -74,9 +74,12 @@ def extract_from_svg(svg_content: str | bytes) -> str:
 def extract_from_image(image_bytes: bytes) -> str:
     """
     Extract captcha text from a PNG/JPEG image.
-    Uses ddddocr (deep-learning captcha model) as primary;
-    falls back to Tesseract if ddddocr is unavailable.
+    Uses BOTH ddddocr and Tesseract in parallel and picks the best result.
+    This hybrid approach improves accuracy on difficult captchas.
     """
+
+    dddd_result = None
+    tess_result = None
 
     # ── Primary: ddddocr ─────────────────────────────────────────────────────
     try:
@@ -86,20 +89,18 @@ def extract_from_image(image_bytes: bytes) -> str:
         
         # Validate result: portal captchas are 5 alphanumeric characters
         if result and len(result) == 5 and result.isalnum():
-            logger.info("Captcha extracted via ddddocr [text=%s]", result)
-            return result
+            dddd_result = result
+            logger.info("ddddocr candidate: %s", result)
         elif result:
-            logger.warning("ddddocr returned invalid format [text=%s, len=%d], trying Tesseract", result, len(result))
-            # Fall through to Tesseract
+            logger.warning("ddddocr returned invalid format [text=%s, len=%d]", result, len(result))
         else:
-            logger.warning("ddddocr returned empty result, trying Tesseract")
-            # Fall through to Tesseract
+            logger.warning("ddddocr returned empty result")
     except Exception as exc:
-        logger.warning("ddddocr failed (%s), falling back to Tesseract", exc)
+        logger.warning("ddddocr failed (%s)", exc)
 
-    # ── Fallback: Tesseract with preprocessing ────────────────────────────────
+    # ── Also try: Tesseract with preprocessing ────────────────────────────────
     try:
-        from PIL import Image, ImageEnhance, ImageOps
+        from PIL import Image, ImageEnhance, ImageOps, ImageFilter
         import pytesseract
         import numpy as np
 
@@ -111,37 +112,65 @@ def extract_from_image(image_bytes: bytes) -> str:
             text = pytesseract.image_to_string(pil_img, config=cfg).strip()
             return re.sub(r"[^A-Z0-9]", "", text.upper())
 
-        # Dark pixel mask to strip noisy background grid
+        # Multiple preprocessing strategies
         grey_arr = np.mean(arr, axis=2)
-        mask = (grey_arr < 150).astype("uint8") * 255
-        masked = Image.fromarray(mask).resize(
+        
+        # Strategy 1: Dark pixel mask (removes background)
+        mask1 = (grey_arr < 150).astype("uint8") * 255
+        masked1 = Image.fromarray(mask1).resize(
             (img.width * 4, img.height * 4), Image.NEAREST
         )
         
-        # Try multiple preprocessing strategies for better accuracy
-        candidates = [
-            _ocr(masked, psm=8),  # Single word
-            _ocr(masked, psm=7),  # Single text line
-            _ocr(masked, psm=6),  # Single uniform block
-        ]
-        
-        # Also try with different threshold
+        # Strategy 2: Different threshold
         mask2 = (grey_arr < 180).astype("uint8") * 255
         masked2 = Image.fromarray(mask2).resize(
             (img.width * 4, img.height * 4), Image.NEAREST
         )
-        candidates.append(_ocr(masked2, psm=8))
         
-        # Prefer results with exact expected length
+        # Strategy 3: Invert + sharpen (for light-on-dark captchas)
+        inverted = ImageOps.invert(img.convert('L'))
+        sharpened = inverted.filter(ImageFilter.SHARPEN).resize(
+            (img.width * 3, img.height * 3), Image.BICUBIC
+        )
+        
+        # Try all strategies with multiple PSM modes
+        candidates = [
+            _ocr(masked1, psm=8),  # Single word
+            _ocr(masked1, psm=7),  # Single text line
+            _ocr(masked2, psm=8),  # Different threshold
+            _ocr(sharpened, psm=8),  # Inverted + sharpened
+            _ocr(sharpened, psm=7),
+        ]
+        
+        # Find best Tesseract result (prefer exact length)
         exact = [c for c in candidates if len(c) == _EXPECTED_LEN and c.isalnum()]
-        best = exact[0] if exact else max(candidates, key=len, default="")
-
-        if best and len(best) >= 4:  # Accept 4-5 characters
-            logger.info("Captcha extracted via Tesseract fallback [text=%s]", best)
-            return best
+        tess_best = exact[0] if exact else max(candidates, key=len, default="")
+        
+        if tess_best and len(tess_best) >= 4:
+            tess_result = tess_best if len(tess_best) == 5 else None
+            if tess_result:
+                logger.info("Tesseract candidate: %s", tess_result)
 
     except Exception as exc:
-        logger.warning("Tesseract fallback also failed: %s", exc)
+        logger.warning("Tesseract failed: %s", exc)
+
+    # ── Choose best result ─────────────────────────────────────────────────────
+    # Prefer results that are exactly 5 characters
+    if dddd_result and tess_result:
+        # Both engines agree? Very high confidence
+        if dddd_result == tess_result:
+            logger.info("HIGH CONFIDENCE: Both engines agree [text=%s]", dddd_result)
+            return dddd_result
+        else:
+            # Different results - prefer ddddocr (usually more accurate for modern captchas)
+            logger.info("Engines disagree: ddddocr=%s vs Tesseract=%s, using ddddocr", dddd_result, tess_result)
+            return dddd_result
+    elif dddd_result:
+        logger.info("Captcha extracted via ddddocr [text=%s]", dddd_result)
+        return dddd_result
+    elif tess_result:
+        logger.info("Captcha extracted via Tesseract [text=%s]", tess_result)
+        return tess_result
 
     raise CaptchaSolveError(
         "All OCR methods failed to read captcha image",
