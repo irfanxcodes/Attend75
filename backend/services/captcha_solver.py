@@ -83,9 +83,17 @@ def extract_from_image(image_bytes: bytes) -> str:
         ocr = _get_dddd_ocr()
         result = ocr.classification(image_bytes)
         result = re.sub(r'\s+', '', result).strip().upper()  # portal requires uppercase
-        if result:
+        
+        # Validate result: portal captchas are 5 alphanumeric characters
+        if result and len(result) == 5 and result.isalnum():
             logger.info("Captcha extracted via ddddocr [text=%s]", result)
             return result
+        elif result:
+            logger.warning("ddddocr returned invalid format [text=%s, len=%d], trying Tesseract", result, len(result))
+            # Fall through to Tesseract
+        else:
+            logger.warning("ddddocr returned empty result, trying Tesseract")
+            # Fall through to Tesseract
     except Exception as exc:
         logger.warning("ddddocr failed (%s), falling back to Tesseract", exc)
 
@@ -109,11 +117,26 @@ def extract_from_image(image_bytes: bytes) -> str:
         masked = Image.fromarray(mask).resize(
             (img.width * 4, img.height * 4), Image.NEAREST
         )
-        candidates = [_ocr(masked, psm=8), _ocr(masked, psm=7)]
-        exact = [c for c in candidates if len(c) == _EXPECTED_LEN]
+        
+        # Try multiple preprocessing strategies for better accuracy
+        candidates = [
+            _ocr(masked, psm=8),  # Single word
+            _ocr(masked, psm=7),  # Single text line
+            _ocr(masked, psm=6),  # Single uniform block
+        ]
+        
+        # Also try with different threshold
+        mask2 = (grey_arr < 180).astype("uint8") * 255
+        masked2 = Image.fromarray(mask2).resize(
+            (img.width * 4, img.height * 4), Image.NEAREST
+        )
+        candidates.append(_ocr(masked2, psm=8))
+        
+        # Prefer results with exact expected length
+        exact = [c for c in candidates if len(c) == _EXPECTED_LEN and c.isalnum()]
         best = exact[0] if exact else max(candidates, key=len, default="")
 
-        if best:
+        if best and len(best) >= 4:  # Accept 4-5 characters
             logger.info("Captcha extracted via Tesseract fallback [text=%s]", best)
             return best
 

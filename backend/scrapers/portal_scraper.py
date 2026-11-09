@@ -452,7 +452,7 @@ class PortalScraper:
                 if img_src:
                     captcha_url = urljoin(login_url, img_src)
 
-            MAX_CAPTCHA_ATTEMPTS = 3
+            MAX_CAPTCHA_ATTEMPTS = 5  # Increased from 3 to 5 for better success rate
             MAX_POST_RETRIES = 2  # Retry POST if portal returns chunked encoding errors
             response = None
 
@@ -461,6 +461,15 @@ class PortalScraper:
                 if captcha_url:
                     try:
                         captcha_text = fetch_and_solve(captcha_url, self.session)
+                        # Validate captcha format (5 alphanumeric characters)
+                        if not captcha_text or len(captcha_text) != 5 or not captcha_text.isalnum():
+                            self._logger.warning(
+                                "Captcha attempt %d/%d invalid format [text=%s], refetching...",
+                                captcha_attempt + 1, MAX_CAPTCHA_ATTEMPTS, captcha_text,
+                            )
+                            # Refetch captcha if format is invalid
+                            continue
+                        
                         payload["txtCaptcha"] = captcha_text
                         self._logger.info(
                             "Captcha attempt %d/%d solved: %s",
@@ -574,11 +583,11 @@ class PortalScraper:
                     code="LOGIN_FAILED",
                 )
             # No specific error keyword matched after captcha retries exhausted.
-            # This means OCR got the captcha wrong all 3 times — treat as a
+            # This means OCR got the captcha wrong all 5 times — treat as a
             # captcha failure (authentication error), NOT a proxy/network error.
             # Using CAPTCHA_FAILED code prevents the tier from being put on cooldown.
             raise PortalAuthenticationError(
-                "Captcha verification failed after 3 attempts — OCR could not read the captcha correctly",
+                f"Captcha verification failed after {MAX_CAPTCHA_ATTEMPTS} attempts — OCR could not read the captcha correctly",
                 code="CAPTCHA_FAILED",
             )
 
