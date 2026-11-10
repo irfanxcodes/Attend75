@@ -715,16 +715,27 @@ class PortalScraper:
         
         for item in payload["attendance"]:
             code = self._normalize_code(str(item.get("code", "")))
+            
+            # Try exact match first
             abbr = courses_name_map.get(code, "") if courses_name_map else ""
             
-            # FALLBACK: If course_abbr is empty from Courses page, use the subject name
-            # This prevents showing codes (SHGM417) instead of readable names
+            # If no exact match, try prefix matching (e.g., SHGM417 → SHGM → BE)
+            if not abbr and courses_name_map:
+                for prefix_len in [4, 3, 2]:  # Try 4-char, 3-char, 2-char prefixes
+                    if len(code) >= prefix_len:
+                        prefix = code[:prefix_len]
+                        if prefix in courses_name_map:
+                            abbr = courses_name_map[prefix]
+                            self._logger.debug(f"Matched {code} using prefix {prefix} → {abbr}")
+                            break
+            
+            # Apply the abbreviation
             if abbr:
                 item["course_abbr"] = abbr
             elif "subject" in item and item["subject"]:
-                # Use subject name as fallback when Courses page abbreviation unavailable
-                item["course_abbr"] = item["subject"]
-                self._logger.debug(f"Using subject name as fallback for code {code}: {item['subject']}")
+                # Generate smart abbreviation from subject name
+                item["course_abbr"] = self._generate_smart_abbreviation(item["subject"])
+                self._logger.debug(f"Generated abbreviation for {code}: {item['subject']} → {item['course_abbr']}")
             else:
                 # Last resort: empty string (frontend will show full subject name)
                 item["course_abbr"] = ""
@@ -843,14 +854,24 @@ class PortalScraper:
         
         for item in payload["attendance"]:
             code = self._normalize_code(str(item.get("code", "")))
+            
+            # Try exact match first
             abbr = courses_name_map.get(code, "") if courses_name_map else ""
             
-            # FALLBACK: If course_abbr is empty from Courses page, use the subject name
+            # If no exact match, try prefix matching (e.g., SHGM417 → SHGM → BE)
+            if not abbr and courses_name_map:
+                for prefix_len in [4, 3, 2]:  # Try 4-char, 3-char, 2-char prefixes
+                    if len(code) >= prefix_len:
+                        prefix = code[:prefix_len]
+                        if prefix in courses_name_map:
+                            abbr = courses_name_map[prefix]
+                            break
+            
+            # Apply the abbreviation
             if abbr:
                 item["course_abbr"] = abbr
             elif "subject" in item and item["subject"]:
-                item["course_abbr"] = item["subject"]
-                self._logger.debug(f"Using subject name as fallback for code {code} in history: {item['subject']}")
+                item["course_abbr"] = self._generate_smart_abbreviation(item["subject"])
             else:
                 item["course_abbr"] = ""
         payload["feasibility"] = {
@@ -2548,7 +2569,95 @@ class PortalScraper:
                 if code_value and abbr_value:
                     name_map[code_value] = abbr_value
 
+        # Fallback: If Courses page scraping failed or returned empty, use intelligent abbreviations
+        if not name_map:
+            name_map = self._generate_fallback_abbreviations()
+
         return name_map
+
+    def _generate_fallback_abbreviations(self) -> dict[str, str]:
+        """Generate intelligent abbreviations from subject names as fallback.
+        
+        This is used when the portal's Courses page doesn't provide abbreviations.
+        Returns a mapping of code → abbreviation based on subject prefixes.
+        """
+        # Common subject abbreviations based on course codes
+        fallback_map = {
+            # Management/Business subjects (SH prefix)
+            "SHGM": "BE",      # Business Environment
+            "SHHR": "HRM",     # Human Resource Management  
+            "SHAC": "MA",      # Management Accounting
+            "SHOP": "OM",      # Operations Management
+            "SHMK": "MKT",     # Marketing
+            "SHFM": "FM",      # Financial Management
+            "SHEP": "ENT",     # Entrepreneurship
+            "SHRM": "RM",      # Research Methods
+            "SHSP": "SP",      # Strategic Planning
+            "SHBP": "BP",      # Business Planning
+            
+            # Information Systems/Technology (SHIS prefix)
+            "SHIS": "IT",      # Information Technology/Systems
+            
+            # Computer Science subjects
+            "CS": "CS",
+            "IS": "IS",
+            "IT": "IT",
+            
+            # Engineering subjects  
+            "ME": "ME",        # Mechanical
+            "EE": "EE",        # Electrical
+            "EC": "EC",        # Electronics
+            "CE": "CE",        # Civil
+            
+            # Sciences
+            "PH": "PHY",       # Physics
+            "CH": "CHEM",      # Chemistry
+            "MA": "MATH",      # Mathematics
+            "BI": "BIO",       # Biology
+        }
+        
+        self._logger.warning("Using fallback abbreviation map - Courses page scraping failed")
+        return fallback_map
+
+    def _generate_smart_abbreviation(self, subject_name: str) -> str:
+        """Generate a smart abbreviation from a full subject name.
+        
+        Examples:
+        - "Business Environment" → "BE"
+        - "Human Resource Management" → "HRM"
+        - "Cyber Security and Cyber Laws" → "CSCL"
+        - "Introduction to Entrepreneurship & Startup Ecosystem" → "IESE"
+        """
+        if not subject_name:
+            return ""
+        
+        # Remove common filler words
+        filler_words = {"and", "of", "to", "the", "in", "for", "on", "with", "&"}
+        
+        # Split into words and clean
+        words = subject_name.strip().split()
+        meaningful_words = [w for w in words if w.lower() not in filler_words]
+        
+        # If we have 2-3 meaningful words, take first letter of each
+        if 2 <= len(meaningful_words) <= 3:
+            return "".join(w[0].upper() for w in meaningful_words)
+        
+        # For longer names (4+ words), be more selective
+        if len(meaningful_words) >= 4:
+            # Take first letter of important words (usually first, last, and key middle words)
+            # Skip articles, prepositions, conjunctions
+            important_words = []
+            for word in meaningful_words:
+                # Keep words that start with capital or are longer than 3 chars
+                if word[0].isupper() or len(word) > 3:
+                    important_words.append(word)
+            
+            # Take first letters of up to 4 important words
+            if important_words:
+                return "".join(w[0].upper() for w in important_words[:4])
+        
+        # Fallback: first 3 letters uppercase
+        return subject_name[:3].upper()
 
     def _merge_attendance_with_total_sessions(
         self,
