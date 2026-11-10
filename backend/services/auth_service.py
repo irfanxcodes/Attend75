@@ -604,6 +604,39 @@ def fetch_faculty_contacts(token: str, semester_id: str | None, force_refresh: b
         raise
 
 
+def fetch_grade_list(token: str, force_refresh: bool = False) -> dict:
+    record = session_store.get(token)
+    if record is None:
+        raise PortalAuthenticationError("Session token not found while fetching grade list", code="SESSION_EXPIRED")
+
+    started = time.perf_counter()
+    try:
+        payload = _run_with_session_lock(
+            record,
+            lambda: _run_with_portal_session_refresh(
+                record,
+                lambda: _run_with_network_retry(
+                    lambda: record.scraper.fetch_grade_list(force_refresh=force_refresh)
+                ),
+                operation_name="fetch_grade_list"
+            )
+        )
+        observe_scrape(success=True, duration_ms=(time.perf_counter() - started) * 1000)
+        return payload
+    except PortalNetworkError as exc:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
+                       failure_kind="network", failure_code=getattr(exc, "code", None),
+                       failure_stage=getattr(exc, "stage", None), retriable=getattr(exc, "retriable", None))
+        raise
+    except PortalAuthenticationError as exc:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000,
+                       failure_kind="auth", failure_code=getattr(exc, "code", None))
+        raise
+    except Exception:
+        observe_scrape(success=False, duration_ms=(time.perf_counter() - started) * 1000, failure_kind="unknown")
+        raise
+
+
 def get_session_status(token: str) -> dict:
     record = session_store.get(token)
     if record is None:

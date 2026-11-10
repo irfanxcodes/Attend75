@@ -540,6 +540,18 @@ export async function fetchConsolidatedMarks({ token, semesterId, forceRefresh =
   })
 }
 
+export async function fetchGradeList({ token, forceRefresh = false }) {
+  const requestKey = `grade-list:${token}:${forceRefresh ? 'fresh' : 'cache'}`
+  return withInFlightRequest(requestKey, async () => {
+    const response = await fetch(`${API_BASE_URL}/grades/list`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, force_refresh: Boolean(forceRefresh) }),
+    })
+    return parseApiResponse(response, 'grade-list')
+  })
+}
+
 export async function fetchFacultyContacts({ token, semesterId, forceRefresh = false }) {
   // Don't pre-validate token here - let the backend determine if session is expired.
   // If token is missing/invalid, the backend will return 401.

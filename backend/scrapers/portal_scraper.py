@@ -126,6 +126,9 @@ class PortalScraper:
         self._marks_cache: dict[str, tuple[float, dict]] = {}
         self._faculty_cache_ttl_seconds = max(float(os.getenv("PORTAL_FACULTY_CACHE_TTL_SECONDS", "60")), 0.0)
         self._faculty_cache: dict[str, tuple[float, dict]] = {}
+        # CGPA cache: single entry per session (not semester-specific), TTL 5 min
+        self._cgpa_cache_ttl_seconds = max(float(os.getenv("PORTAL_CGPA_CACHE_TTL_SECONDS", "300")), 0.0)
+        self._cgpa_cache: dict[str, tuple[float, dict]] = {}
         self._history_cache: dict[str, dict[str, list[dict[str, str | bool]]]] = {}
         self._last_courses_name_map: dict[str, str] = {}
         # Note: User-Agent is already set in __init__ - don't override it here
@@ -1035,6 +1038,98 @@ class PortalScraper:
         if selected_semester:
             self._write_cache(self._marks_cache, str(selected_semester).strip(), payload, self._marks_cache_ttl_seconds)
         return payload
+
+    def fetch_grade_list(self, force_refresh: bool = False) -> dict:
+        """Fetch grade list from gradelist.aspx and return CGPA history + latest CGPA."""
+        self._ensure_cookies_loaded()
+
+        cached = self._read_cache(self._cgpa_cache, "cgpa", self._cgpa_cache_ttl_seconds)
+        if cached is not None and not force_refresh:
+            return cached
+
+        url = self._build_url("gradelist.aspx")
+        try:
+            response = self.session.get(
+                url,
+                timeout=self.request_timeout,
+                headers={"Referer": self._build_url("Index.aspx")},
+            )
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            raise self._portal_network_error(
+                exc,
+                stage="GRADE_LIST_FETCH",
+                message_prefix="Unable to fetch grade list page",
+            ) from exc
+
+        html = self._decode_response_if_needed(response.text)
+        if self._looks_like_login_page(html):
+            raise PortalAuthenticationError(
+                "Portal returned login page while loading grade list",
+                code="SESSION_EXPIRED",
+            )
+
+        payload = self._parse_grade_list(html)
+        self._write_cache(self._cgpa_cache, "cgpa", payload, self._cgpa_cache_ttl_seconds)
+        return payload
+
+    def _parse_grade_list(self, html: str) -> dict:
+        """
+        Parse gradelist.aspx HTML table.
+
+        The table rows look like:
+          Year      | Semester | Code | Course | Units | Grade | Cum. Units | CGPA
+          2024-2025 | I        | ...  | ...    | 3     | A+    | 22         | 8.36   ← semester summary row
+                    |          | ...  | ...    | 3     | A     |            |        ← detail rows (empty Year/Sem cells)
+
+        Only the summary rows (those with a Cum. Units value) have a CGPA entry.
+        We collect all summary rows and return the latest one as current_cgpa.
+        """
+        soup = BeautifulSoup(html, "html.parser")
+        table = soup.find("table", {"class": lambda c: c and "table" in c})
+        if table is None:
+            return {"current_cgpa": None, "semesters": []}
+
+        rows = table.find("tbody").find_all("tr") if table.find("tbody") else table.find_all("tr")[1:]
+
+        semesters: list[dict] = []
+        current_year: str = ""
+        current_sem: str = ""
+
+        for row in rows:
+            cells = row.find_all("td")
+            if len(cells) < 8:
+                continue
+
+            def cell(i: int) -> str:
+                return cells[i].get_text(strip=True)
+
+            year_val  = cell(0)
+            sem_val   = cell(1)
+            cum_units = cell(6)
+            cgpa_val  = cell(7)
+
+            if year_val and year_val.strip() not in ("", "\xa0"):
+                current_year = year_val.strip()
+            if sem_val and sem_val.strip() not in ("", "\xa0"):
+                current_sem = sem_val.strip()
+
+            # Summary rows have both Cum. Units and CGPA populated
+            if cum_units and cum_units.strip() not in ("", "\xa0") and cgpa_val and cgpa_val.strip() not in ("", "\xa0"):
+                try:
+                    cgpa_float = float(cgpa_val.strip())
+                    cum_units_int = int(cum_units.strip())
+                except ValueError:
+                    continue
+                semesters.append({
+                    "year": current_year,
+                    "semester": current_sem,
+                    "cumulative_units": cum_units_int,
+                    "cgpa": cgpa_float,
+                })
+
+        current_cgpa = semesters[-1]["cgpa"] if semesters else None
+        return {"current_cgpa": current_cgpa, "semesters": semesters}
 
     def fetch_faculty_contacts(self, semester_id: str | None = None, force_refresh: bool = False) -> dict:
         # Load cookies from database if available (for Lambda/Worker session reuse)

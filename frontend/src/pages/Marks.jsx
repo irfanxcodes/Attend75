@@ -4,7 +4,7 @@ import MarksDetailCard from '../components/marks/MarksDetailCard'
 import MarksRadarChart from '../components/marks/MarksRadarChart'
 import SubjectSelectorGrid from '../components/marks/SubjectSelectorGrid'
 import useAppStore from '../hooks/useAppStore'
-import { fetchConsolidatedMarks, isSessionExpiredError } from '../services/attendanceApi'
+import { fetchConsolidatedMarks, fetchGradeList, isSessionExpiredError } from '../services/attendanceApi'
 import { loadMarksSnapshot, persistMarksSnapshot } from '../services/sessionPersistence'
 
 function normalizeCode(value) {
@@ -82,6 +82,7 @@ function Marks() {
   const [hasFetchedMarks, setHasFetchedMarks] = useState(false)
   const [isLoadingMarks, setIsLoadingMarks] = useState(false)
   const [marksError, setMarksError] = useState('')
+  const [cgpa, setCgpa] = useState(null)
 
   const subjectOptions = useMemo(() => {
     const subjects = Array.isArray(attendance?.subjects) ? attendance.subjects : []
@@ -164,11 +165,22 @@ function Marks() {
 
     try {
       setIsLoadingMarks(true)
-      const response = await fetchConsolidatedMarks({ token: session.token, semesterId: session.selectedSemester, forceRefresh })
-      const marksRows = Array.isArray(response?.subjects) ? response.subjects : []
+      const [response, gradeData] = await Promise.allSettled([
+        fetchConsolidatedMarks({ token: session.token, semesterId: session.selectedSemester, forceRefresh }),
+        fetchGradeList({ token: session.token, forceRefresh }),
+      ])
+
+      // Apply CGPA if available
+      if (gradeData.status === 'fulfilled' && gradeData.value?.current_cgpa != null) {
+        setCgpa(gradeData.value.current_cgpa)
+      }
+
+      const marksResponse = response.status === 'fulfilled' ? response.value : null
+      if (response.status === 'rejected') throw response.reason
+      const marksRows = Array.isArray(marksResponse?.subjects) ? marksResponse.subjects : []
 
       // Cache marks for offline access
-      persistMarksSnapshot(response)
+      persistMarksSnapshot(marksResponse)
 
       const normalizedByCode = marksRows.reduce((acc, row) => {
         const n = normalizeMarksSubject(row)
@@ -259,8 +271,10 @@ function Marks() {
             <>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#9F9AB5]">Avg (Credit-Wt.)</p>
-                  <p className="mt-1 text-3xl font-extrabold text-[#4EF0A0]">{overviewStats.avg.toFixed(1)}%</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#9F9AB5]">CGPA</p>
+                  <p className="mt-1 text-3xl font-extrabold text-[#4EF0A0]">
+                    {cgpa != null ? cgpa.toFixed(2) : '—'}
+                  </p>
                 </div>
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-[#9F9AB5]">Credits</p>

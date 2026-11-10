@@ -11,6 +11,7 @@ from services.auth_service import (
     fetch_attendance_for_semester,
     fetch_consolidated_marks,
     fetch_faculty_contacts,
+    fetch_grade_list,
     fetch_subject_history,
     get_mails_sent,
     get_session_status,
@@ -433,6 +434,34 @@ async def marks_consolidated(payload: AttendanceRequest):
         return _data_error_response(mapped_code, status_code=status_code)
     except Exception:
         logger.exception("Unexpected consolidated marks fetch error")
+        return _data_error_response("DATA_FETCH_FAILED", status_code=500)
+
+
+@router.post("/grades/list", response_model=ApiResponse)
+async def grade_list(payload: AttendanceRequest):
+    try:
+        data = await run_in_threadpool(
+            fetch_grade_list,
+            payload.token,
+            payload.force_refresh,
+        )
+        return ApiResponse(status="success", message="Grade list fetched", data=data)
+    except PortalAuthenticationError as exc:
+        error_code = getattr(exc, "code", "SESSION_EXPIRED")
+        logger.warning("Grade list auth failure [code=%s, detail=%s]", error_code, str(exc))
+        if str(error_code).strip().upper().startswith("SESSION_EXPIRED"):
+            return _data_error_response(error_code, status_code=401)
+        return _data_error_response(error_code, status_code=502)
+    except PortalNetworkError as exc:
+        error_code = getattr(exc, "code", "DATA_FETCH_FAILED")
+        mapped_code = _map_network_error_code(error_code)
+        logger.exception("Grade list portal/network failure [code=%s, detail=%s]", error_code, str(exc))
+        status_code = int(getattr(exc, "http_status", 502) or 502)
+        if status_code < 400:
+            status_code = 502
+        return _data_error_response(mapped_code, status_code=status_code)
+    except Exception:
+        logger.exception("Unexpected grade list fetch error")
         return _data_error_response("DATA_FETCH_FAILED", status_code=500)
 
 
