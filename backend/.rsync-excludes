@@ -4,6 +4,8 @@ __pycache__/
 attend75.db
 attend75_migration_test.db
 feedback.json
+.env
 .env.production
 firebase-admin.json
 backups/
+.env
