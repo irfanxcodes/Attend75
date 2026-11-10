@@ -43,7 +43,7 @@ function MobileSubjectRow({ subject, selectedTarget, isDemo }) {
       : subject.percentage >= 65
         ? 'border-[#FFB23E]/50 bg-[#FFB23E]/12 text-[#FFB23E]'
         : 'border-[#FF5B5B]/50 bg-[#FF5B5B]/12 text-[#FF5B5B]'
-  const shortName = subject.shortName || subject.id?.toUpperCase?.() || subject.name.slice(0, 4).toUpperCase()
+  const shortName = subject.shortName || subject.name || subject.id?.toUpperCase?.() || 'Subject'
   const attendedClasses = Number(subject.attendedClasses) || 0
   const conductedClasses = Number(subject.totalClasses) || 0
   const leftClasses = Number(subject.classesLeft) || 0

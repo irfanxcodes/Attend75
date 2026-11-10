@@ -145,7 +145,7 @@ function SubjectItem({ subject }) {
     : 0
   // canMiss: classes that can be skipped while still ending semester at 75%
   const canMiss = Math.max(0, Math.floor(attendedClasses + leftClasses - targetRatio * totalSessions))
-  const shortName = subject.shortName || subject.id?.toUpperCase?.() || subject.name.slice(0, 4).toUpperCase()
+  const shortName = subject.shortName || subject.name || subject.id?.toUpperCase?.() || 'Subject'
   const maxPossible = subject.maxPossiblePercentage
   const isUnreachable = maxPossible !== null && maxPossible !== undefined && maxPossible < 75
   const canComposeWithCollegeEmail = isCollegeEmailEligible(user)
