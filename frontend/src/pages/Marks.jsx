@@ -278,14 +278,7 @@ function Marks() {
                 </div>
               </div>
 
-              {overviewStats.weakest ? (
-                <div className="mt-4 border-t border-white/10 pt-3">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#9F9AB5]">Study Suggestion</p>
-                  <p className="mt-1 text-xs leading-relaxed text-[#D8D4E7]">
-                    Your weakest internal is <span className="font-bold text-[#F7F4FF]">{overviewStats.weakest.code}</span>. Open it in StudyMe to revise before the next assessment.
-                  </p>
-                </div>
-              ) : null}
+
             </>
           ) : (
             <div className="flex h-full items-center justify-center py-8">
