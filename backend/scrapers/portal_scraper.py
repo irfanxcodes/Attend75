@@ -710,12 +710,24 @@ class PortalScraper:
             courses_map,
         )
         # Enrich course_abbr with short abbreviation (e.g. BE, HRM) from Courses page
-        if courses_name_map:
-            for item in payload["attendance"]:
-                code = self._normalize_code(str(item.get("code", "")))
-                abbr = courses_name_map.get(code, "")
-                if abbr:
-                    item["course_abbr"] = abbr
+        if not courses_name_map:
+            self._logger.warning("Courses name map is empty - Courses page scraping may have failed")
+        
+        for item in payload["attendance"]:
+            code = self._normalize_code(str(item.get("code", "")))
+            abbr = courses_name_map.get(code, "") if courses_name_map else ""
+            
+            # FALLBACK: If course_abbr is empty from Courses page, use the subject name
+            # This prevents showing codes (SHGM417) instead of readable names
+            if abbr:
+                item["course_abbr"] = abbr
+            elif "subject" in item and item["subject"]:
+                # Use subject name as fallback when Courses page abbreviation unavailable
+                item["course_abbr"] = item["subject"]
+                self._logger.debug(f"Using subject name as fallback for code {code}: {item['subject']}")
+            else:
+                # Last resort: empty string (frontend will show full subject name)
+                item["course_abbr"] = ""
         payload["feasibility"] = {
             "overall": self._build_overall_feasibility(payload.get("attendance", []))
         }
@@ -826,12 +838,21 @@ class PortalScraper:
         )
         # Enrich with short abbreviation from Courses page (e.g. "BE", "HRM", "CSCL")
         # This replaces the subject code with the human-readable short name.
-        if courses_name_map:
-            for item in payload["attendance"]:
-                code = self._normalize_code(str(item.get("code", "")))
-                abbr = courses_name_map.get(code, "")
-                if abbr:
-                    item["course_abbr"] = abbr
+        if not courses_name_map:
+            self._logger.warning("Courses name map is empty in history - Courses page scraping may have failed")
+        
+        for item in payload["attendance"]:
+            code = self._normalize_code(str(item.get("code", "")))
+            abbr = courses_name_map.get(code, "") if courses_name_map else ""
+            
+            # FALLBACK: If course_abbr is empty from Courses page, use the subject name
+            if abbr:
+                item["course_abbr"] = abbr
+            elif "subject" in item and item["subject"]:
+                item["course_abbr"] = item["subject"]
+                self._logger.debug(f"Using subject name as fallback for code {code} in history: {item['subject']}")
+            else:
+                item["course_abbr"] = ""
         payload["feasibility"] = {
             "overall": self._build_overall_feasibility(payload.get("attendance", []))
         }
