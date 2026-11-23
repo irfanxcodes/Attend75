@@ -38,7 +38,7 @@ function MarksDetailCard({ marks, displaySubjectCode = '' }) {
         <div className="flex items-center justify-between">
           <span className="text-base font-bold text-[#1A1328]">Total</span>
           <div className="flex items-baseline gap-1">
-            <span className="text-2xl font-extrabold text-[#1A1328]">{marks.total}</span>
+            <span className="text-2xl font-extrabold text-[#1A1328]">{Number.isFinite(Number(marks.total)) ? Number(marks.total).toFixed(2) : marks.total}</span>
             <span className="text-sm text-[#5C4B3A]">/ {marks.maxTotal}</span>
           </div>
         </div>
