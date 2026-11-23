@@ -67,79 +67,151 @@ function HolLogo() {
 
 // ── Landing screen ─────────────────────────────────────────────────────────────
 
-// ── Card ───────────────────────────────────────────────────────────────────────
+// ── Top card (left item — always fully revealed) ───────────────────────────────
 
-function Card({ item, revealed, side, correct, leftItem }) {
+function TopCard({ item }) {
   const [imgFailed, setImgFailed] = useState(false)
   useEffect(() => { setImgFailed(false) }, [item?.id])
   if (!item) return null
 
   const displayValue = formatValue(item.value, item.unit, item.formatSuffix)
-  const showValue = side === 'left' || revealed
 
   return (
-    <div className="relative flex-1 flex flex-col justify-center items-center"
-      style={{
-        background: '#000',
-      }}>
+    <div className="absolute inset-0" style={{ background: '#111' }}>
+      {/* Background image */}
+      {!imgFailed ? (
+        <>
+          <img src={item.image} alt={item.name} loading="lazy"
+            onError={() => setImgFailed(true)}
+            className="w-full h-full object-cover" />
+          <div className="absolute inset-0"
+            style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.25), rgba(0,0,0,0.55))' }} />
+        </>
+      ) : (
+        <div className="w-full h-full flex items-center justify-center text-5xl"
+          style={{ background: '#1a1a1a' }}>🎯</div>
+      )}
 
-      {/* Full Background Image */}
-      <div className="absolute inset-0">
-        {!imgFailed ? (
-          <>
-            <img src={item.image} alt={item.name} loading="lazy"
-              onError={() => setImgFailed(true)}
-              className="w-full h-full object-cover"/>
-            {/* Subtle overlay - keep images visible */}
-            <div className="absolute inset-0" style={{ 
-              background: 'linear-gradient(to bottom, rgba(0,0,0,0.3), rgba(0,0,0,0.5))'
-            }}/>
-          </>
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-4xl"
-            style={{ background:'#1a1a1a' }}>🎯</div>
-        )}
-      </div>
-
-      {/* Content Overlay - minimal, small text */}
-      <div className="relative z-10 flex flex-col items-center justify-center text-center px-4">
-        {/* Name - small */}
-        <h2 className="text-2xl font-bold text-white mb-2 leading-tight" 
-          style={{ 
-            textShadow: '0 2px 8px rgba(0,0,0,0.9)'
-          }}>
+      {/* Text content — vertically centred */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
+        <h2 className="text-2xl font-bold text-white leading-tight mb-1"
+          style={{ textShadow: '0 2px 10px rgba(0,0,0,0.9)' }}>
           "{item.name}"
         </h2>
-        
-        <p className="text-white text-sm mb-1" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.9)' }}>has</p>
-
-        {/* Value - medium size */}
-        {showValue ? (
-          <p className="text-4xl font-black mb-1 leading-none" style={{
-            color: revealed && side === 'right' 
-              ? (correct ? '#4EF064' : '#FF5050') 
-              : '#FFD700',
-            textShadow: '0 2px 12px rgba(0,0,0,0.9)',
-          }}>{displayValue}</p>
-        ) : (
-          <p className="text-4xl font-black text-white/30 mb-1" 
-            style={{ textShadow: '0 2px 8px rgba(0,0,0,0.9)' }}>?</p>
-        )}
-
-        {/* Stat label - very small */}
-        <p className="text-white/90 text-xs leading-snug max-w-[200px]" 
-          style={{ textShadow: '0 2px 4px rgba(0,0,0,0.9)' }}>
-          {side === 'left' ? item.stat : (revealed ? item.stat : `searches than ${leftItem?.name || 'previous'}`)}
+        <p className="text-white text-sm mb-1" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.9)' }}>has</p>
+        <p className="text-4xl font-black leading-none mb-1"
+          style={{ color: '#FFD700', textShadow: '0 2px 12px rgba(0,0,0,0.9)' }}>
+          {displayValue}
         </p>
-
-        {/* Hint - tiny */}
-        {side === 'left' && item.hint && (
-          <p className="text-white/70 text-xs mt-1 max-w-[200px]" 
+        <p className="text-white/90 text-sm" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.9)' }}>
+          {item.stat}
+        </p>
+        {item.hint && (
+          <p className="text-white/60 text-xs mt-1 max-w-[220px]"
             style={{ textShadow: '0 2px 4px rgba(0,0,0,0.9)' }}>
             {item.hint}
           </p>
         )}
       </div>
+
+      {/* Image credit */}
+      {item.imageCredit && (
+        <span className="absolute bottom-2 right-3 text-white/40 text-[10px]">
+          Image: {item.imageCredit}
+        </span>
+      )}
+    </div>
+  )
+}
+
+// ── Bottom card (right item — hidden until reveal) ─────────────────────────────
+
+function BottomCard({ item, leftItem, revealed, correct, phase, locked, onGuess }) {
+  const [imgFailed, setImgFailed] = useState(false)
+  useEffect(() => { setImgFailed(false) }, [item?.id])
+  if (!item) return null
+
+  const displayValue = formatValue(item.value, item.unit, item.formatSuffix)
+
+  return (
+    <div className="absolute inset-0" style={{ background: '#111' }}>
+      {/* Background image — desaturated until revealed */}
+      {!imgFailed ? (
+        <>
+          <img src={item.image} alt={item.name} loading="lazy"
+            onError={() => setImgFailed(true)}
+            className="w-full h-full object-cover"
+            style={{ filter: revealed ? 'none' : 'grayscale(60%)' }} />
+          <div className="absolute inset-0"
+            style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.3), rgba(0,0,0,0.6))' }} />
+        </>
+      ) : (
+        <div className="w-full h-full flex items-center justify-center text-5xl"
+          style={{ background: '#1a1a1a' }}>🎯</div>
+      )}
+
+      {/* Text content — vertically centred */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
+        <h2 className="text-2xl font-bold text-white leading-tight mb-1"
+          style={{ textShadow: '0 2px 10px rgba(0,0,0,0.9)' }}>
+          "{item.name}"
+        </h2>
+        <p className="text-white text-sm mb-2" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.9)' }}>has</p>
+
+        {revealed ? (
+          <>
+            <p className="text-4xl font-black leading-none mb-1"
+              style={{
+                color: correct ? '#4EF064' : '#FF5050',
+                textShadow: '0 2px 12px rgba(0,0,0,0.9)',
+              }}>
+              {displayValue}
+            </p>
+            <p className="text-white/90 text-sm" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.9)' }}>
+              {item.stat}
+            </p>
+          </>
+        ) : (
+          <>
+            {/* Buttons — shown before reveal */}
+            {phase === 'playing' && (
+              <div className="flex flex-col gap-3 w-full max-w-[200px]">
+                <button type="button" onClick={() => onGuess('higher')} disabled={locked}
+                  className="flex items-center justify-between px-5 py-3 rounded-full font-black text-base active:scale-95 transition-all disabled:opacity-50"
+                  style={{
+                    background: 'rgba(0,0,0,0.55)',
+                    border: '2px solid rgba(255,255,255,0.7)',
+                    backdropFilter: 'blur(6px)',
+                  }}>
+                  <span style={{ color: '#FFD700' }}>Higher</span>
+                  <span className="text-white text-lg">▲</span>
+                </button>
+                <button type="button" onClick={() => onGuess('lower')} disabled={locked}
+                  className="flex items-center justify-between px-5 py-3 rounded-full font-black text-base active:scale-95 transition-all disabled:opacity-50"
+                  style={{
+                    background: 'rgba(0,0,0,0.55)',
+                    border: '2px solid rgba(255,255,255,0.7)',
+                    backdropFilter: 'blur(6px)',
+                  }}>
+                  <span style={{ color: '#FFD700' }}>Lower</span>
+                  <span className="text-white text-lg">▼</span>
+                </button>
+              </div>
+            )}
+            {/* Comparison label below buttons */}
+            <p className="text-white/80 text-sm mt-3" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.9)' }}>
+              searches than {leftItem?.name || 'previous'}
+            </p>
+          </>
+        )}
+      </div>
+
+      {/* Image credit */}
+      {item.imageCredit && (
+        <span className="absolute bottom-2 right-3 text-white/40 text-[10px]">
+          Image: {item.imageCredit}
+        </span>
+      )}
     </div>
   )
 }
@@ -148,12 +220,12 @@ function Card({ item, revealed, side, correct, leftItem }) {
 
 function VsDivider() {
   return (
-    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30">
+    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none">
       <div className="flex items-center justify-center rounded-full text-sm font-black text-black"
         style={{
-          width:44, height:44,
-          background:'#fff',
-          boxShadow:'0 4px 16px rgba(0,0,0,0.6)',
+          width: 44, height: 44,
+          background: '#fff',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
         }}>VS</div>
     </div>
   )
@@ -384,114 +456,56 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
     <div className="absolute inset-0 flex flex-col overflow-hidden"
       style={{ background:'#000' }}>
 
-      {/* Top bar - floating over content */}
-      <div className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-4"
-        style={{ 
-          height:56, 
-          background:'linear-gradient(to bottom, rgba(0,0,0,0.8), transparent)',
-          paddingTop:'env(safe-area-inset-top,0px)' 
+      {/* Score bar — always visible at top */}
+      <div className="flex-shrink-0 flex items-center justify-between px-4"
+        style={{
+          height: 44,
+          background: 'rgba(0,0,0,0.85)',
+          paddingTop: 'env(safe-area-inset-top,0px)',
+          zIndex: 30,
         }}>
-        
-        <button type="button" onClick={handleGoHome}
-          className="flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm active:scale-95 transition-transform"
-          style={{ background:'#B8F77D', color:'#000' }}
-          aria-label="Back to Home">
-          <span>←</span><span>BACK</span>
-        </button>
-
-        {/* High Score */}
-        {best > 0 && (
-          <div className="px-3 py-1.5 rounded-full text-sm font-bold text-white"
-            style={{ background:'rgba(0,0,0,0.6)', backdropFilter:'blur(10px)' }}>
-            High Score: {best}
-          </div>
-        )}
-
-        {/* Current Score */}
-        <div className="px-4 py-2 rounded-full text-base font-black text-white"
-          style={{ background:'rgba(0,0,0,0.6)', backdropFilter:'blur(10px)' }}>
-          Score: {score}
-        </div>
+        <span className="text-white font-bold text-sm">High Score: {best}</span>
+        <span className="text-white font-bold text-sm">Score: {score}</span>
       </div>
 
-      {/* Body - Horizontal side-by-side layout */}
-      <div className="flex-1 flex items-center" style={{ height: 'calc(100vh - 56px)' }}>
-        <div className="relative flex w-full h-full">
+      {/* Stacked cards — each takes exactly half the remaining height */}
+      <div className="relative flex flex-col flex-1 min-h-0">
 
-          {/* Left Card */}
-          <Card item={leftItem} revealed={true} side="left" correct={false} leftItem={leftItem}/>
-          
-          {/* VS Divider - absolutely positioned in center */}
-          <VsDivider/>
-          
-          {/* Right Card - with buttons overlay */}
-          <div className="relative flex-1">
-            <Card item={rightItem} revealed={!!reveal} side="right" correct={reveal === 'correct'} leftItem={leftItem}/>
-            
-            {/* Transparent buttons overlaid on bottom of right card */}
-            {phase === 'playing' && !reveal && (
-              <div className="absolute inset-x-0 bottom-0 z-20 px-4 pb-6">
-                <div className="flex flex-col gap-2 max-w-xs mx-auto">
-                  <button type="button" onClick={() => handleGuess('higher')} disabled={locked}
-                    className="w-full flex items-center justify-center gap-2 py-3 rounded-full font-bold text-base active:scale-95 transition-all disabled:opacity-50"
-                    style={{ 
-                      background:'rgba(255,255,255,0.08)',
-                      border:'2px solid rgba(255,255,255,0.4)',
-                      backdropFilter:'blur(4px)',
-                      color:'#fff'
-                    }}>
-                    <span className="text-lg">▲</span>
-                    <span style={{ color:'#FFD700', fontWeight:900 }}>Higher</span>
-                  </button>
-                  
-                  <button type="button" onClick={() => handleGuess('lower')} disabled={locked}
-                    className="w-full flex items-center justify-center gap-2 py-3 rounded-full font-bold text-base active:scale-95 transition-all disabled:opacity-50"
-                    style={{ 
-                      background:'rgba(255,255,255,0.08)',
-                      border:'2px solid rgba(255,255,255,0.4)',
-                      backdropFilter:'blur(4px)',
-                      color:'#fff'
-                    }}>
-                    <span className="text-lg">▼</span>
-                    <span style={{ color:'#FFD700', fontWeight:900 }}>Lower</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Feedback banner */}
-            {reveal && (
-              <div className="absolute inset-x-0 bottom-0 z-20 px-4 pb-6">
-                <div className="py-3 rounded-full text-center font-black text-lg max-w-xs mx-auto"
-                  style={{
-                    background: reveal === 'correct' 
-                      ? 'rgba(78,240,100,0.9)' 
-                      : 'rgba(255,80,80,0.9)',
-                    color: '#000',
-                    backdropFilter:'blur(8px)',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-                    animation:'holFadeIn 0.3s ease-out',
-                  }}>
-                  {reveal === 'correct' ? '✓ Correct!' : '✗ Wrong!'}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Game over overlay */}
-          {phase === 'gameover' && (
-            <GameOverOverlay
-              score={score}
-              best={best}
-              onPlayAgain={handlePlayAgain}
-              onLeaderboard={handleLeaderboard}
-            />
-          )}
+        {/* TOP card — left item, always revealed */}
+        <div className="relative flex-1 min-h-0">
+          <TopCard item={leftItem} />
         </div>
+
+        {/* VS badge — centred on the seam */}
+        <VsDivider />
+
+        {/* BOTTOM card — right item */}
+        <div className="relative flex-1 min-h-0">
+          <BottomCard
+            item={rightItem}
+            leftItem={leftItem}
+            revealed={!!reveal}
+            correct={reveal === 'correct'}
+            phase={phase}
+            locked={locked}
+            onGuess={handleGuess}
+          />
+        </div>
+
+        {/* Game over overlay */}
+        {phase === 'gameover' && (
+          <GameOverOverlay
+            score={score}
+            best={best}
+            onPlayAgain={handlePlayAgain}
+            onLeaderboard={handleLeaderboard}
+          />
+        )}
       </div>
 
       <style>{`
-        @keyframes holFadeIn { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes holFadeIn  { from{opacity:0} to{opacity:1} }
+        @keyframes holSlideUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
       `}</style>
     </div>
   )

@@ -272,6 +272,7 @@ function GameLayout({ gameSlug, children }) {
                 onGameEnd: handleGameEnd,
                 onScoreUpdate: handleScoreUpdate,
                 onRestart: handleRestart,
+                onBack: () => navigate('/app/arcade'),
                 isActive: !isGameOver,
                 initialScore: resumeScore,
               })

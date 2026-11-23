@@ -537,7 +537,7 @@ class Renderer {
 }
 
 /* ================= React Component ================= */
-function SnakeGame({ onGameEnd, onScoreUpdate }) {
+function SnakeGame({ onGameEnd, onScoreUpdate, onBack }) {
   const cvRef = useRef(null)
   const gameRef = useRef(null)
   const rdRef = useRef(null)
@@ -776,6 +776,36 @@ function SnakeGame({ onGameEnd, onScoreUpdate }) {
 
   return (
     <div style={{ position: 'absolute', inset: 0, background: '#0b0f1d', fontFamily: 'Fredoka, sans-serif', display: 'flex', flexDirection: 'column', padding: '14px 16px' }}>
+      {/* Back button */}
+      {onBack && (
+        <button
+          onClick={onBack}
+          style={{
+            position: 'absolute',
+            top: 12,
+            left: 12,
+            zIndex: 20,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            padding: '6px 12px',
+            borderRadius: 999,
+            border: 0,
+            background: 'linear-gradient(180deg, #B8F77D 0%, #7BE056 100%)',
+            boxShadow: '0 2px 0 rgba(0,0,0,0.25), 0 4px 10px rgba(0,0,0,0.25)',
+            fontFamily: 'Fredoka, sans-serif',
+            fontWeight: 700,
+            fontSize: 12,
+            color: '#1a3300',
+            cursor: 'pointer',
+            letterSpacing: '0.03em',
+          }}
+          aria-label="Back to Arcade"
+        >
+          <span style={{ fontSize: 14 }}>←</span>
+          <span>BACK</span>
+        </button>
+      )}
       {/* HUD */}
       {state !== 'menu' && (
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: '20px', marginBottom: '10px' }}>

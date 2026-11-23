@@ -132,11 +132,12 @@ function ArcadeGamePage() {
 
   return (
     <GameLayout gameSlug={gameSlug}>
-      {({ onGameEnd, onScoreUpdate, onRestart, isActive, initialScore }) => (
+      {({ onGameEnd, onScoreUpdate, onRestart, onBack, isActive, initialScore }) => (
         <Suspense fallback={<CountdownLoader gameTitle={game.title} />}>
           <GameComponent
             onGameEnd={onGameEnd}
             onScoreUpdate={onScoreUpdate}
+            onBack={onBack}
             isActive={isActive}
             initialScore={initialScore}
           />
