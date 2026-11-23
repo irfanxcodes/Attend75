@@ -497,28 +497,28 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
     <div className="absolute inset-0 flex flex-col overflow-hidden" style={{ background: '#000' }}>
       <style>{GLOBAL_CSS}</style>
 
-      {/* Score bar */}
-      <div className="flex-shrink-0 flex items-center justify-between px-4"
-        style={{ height: 44, background: 'rgba(0,0,0,0.88)', paddingTop: 'env(safe-area-inset-top,0px)', zIndex: 30 }}>
-        <span className="text-white font-bold text-sm" style={{ animation: 'hol-slideDown 0.4s both' }}>
+      {/* Score bar — floats over the cards with a gradient fade so text stays readable */}
+      <div className="flex items-center justify-between px-4"
+        style={{ height: 44, background: 'linear-gradient(to bottom, rgba(0,0,0,0.65) 0%, transparent 100%)', paddingTop: 'env(safe-area-inset-top,0px)', zIndex: 30, position: 'absolute', top: 0, left: 0, right: 0 }}>
+        <span className="text-white font-bold text-sm" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.9)', animation: 'hol-slideDown 0.4s both' }}>
           High Score: {best}
         </span>
         <span key={score} className="text-white font-bold text-sm"
-          style={{ animation: score > 0 ? 'hol-popBounce 0.4s cubic-bezier(0.34,1.56,0.64,1) both' : undefined }}>
+          style={{ textShadow: '0 1px 6px rgba(0,0,0,0.9)', animation: score > 0 ? 'hol-popBounce 0.4s cubic-bezier(0.34,1.56,0.64,1) both' : undefined }}>
           Score: {score}
         </span>
       </div>
 
-      {/* Stacked cards */}
-      <div className="relative flex flex-col flex-1 min-h-0">
+      {/* Stacked cards — fill the entire screen */}
+      <div className="relative flex flex-col" style={{ position: 'absolute', inset: 0 }}>
 
-        <div className="relative flex-1 min-h-0">
+        <div className="relative" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: '50%' }}>
           <TopCard item={leftItem} animKey={animKey} />
         </div>
 
         {phase !== 'gameover' && <VsDivider pulse={vsPulse} />}
 
-        <div className="relative flex-1 min-h-0">
+        <div className="relative" style={{ position: 'absolute', top: '50%', left: 0, right: 0, bottom: 0 }}>
           <BottomCard
             item={rightItem}
             leftItem={leftItem}
