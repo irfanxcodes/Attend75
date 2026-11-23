@@ -476,8 +476,8 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
           <TopCard item={leftItem} />
         </div>
 
-        {/* VS badge — centred on the seam */}
-        <VsDivider />
+        {/* VS badge — centred on the seam, hidden when game is over */}
+        {phase !== 'gameover' && <VsDivider />}
 
         {/* BOTTOM card — right item */}
         <div className="relative flex-1 min-h-0">
