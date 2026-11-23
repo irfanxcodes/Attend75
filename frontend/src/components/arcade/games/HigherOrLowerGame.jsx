@@ -231,86 +231,59 @@ function VsDivider() {
   )
 }
 
-// ── Score message (witty, score-dependent) ────────────────────────────────────
-
-function scoreMessage(score) {
-  if (score === 0) return "Did you even try? The average is 3.2 — you got zero."
-  if (score === 1) return "Did we make it too hard for you? The average score is 3.2. We're pretty embarrassed for you right now."
-  if (score <= 3)  return "Not bad, but the average is 3.2. Keep at it!"
-  if (score <= 6)  return `Excellent! The average score is 3.2 so you're pretty good! We're impressed — that's a score worth sharing.`
-  if (score <= 10) return "Wow, you're on fire! That's well above average. Seriously impressive."
-  return "Legendary. You're in a different league entirely."
-}
-
 // ── Game Over overlay ──────────────────────────────────────────────────────────
 
 function GameOverOverlay({ score, best, onPlayAgain, onLeaderboard }) {
-  const isNewBest = score > 0 && score >= best
-  const msg = scoreMessage(score)
-
   return (
-    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center px-6"
+    <div className="absolute inset-0 flex items-center justify-center p-4"
       style={{
-        background: 'rgba(0,0,0,0.82)',
-        backdropFilter: 'blur(14px)',
-        animation: 'holFadeIn 0.35s ease-out',
+        background:'rgba(0,0,0,0.88)', backdropFilter:'blur(10px)',
+        animation:'holFadeIn 0.3s ease-out', zIndex:20,
       }}>
-
       <style>{`
-        @keyframes holFadeIn   { from{opacity:0}                          to{opacity:1} }
-        @keyframes holScorePop { 0%{transform:scale(0.4);opacity:0} 70%{transform:scale(1.12)} 100%{transform:scale(1);opacity:1} }
+        @keyframes holFadeIn  { from{opacity:0} to{opacity:1} }
+        @keyframes holSlideUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
       `}</style>
 
-      {/* You scored label */}
-      <p className="text-white font-bold text-lg mb-1" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>
-        You scored:
-      </p>
-
-      {/* Big score number */}
-      <div className="text-8xl font-black leading-none mb-5"
+      <div className="flex flex-col items-center gap-5 rounded-3xl px-6 py-8 w-full max-w-xs"
         style={{
-          color: '#FFD700',
-          textShadow: '0 4px 24px rgba(255,215,0,0.5)',
-          animation: 'holScorePop 0.5s cubic-bezier(0.34,1.56,0.64,1) both',
+          background:'linear-gradient(160deg,#1e1b3a 0%,#0e0c1e 100%)',
+          border:'1px solid rgba(255,255,255,0.1)',
+          animation:'holSlideUp 0.35s ease-out',
+          boxShadow:'0 24px 64px rgba(0,0,0,0.6)',
         }}>
-        {score}
-      </div>
 
-      {/* New best badge */}
-      {isNewBest && score > 0 && (
-        <div className="mb-4 px-4 py-1.5 rounded-full text-xs font-black tracking-widest uppercase"
-          style={{ background: 'rgba(255,215,0,0.15)', border: '1px solid rgba(255,215,0,0.4)', color: '#FFD700' }}>
-          🏆 New Best!
+        <div className="text-center">
+          <div className="text-4xl mb-2">😬</div>
+          <h2 className="text-xl font-black text-white">Game Over</h2>
+          <p className="text-white/40 text-sm mt-1">Better luck next time!</p>
         </div>
-      )}
 
-      {/* Witty message */}
-      <p className="text-white/80 text-sm text-center leading-relaxed mb-8 max-w-xs"
-        style={{ textShadow: '0 2px 6px rgba(0,0,0,0.8)' }}>
-        {msg}
-      </p>
+        {/* Score / Best */}
+        <div className="w-full grid grid-cols-2 gap-3">
+          {[['Score', score, 'text-white'], ['Best', best, '#FFD700']].map(([label, val, color]) => (
+            <div key={label} className="flex flex-col items-center gap-1 rounded-2xl py-4"
+              style={{ background:'rgba(255,255,255,0.05)' }}>
+              <span className="text-white/50 text-xs uppercase tracking-widest">{label}</span>
+              <span className="text-3xl font-black" style={{ color: color === 'text-white' ? '#fff' : color }}>{val}</span>
+            </div>
+          ))}
+        </div>
 
-      {/* Buttons */}
-      <div className="flex flex-col gap-3 w-full max-w-xs">
-        <button type="button" onClick={onPlayAgain}
-          className="w-full py-4 rounded-full font-black text-base text-black active:scale-95 transition-transform"
-          style={{
-            background: 'linear-gradient(180deg,#B8F77D 0%,#7BE056 100%)',
-            boxShadow: '0 4px 0 rgba(0,0,0,0.35), 0 8px 20px rgba(123,224,86,0.3)',
-          }}>
-          ↺ Play Again
-        </button>
-
-        <button type="button" onClick={onLeaderboard}
-          className="w-full py-3.5 rounded-full font-black text-base active:scale-95 transition-transform flex items-center justify-center gap-2"
-          style={{
-            background: 'rgba(255,255,255,0.05)',
-            border: '2px solid rgba(255,255,255,0.25)',
-            color: '#fff',
-          }}>
-          <Trophy size={16} />
-          Leaderboard
-        </button>
+        {/* Buttons */}
+        <div className="flex flex-col gap-3 w-full">
+          <button type="button" onClick={onPlayAgain}
+            className="w-full py-3.5 rounded-2xl font-black text-sm text-black active:scale-95 transition-transform"
+            style={{ background:'linear-gradient(180deg,#B8F77D 0%,#7BE056 100%)', boxShadow:'0 3px 0 rgba(0,0,0,0.3)' }}>
+            ↺ Play Again
+          </button>
+          <button type="button" onClick={onLeaderboard}
+            className="w-full py-3 rounded-2xl font-bold text-sm active:scale-95 transition-transform flex items-center justify-center gap-2"
+            style={{ background:'rgba(255,215,0,0.1)', border:'1px solid rgba(255,215,0,0.25)', color:'#FFD700' }}>
+            <Trophy size={15}/>
+            Leaderboard
+          </button>
+        </div>
       </div>
     </div>
   )
