@@ -191,7 +191,7 @@ function MarksRadarChart({ data, isLoading = false, selectedSubjectCode = '' }) 
                 fontWeight="700"
                 fill="#4EF0A0"
               >
-                {subject.total}
+                {Number.isFinite(Number(subject.total)) ? Number(subject.total).toFixed(2) : subject.total}
               </text>
             </g>
           )
