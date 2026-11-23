@@ -3,13 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { Trophy } from 'lucide-react'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
-// Fixed: removed prevActiveRef reference
-
 const DATA_URL = '/data/higherOrLower.json'
-const REVEAL_DURATION = 1600
+const REVEAL_DURATION = 1800   // ms — time the answer is shown before next card
 
 // ── Utilities ──────────────────────────────────────────────────────────────────
-
 function shuffle(arr) {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {
@@ -19,13 +16,7 @@ function shuffle(arr) {
   return a
 }
 
-/**
- * Each round picks two items from the SAME category.
- * We store categories as-is and pick randomly per round.
- * The flat pool is no longer needed — removed.
- */
 function getCategoryPool(categories) {
-  // Return categories with their meta attached to each item for convenience
   return categories.map(cat => ({
     ...cat,
     items: cat.items.map(item => ({
@@ -37,7 +28,6 @@ function getCategoryPool(categories) {
   }))
 }
 
-/** Pick a random category, return a shuffled copy of its items. */
 function pickCategory(categories) {
   const cat = categories[Math.floor(Math.random() * categories.length)]
   return { cat, shuffled: shuffle(cat.items) }
@@ -53,313 +43,317 @@ function formatValue(value, unit, formatSuffix) {
   return `${unit}${value}`
 }
 
-// ── Simple logo for top bar ───────────────────────────────────────────────────
-
-function HolLogo() {
-  return (
-    <div className="flex items-center gap-1 select-none">
-      <span className="text-lg font-black tracking-tight" style={{ color:'#4EF064' }}>HIGHER</span>
-      <span className="text-lg font-black tracking-tight" style={{ color:'#FF5050' }}>LOWER↓</span>
-      <span className="text-xs font-bold tracking-widest text-white/40 ml-1">GAME</span>
-    </div>
-  )
+// ── Witty messages (like the real game) ───────────────────────────────────────
+function getScoreMessage(score) {
+  if (score === 0)  return "You didn't even get one? Come on, give it another shot."
+  if (score === 1)  return "Did we make it too hard for you? The average score is 3.2. We're pretty embarrassed for you right now."
+  if (score <= 3)   return "The average score is 3.2 so you're about average. Can you do better?"
+  if (score <= 6)   return "Not bad! The average score is 3.2 so you're doing better than most. Keep it up!"
+  if (score <= 9)   return "Excellent! The average score is 3.2 so you're pretty good! We're impressed — that's a score worth sharing."
+  if (score <= 14)  return `Wow, ${score}?! You're in a league of your own. The average is just 3.2. Incredible.`
+  return `${score}?! Are you even human? The average is 3.2. We're speechless.`
 }
 
-// ── Landing screen ─────────────────────────────────────────────────────────────
+// ── Count-up hook ─────────────────────────────────────────────────────────────
+function useCountUp(target, duration = 1200, active = false) {
+  const [display, setDisplay] = useState(0)
+  const rafRef = useRef(null)
+  useEffect(() => {
+    if (!active) { setDisplay(0); return }
+    const start = performance.now()
+    const step = (now) => {
+      const t = Math.min((now - start) / duration, 1)
+      // ease-out cubic
+      const ease = 1 - Math.pow(1 - t, 3)
+      setDisplay(Math.round(ease * target))
+      if (t < 1) rafRef.current = requestAnimationFrame(step)
+    }
+    rafRef.current = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(rafRef.current)
+  }, [target, duration, active])
+  return display
+}
 
-// ── Top card (left item — always fully revealed) ───────────────────────────────
+// ── Global CSS injected once ──────────────────────────────────────────────────
+const GLOBAL_CSS = `
+  @keyframes hol-fadeIn    { from{opacity:0}                                   to{opacity:1} }
+  @keyframes hol-slideUp   { from{opacity:0;transform:translateY(32px)}         to{opacity:1;transform:translateY(0)} }
+  @keyframes hol-slideDown { from{opacity:0;transform:translateY(-32px)}        to{opacity:1;transform:translateY(0)} }
+  @keyframes hol-popIn     { from{opacity:0;transform:scale(0.6)}              to{opacity:1;transform:scale(1)} }
+  @keyframes hol-popBounce { 0%{transform:scale(0)}40%{transform:scale(1.18)}70%{transform:scale(0.92)}100%{transform:scale(1)} }
+  @keyframes hol-flashGreen{ 0%{background:rgba(78,240,100,0)}30%{background:rgba(78,240,100,0.38)}100%{background:rgba(78,240,100,0)} }
+  @keyframes hol-flashRed  { 0%{background:rgba(255,80,80,0)}30%{background:rgba(255,80,80,0.38)}100%{background:rgba(255,80,80,0)} }
+  @keyframes hol-vsFloat   { 0%,100%{transform:translate(-50%,-50%) scale(1)} 50%{transform:translate(-50%,-50%) scale(1.08)} }
+  @keyframes hol-cardIn    { from{opacity:0;transform:translateY(44px) scale(0.97)} to{opacity:1;transform:translateY(0) scale(1)} }
+  @keyframes hol-shake     { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-6px)} 80%{transform:translateX(6px)} }
+  @keyframes hol-spin      { to{transform:rotate(360deg)} }
+  @keyframes hol-scoreIn   { 0%{opacity:0;transform:scale(0.4) translateY(20px)} 60%{transform:scale(1.12) translateY(-6px)} 100%{opacity:1;transform:scale(1) translateY(0)} }
+  @keyframes hol-glowPulse { 0%,100%{text-shadow:0 0 20px rgba(255,215,0,0.4)} 50%{text-shadow:0 0 48px rgba(255,215,0,0.9),0 0 80px rgba(255,215,0,0.4)} }
+  @keyframes hol-btnIn     { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes hol-newBest   { 0%{transform:scale(0) rotate(-12deg)}60%{transform:scale(1.15) rotate(3deg)}100%{transform:scale(1) rotate(0deg)} }
+  @keyframes hol-barFill   { from{width:0} to{width:var(--bar-w)} }
+`
 
-function TopCard({ item }) {
+// ── Top card ──────────────────────────────────────────────────────────────────
+function TopCard({ item, animKey }) {
   const [imgFailed, setImgFailed] = useState(false)
   useEffect(() => { setImgFailed(false) }, [item?.id])
   if (!item) return null
-
   const displayValue = formatValue(item.value, item.unit, item.formatSuffix)
 
   return (
-    <div className="absolute inset-0" style={{ background: '#111' }}>
-      {/* Background image */}
+    <div key={animKey} className="absolute inset-0" style={{ background: '#111', animation: 'hol-slideDown 0.5s cubic-bezier(0.22,1,0.36,1) both' }}>
       {!imgFailed ? (
         <>
-          <img src={item.image} alt={item.name} loading="lazy"
-            onError={() => setImgFailed(true)}
+          <img src={item.image} alt={item.name} loading="lazy" onError={() => setImgFailed(true)}
             className="w-full h-full object-cover" />
-          <div className="absolute inset-0"
-            style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.25), rgba(0,0,0,0.55))' }} />
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom,rgba(0,0,0,0.2),rgba(0,0,0,0.6))' }} />
         </>
       ) : (
-        <div className="w-full h-full flex items-center justify-center text-5xl"
-          style={{ background: '#1a1a1a' }}>🎯</div>
+        <div className="w-full h-full flex items-center justify-center text-5xl" style={{ background: '#1a1a1a' }}>🎯</div>
       )}
-
-      {/* Text content — vertically centred */}
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
-        <h2 className="text-2xl font-bold text-white leading-tight mb-1"
-          style={{ textShadow: '0 2px 10px rgba(0,0,0,0.9)' }}>
+        <h2 className="text-2xl font-bold text-white leading-tight mb-1" style={{ textShadow: '0 2px 10px rgba(0,0,0,0.9)', animation: 'hol-slideDown 0.5s 0.05s both' }}>
           "{item.name}"
         </h2>
-        <p className="text-white text-sm mb-1" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.9)' }}>has</p>
+        <p className="text-white/80 text-sm mb-1" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.9)' }}>has</p>
         <p className="text-4xl font-black leading-none mb-1"
-          style={{ color: '#FFD700', textShadow: '0 2px 12px rgba(0,0,0,0.9)' }}>
+          style={{ color: '#FFD700', textShadow: '0 2px 12px rgba(0,0,0,0.9)', animation: 'hol-popIn 0.4s 0.1s cubic-bezier(0.34,1.56,0.64,1) both' }}>
           {displayValue}
         </p>
-        <p className="text-white/90 text-sm" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.9)' }}>
-          {item.stat}
-        </p>
+        <p className="text-white/80 text-sm" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.9)' }}>{item.stat}</p>
         {item.hint && (
-          <p className="text-white/60 text-xs mt-1 max-w-[220px]"
-            style={{ textShadow: '0 2px 4px rgba(0,0,0,0.9)' }}>
-            {item.hint}
-          </p>
+          <p className="text-white/55 text-xs mt-1 max-w-[220px]" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.9)' }}>{item.hint}</p>
         )}
       </div>
-
-      {/* Image credit */}
       {item.imageCredit && (
-        <span className="absolute bottom-2 right-3 text-white/40 text-[10px]">
-          Image: {item.imageCredit}
-        </span>
+        <span className="absolute bottom-2 right-3 text-white/35 text-[10px]">Image: {item.imageCredit}</span>
       )}
     </div>
   )
 }
 
-// ── Bottom card (right item — hidden until reveal) ─────────────────────────────
-
-function BottomCard({ item, leftItem, revealed, correct, phase, locked, onGuess }) {
+// ── Bottom card ───────────────────────────────────────────────────────────────
+function BottomCard({ item, leftItem, revealed, correct, phase, locked, onGuess, animKey }) {
   const [imgFailed, setImgFailed] = useState(false)
   useEffect(() => { setImgFailed(false) }, [item?.id])
   if (!item) return null
-
   const displayValue = formatValue(item.value, item.unit, item.formatSuffix)
 
   return (
-    <div className="absolute inset-0" style={{ background: '#111' }}>
-      {/* Background image — desaturated until revealed */}
+    <div key={animKey} className="absolute inset-0" style={{ background: '#111', animation: 'hol-cardIn 0.55s cubic-bezier(0.22,1,0.36,1) both' }}>
       {!imgFailed ? (
         <>
-          <img src={item.image} alt={item.name} loading="lazy"
-            onError={() => setImgFailed(true)}
+          <img src={item.image} alt={item.name} loading="lazy" onError={() => setImgFailed(true)}
             className="w-full h-full object-cover"
-            style={{ filter: revealed ? 'none' : 'grayscale(60%)' }} />
+            style={{ filter: revealed ? 'none' : 'grayscale(55%)', transition: 'filter 0.5s ease' }} />
           <div className="absolute inset-0"
-            style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.3), rgba(0,0,0,0.6))' }} />
+            style={{ background: 'linear-gradient(to bottom,rgba(0,0,0,0.25),rgba(0,0,0,0.65))' }} />
         </>
       ) : (
-        <div className="w-full h-full flex items-center justify-center text-5xl"
-          style={{ background: '#1a1a1a' }}>🎯</div>
+        <div className="w-full h-full flex items-center justify-center text-5xl" style={{ background: '#1a1a1a' }}>🎯</div>
       )}
 
-      {/* Text content — vertically centred */}
+      {/* Correct / wrong full-card flash */}
+      {revealed && (
+        <div className="absolute inset-0 pointer-events-none"
+          style={{ animation: `${correct ? 'hol-flashGreen' : 'hol-flashRed'} 0.6s ease-out both` }} />
+      )}
+
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
         <h2 className="text-2xl font-bold text-white leading-tight mb-1"
-          style={{ textShadow: '0 2px 10px rgba(0,0,0,0.9)' }}>
+          style={{ textShadow: '0 2px 10px rgba(0,0,0,0.9)', animation: 'hol-cardIn 0.55s 0.04s both' }}>
           "{item.name}"
         </h2>
-        <p className="text-white text-sm mb-2" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.9)' }}>has</p>
+        <p className="text-white/80 text-sm mb-2" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.9)' }}>has</p>
 
         {revealed ? (
-          <>
+          <div style={{ animation: 'hol-popBounce 0.55s cubic-bezier(0.34,1.56,0.64,1) both' }}>
             <p className="text-4xl font-black leading-none mb-1"
-              style={{
-                color: correct ? '#4EF064' : '#FF5050',
-                textShadow: '0 2px 12px rgba(0,0,0,0.9)',
-              }}>
+              style={{ color: correct ? '#4EF064' : '#FF5050', textShadow: '0 2px 16px rgba(0,0,0,0.9)' }}>
               {displayValue}
             </p>
-            <p className="text-white/90 text-sm" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.9)' }}>
-              {item.stat}
-            </p>
-          </>
+            <p className="text-white/85 text-sm" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.9)' }}>{item.stat}</p>
+          </div>
         ) : (
-          <>
-            {/* Buttons — shown before reveal */}
+          <div style={{ animation: 'hol-slideUp 0.4s 0.15s both' }}>
             {phase === 'playing' && (
-              <div className="flex flex-col gap-3 w-full max-w-[200px]">
+              <div className="flex flex-col gap-3 w-full" style={{ minWidth: 200 }}>
                 <button type="button" onClick={() => onGuess('higher')} disabled={locked}
-                  className="flex items-center justify-between px-5 py-3 rounded-full font-black text-base active:scale-95 transition-all disabled:opacity-50"
-                  style={{
-                    background: 'rgba(0,0,0,0.55)',
-                    border: '2px solid rgba(255,255,255,0.7)',
-                    backdropFilter: 'blur(6px)',
-                  }}>
+                  className="flex items-center justify-between px-6 py-3 rounded-full font-black text-base active:scale-95 transition-all disabled:opacity-40"
+                  style={{ background: 'rgba(0,0,0,0.6)', border: '2px solid rgba(255,255,255,0.75)', backdropFilter: 'blur(8px)' }}>
                   <span style={{ color: '#FFD700' }}>Higher</span>
-                  <span className="text-white text-lg">▲</span>
+                  <span className="text-white text-lg ml-3">▲</span>
                 </button>
                 <button type="button" onClick={() => onGuess('lower')} disabled={locked}
-                  className="flex items-center justify-between px-5 py-3 rounded-full font-black text-base active:scale-95 transition-all disabled:opacity-50"
-                  style={{
-                    background: 'rgba(0,0,0,0.55)',
-                    border: '2px solid rgba(255,255,255,0.7)',
-                    backdropFilter: 'blur(6px)',
-                  }}>
+                  className="flex items-center justify-between px-6 py-3 rounded-full font-black text-base active:scale-95 transition-all disabled:opacity-40"
+                  style={{ background: 'rgba(0,0,0,0.6)', border: '2px solid rgba(255,255,255,0.75)', backdropFilter: 'blur(8px)' }}>
                   <span style={{ color: '#FFD700' }}>Lower</span>
-                  <span className="text-white text-lg">▼</span>
+                  <span className="text-white text-lg ml-3">▼</span>
                 </button>
               </div>
             )}
-            {/* Comparison label below buttons */}
-            <p className="text-white/80 text-sm mt-3" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.9)' }}>
+            <p className="text-white/75 text-sm mt-3" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.9)' }}>
               searches than {leftItem?.name || 'previous'}
             </p>
-          </>
+          </div>
         )}
       </div>
 
-      {/* Image credit */}
       {item.imageCredit && (
-        <span className="absolute bottom-2 right-3 text-white/40 text-[10px]">
-          Image: {item.imageCredit}
-        </span>
+        <span className="absolute bottom-2 right-3 text-white/35 text-[10px]">Image: {item.imageCredit}</span>
       )}
     </div>
   )
 }
 
-// ── VS divider ─────────────────────────────────────────────────────────────────
-
-function VsDivider() {
+// ── VS badge ──────────────────────────────────────────────────────────────────
+function VsDivider({ pulse }) {
   return (
-    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none">
+    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none"
+      style={{ animation: pulse ? 'hol-popBounce 0.45s cubic-bezier(0.34,1.56,0.64,1) both' : 'hol-vsFloat 3s ease-in-out infinite' }}>
       <div className="flex items-center justify-center rounded-full text-sm font-black text-black"
-        style={{
-          width: 44, height: 44,
-          background: '#fff',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
-        }}>VS</div>
+        style={{ width: 46, height: 46, background: '#fff', boxShadow: '0 4px 20px rgba(0,0,0,0.65)' }}>
+        VS
+      </div>
     </div>
   )
 }
 
-// ── Witty score messages ───────────────────────────────────────────────────────
-
-function getScoreMessage(score) {
-  if (score === 0) return "You didn't even get one? Come on, give it another shot."
-  if (score <= 2)  return "Did we make it too hard for you? The average score is 3.2. We're pretty embarrassed for you right now."
-  if (score <= 5)  return `Not bad! The average score is 3.2 so you're doing alright. Keep going!`
-  if (score <= 9)  return `Excellent! The average score is 3.2 so you're pretty good! We're impressed — that's a score worth sharing.`
-  return `Wow, ${score}?! You're in a league of your own. The average is just 3.2. Incredible.`
-}
-
-// ── Game Over full-screen ──────────────────────────────────────────────────────
-
+// ── Game Over screen ──────────────────────────────────────────────────────────
 function GameOverOverlay({ score, best, onPlayAgain, onLeaderboard, onBack }) {
   const isNewBest = score > 0 && score >= best
   const message   = getScoreMessage(score)
+  const displayed = useCountUp(score, 1000, true)
 
   return (
-    <div
-      className="absolute inset-0 flex flex-col items-center justify-center px-6"
+    <div className="absolute inset-0 flex flex-col items-center justify-center px-6 overflow-y-auto"
       style={{
-        background: 'rgba(0,0,0,0.82)',
-        backdropFilter: 'blur(14px)',
-        WebkitBackdropFilter: 'blur(14px)',
+        background: 'rgba(0,0,0,0.78)',
+        backdropFilter: 'blur(18px)',
+        WebkitBackdropFilter: 'blur(18px)',
         zIndex: 20,
-        animation: 'holFadeIn 0.35s ease-out',
-      }}
-    >
-      <style>{`
-        @keyframes holFadeIn   { from { opacity:0 }                          to { opacity:1 } }
-        @keyframes holPopIn    { from { opacity:0; transform:scale(0.7) }    to { opacity:1; transform:scale(1) } }
-        @keyframes holSlideUp  { from { opacity:0; transform:translateY(28px) } to { opacity:1; transform:translateY(0) } }
-      `}</style>
+        animation: 'hol-fadeIn 0.4s ease-out both',
+      }}>
 
-      {/* Score block */}
-      <div className="flex flex-col items-center text-center"
-        style={{ animation: 'holPopIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both' }}>
-        <p className="text-white font-bold text-lg tracking-wide mb-1">You scored:</p>
-        <p className="font-black leading-none"
+      {/* "You scored:" label */}
+      <p className="text-white font-bold text-lg tracking-wide mb-1"
+        style={{ animation: 'hol-slideDown 0.5s 0.05s both' }}>
+        You scored:
+      </p>
+
+      {/* Big score number — counts up */}
+      <div style={{ animation: 'hol-scoreIn 0.6s 0.15s cubic-bezier(0.34,1.56,0.64,1) both' }}>
+        <p className="font-black"
           style={{
-            fontSize: 96,
-            color: '#FFD700',
-            textShadow: '0 4px 32px rgba(255,215,0,0.4)',
+            fontSize: 108,
             lineHeight: 1,
+            color: '#FFD700',
+            animation: 'hol-glowPulse 2s 0.75s ease-in-out infinite',
           }}>
-          {score}
+          {displayed}
         </p>
-        {isNewBest && (
-          <span className="mt-2 px-4 py-1 rounded-full text-xs font-black tracking-widest uppercase"
-            style={{ background: 'rgba(255,215,0,0.2)', border: '1px solid rgba(255,215,0,0.5)', color: '#FFD700' }}>
-            🏆 New Best!
-          </span>
-        )}
       </div>
 
-      {/* Message */}
-      <p className="text-white text-center text-sm leading-relaxed mt-6 max-w-xs"
-        style={{ animation: 'holSlideUp 0.4s 0.1s ease-out both' }}>
+      {/* New best badge */}
+      {isNewBest && (
+        <div className="mt-2 px-4 py-1 rounded-full text-xs font-black tracking-widest uppercase"
+          style={{
+            background: 'rgba(255,215,0,0.18)',
+            border: '1px solid rgba(255,215,0,0.6)',
+            color: '#FFD700',
+            animation: 'hol-newBest 0.6s 0.7s cubic-bezier(0.34,1.56,0.64,1) both',
+          }}>
+          🏆 New Best!
+        </div>
+      )}
+
+      {/* Witty message */}
+      <p className="text-white text-center text-sm leading-relaxed mt-5 max-w-[280px]"
+        style={{ animation: 'hol-slideUp 0.5s 0.3s ease-out both' }}>
         {message}
       </p>
 
-      {/* Buttons */}
-      <div className="flex flex-col gap-3 w-full max-w-xs mt-8"
-        style={{ animation: 'holSlideUp 0.4s 0.18s ease-out both' }}>
+      {/* Score bar vs best */}
+      {best > 0 && !isNewBest && (
+        <div className="w-full max-w-xs mt-4" style={{ animation: 'hol-slideUp 0.5s 0.35s ease-out both' }}>
+          <div className="flex justify-between text-xs text-white/40 mb-1">
+            <span>This game</span>
+            <span>Your best: {best}</span>
+          </div>
+          <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
+            <div className="h-full rounded-full"
+              style={{
+                width: `${Math.min(100, (score / best) * 100)}%`,
+                background: 'linear-gradient(90deg,#4EF064,#FFD700)',
+                transition: 'width 1s 0.5s ease-out',
+              }} />
+          </div>
+        </div>
+      )}
 
-        {/* Play Again */}
+      {/* Buttons */}
+      <div className="flex flex-col gap-3 w-full max-w-xs mt-7">
         <button type="button" onClick={onPlayAgain}
           className="w-full py-4 rounded-full font-black text-base text-black active:scale-95 transition-transform"
           style={{
             background: 'linear-gradient(180deg,#B8F77D 0%,#7BE056 100%)',
-            boxShadow: '0 4px 0 #3a7a1a, 0 6px 20px rgba(123,224,86,0.35)',
+            boxShadow: '0 4px 0 #3a7a1a, 0 8px 24px rgba(123,224,86,0.4)',
+            animation: 'hol-btnIn 0.45s 0.42s ease-out both',
           }}>
-          ↺ Play Again
+          ↺  Play Again
         </button>
 
-        {/* Back to menu */}
         <button type="button" onClick={onBack}
           className="w-full py-3.5 rounded-full font-bold text-base text-white active:scale-95 transition-transform"
           style={{
             background: 'transparent',
-            border: '2px solid rgba(255,255,255,0.3)',
+            border: '2px solid rgba(255,255,255,0.28)',
+            animation: 'hol-btnIn 0.45s 0.5s ease-out both',
           }}>
           Back to menu
         </button>
 
-        {/* Leaderboard */}
         <button type="button" onClick={onLeaderboard}
           className="w-full py-3.5 rounded-full font-bold text-base active:scale-95 transition-transform flex items-center justify-center gap-2"
           style={{
             background: 'transparent',
-            border: '2px solid rgba(255,215,0,0.4)',
+            border: '2px solid rgba(255,215,0,0.38)',
             color: '#FFD700',
+            animation: 'hol-btnIn 0.45s 0.58s ease-out both',
           }}>
           <Trophy size={16} />
           Leaderboard
         </button>
       </div>
 
-      {/* Best score footnote */}
-      {best > 0 && (
-        <p className="mt-5 text-white/35 text-xs"
-          style={{ animation: 'holSlideUp 0.4s 0.25s ease-out both' }}>
-          Your best: {best}
-        </p>
-      )}
+      <div style={{ height: 24 }} />
     </div>
   )
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
-
 export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }) {
   const navigate = useNavigate()
 
-  // ── Data ────────────────────────────────────────────────────────────────────
-  const [categories, setCategories] = useState([])  // enriched category list
-  const [dataError, setDataError]   = useState(null)
-  const [dataLoading, setDataLoading] = useState(true)
+  const [categories,   setCategories]   = useState([])
+  const [dataError,    setDataError]    = useState(null)
+  const [dataLoading,  setDataLoading]  = useState(true)
 
-  // ── Game state ──────────────────────────────────────────────────────────────
-  // phase: 'home' | 'playing' | 'gameover'
-  const [phase, setPhase]       = useState('home')
-  const [deck, setDeck]         = useState([])
-  const [leftItem, setLeftItem] = useState(null)
-  const [rightItem, setRightItem] = useState(null)
-  const [score, setScore]       = useState(0)
-  const [best, setBest]         = useState(0)
-  const [streak, setStreak]     = useState(0)
-  const [reveal, setReveal]     = useState(null)   // null | 'correct' | 'wrong'
-  const [locked, setLocked]     = useState(false)
+  const [phase,      setPhase]      = useState('home')
+  const [deck,       setDeck]       = useState([])
+  const [leftItem,   setLeftItem]   = useState(null)
+  const [rightItem,  setRightItem]  = useState(null)
+  const [score,      setScore]      = useState(0)
+  const [best,       setBest]       = useState(0)
+  const [streak,     setStreak]     = useState(0)
+  const [reveal,     setReveal]     = useState(null)   // null | 'correct' | 'wrong'
+  const [locked,     setLocked]     = useState(false)
+
+  // animKey increments each round to re-trigger card entrance animations
+  const [animKey, setAnimKey] = useState(0)
+  // vsPulse triggers a VS badge bounce on each guess
+  const [vsPulse, setVsPulse] = useState(false)
 
   const onGameEndRef     = useRef(onGameEnd)
   const onScoreUpdateRef = useRef(onScoreUpdate)
@@ -367,7 +361,7 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
   useEffect(() => { onScoreUpdateRef.current = onScoreUpdate }, [onScoreUpdate])
   const endCalledRef = useRef(false)
 
-  // ── Load data once ──────────────────────────────────────────────────────────
+  // Load data
   useEffect(() => {
     fetch(DATA_URL)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
@@ -375,12 +369,11 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
       .catch(err => { setDataError(err.message); setDataLoading(false) })
   }, [])
 
-  // ── Prefetch next card image ─────────────────────────────────────────────────
+  // Prefetch next image
   useEffect(() => {
-    if (deck.length > 0 && deck[0]?.image) {
-      const img = new Image(); img.src = deck[0].image
-    }
-  }, [deck])  // ── Start / restart ──────────────────────────────────────────────────────────
+    if (deck.length > 0 && deck[0]?.image) { const i = new Image(); i.src = deck[0].image }
+  }, [deck])
+
   const startGame = useCallback(() => {
     if (categories.length === 0) return
     const { shuffled } = pickCategory(categories)
@@ -392,15 +385,19 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
     setStreak(0)
     setReveal(null)
     setLocked(false)
+    setAnimKey(k => k + 1)
     endCalledRef.current = false
     setPhase('playing')
     onScoreUpdateRef.current(0)
   }, [categories])
 
-  // ── Guess ────────────────────────────────────────────────────────────────────
   const handleGuess = useCallback((guess) => {
     if (locked || reveal || phase !== 'playing') return
     setLocked(true)
+
+    // VS badge bounce on each guess
+    setVsPulse(true)
+    setTimeout(() => setVsPulse(false), 500)
 
     const isTie     = rightItem.value === leftItem.value
     const isHigher  = rightItem.value > leftItem.value
@@ -418,8 +415,9 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
       setTimeout(() => {
         setReveal(null)
         setLocked(false)
+        setAnimKey(k => k + 1)
+
         if (deck.length === 0) {
-          // Current category exhausted — pick a new random category
           const { shuffled } = pickCategory(categories)
           setDeck(shuffled.slice(1))
           setLeftItem(rightItem)
@@ -445,7 +443,7 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
     }
   }, [locked, reveal, phase, rightItem, leftItem, score, streak, deck, categories])
 
-  // ── Keyboard ─────────────────────────────────────────────────────────────────
+  // Keyboard
   useEffect(() => {
     if (phase !== 'playing') return
     const onKey = (e) => {
@@ -456,80 +454,70 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
     return () => window.removeEventListener('keydown', onKey)
   }, [phase, handleGuess])
 
-  // ── Start game when data loads OR when becoming active ──
+  // Auto-start once data loads
   const hasStartedRef = useRef(false)
   useEffect(() => {
-    // Start once when data loads (auto-start on first mount)
     if (categories.length > 0 && phase === 'home' && !hasStartedRef.current) {
       hasStartedRef.current = true
       startGame()
     }
   }, [categories, phase, startGame])
 
-  // ── Handlers ─────────────────────────────────────────────────────────────────
-  const handlePlayAgain  = useCallback(() => startGame(), [startGame])
+  const handlePlayAgain   = useCallback(() => { hasStartedRef.current = false; startGame() }, [startGame])
   const handleLeaderboard = useCallback(() => navigate('/app/arcade/higherorlower?view=leaderboard'), [navigate])
-  // Back button goes to arcade home, not internal landing screen
-  const handleGoHome = useCallback(() => navigate('/app/arcade'), [navigate])
+  const handleGoHome      = useCallback(() => navigate('/app/arcade'), [navigate])
 
-  // ── Loading / Error ───────────────────────────────────────────────────────────
   if (dataLoading) {
     return (
-      <div className="absolute inset-0 flex items-center justify-center" style={{ background:'#0a0e1a' }}>
+      <div className="absolute inset-0 flex items-center justify-center" style={{ background: '#0a0e1a' }}>
         <div className="flex flex-col items-center gap-3">
-          <div className="rounded-full" style={{
-            width:40, height:40,
-            border:'3px solid rgba(255,255,255,0.1)', borderTopColor:'#6C47FF',
-            animation:'spin 0.8s linear infinite',
-          }}/>
+          <div style={{ width:40, height:40, borderRadius:'50%', border:'3px solid rgba(255,255,255,0.1)', borderTopColor:'#FFD700', animation:'hol-spin 0.8s linear infinite' }} />
           <p className="text-white/40 text-sm">Loading…</p>
         </div>
-        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        <style>{GLOBAL_CSS}</style>
       </div>
     )
   }
+
   if (dataError) {
     return (
-      <div className="absolute inset-0 flex items-center justify-center p-6" style={{ background:'#0a0e1a' }}>
+      <div className="absolute inset-0 flex items-center justify-center p-6" style={{ background: '#0a0e1a' }}>
         <div className="text-center">
           <p className="text-white/60 text-sm mb-4">Failed to load game data.</p>
           <button type="button" onClick={() => window.location.reload()}
             className="px-4 py-2 rounded-xl text-sm font-bold text-black"
-            style={{ background:'#B8F77D' }}>Retry</button>
+            style={{ background: '#B8F77D' }}>Retry</button>
         </div>
+        <style>{GLOBAL_CSS}</style>
       </div>
     )
   }
 
-  // ── Playing + Game Over ───────────────────────────────────────────────────────
   return (
-    <div className="absolute inset-0 flex flex-col overflow-hidden"
-      style={{ background:'#000' }}>
+    <div className="absolute inset-0 flex flex-col overflow-hidden" style={{ background: '#000' }}>
+      <style>{GLOBAL_CSS}</style>
 
-      {/* Score bar — always visible at top */}
+      {/* Score bar */}
       <div className="flex-shrink-0 flex items-center justify-between px-4"
-        style={{
-          height: 44,
-          background: 'rgba(0,0,0,0.85)',
-          paddingTop: 'env(safe-area-inset-top,0px)',
-          zIndex: 30,
-        }}>
-        <span className="text-white font-bold text-sm">High Score: {best}</span>
-        <span className="text-white font-bold text-sm">Score: {score}</span>
+        style={{ height: 44, background: 'rgba(0,0,0,0.88)', paddingTop: 'env(safe-area-inset-top,0px)', zIndex: 30 }}>
+        <span className="text-white font-bold text-sm" style={{ animation: 'hol-slideDown 0.4s both' }}>
+          High Score: {best}
+        </span>
+        <span key={score} className="text-white font-bold text-sm"
+          style={{ animation: score > 0 ? 'hol-popBounce 0.4s cubic-bezier(0.34,1.56,0.64,1) both' : undefined }}>
+          Score: {score}
+        </span>
       </div>
 
-      {/* Stacked cards — each takes exactly half the remaining height */}
+      {/* Stacked cards */}
       <div className="relative flex flex-col flex-1 min-h-0">
 
-        {/* TOP card — left item, always revealed */}
         <div className="relative flex-1 min-h-0">
-          <TopCard item={leftItem} />
+          <TopCard item={leftItem} animKey={animKey} />
         </div>
 
-        {/* VS badge — centred on the seam */}
-        <VsDivider />
+        <VsDivider pulse={vsPulse} />
 
-        {/* BOTTOM card — right item */}
         <div className="relative flex-1 min-h-0">
           <BottomCard
             item={rightItem}
@@ -539,10 +527,10 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
             phase={phase}
             locked={locked}
             onGuess={handleGuess}
+            animKey={animKey}
           />
         </div>
 
-        {/* Game over overlay */}
         {phase === 'gameover' && (
           <GameOverOverlay
             score={score}
@@ -553,11 +541,6 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
           />
         )}
       </div>
-
-      <style>{`
-        @keyframes holFadeIn  { from{opacity:0} to{opacity:1} }
-        @keyframes holSlideUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
-      `}</style>
     </div>
   )
 }
