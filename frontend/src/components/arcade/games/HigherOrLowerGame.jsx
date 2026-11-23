@@ -516,7 +516,7 @@ export default function HigherOrLowerGame({ onGameEnd, onScoreUpdate, isActive }
           <TopCard item={leftItem} animKey={animKey} />
         </div>
 
-        <VsDivider pulse={vsPulse} />
+        {phase !== 'gameover' && <VsDivider pulse={vsPulse} />}
 
         <div className="relative flex-1 min-h-0">
           <BottomCard
