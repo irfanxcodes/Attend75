@@ -28,6 +28,14 @@ function buildUpiQrValue(amount) {
   return `upi://pay?pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent(UPI_NAME)}&am=${amount}&cu=INR`
 }
 
+// App-specific deep links — more trusted than generic upi:// from browser context
+function buildGPayLink(amount) {
+  return `tez://upi/pay?pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent(UPI_NAME)}&am=${amount}&cu=INR`
+}
+function buildPhonePeLink(amount) {
+  return `phonepe://pay?pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent(UPI_NAME)}&am=${amount}&cu=INR`
+}
+
 // ── Custom Amount Modal ───────────────────────────────────────────────────────
 function CustomAmountModal({ onConfirm, onClose }) {
   const [val, setVal] = useState('')
@@ -118,7 +126,45 @@ function ThankYouModal({ onClose }) {
   )
 }
 
-// ── Shared inner layout used by all card styles ───────────────────────────────
+// ── Copy UPI ID button ───────────────────────────────────────────────────────
+function CopyUpiButton({ amount, labelColor, subtextColor, textColor, onCopied }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(UPI_ID).then(() => {
+      setCopied(true)
+      onCopied?.()
+      setTimeout(() => setCopied(false), 2000)
+    }).catch(() => {
+      // Fallback for browsers without clipboard API
+      const el = document.createElement('textarea')
+      el.value = UPI_ID
+      document.body.appendChild(el)
+      el.select()
+      document.execCommand('copy')
+      document.body.removeChild(el)
+      setCopied(true)
+      onCopied?.()
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="w-full rounded-xl py-1.5 text-[10px] font-bold transition active:scale-95 text-center"
+      style={copied
+        ? { background: 'rgba(78,240,160,0.15)', color: '#4EF0A0', border: '1px solid rgba(78,240,160,0.3)' }
+        : { background: 'rgba(255,255,255,0.07)', color: textColor, border: '1px solid rgba(255,255,255,0.1)' }
+      }
+    >
+      {copied ? '✓ Copied!' : `Copy UPI ID`}
+    </button>
+  )
+}
+
+// ── Shared inner layout ───────────────────────────────────────────────────────
 // Left: label + heading + amount presets
 // Right: QR code (scan) + Pay button (tap)
 function CardBody({ label, labelColor = '#FF916C', heading, subtext, subtextColor = '#9F9AB5', amount, onAmountChange, onPayClick, onCustomClick, qrBg = '#ffffff', qrFg = '#000000', cardBg, border, textColor = '#F7F4FF', children }) {
@@ -175,32 +221,48 @@ function CardBody({ label, labelColor = '#FF916C', heading, subtext, subtextColo
           )}
         </div>
 
-        {/* ── RIGHT — QR + Pay button ── */}
+        {/* ── RIGHT — QR + actions ── */}
         <div
           className="flex flex-col items-center justify-between px-3 py-3.5 gap-2 shrink-0"
           style={{ borderLeft: border || '1px solid rgba(255,255,255,0.07)' }}
         >
-          {/* QR — scan only, does NOT open link on tap */}
-          <div className="rounded-lg overflow-hidden shadow-sm">
-            <QRCodeSVG
-              value={buildUpiQrValue(amount || PRESETS[0])}
-              size={96}
-              bgColor={qrBg}
-              fgColor={qrFg}
-              level="M"
-              style={{ display: 'block' }}
-            />
+          {/* QR — scan only */}
+          <div>
+            <div className="rounded-lg overflow-hidden shadow-sm">
+              <QRCodeSVG
+                value={buildUpiQrValue(amount || PRESETS[0])}
+                size={96}
+                bgColor={qrBg}
+                fgColor={qrFg}
+                level="M"
+                style={{ display: 'block' }}
+              />
+            </div>
+            <p className="text-center mt-1 text-[8px] font-semibold uppercase tracking-wide" style={{ color: subtextColor }}>Scan to pay</p>
           </div>
-          <p className="text-[8px] font-semibold uppercase tracking-wide" style={{ color: subtextColor }}>Scan to pay</p>
-          {/* Pay button — opens UPI deep link */}
-          <button
-            type="button"
-            onClick={onPayClick}
-            className="w-full rounded-xl py-1.5 text-[11px] font-bold transition active:scale-95"
-            style={{ background: labelColor, color: '#1D183E' }}
-          >
-            Pay ₹{amount || PRESETS[0]}
-          </button>
+
+          {/* Copy UPI ID */}
+          <CopyUpiButton amount={amount || PRESETS[0]} labelColor={labelColor} subtextColor={subtextColor} textColor={textColor} onCopied={onPayClick} />
+
+          {/* App shortcuts */}
+          <div className="flex gap-2 w-full">
+            <a
+              href={buildGPayLink(amount || PRESETS[0])}
+              onClick={onPayClick}
+              className="flex-1 flex items-center justify-center rounded-lg py-1 text-[10px] font-bold transition active:scale-95"
+              style={{ background: 'rgba(255,255,255,0.08)', color: textColor }}
+            >
+              GPay
+            </a>
+            <a
+              href={buildPhonePeLink(amount || PRESETS[0])}
+              onClick={onPayClick}
+              className="flex-1 flex items-center justify-center rounded-lg py-1 text-[10px] font-bold transition active:scale-95"
+              style={{ background: 'rgba(255,255,255,0.08)', color: textColor }}
+            >
+              PhonePe
+            </a>
+          </div>
         </div>
       </div>
       {children}
@@ -339,11 +401,10 @@ export default function SupportCard() {
     trackSupportEvent({ token, card_style: cardStyle, action_type: 'view', amount: null })
   }, [token, cardStyle])
 
-  // Opens UPI app with pre-filled amount (GPay / PhonePe / Paytm)
+  // Tracks when user copies UPI or taps an app link
   const handlePayClick = () => {
     if (token) trackSupportEvent({ token, card_style: cardStyle, action_type: 'click_amount', amount })
-    window.location.href = buildUpiDeepLink(amount || PRESETS[0])
-    setTimeout(() => setShowThankYou(true), 1800)
+    setTimeout(() => setShowThankYou(true), 800)
   }
 
   const handleAmountChange = (val) => {
