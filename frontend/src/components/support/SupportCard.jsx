@@ -12,16 +12,6 @@ const UPI_NAME = 'Attend75'
 const PRESETS  = [49, 99, 149]
 const CARD_STYLES = ['pulse', 'aurora', 'ticket', 'pick', 'sticker', 'chat']
 
-function getCardStyleForToday() {
-  const dayOfYear = Math.floor(Date.now() / 86400000)
-  return CARD_STYLES[dayOfYear % CARD_STYLES.length]
-}
-
-// UPI QR value kept for reference (not used in card — static image used instead)
-// function buildUpiQrValue(amount) {
-//   return `upi://pay?pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent(UPI_NAME)}&am=${amount}&cu=INR`
-// }
-
 // ── Custom Amount Modal ───────────────────────────────────────────────────────
 function CustomAmountModal({ onConfirm, onClose }) {
   const [val, setVal] = useState('')
