@@ -22,9 +22,7 @@ from db.models import notice  # noqa: F401
 from db.models import notification_history  # noqa: F401
 from db.models import notification_job  # noqa: F401
 from db.models import notification_preference  # noqa: F401
-from db.models import payment_transaction  # noqa: F401
 from db.models import portal_credential  # noqa: F401
-from db.models import premium_subscription  # noqa: F401
 from db.models import premium_waitlist  # noqa: F401
 from db.models import push_subscription  # noqa: F401
 from db.models import pwa_install  # noqa: F401

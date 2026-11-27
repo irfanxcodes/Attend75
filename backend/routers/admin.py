@@ -240,36 +240,16 @@ async def admin_feedback_reply(
 
 @router.get("/premium/analytics", response_model=ApiResponse)
 async def admin_premium_analytics(_: dict = Depends(require_admin_user)):
-	"""Premium subscription analytics and notification queue health."""
+	"""Push notification and queue health analytics."""
 	from services.premium_analytics_service import get_premium_analytics
 
 	try:
 		data = await run_in_threadpool(get_premium_analytics)
-		return ApiResponse(status="success", message="Premium analytics fetched", data=data)
+		return ApiResponse(status="success", message="Analytics fetched", data=data)
 	except Exception:
-		logger.exception("Failed to fetch premium analytics")
-		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to fetch premium analytics"})
+		logger.exception("Failed to fetch analytics")
+		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to fetch analytics"})
 
-
-@router.post("/premium/{roll_number}/toggle", response_model=ApiResponse)
-async def admin_toggle_premium(roll_number: str, payload: dict, _: dict = Depends(require_admin_user)):
-	"""Enable or disable a student's premium subscription."""
-	from services.premium_service import activate_premium, expire_subscription, get_subscription_status
-
-	action = (payload.get("action") or "").strip()
-	if action not in ("activate", "expire"):
-		return JSONResponse(status_code=422, content={"status": "error", "message": "action must be 'activate' or 'expire'"})
-
-	try:
-		if action == "activate":
-			await run_in_threadpool(activate_premium, roll_number)
-		else:
-			await run_in_threadpool(expire_subscription, roll_number)
-		status = await run_in_threadpool(get_subscription_status, roll_number)
-		return ApiResponse(status="success", message=f"Premium {action}d for {roll_number}", data=status)
-	except Exception:
-		logger.exception("Failed to toggle premium for %s", roll_number)
-		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to toggle premium"})
 
 
 @router.get("/broadcast/stats", response_model=ApiResponse)
@@ -1027,3 +1007,70 @@ async def get_proxy_monitor_status(_: dict = Depends(require_admin_user)):
 			"all_status": monitor.get_all_status(),
 		}
 	)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Support Contributions Management
+# ═══════════════════════════════════════════════════════════════════════════
+
+@router.get("/support/contributions", response_model=ApiResponse)
+async def admin_get_contributions(
+	_: dict = Depends(require_admin_user),
+	limit: int = Query(100, ge=1, le=500),
+	offset: int = Query(0, ge=0),
+):
+	"""Get all support contributions for admin review (paginated)."""
+	from services import support_service
+	
+	try:
+		contributions = await run_in_threadpool(support_service.get_all_contributions, limit, offset)
+		stats = await run_in_threadpool(support_service.get_contribution_stats)
+		return ApiResponse(
+			status="success",
+			message="Contributions fetched",
+			data={
+				"contributions": contributions,
+				"stats": stats,
+				"pagination": {"limit": limit, "offset": offset}
+			}
+		)
+	except Exception:
+		logger.exception("Failed to fetch support contributions")
+		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to fetch contributions"})
+
+
+@router.patch("/support/contributions/{contribution_id}", response_model=ApiResponse)
+async def admin_update_contribution(
+	contribution_id: int,
+	payload: dict,
+	_: dict = Depends(require_admin_user),
+):
+	"""
+	Update a contribution's status or UTR reference.
+	Payload: { status?: 'pending' | 'thanked' | 'confirmed', utr_reference?: string }
+	"""
+	from services import support_service
+	
+	status = payload.get("status")
+	utr_reference = payload.get("utr_reference")
+	
+	if not status and not utr_reference:
+		return JSONResponse(status_code=422, content={"status": "error", "message": "status or utr_reference required"})
+	
+	try:
+		result = await run_in_threadpool(
+			support_service.update_contribution_status,
+			contribution_id,
+			status or "pending",
+			utr_reference
+		)
+		if result is None:
+			return JSONResponse(status_code=404, content={"status": "error", "message": "Contribution not found"})
+		
+		return ApiResponse(status="success", message="Contribution updated", data=result)
+	except ValueError as e:
+		return JSONResponse(status_code=422, content={"status": "error", "message": str(e)})
+	except Exception:
+		logger.exception("Failed to update contribution")
+		return JSONResponse(status_code=500, content={"status": "error", "message": "Unable to update contribution"})
+

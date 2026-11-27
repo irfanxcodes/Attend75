@@ -10,7 +10,6 @@ A college attendance tracking and study management application for ICFAI / IBS s
 
 **Database:** SQLite (development) · PostgreSQL (production)
 
-**Payments:** PhonePe UPI Autopay (₹19/month)
 
 **Deployment:** Cloudflare Pages (frontend) · Oracle Cloud Free Tier (backend)
 
@@ -28,7 +27,6 @@ A college attendance tracking and study management application for ICFAI / IBS s
         │                       ├── In-memory Session Store
         │                       ├── DB-backed Notification Queue
         │                       ├── Firebase Admin SDK
-        │                       └── PhonePe Payment Gateway
         │
         ├── Firebase Auth (Google Sign-In)
         └── Web Push API (VAPID, browser service worker)
@@ -42,7 +40,7 @@ A college attendance tracking and study management application for ICFAI / IBS s
 4. A session token is issued; the scraper instance is stored in memory with a 12-hour TTL
 5. All subsequent requests (attendance, marks, history, faculty) use the same scraper session
 6. Multi-layer caching at the scraper level minimises portal requests
-7. Background fetcher periodically refreshes data for Firebase-linked premium users
+7. Background fetcher periodically refreshes data for Firebase-linked users
 
 ---
 
@@ -95,8 +93,8 @@ A college attendance tracking and study management application for ICFAI / IBS s
 - Language course matching (IMIL/FML ↔ MLH/MLT/MLS etc.)
 - Embedded directly in the Notice Board page
 
-### Push Notifications (Premium)
-Premium users (₹19/month) receive Web Push notifications via browser service worker:
+### Push Notifications
+Premium users receive Web Push notifications via browser service worker:
 
 - **Notice alerts** — new notices filtered by enrolled program and category preferences
 - **Deadline reminders** — 3-day and 1-day reminders for notices with deadlines
@@ -109,10 +107,8 @@ Premium users (₹19/month) receive Web Push notifications via browser service w
 - **Timetable change** — instant push when a new timetable notice is posted
 
 ### Premium Subscription
-- ₹19/month via PhonePe UPI Autopay mandate
-- Gated features: Push Notifications, Background Fetcher, Timetable Reminders
-- Grace period after payment failure before access is revoked
-- In-app subscription status, cancel, and transaction history
+- Waitlist-based — users can join the waitlist; active payment integration is not currently enabled
+- Planned features: Push Notifications, Background Fetcher, Timetable Reminders
 
 ### Notification Settings
 - Master toggles per category (notices, attendance, timetable, digest, weekly summary)
@@ -145,7 +141,7 @@ Premium users (₹19/month) receive Web Push notifications via browser service w
 - Feature usage analytics (mail faculty, marks views, etc.)
 - Feedback management with status workflow
 - StudyMe analytics
-- Broadcast push notifications to all premium users or by program
+- Broadcast push notifications to push-subscribed users or by program
 - Background fetcher health monitoring
 
 ---
@@ -173,8 +169,6 @@ Attend75/
 │   │       ├── user_rating.py
 │   │       ├── notice.py                  # Notice board entries + PDF metadata
 │   │       ├── user_notice.py             # Per-user bookmark/dismiss state
-│   │       ├── premium_subscription.py    # PhonePe subscription + status
-│   │       ├── payment_transaction.py     # PhonePe payment history
 │   │       ├── push_subscription.py       # Web Push endpoint (encrypted)
 │   │       ├── notification_preference.py # Per-user push preferences
 │   │       ├── notification_job.py        # DB-backed job queue
@@ -220,8 +214,7 @@ Attend75/
 │   │   ├── notice_dispatcher.py         # New-notice → push job dispatch
 │   │   ├── timetable_service.py         # Timetable parsing + personalisation
 │   │   ├── timetable_reminder_engine.py # Daily class reminder + digest scheduler
-│   │   ├── premium_service.py           # Premium status / gating
-│   │   ├── phonepe_service.py           # UPI Autopay mandate + webhook
+│   │   ├── premium_service.py           # Premium status stub (no active payment)
 │   │   ├── subscription_manager.py      # Push subscription CRUD + encryption
 │   │   ├── push_worker.py               # Web Push delivery worker (pywebpush)
 │   │   ├── payload_builder.py           # Notification payload builder (4KB cap)
@@ -341,11 +334,8 @@ Attend75/
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/premium/status` | Subscription status + expiry |
-| POST | `/premium/subscribe` | Initiate PhonePe UPI Autopay mandate |
-| POST | `/premium/cancel` | Cancel subscription |
-| POST | `/premium/webhook` | PhonePe payment callback (HMAC-verified) |
-| GET | `/premium/transactions` | Payment transaction history |
+| GET | `/premium/status` | Subscription status (always non-premium) |
+| POST | `/premium/waitlist` | Join the premium waitlist |
 
 ### Admin
 
@@ -366,12 +356,12 @@ All schedulers run as `threading.Timer` daemon threads started at app startup.
 | Scheduler | Trigger | Purpose |
 |-----------|---------|---------|
 | `NoticeScheduler` | Every 30 min | Scrape portal for new notices, process PDFs, dispatch push jobs |
-| `TimetableReminderScheduler` | Daily 5:30 AM IST | Schedule per-class reminders + daily digest for premium students |
+| `TimetableReminderScheduler` | Daily 5:30 AM IST | Schedule per-class reminders + daily digest for push-subscribed students |
 | `TimetableReminderScheduler` (evening) | Daily 9:00 PM IST | Send tomorrow's schedule preview |
 | `DeadlineScheduler` | Daily 7:00 AM IST | 3-day and 1-day deadline reminders for notice deadlines |
 | `WeeklySummaryScheduler` | Monday 9:00 AM IST | Weekly attendance summary push |
 | `NudgeScheduler` | Daily 10:00 AM IST | Re-engagement push for inactive students (3–14 days) |
-| `BackgroundFetchScheduler` | Every 6 hours | Portal attendance fetch for Firebase-linked premium users |
+| `BackgroundFetchScheduler` | Every 6 hours | Portal attendance fetch for Firebase-linked users |
 | `RetentionScheduler` | Daily | Clean up stale sessions and old data |
 | `PushWorker` | Continuous (10 threads) | Dequeue `push_send` jobs and deliver via pywebpush |
 
@@ -476,10 +466,6 @@ After the streak endpoint populates the history cache, all date clicks on the Hi
 | `VAPID_PUBLIC_KEY` | None | VAPID public key for Web Push |
 | `VAPID_PRIVATE_KEY` | None | VAPID private key for Web Push |
 | `VAPID_CONTACT_EMAIL` | None | VAPID contact email (mailto:) |
-| `PHONEPE_MERCHANT_ID` | None | PhonePe merchant ID |
-| `PHONEPE_SALT_KEY` | None | PhonePe salt key for HMAC verification |
-| `PHONEPE_SALT_INDEX` | `1` | PhonePe salt key index |
-| `PHONEPE_ENV` | `production` | `production` or `sandbox` |
 
 ### Frontend
 
@@ -564,7 +550,6 @@ python -c "from py_vapid import Vapid; v = Vapid(); v.generate_keys(); print('Pu
 - Set `FIREBASE_SERVICE_ACCOUNT_FILE` to credentials path
 - Set `ADMIN_PASSWORD_HASH` for admin access
 - Set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_CONTACT_EMAIL` for push
-- Set `PHONEPE_MERCHANT_ID`, `PHONEPE_SALT_KEY` for payments
 - Set `CORS_ALLOW_ORIGINS=https://attend75.xyz,https://www.attend75.xyz`
 
 ---
@@ -583,8 +568,6 @@ python -c "from py_vapid import Vapid; v = Vapid(); v.generate_keys(); print('Pu
 | `user_ratings` | App star ratings (1-5) |
 | `notices` | College notice board entries (title, category, summary, deadline, PDF path) |
 | `user_notices` | Per-user bookmark and dismiss state |
-| `premium_subscriptions` | PhonePe subscription status (active/grace/expired/cancelled) |
-| `payment_transactions` | PhonePe payment history |
 | `push_subscriptions` | Web Push endpoints (Fernet-encrypted at rest) |
 | `notification_preferences` | Per-user push preference flags and timing settings |
 | `notification_jobs` | DB-backed job queue (push_send, attendance_fetch, etc.) |

@@ -168,3 +168,21 @@ export async function triggerStorageHealthCheck(sessionToken) {
 }
 
 export { ADMIN_STORAGE_KEY, AdminApiError, parseAdminSession, saveAdminSession, clearAdminSession }
+
+// ── Support Contributions ─────────────────────────────────────────────────────
+export async function getAdminContributions(limit = 100, offset = 0) {
+  const session = parseAdminSession()
+  return requestAdminJson(
+    `${API_BASE_URL}/admin/support/contributions?limit=${limit}&offset=${offset}`,
+    { headers: authHeaders(session?.token) }
+  )
+}
+
+export async function updateContributionStatus(id, payload) {
+  const session = parseAdminSession()
+  return requestAdminJson(`${API_BASE_URL}/admin/support/contributions/${id}`, {
+    method: 'PATCH',
+    headers: authHeaders(session?.token),
+    body: JSON.stringify(payload),
+  })
+}

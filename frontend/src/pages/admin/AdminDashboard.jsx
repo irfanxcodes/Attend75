@@ -25,6 +25,7 @@ import AdvertisementsPage from '../../components/admin/AdvertisementsPage'
 import StorageCapPage from '../../components/admin/StorageCapPage'
 import StudyMeAnalyticsPage from '../../components/admin/StudyMeAnalyticsPage'
 import ProxyMonitorPage from '../../components/admin/ProxyMonitorPage'
+import SupportContributionsPage from '../../components/admin/SupportContributionsPage'
 
 function AdminDashboard() {
   const navigate = useNavigate()
@@ -185,6 +186,8 @@ function AdminDashboard() {
             />
           ) : activeSection === 'premium-analytics' ? (
             <PremiumAnalyticsPage />
+          ) : activeSection === 'support-contributions' ? (
+            <SupportContributionsPage />
           ) : activeSection === 'subject-requests' ? (
             <SubjectRequestsPage
               analytics={analytics}

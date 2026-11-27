@@ -75,9 +75,9 @@ function WaitlistPage({ analytics, onRefresh, isLoading }) {
         <div className="rounded-2xl border border-white/[0.06] bg-[#2a2440] p-5">
           <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#7a6f94]">Conversion Potential</p>
           <span className="mt-2 block text-[32px] font-bold text-[#4EF0A0]">
-            {total > 0 ? `₹${formatNumber(total * 19)}` : '—'}
+            {total > 0 ? formatNumber(total) : '—'}
           </span>
-          <p className="mt-1 text-[10px] text-[#9F9AB5]">est. MRR at ₹19/mo</p>
+          <p className="mt-1 text-[10px] text-[#9F9AB5]">waitlisted students</p>
         </div>
       </div>
 

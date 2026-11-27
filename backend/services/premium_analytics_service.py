@@ -17,7 +17,6 @@ from sqlalchemy import func, distinct
 from db.models.notification_history import NotificationHistory
 from db.models.notification_job import NotificationJob
 from db.models.notification_preference import NotificationPreference
-from db.models.premium_subscription import PremiumSubscription
 from db.models.push_subscription import PushSubscription
 from db.models.student_registry import StudentRegistry
 from db.session import SessionLocal
@@ -28,29 +27,6 @@ logger = logging.getLogger(__name__)
 def get_premium_analytics() -> dict:
     """Full premium analytics payload for admin UI."""
     with SessionLocal() as session:
-        # ── Premium subscriptions ────────────────────────────────────────────
-        total_premium = int(session.query(func.count(PremiumSubscription.id)).scalar() or 0)
-        active_count = int(
-            session.query(func.count(PremiumSubscription.id))
-            .filter(PremiumSubscription.status == "active")
-            .scalar() or 0
-        )
-        grace_count = int(
-            session.query(func.count(PremiumSubscription.id))
-            .filter(PremiumSubscription.status == "grace")
-            .scalar() or 0
-        )
-        expired_count = int(
-            session.query(func.count(PremiumSubscription.id))
-            .filter(PremiumSubscription.status == "expired")
-            .scalar() or 0
-        )
-        cancelled_count = int(
-            session.query(func.count(PremiumSubscription.id))
-            .filter(PremiumSubscription.status == "cancelled")
-            .scalar() or 0
-        )
-
         # ── Push subscriptions ───────────────────────────────────────────────
         total_push_subs = int(session.query(func.count(PushSubscription.id)).scalar() or 0)
         unique_push_students = int(
@@ -213,19 +189,7 @@ def get_premium_analytics() -> dict:
                 "lastUsedAt": last_used.isoformat() if last_used else None,
             })
 
-    # Total students for conversion rate
-    with SessionLocal() as session:
-        total_students = int(session.query(func.count(StudentRegistry.roll_number)).scalar() or 0)
-
     return {
-        "subscriptions": {
-            "total": total_premium,
-            "active": active_count,
-            "grace": grace_count,
-            "expired": expired_count,
-            "cancelled": cancelled_count,
-            "conversionRate": round((active_count / total_students) * 100, 2) if total_students else 0,
-        },
         "pushSubscriptions": {
             "totalDevices": total_push_subs,
             "uniqueStudents": unique_push_students,
@@ -252,5 +216,4 @@ def get_premium_analytics() -> dict:
         },
         "recentBroadcasts": broadcasts,
         "students": students_list,
-        "totalStudents": total_students,
     }

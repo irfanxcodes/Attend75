@@ -115,11 +115,7 @@ function Premium() {
             <p className="mt-2 text-[13px] text-[#D8D4E7]">
               Get real-time push notifications for notices, attendance warnings, class reminders, and more.
             </p>
-            <div className="mt-4 flex items-baseline gap-1">
-              <span className="text-3xl font-bold text-[#F7F4FF]">₹19</span>
-              <span className="text-[13px] text-[#9F9AB5]">/month</span>
-            </div>
-            <p className="mt-1 text-[10px] text-[#9F9AB5]">UPI autopay · Cancel anytime</p>
+
 
             <button
               type="button"

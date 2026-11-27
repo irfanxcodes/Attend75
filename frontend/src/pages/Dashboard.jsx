@@ -17,6 +17,7 @@ import { calculateTotalAbsents } from '../utils/dashboardMetrics'
 import { loadAttendanceSnapshot } from '../services/sessionPersistence'
 import StaleDataBadge from '../components/common/StaleDataBadge'
 import ArcadeBanner from '../components/arcade/ArcadeBanner'
+import SupportCard from '../components/support/SupportCard'
 import { fetchActiveAdvertisement } from '../services/advertisementApi'
 
 const AD_MEDIA_BASE = import.meta.env.DEV
@@ -386,6 +387,9 @@ function Dashboard() {
           <div className="rounded-lg border border-[#FF5B5B]/40 bg-[#FF5B5B]/15 px-3 py-1.5 text-[11px] text-[#F7F4FF]">{ui.error}</div>
         ) : null}
 
+        {/* Support card — daily-rotating contribution card */}
+        <SupportCard />
+
         {/* Quick stats banner — replaced by ad banner when an active ad exists */}
         {activeAd ? (
           <div data-walkthrough="quick-stats" className="relative overflow-hidden rounded-xl ring-1 ring-white/5">
@@ -651,6 +655,10 @@ function Dashboard() {
         </div>
 
         <div data-walkthrough="desktop-attendance-ring" className="grid gap-2.5 xl:grid-cols-[1fr_340px]">
+          {/* Support card — desktop */}
+          <div className="xl:col-span-2">
+            <SupportCard />
+          </div>
           <AttendanceCircle
             percentage={overallPercentage}
             totalClasses={totals.totalClasses}

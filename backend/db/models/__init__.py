@@ -6,9 +6,7 @@ from db.models.notice import Notice
 from db.models.notification_history import NotificationHistory
 from db.models.notification_job import NotificationJob
 from db.models.notification_preference import NotificationPreference
-from db.models.payment_transaction import PaymentTransaction
 from db.models.portal_credential import PortalCredential
-from db.models.premium_subscription import PremiumSubscription
 from db.models.premium_waitlist import PremiumWaitlist
 from db.models.push_subscription import PushSubscription
 from db.models.studyme_event import StudyMeEvent
@@ -36,6 +34,9 @@ from db.models.slide_teaching_script import SlideTeachingScript
 # Storage cap
 from db.models.storage_cap_state import StorageCapState
 
+# Support contributions
+from db.models.support_contribution import SupportContribution
+
 # Notes Solver models
 from db.models.notes_problem_set import NotesProblemSet
 from db.models.notes_problem import NotesProblem
@@ -50,9 +51,7 @@ __all__ = [
     "NotificationHistory",
     "NotificationJob",
     "NotificationPreference",
-    "PaymentTransaction",
     "PortalCredential",
-    "PremiumSubscription",
     "PremiumWaitlist",
     "PushSubscription",
     "StudyMeEvent",
@@ -75,6 +74,8 @@ __all__ = [
     "SlideTeachingScript",
     # Storage cap
     "StorageCapState",
+    # Support contributions
+    "SupportContribution",
     # Notes Solver
     "NotesProblemSet",
     "NotesProblem",

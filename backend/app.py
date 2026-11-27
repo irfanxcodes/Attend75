@@ -34,6 +34,7 @@ from routers.notes import router as notes_router
 from routers.notices import router as notices_router
 from routers.push import router as push_router
 from routers.premium import router as premium_router
+from routers.support import router as support_router
 from routers.studyme import router as studyme_router
 from routers.workspace import router as workspace_router  # StudyMe 2.0
 from routers.internal import router as internal_router
@@ -267,6 +268,7 @@ app.include_router(workspace_router)   # StudyMe 2.0 Canvas endpoints
 app.include_router(notices_router)
 app.include_router(push_router)
 app.include_router(premium_router)
+app.include_router(support_router)
 app.include_router(studyme_router)
 
 # Serve uploaded ad media (images/videos) as static files

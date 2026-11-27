@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Crown, LogOut, Share2, Star, MessageSquare, Settings, Bell, BellOff, X, ChevronRight } from 'lucide-react'
+import { LogOut, Share2, Star, MessageSquare, Settings, Bell, BellOff, X, ChevronRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { FollowCreatorSection } from '../components/common/FollowCreatorBanner'
 import useAppStore from '../hooks/useAppStore'
@@ -7,7 +7,6 @@ import { fetchSessionStatus, fetchUserRating, submitFeedback, submitRating } fro
 import { useInstallPrompt } from '../pwa/useInstallPrompt'
 import { getPreferences, updatePreferences } from '../services/pushApi'
 import { requestPushSubscription, isPushSubscribed, getNotificationPermission, ensurePushRegistered } from '../pwa/push/subscribe'
-import { getPremiumStatus } from '../services/premiumApi'
 
 function getInitials(name) {
   if (!name) return 'A'
@@ -42,16 +41,6 @@ function Profile() {
   const [feedbackError, setFeedbackError] = useState('')
 
   const { canInstall, isInstalled, promptInstall, isIOS } = useInstallPrompt()
-
-  // ── Premium status ──────────────────────────────────────────────────────────
-  const [premiumStatus, setPremiumStatus] = useState(null) // null=loading, {is_premium, status, expiry_date, ...}
-
-  useEffect(() => {
-    if (!session.token) return
-    getPremiumStatus({ token: session.token })
-      .then(setPremiumStatus)
-      .catch(() => setPremiumStatus({ is_premium: false, status: 'none' }))
-  }, [session.token])
 
   // ── Settings sheet state ──────────────────────────────────────────────────
   const [showSettings, setShowSettings] = useState(false)
@@ -99,10 +88,7 @@ function Profile() {
       setIosMessage('SUCCESS')
     } catch (err) {
       const code = err?.code || ''
-      if (code === 'PREMIUM_REQUIRED') {
-        setShowSettings(false)
-        navigate('/app/premium')
-      } else if (code === 'SESSION_EXPIRED') {
+      if (code === 'SESSION_EXPIRED') {
         setIosMessage('Your session has expired. Please close this, go back, and log in again.')
       } else if (code === 'IOS_INSTALL_REQUIRED') {
         setIosMessage('To get notifications on iPhone, install the app first:\n\nIn Safari → tap Share (⬆) → "Add to Home Screen"\n\nThen open from your home screen and enable here.')
