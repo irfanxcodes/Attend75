@@ -18,22 +18,9 @@ function getCardStyleForToday() {
   return CARD_STYLES[dayOfYear % CARD_STYLES.length]
 }
 
-// UPI deep-link — tapped on device, opens GPay / PhonePe / Paytm directly
-function buildUpiDeepLink(amount) {
-  return `upi://pay?pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent(UPI_NAME)}&am=${amount}&cu=INR`
-}
-
-// UPI QR value — same scheme, scanned by any UPI app camera
+// UPI QR value — scanned by any UPI app camera from inside the app (trusted)
 function buildUpiQrValue(amount) {
   return `upi://pay?pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent(UPI_NAME)}&am=${amount}&cu=INR`
-}
-
-// App-specific deep links — more trusted than generic upi:// from browser context
-function buildGPayLink(amount) {
-  return `tez://upi/pay?pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent(UPI_NAME)}&am=${amount}&cu=INR`
-}
-function buildPhonePeLink(amount) {
-  return `phonepe://pay?pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent(UPI_NAME)}&am=${amount}&cu=INR`
 }
 
 // ── Custom Amount Modal ───────────────────────────────────────────────────────
@@ -127,25 +114,26 @@ function ThankYouModal({ onClose }) {
 }
 
 // ── Copy UPI ID button ───────────────────────────────────────────────────────
-function CopyUpiButton({ amount, labelColor, subtextColor, textColor, onCopied }) {
+function CopyUpiButton({ labelColor, subtextColor, textColor, onCopied }) {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(UPI_ID).then(() => {
-      setCopied(true)
-      onCopied?.()
-      setTimeout(() => setCopied(false), 2000)
-    }).catch(() => {
-      // Fallback for browsers without clipboard API
+    const copy = (text) => {
+      if (navigator.clipboard?.writeText) {
+        return navigator.clipboard.writeText(text)
+      }
       const el = document.createElement('textarea')
-      el.value = UPI_ID
+      el.value = text
       document.body.appendChild(el)
       el.select()
       document.execCommand('copy')
       document.body.removeChild(el)
+      return Promise.resolve()
+    }
+    copy(UPI_ID).then(() => {
       setCopied(true)
       onCopied?.()
-      setTimeout(() => setCopied(false), 2000)
+      setTimeout(() => setCopied(false), 2500)
     })
   }
 
@@ -153,13 +141,13 @@ function CopyUpiButton({ amount, labelColor, subtextColor, textColor, onCopied }
     <button
       type="button"
       onClick={handleCopy}
-      className="w-full rounded-xl py-1.5 text-[10px] font-bold transition active:scale-95 text-center"
+      className="w-full rounded-xl py-1.5 text-[10px] font-bold transition active:scale-95 text-center leading-tight"
       style={copied
         ? { background: 'rgba(78,240,160,0.15)', color: '#4EF0A0', border: '1px solid rgba(78,240,160,0.3)' }
         : { background: 'rgba(255,255,255,0.07)', color: textColor, border: '1px solid rgba(255,255,255,0.1)' }
       }
     >
-      {copied ? '✓ Copied!' : `Copy UPI ID`}
+      {copied ? '✓ Copied!' : 'Copy UPI ID'}
     </button>
   )
 }
@@ -221,12 +209,12 @@ function CardBody({ label, labelColor = '#FF916C', heading, subtext, subtextColo
           )}
         </div>
 
-        {/* ── RIGHT — QR + actions ── */}
+        {/* ── RIGHT — QR + Copy UPI ── */}
         <div
           className="flex flex-col items-center justify-between px-3 py-3.5 gap-2 shrink-0"
           style={{ borderLeft: border || '1px solid rgba(255,255,255,0.07)' }}
         >
-          {/* QR — scan only */}
+          {/* QR — scan from inside GPay / PhonePe */}
           <div>
             <div className="rounded-lg overflow-hidden shadow-sm">
               <QRCodeSVG
@@ -241,28 +229,8 @@ function CardBody({ label, labelColor = '#FF916C', heading, subtext, subtextColo
             <p className="text-center mt-1 text-[8px] font-semibold uppercase tracking-wide" style={{ color: subtextColor }}>Scan to pay</p>
           </div>
 
-          {/* Copy UPI ID */}
-          <CopyUpiButton amount={amount || PRESETS[0]} labelColor={labelColor} subtextColor={subtextColor} textColor={textColor} onCopied={onPayClick} />
-
-          {/* App shortcuts */}
-          <div className="flex gap-2 w-full">
-            <a
-              href={buildGPayLink(amount || PRESETS[0])}
-              onClick={onPayClick}
-              className="flex-1 flex items-center justify-center rounded-lg py-1 text-[10px] font-bold transition active:scale-95"
-              style={{ background: 'rgba(255,255,255,0.08)', color: textColor }}
-            >
-              GPay
-            </a>
-            <a
-              href={buildPhonePeLink(amount || PRESETS[0])}
-              onClick={onPayClick}
-              className="flex-1 flex items-center justify-center rounded-lg py-1 text-[10px] font-bold transition active:scale-95"
-              style={{ background: 'rgba(255,255,255,0.08)', color: textColor }}
-            >
-              PhonePe
-            </a>
-          </div>
+          {/* Copy UPI ID — single clean action */}
+          <CopyUpiButton labelColor={labelColor} subtextColor={subtextColor} textColor={textColor} onCopied={onPayClick} />
         </div>
       </div>
       {children}
