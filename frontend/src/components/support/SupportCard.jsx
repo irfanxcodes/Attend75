@@ -3,7 +3,6 @@
  * Rotates through 6 styles, one per day (global — same card for all users each day).
  */
 import { useEffect, useRef, useState } from 'react'
-import { QRCodeSVG } from 'qrcode.react'
 import useAppStore from '../../hooks/useAppStore'
 import { getSupportStats, markThanked, trackSupportEvent } from '../../services/supportApi'
 
@@ -18,10 +17,10 @@ function getCardStyleForToday() {
   return CARD_STYLES[dayOfYear % CARD_STYLES.length]
 }
 
-// UPI QR value — scanned by any UPI app camera from inside the app (trusted)
-function buildUpiQrValue(amount) {
-  return `upi://pay?pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent(UPI_NAME)}&am=${amount}&cu=INR`
-}
+// UPI QR value kept for reference (not used in card — static image used instead)
+// function buildUpiQrValue(amount) {
+//   return `upi://pay?pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent(UPI_NAME)}&am=${amount}&cu=INR`
+// }
 
 // ── Custom Amount Modal ───────────────────────────────────────────────────────
 function CustomAmountModal({ onConfirm, onClose }) {
@@ -214,16 +213,15 @@ function CardBody({ label, labelColor = '#FF916C', heading, subtext, subtextColo
           className="flex flex-col items-center justify-between px-3 py-3.5 gap-2 shrink-0"
           style={{ borderLeft: border || '1px solid rgba(255,255,255,0.07)' }}
         >
-          {/* QR — scan from inside GPay / PhonePe */}
+          {/* Static PhonePe QR — works with all UPI apps */}
           <div>
-            <div className="rounded-lg overflow-hidden shadow-sm">
-              <QRCodeSVG
-                value={buildUpiQrValue(amount || PRESETS[0])}
-                size={96}
-                bgColor={qrBg}
-                fgColor={qrFg}
-                level="M"
-                style={{ display: 'block' }}
+            <div className="rounded-lg overflow-hidden shadow-sm bg-white p-1">
+              <img
+                src="/phonepe-qr.jpeg"
+                alt="Scan to pay via UPI"
+                width={96}
+                height={96}
+                style={{ display: 'block', width: 96, height: 96, objectFit: 'cover' }}
               />
             </div>
             <p className="text-center mt-1 text-[8px] font-semibold uppercase tracking-wide" style={{ color: subtextColor }}>Scan to pay</p>
