@@ -74,17 +74,17 @@ function CopyBtn({ onCopied, style = {}, className = '' }) {
 // ══════════════════════════════════════════════════════════════════════════════
 function PulseCard({ onAction }) {
   return (
-    <div className="relative flex items-center gap-5 rounded-3xl overflow-hidden px-6 py-5"
-      style={{ background: 'radial-gradient(120% 140% at 100% 0,#2a2f57 0,#0f1424 55%)', minHeight: 140 }}>
+    <div className="relative flex items-center gap-5 rounded-3xl overflow-hidden px-4 py-3"
+      style={{ background: 'radial-gradient(120% 140% at 100% 0,#2a2f57 0,#0f1424 55%)', minHeight: 100 }}>
       <div className="flex-1 min-w-0 z-10">
         <div className="flex items-center gap-2 mb-2">
           <span className="h-2 w-2 rounded-full bg-[#ff5d7a] inline-block animate-[beat_1.2s_infinite]" />
           <span className="text-[10px] font-black uppercase tracking-[.16em] text-[#ff7a92]">Contribute</span>
         </div>
-        <h2 className="text-[22px] font-bold leading-[1.1] text-white mb-1" style={{ fontFamily: 'Georgia, serif' }}>
+        <h2 className="text-[18px] font-bold leading-[1.15] text-white mb-1" style={{ fontFamily: 'Georgia, serif' }}>
           Small gifts. Big change.
         </h2>
-        <p className="text-[12px] text-[#b9bfd6] leading-relaxed mb-3">
+        <p className="text-[11px] text-[#b9bfd6] leading-snug mb-2">
           Scan with any UPI app. Every contribution keeps this free.
         </p>
         <CopyBtn onCopied={onAction} />
@@ -93,7 +93,7 @@ function PulseCard({ onAction }) {
       <div className="relative z-10 shrink-0">
         <div className="absolute inset-0 rounded-2xl border-2 border-[#ff5d7a] animate-[ring_2.4s_ease-out_infinite]" />
         <div className="absolute inset-0 rounded-2xl border-2 border-[#ff5d7a] animate-[ring_2.4s_ease-out_0.6s_infinite]" />
-        <QRImage size={96} />
+        <QRImage size={112} />
         {/* scan line */}
         <div className="absolute left-[7px] right-[7px] h-[2px] rounded-full bg-[#ff5d7a] animate-[scanline_2.2s_ease-in-out_infinite_alternate]"
           style={{ top: 8, boxShadow: '0 0 12px 2px #ff5d7a' }} />
@@ -112,11 +112,11 @@ function ProgressCard({ stats, onAction }) {
   const pct = Math.min(100, Math.round((raised / goal) * 100))
 
   return (
-    <div className="flex items-center gap-5 rounded-3xl px-6 py-5"
-      style={{ background: '#fff6e9', border: '1px solid #f0dfc4', minHeight: 140 }}>
+    <div className="flex items-center gap-5 rounded-3xl px-4 py-3"
+      style={{ background: '#fff6e9', border: '1px solid #f0dfc4', minHeight: 100 }}>
       <div className="flex-1 min-w-0">
         <span className="text-[10px] font-black uppercase tracking-[.16em] text-[#167a52]">Community goal</span>
-        <h2 className="text-[22px] font-bold leading-[1.1] text-[#2b1d12] mt-1 mb-3" style={{ fontFamily: 'Georgia, serif' }}>
+        <h2 className="text-[18px] font-bold leading-[1.15] text-[#2b1d12] mt-1 mb-3" style={{ fontFamily: 'Georgia, serif' }}>
           Every rupee gets us closer.
         </h2>
         {/* striped progress bar */}
@@ -144,7 +144,7 @@ function ProgressCard({ stats, onAction }) {
         backgroundRepeat: 'no-repeat',
         animation: 'breathe 2s ease-in-out infinite',
       }}>
-        <QRImage size={90} style={{ boxShadow: '0 0 0 1px #ecdcc2' }} />
+        <QRImage size={112} style={{ boxShadow: '0 0 0 1px #ecdcc2' }} />
       </div>
     </div>
   )
@@ -157,18 +157,18 @@ function TicketCard({ onAction }) {
   return (
     <div className="relative flex rounded-3xl overflow-hidden"
       style={{
-        background: '#ffd23f', color: '#1a1400', minHeight: 140,
+        background: '#ffd23f', color: '#1a1400', minHeight: 100,
         WebkitMask: 'radial-gradient(circle 11px at calc(100% - 182px) 0,#0000 97%,#000) top/100% 51% no-repeat,radial-gradient(circle 11px at calc(100% - 182px) 100%,#0000 97%,#000) bottom/100% 51% no-repeat',
         mask: 'radial-gradient(circle 11px at calc(100% - 182px) 0,#0000 97%,#000) top/100% 51% no-repeat,radial-gradient(circle 11px at calc(100% - 182px) 100%,#0000 97%,#000) bottom/100% 51% no-repeat',
       }}>
       {/* left — shine sweep */}
-      <div className="flex-1 px-6 py-5 min-w-0"
+      <div className="flex-1 px-4 py-3 min-w-0"
         style={{ background: 'linear-gradient(105deg,transparent 40%,rgba(255,255,255,.45) 50%,transparent 60%) -120% 0/60% 100% no-repeat', animation: 'shine 4s ease-in-out infinite' }}>
         <span className="text-[10px] font-black uppercase tracking-[.16em] text-[#b8860b]">Admit one good deed</span>
-        <h2 className="text-[22px] font-bold leading-[1.1] text-[#1a1400] mt-1 mb-1" style={{ fontFamily: 'Georgia, serif' }}>
+        <h2 className="text-[18px] font-bold leading-[1.15] text-[#1a1400] mt-0.5 mb-1" style={{ fontFamily: 'Georgia, serif' }}>
           Give once. Help for good.
         </h2>
-        <p className="text-[12px] text-[#4a3d00] mb-3">Tear off the stub. Scan to contribute any amount.</p>
+        <p className="text-[11px] text-[#4a3d00] mb-2">Tear off the stub. Scan to contribute any amount.</p>
         <CopyBtn onCopied={onAction} style={{ background: 'rgba(0,0,0,0.1)', color: '#1a1400', border: '1px solid rgba(0,0,0,0.2)' }} />
       </div>
       {/* perforation */}
@@ -185,7 +185,7 @@ function TicketCard({ onAction }) {
             <textPath href="#cp2" textLength="380" lengthAdjust="spacing">SCAN TO DONATE · SCAN TO DONATE · </textPath>
           </text>
         </svg>
-        <QRImage size={86} style={{ border: '2px solid #1a1400' }} />
+        <QRImage size={112} style={{ border: '2px solid #1a1400' }} />
       </div>
     </div>
   )
@@ -196,8 +196,8 @@ function TicketCard({ onAction }) {
 // ══════════════════════════════════════════════════════════════════════════════
 function EditorialCard({ onAction }) {
   return (
-    <div className="relative flex items-center gap-5 rounded-3xl px-6 py-5"
-      style={{ background: '#f7f3ec', border: '1px solid #e3dccd', color: '#1c1917', minHeight: 140 }}>
+    <div className="relative flex items-center gap-5 rounded-3xl px-4 py-3"
+      style={{ background: '#f7f3ec', border: '1px solid #e3dccd', color: '#1c1917', minHeight: 100 }}>
       <div className="flex-1 min-w-0 z-10">
         <span className="text-[10px] font-black uppercase tracking-[.16em] text-[#78716c]">An open invitation</span>
         <h2 className="mt-1 mb-1 leading-[1.1]"
@@ -211,11 +211,11 @@ function EditorialCard({ onAction }) {
             </svg>
           </span>
         </h2>
-        <p className="text-[12px] text-[#57534e] leading-relaxed mb-3">Give what feels right. Every contribution is counted and used.</p>
+        <p className="text-[11px] text-[#57534e] leading-snug mb-2">Give what feels right. Every contribution is counted and used.</p>
         <CopyBtn onCopied={onAction} style={{ background: 'rgba(224,69,43,0.1)', color: '#e0452b', border: '1px solid rgba(224,69,43,0.3)' }} />
       </div>
       <span className="text-[28px] text-[#e0452b] shrink-0 animate-[nudge_1.2s_ease-in-out_infinite]">→</span>
-      <QRImage size={94} style={{ boxShadow: '0 0 0 1.5px #1c1917' }} />
+      <QRImage size={112} style={{ boxShadow: '0 0 0 1.5px #1c1917' }} />
     </div>
   )
 }
@@ -231,18 +231,18 @@ function StickerCard({ onAction }) {
       <div className="absolute top-3 right-3 w-14 h-14 rounded-full bg-[#3ddc97] border-[3px] border-black grid place-items-center text-center text-[9px] font-black leading-tight z-20 animate-[wob2_2.6s_ease-in-out_infinite]">
         100%<br/>real
       </div>
-      <div className="flex items-center gap-4 px-5 py-4 pb-3" style={{ paddingBottom: 48 }}>
+      <div className="flex items-center gap-4 px-4 py-3 pb-3" style={{ paddingBottom: 38 }}>
         <div className="flex-1 min-w-0 z-10">
           <span className="text-[9px] font-black uppercase tracking-[.16em] text-black/60">tiny scan, real impact</span>
           <h2 className="mt-1 mb-1 leading-[1.1]"
-            style={{ fontFamily: 'Space Grotesk, system-ui, sans-serif', fontWeight: 700, fontSize: 'clamp(18px,4.4vw,26px)', letterSpacing: '-.02em' }}>
+            style={{ fontFamily: 'Space Grotesk, system-ui, sans-serif', fontWeight: 700, fontSize: 'clamp(16px,4vw,22px)', letterSpacing: '-.02em' }}>
             your ₹50 {'>'} your 4th <mark className="inline-block bg-[#ff5ca8] text-black px-2 border-[3px] border-black rounded-lg animate-[wob_3s_ease-in-out_infinite]">iced coffee</mark>
           </h2>
-          <p className="text-[12px] text-black/70 mb-3">zero guilt. maximum good vibes.</p>
+          <p className="text-[11px] text-black/70 mb-2">zero guilt. maximum good vibes.</p>
           <CopyBtn onCopied={onAction} style={{ background: 'rgba(0,0,0,0.1)', color: '#000', border: '2px solid #000' }} />
         </div>
         <div className="shrink-0 z-10">
-          <QRImage size={88} style={{ border: '3px solid #000', borderRadius: 14, boxShadow: '5px 5px 0 #000', transform: 'rotate(3deg)' }} />
+          <QRImage size={112} style={{ border: '3px solid #000', borderRadius: 14, boxShadow: '5px 5px 0 #000', transform: 'rotate(3deg)' }} />
         </div>
       </div>
       {/* ticker tape */}
@@ -265,8 +265,8 @@ function ChatCard({ stats, onAction }) {
     { text: `${stats?.contributors_this_month || 0} students already gave · no pressure 🥺`, big: false },
   ]
   return (
-    <div className="flex items-end gap-4 rounded-3xl px-5 py-5"
-      style={{ background: '#101114', border: '1px solid #26272c', minHeight: 140 }}>
+    <div className="flex items-end gap-4 rounded-3xl px-4 py-3"
+      style={{ background: '#101114', border: '1px solid #26272c', minHeight: 100 }}>
       <div className="flex-1 min-w-0 flex flex-col gap-1.5">
         {msgs.map((m, i) => (
           <div key={i} className={`inline-block rounded-[20px] rounded-bl-[6px] px-4 py-2 text-white ${m.big ? 'text-[15px] font-bold' : 'text-[13px] font-medium'}`}
@@ -278,7 +278,7 @@ function ChatCard({ stats, onAction }) {
       {/* blue bubble */}
       <div className="shrink-0 flex flex-col items-center gap-1">
         <div className="rounded-[22px] rounded-br-[6px] p-2.5 text-center" style={{ background: '#0a84ff' }}>
-          <QRImage size={88} style={{ borderRadius: 12 }} />
+          <QRImage size={112} style={{ borderRadius: 12 }} />
           <b className="block text-[11px] text-white mt-1.5">scan 2 donate 💸</b>
         </div>
         <CopyBtn onCopied={onAction} className="w-full mt-1"
@@ -293,8 +293,8 @@ function ChatCard({ stats, onAction }) {
 // ══════════════════════════════════════════════════════════════════════════════
 function ArcadeCard({ onAction }) {
   return (
-    <div className="relative flex items-center gap-5 rounded-[4px] overflow-hidden px-6 py-5"
-      style={{ background: '#1b1035', border: '4px solid #fff', boxShadow: '6px 6px 0 #ff4fa3', minHeight: 140, fontFamily: '"Press Start 2P", monospace' }}>
+    <div className="relative flex items-center gap-5 rounded-[4px] overflow-hidden px-4 py-3"
+      style={{ background: '#1b1035', border: '4px solid #fff', boxShadow: '6px 6px 0 #ff4fa3', minHeight: 100, fontFamily: '"Press Start 2P", monospace' }}>
       {/* scanlines */}
       <div className="absolute inset-0 pointer-events-none z-30"
         style={{ background: 'repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 1px,transparent 1px 3px)' }} />
@@ -304,8 +304,8 @@ function ArcadeCard({ onAction }) {
           <span className="text-[8px] font-black text-[#ffd23f] animate-[blink_1s_steps(2)_infinite]">INSERT COIN</span>
           <span className="text-[8px] text-[#ffd23f]">· P1</span>
         </div>
-        <h2 className="text-[13px] leading-[1.5] text-white mb-2" style={{ fontWeight: 400 }}>LEVEL UP SOMEONE'S DAY</h2>
-        <p className="text-[8px] text-[#cdbcff] leading-[1.9] mb-3">3/5 HEARTS. HELP US UNLOCK THE NEXT LEVEL.</p>
+        <h2 className="text-[11px] leading-[1.5] text-white mb-2" style={{ fontWeight: 400 }}>LEVEL UP SOMEONE'S DAY</h2>
+        <p className="text-[7px] text-[#cdbcff] leading-[1.7] mb-2">3/5 HEARTS. HELP US UNLOCK THE NEXT LEVEL.</p>
         {/* pixel hearts */}
         <div className="flex gap-1.5 mb-3">
           {[true,true,true,false,false].map((on, i) => (
@@ -316,7 +316,7 @@ function ArcadeCard({ onAction }) {
         </div>
         <CopyBtn onCopied={onAction} style={{ background: 'rgba(255,79,163,0.2)', color: '#ff4fa3', border: '2px solid #ff4fa3', fontFamily: 'inherit', fontSize: 8 }} />
       </div>
-      <QRImage size={94} style={{ border: '4px solid #fff', borderRadius: 0, boxShadow: '6px 6px 0 #ff4fa3' }} />
+      <QRImage size={112} style={{ border: '4px solid #fff', borderRadius: 0, boxShadow: '6px 6px 0 #ff4fa3' }} />
     </div>
   )
 }
@@ -326,12 +326,12 @@ function ArcadeCard({ onAction }) {
 // ══════════════════════════════════════════════════════════════════════════════
 function HoloCard({ onAction }) {
   return (
-    <div className="relative flex items-center gap-5 rounded-3xl overflow-hidden px-6 py-5"
+    <div className="relative flex items-center gap-5 rounded-3xl overflow-hidden px-4 py-3"
       style={{
         background: 'linear-gradient(#0e0b1a,#0e0b1a) padding-box, conic-gradient(from 0deg,#ff6ac1,#7a5cff,#22d3ee,#a3ff6a,#ffd166,#ff6ac1) border-box',
         border: '3px solid transparent',
         animation: 'holoSpin 6s linear infinite',
-        minHeight: 140, color: '#fff',
+        minHeight: 100, color: '#fff',
       }}>
       {/* sparkles */}
       {[{l:'48%',t:'14px'},{l:'70%',b:'18px',fs:12},{l:'34%',b:'14px',fs:10}].map((s,i) => (
@@ -343,7 +343,7 @@ function HoloCard({ onAction }) {
         <h2 className="mt-1 mb-1 leading-[1.1] font-bold"
           style={{
             fontFamily: 'Space Grotesk, system-ui, sans-serif',
-            fontSize: 'clamp(24px,5.5vw,36px)',
+            fontSize: 'clamp(18px,4.6vw,28px)',
             background: 'linear-gradient(90deg,#ff6ac1,#7a5cff,#22d3ee,#a3ff6a,#ff6ac1)',
             backgroundSize: '300% 100%',
             WebkitBackgroundClip: 'text',
@@ -351,10 +351,10 @@ function HoloCard({ onAction }) {
             backgroundClip: 'text',
             animation: 'gradShift 5s linear infinite',
           }}>Be iconic. Give.</h2>
-        <p className="text-[12px] text-[#c9c4e0] mb-3">limited edition: u, being kind. ✨ shiny, rare, and 100% free to own.</p>
+        <p className="text-[11px] text-[#c9c4e0] mb-2">limited edition: u, being kind. ✨ shiny, rare, and 100% free to own.</p>
         <CopyBtn onCopied={onAction} style={{ background: 'rgba(122,92,255,0.2)', color: '#c4b5fd', border: '1px solid rgba(122,92,255,0.4)' }} />
       </div>
-      <QRImage size={94} style={{ boxShadow: '0 0 0 3px #0e0b1a, 0 0 0 5px #7a5cff, 0 0 30px rgba(122,92,255,.7)' }} />
+      <QRImage size={112} style={{ boxShadow: '0 0 0 3px #0e0b1a, 0 0 0 5px #7a5cff, 0 0 30px rgba(122,92,255,.7)' }} />
     </div>
   )
 }
@@ -365,13 +365,13 @@ function HoloCard({ onAction }) {
 function ReceiptCard({ onAction }) {
   return (
     <div style={{ filter: 'drop-shadow(0 8px 16px rgba(0,0,0,.35))' }}>
-      <div className="relative flex items-center gap-0 overflow-hidden px-7 py-8"
+      <div className="relative flex items-center gap-0 overflow-hidden px-5 py-5"
         style={{
           background: '#fffdf6', color: '#222',
           fontFamily: '"Space Mono", monospace',
           WebkitMask: 'conic-gradient(from -45deg at bottom,#0000,#000 1deg 89deg,#0000 90deg) bottom/14px 51% repeat-x,conic-gradient(from 135deg at top,#0000,#000 1deg 89deg,#0000 90deg) top/14px 51% repeat-x',
           mask: 'conic-gradient(from -45deg at bottom,#0000,#000 1deg 89deg,#0000 90deg) bottom/14px 51% repeat-x,conic-gradient(from 135deg at top,#0000,#000 1deg 89deg,#0000 90deg) top/14px 51% repeat-x',
-          minHeight: 170,
+          minHeight: 120,
         }}>
         <div className="flex-1 min-w-0">
           <h2 className="text-[12px] font-bold uppercase leading-[1.3] mb-2" style={{ letterSpacing: '.02em' }}>
@@ -396,7 +396,7 @@ function ReceiptCard({ onAction }) {
         </div>
         {/* right stub */}
         <div className="shrink-0 text-center border-l-2 border-dashed border-[#999] pl-5 ml-3 flex flex-col items-center gap-1.5">
-          <QRImage size={96} style={{ borderRadius: 0 }} />
+          <QRImage size={112} style={{ borderRadius: 0 }} />
           <span className="text-[9px] font-bold tracking-[.08em] text-[#222]">SCAN TO PAY</span>
           <CopyBtn onCopied={onAction} style={{ background: 'rgba(0,0,0,0.07)', color: '#222', border: '1px solid rgba(0,0,0,0.2)', fontSize: 9 }} />
           <span className="text-[9px] text-[#666]">thank u, come again :)</span>
