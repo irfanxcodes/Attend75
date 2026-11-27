@@ -12,6 +12,11 @@ const UPI_NAME = 'Attend75'
 const PRESETS  = [49, 99, 149]
 const CARD_STYLES = ['pulse', 'aurora', 'ticket', 'pick', 'sticker', 'chat']
 
+function getCardStyleForToday() {
+  const dayOfYear = Math.floor(Date.now() / 86400000)
+  return CARD_STYLES[dayOfYear % CARD_STYLES.length]
+}
+
 // ── Custom Amount Modal ───────────────────────────────────────────────────────
 function CustomAmountModal({ onConfirm, onClose }) {
   const [val, setVal] = useState('')
