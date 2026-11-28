@@ -79,10 +79,10 @@ function PulseCard({ onAction }) {
           <span className="text-[9px] font-black uppercase tracking-[.16em] text-[#ff7a92]">Contribute</span>
         </div>
         <h2 className="text-[17px] font-bold leading-[1.2] text-white mb-1" style={{ fontFamily: 'Georgia, serif' }}>
-          Attend75 is free.<br/>Help keep it that way.
+          Keep Attend75 free.
         </h2>
         <p className="text-[10px] text-[#b9bfd6] leading-snug mb-2.5">
-          Scan with any UPI app to contribute.
+          Scan to contribute anything.
         </p>
         <CopyBtn onCopied={onAction} />
       </div>
@@ -110,7 +110,7 @@ function ProgressCard({ stats, onAction }) {
       <div className="flex-1 min-w-0">
         <span className="text-[9px] font-black uppercase tracking-[.16em] text-[#167a52]">Community goal</span>
         <h2 className="text-[17px] font-bold leading-[1.2] text-[#2b1d12] mt-1 mb-2" style={{ fontFamily: 'Georgia, serif' }}>
-          Every rupee keeps<br/>1,200 students tracking.
+          Free for students.<br/>Funded by students.
         </h2>
         <div className="h-2.5 rounded-full overflow-hidden mb-1.5" style={{ background: '#ecdcc2' }}>
           <div className="h-full rounded-full" style={{
@@ -121,7 +121,7 @@ function ProgressCard({ stats, onAction }) {
           }} />
         </div>
         <p className="text-[10px] text-[#6b5844] mb-2.5">
-          <strong className="text-[#2b1d12]">{count}</strong> students contributed this month
+          <strong className="text-[#2b1d12]">{count}</strong> students contributed · every rupee helps
         </p>
         <CopyBtn onCopied={onAction}
           style={{ background: 'rgba(22,122,82,0.12)', color: '#167a52', border: '1px solid rgba(22,122,82,0.3)' }} />
@@ -155,9 +155,9 @@ function TicketCard({ onAction }) {
         style={{ background: 'linear-gradient(105deg,transparent 40%,rgba(255,255,255,.45) 50%,transparent 60%) -120% 0/60% 100% no-repeat', animation: 'shine 4s ease-in-out infinite' }}>
         <span className="text-[9px] font-black uppercase tracking-[.16em] text-[#b8860b]">Admit one good deed</span>
         <h2 className="text-[17px] font-bold leading-[1.2] text-[#1a1400] mt-1 mb-1" style={{ fontFamily: 'Georgia, serif' }}>
-          Scan. Pay any amount.<br/>Keep Attend75 alive.
+          One scan. Any amount.
         </h2>
-        <p className="text-[10px] text-[#4a3d00] mb-2.5">No sign-up. No receipts. Just good vibes.</p>
+        <p className="text-[10px] text-[#4a3d00] mb-2.5">No sign-up. No receipts.</p>
         <CopyBtn onCopied={onAction} style={{ background: 'rgba(0,0,0,0.1)', color: '#1a1400', border: '1px solid rgba(0,0,0,0.2)' }} />
       </div>
       <div className="relative w-4 flex flex-col items-center justify-center shrink-0">
@@ -189,15 +189,15 @@ function EditorialCard({ onAction }) {
         <span className="text-[9px] font-black uppercase tracking-[.16em] text-[#78716c]">An open invitation</span>
         <h2 className="mt-1 mb-1 leading-[1.2]"
           style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontWeight: 600, fontSize: 'clamp(16px,4vw,22px)', color: '#1c1917' }}>
-          Your attendance is free.{' '}
+          The app is free.{' '}
           <span className="relative inline-block not-italic">
-            Our costs aren't.
+            The server isn't.
             <svg className="absolute left-0 w-full overflow-visible" style={{ bottom: -5, height: 10 }} viewBox="0 0 200 10" preserveAspectRatio="none">
               <path d="M2 6 C40 1 80 9 120 4 S180 6 198 3" stroke="#e0452b" strokeWidth="3" fill="none" strokeLinecap="round" strokeDasharray="240" strokeDashoffset="0" />
             </svg>
           </span>
         </h2>
-        <p className="text-[10px] text-[#57534e] leading-snug mb-2.5">Give what feels right. Every contribution is counted.</p>
+        <p className="text-[10px] text-[#57534e] leading-snug mb-2.5">Contribute what feels right.</p>
         <CopyBtn onCopied={onAction} style={{ background: 'rgba(224,69,43,0.1)', color: '#e0452b', border: '1px solid rgba(224,69,43,0.3)' }} />
       </div>
       <span className="text-[26px] text-[#e0452b] shrink-0 animate-[nudge_1.2s_ease-in-out_infinite]">→</span>
@@ -219,9 +219,9 @@ function StickerCard({ onAction }) {
           <span className="text-[9px] font-black uppercase tracking-[.16em] text-black/60">tiny scan, real impact</span>
           <h2 className="mt-0.5 mb-0.5 leading-[1.15]"
             style={{ fontFamily: 'Space Grotesk, system-ui, sans-serif', fontWeight: 700, fontSize: 'clamp(15px,3.8vw,20px)', letterSpacing: '-.02em' }}>
-            skip 1 Swiggy order,<br/><mark className="inline-block bg-[#ff5ca8] text-black px-2 border-[3px] border-black rounded-lg animate-[wob_3s_ease-in-out_infinite]">keep us online</mark>
+            your ₹49 keeps us online <mark className="inline-block bg-[#ff5ca8] text-black px-2 border-[3px] border-black rounded-lg animate-[wob_3s_ease-in-out_infinite]">scan and go</mark>
           </h2>
-          <p className="text-[10px] text-black/70 mt-1 mb-2">zero guilt. maximum good vibes.</p>
+          <p className="text-[10px] text-black/70 mt-1 mb-2">zero guilt. scan and go.</p>
           <CopyBtn onCopied={onAction} style={{ background: 'rgba(0,0,0,0.1)', color: '#000', border: '2px solid #000' }} />
         </div>
         {/* QR — no badge on top of it */}
@@ -248,9 +248,9 @@ function StickerCard({ onAction }) {
 // ══════════════════════════════════════════════════════════════════════════════
 function ChatCard({ stats, onAction }) {
   const msgs = [
-    { text: 'attend75 is free for you rn 👀', big: false },
+    { text: 'we keep your attendance data safe 👀', big: false },
     { text: 'help us keep the servers on 🙏', big: true },
-    { text: `${stats?.contributors_this_month || 0} students already contributed · no pressure 🥺`, big: false },
+    { text: `${stats?.contributors_this_month || 0} students already gave · no pressure 🥺`, big: false },
   ]
   return (
     <div className="flex items-end gap-3 rounded-3xl px-4 py-3"
@@ -289,8 +289,8 @@ function ArcadeCard({ onAction }) {
           <span className="inline-block w-3.5 h-3.5 rounded-full bg-[#ffd23f] border-[3px] border-[#b8860b] animate-[coinflip_1s_linear_infinite]" />
           <span className="text-[7px] font-black text-[#ffd23f] animate-[blink_1s_steps(2)_infinite]">INSERT COIN</span>
         </div>
-        <h2 className="text-[10px] leading-[1.5] text-white mb-1" style={{ fontWeight: 400 }}>ATTEND75 NEEDS YOUR COINS</h2>
-        <p className="text-[7px] text-[#cdbcff] leading-[1.7] mb-2">FREE TO PLAY. COSTS TO RUN. HELP US STAY ONLINE.</p>
+        <h2 className="text-[10px] leading-[1.5] text-white mb-1" style={{ fontWeight: 400 }}>FREE TO USE. COSTS TO RUN.</h2>
+        <p className="text-[7px] text-[#cdbcff] leading-[1.7] mb-2">SCAN TO KEEP THE GAME GOING.</p>
         <div className="flex gap-1 mb-2">
           {[true,true,true,false,false].map((on, i) => (
             <svg key={i} className={`w-5 h-4 ${on ? 'text-[#ff4fa3]' : 'text-[#3d2a66]'}`} viewBox="0 0 7 6" style={{ shapeRendering: 'crispEdges' }}>
@@ -332,8 +332,8 @@ function HoloCard({ onAction }) {
             WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
             backgroundClip: 'text',
             animation: 'gradShift 5s linear infinite',
-          }}>Be the reason we stay free.</h2>
-        <p className="text-[10px] text-[#c9c4e0] mb-2.5">limited edition: you, keeping attend75 alive. ✨</p>
+          }}>Be the reason Attend75 stays free.</h2>
+        <p className="text-[10px] text-[#c9c4e0] mb-2.5">Rare move. Legendary impact. ✨</p>
         <CopyBtn onCopied={onAction} style={{ background: 'rgba(122,92,255,0.2)', color: '#c4b5fd', border: '1px solid rgba(122,92,255,0.4)' }} />
       </div>
       <QRImage style={{ boxShadow: '0 0 0 3px #0e0b1a, 0 0 0 5px #7a5cff, 0 0 28px rgba(122,92,255,.7)' }} />
@@ -356,11 +356,11 @@ function ReceiptCard({ onAction }) {
         }}>
         <div className="flex-1 min-w-0">
           <h2 className="text-[11px] font-bold uppercase leading-[1.3] mb-1.5" style={{ letterSpacing: '.02em' }}>
-            ★ attend75 server bill ★
+            ★ 1x Attend75 — FREE ★
           </h2>
           {[
             ['Attendance tracking', 'FREE'],
-            ['Notice board', 'FREE'],
+            ['Push notifications', 'FREE'],
             ['Server costs', '₹ real'],
           ].map(([l, r]) => (
             <div key={l} className="flex gap-2 text-[10px] leading-[1.6] items-end">
@@ -370,7 +370,7 @@ function ReceiptCard({ onAction }) {
             </div>
           ))}
           <div className="flex gap-2 text-[12px] font-bold items-end border-t-2 border-dashed border-[#222] mt-1.5 pt-1.5">
-            <span>YOU PAY</span>
+            <span>YOU CONTRIBUTE</span>
             <span className="flex-1 border-b-2 border-dotted border-[#999] mb-[5px]" />
             <span>₹ ur call</span>
           </div>
@@ -379,7 +379,7 @@ function ReceiptCard({ onAction }) {
           <QRImage style={{ borderRadius: 0 }} />
           <span className="text-[8px] font-bold tracking-[.08em] text-[#222]">SCAN TO PAY</span>
           <CopyBtn onCopied={onAction} style={{ background: 'rgba(0,0,0,0.07)', color: '#222', border: '1px solid rgba(0,0,0,0.2)', fontSize: 9 }} />
-          <span className="text-[8px] text-[#666]">thank u, come again :)</span>
+          <span className="text-[8px] text-[#666]">server costs — ₹ ur call</span>
         </div>
       </div>
     </div>
