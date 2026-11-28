@@ -233,7 +233,7 @@ function StickerCard({ onAction }) {
       {/* ticker tape */}
       <div className="absolute bottom-0 left-0 right-0 h-8 bg-black overflow-hidden flex items-center">
         <span className="whitespace-nowrap font-bold text-[11px] tracking-[.1em] text-[#ffe14d] animate-[marquee_14s_linear_infinite]">
-          SCAN 2 GIVE ★ NO CAP ★ SCAN 2 GIVE ★ NO CAP ★ SCAN 2 GIVE ★ NO CAP ★ SCAN 2 GIVE ★ NO CAP ★&nbsp;
+          KEEP US ONLINE ★ SCAN THE QR ★ COPY UPI ID ★ KEEP US ONLINE ★ SCAN THE QR ★ COPY UPI ID ★&nbsp;
         </span>
       </div>
     </div>
