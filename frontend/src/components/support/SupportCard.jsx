@@ -229,10 +229,7 @@ function StickerCard({ onAction }) {
           <QRImage style={{ border: '3px solid #000', borderRadius: 14, boxShadow: '5px 5px 0 #000', transform: 'rotate(2deg)' }} />
         </div>
       </div>
-      {/* badge — bottom-left, away from QR */}
-      <div className="absolute bottom-10 left-4 w-12 h-12 rounded-full bg-[#3ddc97] border-[3px] border-black grid place-items-center text-center text-[8px] font-black leading-tight z-20 animate-[wob2_2.6s_ease-in-out_infinite]">
-        100%<br/>real
-      </div>
+
       {/* ticker tape */}
       <div className="absolute bottom-0 left-0 right-0 h-8 bg-black overflow-hidden flex items-center">
         <span className="whitespace-nowrap font-bold text-[11px] tracking-[.1em] text-[#ffe14d] animate-[marquee_14s_linear_infinite]">
